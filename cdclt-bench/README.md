@@ -24,8 +24,16 @@ Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, aver
 
 ## Current results
 
-(none yet)
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, unoptimized baseline. Setup and noise: [results/2026-08-28-laraserver4.md](results/2026-08-28-laraserver4.md).
+
+| Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
+|---|---|---:|---:|---:|---:|---:|---:|
+| pigeonhole | n=30 | 0.002 | ± 0.000 | 2.2% | 0.002 | 0.002 | 5 × 5 |
+| pigeonhole | n=60 | 2.903 | ± 0.041 | 1.4% | 2.789 | 3.075 | 5 × 5 |
+| random3Sat | n=30 | 1.599 | ± 0.023 | 1.4% | 1.526 | 1.693 | 5 × 5 |
+| random3Sat | n=60 | 15.537 | ± 0.250 | 1.6% | 14.690 | 16.627 | 5 × 5 |
 
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
+- [2026-08-28, laraserver4](results/2026-08-28-laraserver4.md) — unoptimized baseline ([json](results/2026-08-28-laraserver4.json))
