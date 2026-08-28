@@ -9,6 +9,7 @@ Each benchmark builds and solves fresh instances. `n` is 30 or 60.
 | Benchmark | Workload | Exercises |
 |---|---|---|
 | `random3Sat` | ten random 3-SAT instances with `n` variables at clause/variable ratio 4.2 (near the threshold: a mix of sat and unsat) | propagation, learning, backjumping on unstructured instances |
+| `random5Sat` | ten random 5-SAT instances with `n` variables at ratio 15 (below the threshold, mostly sat): long clauses, many per variable | propagation cost per clause visit (where watched literals pay off) |
 | `pigeonhole` | `n / 8` pigeons into one hole less: unsat, exponential for resolution | learning on a structured, hard instance |
 
 ## Running

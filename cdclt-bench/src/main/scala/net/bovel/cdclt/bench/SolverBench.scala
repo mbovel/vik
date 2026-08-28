@@ -20,25 +20,31 @@ class SolverBench:
   @Param(Array("30", "60"))
   var n: Int = uninitialized
 
-  /** Ten random 3-SAT instances with `n` variables at the ratio 4.2 (a mix of
-   *  sat and unsat).
+  /** Solves ten random `k`-SAT instances with `n` variables and `ratio * n`
+   *  clauses; returns how many are sat.
    */
-  @Benchmark
-  def random3Sat(): Int =
+  private def randomKSat(k: Int, ratio: Double): Int =
     val rnd = Random(1)
     var sats = 0
     for _ <- 0 until 10 do
       val s = Solver(n)
-      for _ <- 0 until (4.2 * n).toInt do
-        s.addClause(
-          Lit(rnd.nextInt(n), rnd.nextBoolean()),
-          Lit(rnd.nextInt(n), rnd.nextBoolean()),
-          Lit(rnd.nextInt(n), rnd.nextBoolean())
-        )
+      for _ <- 0 until (ratio * n).toInt do s.addClause(Array.fill(k)(Lit(rnd.nextInt(n), rnd.nextBoolean())))
       s.solve() match
         case s.Result.Sat(_) => sats += 1
         case s.Result.Unsat => ()
     sats
+
+  /** Ten random 3-SAT instances at the ratio 4.2, near the threshold: a mix of
+   *  sat and unsat.
+   */
+  @Benchmark
+  def random3Sat(): Int = randomKSat(3, 4.2)
+
+  /** Ten random 5-SAT instances at the ratio 20, near the threshold: long
+   *  clauses, many per variable.
+   */
+  @Benchmark
+  def random5Sat(): Int = randomKSat(5, 15)
 
   /** The pigeonhole principle for `n / 10` pigeons and one hole less: unsat,
    *  and hard for resolution.
