@@ -30,8 +30,8 @@ class SolverBench:
       val s = Solver(n)
       for _ <- 0 until (ratio * n).toInt do s.addClause(Array.fill(k)(Lit(rnd.nextInt(n), rnd.nextBoolean())))
       s.solve() match
-        case s.Result.Sat(_) => sats += 1
-        case s.Result.Unsat => ()
+        case Solver.Result.Sat(_) => sats += 1
+        case Solver.Result.Unsat => ()
     sats
 
   /** Ten random 3-SAT instances at the ratio 4.2, near the threshold: a mix of
@@ -59,5 +59,5 @@ class SolverBench:
     for h <- 0 until holes; p <- 0 until pigeons; q <- p + 1 until pigeons do
       s.addClause(at(p, h).neg, at(q, h).neg)
     s.solve() match
-      case s.Result.Sat(_) => true
-      case s.Result.Unsat => false
+      case Solver.Result.Sat(_) => true
+      case Solver.Result.Unsat => false

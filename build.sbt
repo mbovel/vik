@@ -55,7 +55,7 @@ lazy val sexpr = projectMatrix
   .in(file("sexpr"))
   .settings(
     name := "sexpr",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -66,7 +66,7 @@ lazy val smt = projectMatrix
   .dependsOn(cdclt, egraph)
   .settings(
     name := "smt",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -77,7 +77,7 @@ lazy val smt2 = projectMatrix
   .dependsOn(sexpr, smt)
   .settings(
     name := "smt2",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
