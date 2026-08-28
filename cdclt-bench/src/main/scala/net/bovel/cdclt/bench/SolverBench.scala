@@ -51,7 +51,7 @@ class SolverBench:
     def at(p: Int, h: Int) = Lit(p * holes + h)
     for p <- 0 until pigeons do s.addClause(Array.tabulate(holes)(h => at(p, h)))
     for h <- 0 until holes; p <- 0 until pigeons; q <- p + 1 until pigeons do
-      s.addClause(Lit.neg(at(p, h)), Lit.neg(at(q, h)))
+      s.addClause(at(p, h).neg, at(q, h).neg)
     s.solve() match
       case s.Result.Sat(_) => true
       case s.Result.Unsat => false

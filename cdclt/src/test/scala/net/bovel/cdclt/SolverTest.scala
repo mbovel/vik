@@ -2,8 +2,6 @@ package net.bovel.cdclt
 
 import scala.collection.mutable.ArrayBuffer
 
-import Lit.{neg, positive, variable}
-
 class SolverTest extends munit.FunSuite:
 
   def sat(numVars: Int, clauses: Seq[Seq[Lit]], theory: Theory = NoTheory): Option[Array[Boolean]] =
@@ -14,14 +12,14 @@ class SolverTest extends munit.FunSuite:
       case s.Result.Unsat => None
 
   def satisfies(model: Array[Boolean], clauses: Seq[Seq[Lit]]): Boolean =
-    clauses.forall(_.exists(l => model(variable(l)) == positive(l)))
+    clauses.forall(_.exists(l => model(l.variable) == l.positive))
 
   test("literals"):
-    assertEquals(Lit(3), 6)
-    assertEquals(Lit(3, false), 7)
-    assertEquals(neg(Lit(3)), Lit(3, false))
-    assertEquals(variable(Lit(3, false)), 3)
-    assert(positive(Lit(3)) && !positive(Lit(3, false)))
+    assertEquals(Lit(3).index, 6)
+    assertEquals(Lit(3, false).index, 7)
+    assertEquals(Lit(3).neg, Lit(3, false))
+    assertEquals(Lit(3, false).variable, 3)
+    assert(Lit(3).positive && !Lit(3, false).positive)
 
   test("empty problem is sat"):
     assert(sat(0, Nil).isDefined)
@@ -36,7 +34,7 @@ class SolverTest extends munit.FunSuite:
   test("the four clauses over two variables are unsat"):
     val x = Lit(0)
     val y = Lit(1)
-    assertEquals(sat(2, Seq(Seq(x, y), Seq(neg(x), y), Seq(x, neg(y)), Seq(neg(x), neg(y)))), None)
+    assertEquals(sat(2, Seq(Seq(x, y), Seq(x.neg, y), Seq(x, y.neg), Seq(x.neg, y.neg))), None)
 
   test("learning: a conflict below the first decision level backjumps"):
     // Decisions x0 = false, x1 = false, ... ; the clauses force a conflict involving x0 only after several decisions.
@@ -76,7 +74,7 @@ class SolverTest extends munit.FunSuite:
     private val trueAtoms = ArrayBuffer.empty[Var]
     private val marks = ArrayBuffer.empty[Int]
     private val implied = collection.mutable.HashMap.empty[Var, Seq[Var]] // false atom -> the true atoms that imply it
-    def assertLit(lit: Lit): Unit = if positive(lit) then trueAtoms += variable(lit)
+    def assertLit(lit: Lit): Unit = if lit.positive then trueAtoms += lit.variable
     def propagate(): Theory.Result =
       for (atoms, k) <- groups do
         val t = atoms.filter(trueAtoms.contains)
@@ -89,7 +87,7 @@ class SolverTest extends munit.FunSuite:
             implied(a) = t
             out += Lit(a, false)
       Theory.Result.Ok(out)
-    def explain(lit: Lit): ArrayBuffer[Lit] = ArrayBuffer.from(implied(variable(lit)).map(Lit(_)))
+    def explain(lit: Lit): ArrayBuffer[Lit] = ArrayBuffer.from(implied(lit.variable).map(Lit(_)))
     def push(): Unit = marks += trueAtoms.length
     def pop(): Unit = trueAtoms.takeInPlace(marks.remove(marks.length - 1))
 

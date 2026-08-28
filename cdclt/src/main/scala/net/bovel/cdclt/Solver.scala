@@ -2,8 +2,6 @@ package net.bovel.cdclt
 
 import scala.collection.mutable.ArrayBuffer
 
-import Lit.{neg, variable}
-
 /** A CDCL(T) solver over `numVars` variables and the clauses given to
  *  [[addClause]], with `theory` deciding the atoms.
  *
@@ -73,18 +71,18 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
   def addClause(lits: Array[Lit]): Unit =
     require(decisionLevel == 0, "clauses are added before solving")
     val c = lits.distinct
-    if c.exists(l => c.contains(neg(l))) then return // a tautology
+    if c.exists(l => c.contains(l.neg)) then return // a tautology
     val index = clauses.length
     clauses += c
-    for l <- c do occurs(l) += index
+    for l <- c do occurs(l.index) += index
     // The literals of `c` that are already false were propagated before `c` existed; examine it now.
     if examine(c, index) then unsat = true
 
   private def enqueue(lit: Lit, why: Int): Unit =
-    value(lit) = 1
-    value(neg(lit)) = -1
-    level(variable(lit)) = decisionLevel
-    reason(variable(lit)) = why
+    value(lit.index) = 1
+    value(lit.neg.index) = -1
+    level(lit.variable) = decisionLevel
+    reason(lit.variable) = why
     trail += lit
 
   /** Propagates from clause `c` (index `index`) if it is unit, moving the
@@ -96,8 +94,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     var i = 0
     while i < c.length do
       val l = c(i)
-      if value(l) > 0 then return false
-      if value(l) == 0 then
+      if value(l.index) > 0 then return false
+      if value(l.index) == 0 then
         unassigned += 1
         unit = i
       i += 1
@@ -119,18 +117,18 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         val p = trail(qhead)
         qhead += 1
         theory.assertLit(p)
-        for index <- occurs(neg(p)) do
+        for index <- occurs(p.neg.index) do
           val c = clauses(index)
           if examine(c, index) then return c
       theory.propagate() match
-        case Theory.Result.Conflict(reasons) => return reasons.map(neg).toArray
+        case Theory.Result.Conflict(reasons) => return reasons.map(_.neg).toArray
         case Theory.Result.Ok(implied) =>
           var progress = false
           for l <- implied do
-            if value(l) == 0 then
+            if value(l.index) == 0 then
               enqueue(l, FromTheory)
               progress = true
-            else if value(l) < 0 then return reasonClause(l) // implied, yet false
+            else if value(l.index) < 0 then return reasonClause(l) // implied, yet false
           if !progress then return null
     null
 
@@ -138,8 +136,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
    *  negations of the literals that implied it, which are all false.
    */
   private def reasonClause(lit: Lit): Array[Lit] =
-    val why = reason(variable(lit))
-    if why == FromTheory then (lit +: theory.explain(lit).map(neg)).toArray
+    val why = reason(lit.variable)
+    if why == FromTheory then (lit +: theory.explain(lit).map(_.neg)).toArray
     else clauses(why)
 
   /** Conflict analysis: from a false clause, the first unique implication point
@@ -148,31 +146,31 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
    */
   private def analyze(conflict: Array[Lit]): (Array[Lit], Int) =
     val seen = new Array[Boolean](numVars)
-    val learned = ArrayBuffer[Lit](-1) // slot for the literal of the current level
+    val learned = ArrayBuffer[Lit](Lit(0)) // slot for the literal of the current level
     var counter = 0 // seen variables of the current level not yet resolved away
     var clause = conflict
     var first = 0 // literals of `clause` to resolve in: all of the conflict clause, then all but the implied one
-    var p = -1 // the literal resolved on
+    var p: Lit = Lit(0) // the literal resolved on (set before use)
     var index = trail.length - 1
     while
       for i <- first until clause.length do
         val q = clause(i)
-        val v = variable(q)
+        val v = q.variable
         if !seen(v) && level(v) > 0 then
           seen(v) = true
           if level(v) == decisionLevel then counter += 1 else learned += q
       // The most recently assigned seen literal of the current level.
-      while !seen(variable(trail(index))) do index -= 1
+      while !seen(trail(index).variable) do index -= 1
       p = trail(index)
       index -= 1
-      seen(variable(p)) = false
+      seen(p.variable) = false
       counter -= 1
       counter > 0
     do
       clause = reasonClause(p)
       first = 1
-    learned(0) = neg(p)
-    val backjump = if learned.length == 1 then 0 else learned.tail.map(l => level(variable(l))).max
+    learned(0) = p.neg
+    val backjump = if learned.length == 1 then 0 else learned.tail.map(l => level(l.variable)).max
     (learned.toArray, backjump)
 
   private def backtrack(to: Int): Unit =
@@ -180,8 +178,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       val start = trailLim.remove(trailLim.length - 1)
       while trail.length > start do
         val lit = trail.remove(trail.length - 1)
-        value(lit) = 0
-        value(neg(lit)) = 0
+        value(lit.index) = 0
+        value(lit.neg.index) = 0
       theory.pop()
     qhead = trail.length
 
@@ -200,7 +198,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       backtrack(to)
       val index = clauses.length
       clauses += learned
-      for l <- learned do occurs(l) += index
+      for l <- learned do occurs(l.index) += index
       enqueue(learned(0), index) // unit at the backjump level
       true
 
@@ -212,17 +210,17 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       if conflict != null then
         if !resolve(conflict) then return Result.Unsat
       else
-        val v = (0 until numVars).find(v => value(Lit(v)) == 0)
+        val v = (0 until numVars).find(v => value(Lit(v).index) == 0)
         v match
           case Some(v) => decide(v)
           case None =>
             theory.finalCheck() match
               case Theory.Result.Conflict(reasons) =>
-                if !resolve(reasons.map(neg).toArray) then return Result.Unsat
-              case Theory.Result.Ok(implied) if implied.exists(l => value(l) == 0) =>
-                for l <- implied if value(l) == 0 do enqueue(l, FromTheory)
+                if !resolve(reasons.map(_.neg).toArray) then return Result.Unsat
+              case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>
+                for l <- implied if value(l.index) == 0 do enqueue(l, FromTheory)
               case Theory.Result.Ok(implied) =>
-                implied.find(l => value(l) < 0) match
+                implied.find(l => value(l.index) < 0) match
                   case Some(l) => if !resolve(reasonClause(l)) then return Result.Unsat
-                  case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v)) > 0))
+                  case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v).index) > 0))
     Result.Unsat
