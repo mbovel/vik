@@ -67,3 +67,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-28, laraserver4, simplifications](results/2026-08-28-laraserver4-simplified.md) — readability pass (`insertOrMerge`, no edge flip, no undo sentinels); no regression ([json](results/2026-08-28-laraserver4-simplified.json))
 - [2026-08-28, laraserver4, while loops](results/2026-08-28-laraserver4-while.md) — `while` instead of boxing `for` loops over argument arrays in `add`; 3–10% ([json](results/2026-08-28-laraserver4-while.json))
 - [2026-08-28, laraserver4, cached hash](results/2026-08-28-laraserver4-cached-hash.md) — hash of the canonical form cached in the node; no gain, not adopted ([json](results/2026-08-28-laraserver4-cached-hash.json))
+- [2026-08-28, laraserver4, flat edges](results/2026-08-28-laraserver4-flat-edges.md) — union tree as parallel arrays instead of `Edge` objects; slower, not adopted ([json](results/2026-08-28-laraserver4-flat-edges.json))
