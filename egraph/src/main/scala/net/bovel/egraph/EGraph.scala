@@ -15,65 +15,67 @@ type EClassId = Int
 final case class App(fun: EClassId, args: ArraySeq[EClassId]):
   require(args.nonEmpty, "an application needs at least one argument; a constant is its own e-class")
 
-/** An e-node: an [[App]] together with its canonical form `fun(args)`, the
- *  representatives of the application's function and arguments as of the last
- *  [[EGraph.rebuild]]. The canonical form is updated in place, so a node must
- *  be removed from the congruence table before and re-inserted after. Equality
- *  and hashing are on the canonical form (arrays compare by reference, hence
- *  the overrides).
- */
-private final case class ENode(app: App, var fun: EClassId, args: Array[EClassId]):
-  /** A member of the e-class this node belongs to (use [[EGraph.find]] for its
-   *  representative).
+/** The internal types of [[EGraph]]. */
+object EGraph:
+  /** An e-node: an [[App]] together with its canonical form `fun(args)`, the
+   *  representatives of the application's function and arguments as of the last
+   *  [[EGraph.rebuild]]. The canonical form is updated in place, so a node must
+   *  be removed from the congruence table before and re-inserted after.
+   *  Equality and hashing are on the canonical form (arrays compare by
+   *  reference, hence the overrides).
    */
-  var cls: EClassId = -1
+  private final case class ENode(app: App, var fun: EClassId, args: Array[EClassId]):
+    /** A member of the e-class this node belongs to (use [[EGraph.find]] for
+     *  its representative).
+     */
+    var cls: EClassId = -1
 
-  /** Set once another live node has the same canonical form; the node is then
-   *  dropped from the congruence table.
+    /** Set once another live node has the same canonical form; the node is then
+     *  dropped from the congruence table.
+     */
+    var dead: Boolean = false
+
+    override def hashCode: Int = 31 * Arrays.hashCode(args) + fun
+    override def equals(that: Any): Boolean = that match
+      case that: ENode => fun == that.fun && Arrays.equals(args, that.args)
+      case _ => false
+    override def toString: String = s"$fun(${args.mkString(", ")})"
+
+  /** Why two terms were equated: an equality asserted for `reason` (a literal,
+   *  in CDCL(T)), or the congruence of two nodes.
    */
-  var dead: Boolean = false
+  private enum Justification:
+    case Asserted(reason: Int)
+    case Congruence(n1: ENode, n2: ENode)
 
-  override def hashCode: Int = 31 * Arrays.hashCode(args) + fun
-  override def equals(that: Any): Boolean = that match
-    case that: ENode => fun == that.fun && Arrays.equals(args, that.args)
-    case _ => false
-  override def toString: String = s"$fun(${args.mkString(", ")})"
+  /** An edge of the union tree: the class of `a` was merged into the class of
+   *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
+   *  the surviving one) were equated for `why`; for a congruence, `n1` is a
+   *  node of `a`'s class and `n2` of `b`'s. `time` orders the merges.
+   */
+  private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int)
 
-/** Why two terms were equated: an equality asserted for `reason` (a literal, in
- *  CDCL(T)), or the congruence of two nodes.
- */
-private enum Justification:
-  case Asserted(reason: Int)
-  case Congruence(n1: ENode, n2: ENode)
+  /** A disequality `a != b` asserted for `reason`. */
+  private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
 
-/** An edge of the union tree: the class of `a` was merged into the class of
- *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
- *  the surviving one) were equated for `why`; for a congruence, `n1` is a node
- *  of `a`'s class and `n2` of `b`'s. `time` orders the merges.
- */
-private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int)
-
-/** A disequality `a != b` asserted for `reason`. */
-private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
-
-/** What [[EGraph.pop]] must undo, one record per mutation done inside a level.
- *  Records are undone in reverse order, so each one sees the exact state its
- *  mutation left behind.
- */
-private enum Undo:
-  case NewClass
-  case Added(node: ENode)
-  case Merged(
-      from: EClassId,
-      into: EClassId,
-      intoUsesLen: Int,
-      fromUses: ArrayBuffer[ENode] | Null,
-      intoForbidLen: Int,
-      fromForbid: ArrayBuffer[Diseq] | Null
-  )
-  case Repaired(node: ENode, fun: EClassId, args: Array[EClassId], died: Boolean)
-  case Disequated(ra: EClassId, rb: EClassId)
-  case Violated
+  /** What [[EGraph.pop]] must undo, one record per mutation done inside a
+   *  level. Records are undone in reverse order, so each one sees the exact
+   *  state its mutation left behind.
+   */
+  private enum Undo:
+    case NewClass
+    case Added(node: ENode)
+    case Merged(
+        from: EClassId,
+        into: EClassId,
+        intoUsesLen: Int,
+        fromUses: ArrayBuffer[ENode] | Null,
+        intoForbidLen: Int,
+        fromForbid: ArrayBuffer[Diseq] | Null
+    )
+    case Repaired(node: ENode, fun: EClassId, args: Array[EClassId], died: Boolean)
+    case Disequated(ra: EClassId, rb: EClassId)
+    case Violated
 
 /** A congruence closure over e-classes identified by dense `Int` ids, with
  *  disequalities, backtracking and explanations.
@@ -96,6 +98,8 @@ private enum Undo:
  *  extra.
  */
 final class EGraph:
+  import EGraph.*
+
   /** Number of e-classes created so far; ids are `0 until count` and index the
    *  arrays below.
    */
