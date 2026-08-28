@@ -32,3 +32,20 @@ lazy val egraphBench = project
   .enablePlugins(JmhPlugin)
   .dependsOn(egraph.jvm(scala3Version))
   .settings(name := "egraph-bench")
+
+// Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
+lazy val cdclt = projectMatrix
+  .in(file("cdclt"))
+  .settings(
+    name := "cdclt",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+  )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
+
+// JMH benchmarks for the CDCL(T) solver (JVM only): `sbt "cdcltBench/Jmh/run"`.
+lazy val cdcltBench = project
+  .in(file("cdclt-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(cdclt.jvm(scala3Version))
+  .settings(name := "cdclt-bench")
