@@ -10,10 +10,12 @@ import scala.collection.mutable.ArrayBuffer
  *  non-false literal takes over the watch, or the other watched literal is
  *  true, or the clause is unit (the other watched literal is propagated) or
  *  false (a conflict). Nothing is done on backtracking. Decisions take the
- *  first unassigned variable and set it to false, and there are no restarts, no
- *  clause deletion, no heuristics. After a conflict, the first unique
- *  implication point clause is learned and the solver backjumps to the level
- *  where it is unit.
+ *  unassigned variable most recently involved in a conflict (variable
+ *  move-to-front) and give it the value it last had (phase saving, false at
+ *  first). The search restarts from level 0 after a number of conflicts
+ *  following the Luby sequence (times 100), keeping the learned clauses; there
+ *  is no clause deletion. After a conflict, the first unique implication point
+ *  clause is learned and the solver backjumps to the level where it is unit.
  *
  *  The trail is a stack of assigned literals with, per variable, its level and
  *  reason, in the style of CreuSAT (Skotåm 2022), whose proofs rest on these
@@ -69,6 +71,48 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
   /** A conflict at level 0 (an empty clause, or a unit contradicting another).
    */
   private var unsat = false
+
+  /** Variable move-to-front (Biere and Fröhlich 2015): the variables in a
+   *  doubly linked list, `vmtfHead` first; a variable involved in a conflict
+   *  moves to the front, and decisions take the first unassigned one. Each
+   *  variable carries the time it last moved, so that `vmtfSearch`, the
+   *  position from which the next decision searches, can be reset when a
+   *  variable before it becomes unassigned.
+   */
+  private val vmtfPrev = Array.tabulate(numVars)(v => v - 1)
+  private val vmtfNext = Array.tabulate(numVars)(v => if v + 1 < numVars then v + 1 else -1)
+  private val vmtfStamp = new Array[Long](numVars)
+  private var vmtfHead = if numVars > 0 then 0 else -1
+  private var vmtfSearch = vmtfHead
+  private var vmtfTime = 0L
+
+  /** The value each variable had when last unassigned (phase saving), false at
+   *  first.
+   */
+  private val phase = new Array[Boolean](numVars)
+
+  /** Conflicts so far, and the count at which to restart next (Luby sequence
+   *  times 100).
+   */
+  private var conflicts = 0L
+  private var restarts = 0
+  private var nextRestart = 100L
+
+  /** The `i`-th term (from 0) of the Luby sequence 1, 1, 2, 1, 1, 2, 4, 1, 1,
+   *  2, 1, 1, 2, 4, 8, ...
+   */
+  private def luby(i: Int): Long =
+    var size = 1
+    var seq = 0
+    while size < i + 1 do
+      seq += 1
+      size = 2 * size + 1
+    var x = i
+    while size - 1 != x do
+      size = (size - 1) >> 1
+      seq -= 1
+      x = x % size
+    1L << seq
 
   def decisionLevel: Int = trailLim.length
 
@@ -201,12 +245,14 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       p = trail(index)
       index -= 1
       seen(p.variable) = false
+      bump(p.variable)
       counter -= 1
       counter > 0
     do
       clause = reasonClause(p)
       first = 1
     learned(0) = p.neg
+    for l <- learned.drop(1) do bump(l.variable)
     val backjump = if learned.length == 1 then 0 else learned.tail.map(l => level(l.variable)).max
     (learned.toArray, backjump)
 
@@ -217,13 +263,37 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         val lit = trail.remove(trail.length - 1)
         value(lit.index) = 0
         value(lit.neg.index) = 0
+        phase(lit.variable) = lit.positive
+        if vmtfSearch < 0 || vmtfStamp(lit.variable) > vmtfStamp(vmtfSearch) then vmtfSearch = lit.variable
       theory.pop()
     qhead = trail.length
+
+  /** Moves `v` to the front of the move-to-front list. */
+  private def bump(v: Var): Unit =
+    if v != vmtfHead then
+      // Unlink.
+      val prev = vmtfPrev(v)
+      val next = vmtfNext(v)
+      vmtfNext(prev) = next
+      if next >= 0 then vmtfPrev(next) = prev
+      // Link in front.
+      vmtfPrev(v) = -1
+      vmtfNext(v) = vmtfHead
+      vmtfPrev(vmtfHead) = v
+      vmtfHead = v
+    vmtfTime += 1
+    vmtfStamp(v) = vmtfTime
+    if value(Lit(v).index) == 0 then vmtfSearch = v
+
+  /** The first unassigned variable of the move-to-front list, `-1` if none. */
+  private def nextDecision(): Var =
+    while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)
+    vmtfSearch
 
   private def decide(v: Var): Unit =
     trailLim += trail.length
     theory.push()
-    enqueue(Lit(v, false), Decision)
+    enqueue(Lit(v, phase(v)), Decision)
 
   /** Learns the clause of a conflict and backjumps, or reports level 0. Returns
    *  whether the search can go on.
@@ -231,6 +301,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
   private def resolve(conflict: Array[Lit]): Boolean =
     if decisionLevel == 0 then false
     else
+      conflicts += 1
       val (learned, to) = analyze(conflict)
       backtrack(to)
       val index = clauses.length
@@ -247,6 +318,10 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         watches(learned(0).index) += index
         watches(learned(1).index) += index
       enqueue(learned(0), index) // unit at the backjump level
+      if conflicts >= nextRestart then
+        restarts += 1
+        nextRestart = conflicts + luby(restarts) * 100
+        backtrack(0)
       true
 
   def solve(): Result =
@@ -257,17 +332,16 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       if conflict != null then
         if !resolve(conflict) then return Result.Unsat
       else
-        val v = (0 until numVars).find(v => value(Lit(v).index) == 0)
-        v match
-          case Some(v) => decide(v)
-          case None =>
-            theory.finalCheck() match
-              case Theory.Result.Conflict(reasons) =>
-                if !resolve(reasons.map(_.neg).toArray) then return Result.Unsat
-              case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>
-                for l <- implied if value(l.index) == 0 do enqueue(l, FromTheory)
-              case Theory.Result.Ok(implied) =>
-                implied.find(l => value(l.index) < 0) match
-                  case Some(l) => if !resolve(reasonClause(l)) then return Result.Unsat
-                  case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v).index) > 0))
+        val v = nextDecision()
+        if v >= 0 then decide(v)
+        else
+          theory.finalCheck() match
+            case Theory.Result.Conflict(reasons) =>
+              if !resolve(reasons.map(_.neg).toArray) then return Result.Unsat
+            case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>
+              for l <- implied if value(l.index) == 0 do enqueue(l, FromTheory)
+            case Theory.Result.Ok(implied) =>
+              implied.find(l => value(l.index) < 0) match
+                case Some(l) => if !resolve(reasonClause(l)) then return Result.Unsat
+                case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v).index) > 0))
     Result.Unsat

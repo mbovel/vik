@@ -25,16 +25,18 @@ Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, aver
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, with two watched literals. Setup and noise: [results/2026-08-28-laraserver4-2wl.md](results/2026-08-28-laraserver4-2wl.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, with two watched literals, VMTF, phase saving and Luby restarts. Setup and noise: [results/2026-08-28-laraserver4-restarts.md](results/2026-08-28-laraserver4-restarts.md).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
-| pigeonhole | n=30 | 0.001 | ± 0.000 | 5.0% | 0.001 | 0.001 | 5 × 5 |
-| pigeonhole | n=60 | 0.239 | ± 0.005 | 2.2% | 0.216 | 0.260 | 5 × 5 |
-| random3Sat | n=30 | 0.306 | ± 0.008 | 2.5% | 0.267 | 0.339 | 5 × 5 |
-| random3Sat | n=60 | 3.740 | ± 0.055 | 1.5% | 3.593 | 3.901 | 5 × 5 |
-| random5Sat | n=30 | 2.316 | ± 0.034 | 1.5% | 2.211 | 2.454 | 5 × 5 |
-| random5Sat | n=60 | 65.031 | ± 1.301 | 2.0% | 60.847 | 74.427 | 5 × 5 |
+| pigeonhole | n=30 | 0.001 | ± 0.000 | 3.6% | 0.001 | 0.001 | 5 × 5 |
+| pigeonhole | n=60 | 1.673 | ± 0.031 | 1.8% | 1.536 | 1.811 | 5 × 5 |
+| random3Sat | n=30 | 0.318 | ± 0.005 | 1.7% | 0.299 | 0.336 | 5 × 5 |
+| random3Sat | n=60 | 2.344 | ± 0.032 | 1.4% | 2.228 | 2.457 | 5 × 5 |
+| random5Sat | n=30 | 2.146 | ± 0.035 | 1.6% | 2.047 | 2.305 | 5 × 5 |
+| random5Sat | n=60 | 23.374 | ± 0.404 | 1.7% | 21.604 | 25.372 | 5 × 5 |
+
+Versus the [2WL run](results/2026-08-28-laraserver4-2wl.md): 1.6× on `random3Sat` n=60 and 2.8× on `random5Sat` n=60, but 0.14× on `pigeonhole` n=60, whose static order suits the resolution refutation.
 
 ## All results
 
@@ -42,3 +44,6 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-28, laraserver4](results/2026-08-28-laraserver4.md) — unoptimized baseline ([json](results/2026-08-28-laraserver4.json))
 - [2026-08-28, laraserver4, 5-SAT](results/2026-08-28-laraserver4-5sat.md) — occurrence lists, with the `random5Sat` workload; reference for the optimizations ([json](results/2026-08-28-laraserver4-5sat.json))
 - [2026-08-28, laraserver4, 2WL](results/2026-08-28-laraserver4-2wl.md) — two watched literals; 1.7–4.6× on the larger instances ([json](results/2026-08-28-laraserver4-2wl.json))
+- [2026-08-28, laraserver4, VMTF](results/2026-08-28-laraserver4-vmtf.md) — variable move-to-front alone: 1.55× on 3-SAT n=60, 0.33× on pigeonhole n=60 ([json](results/2026-08-28-laraserver4-vmtf.json))
+- [2026-08-28, laraserver4, phase saving](results/2026-08-28-laraserver4-phase.md) — VMTF + phase saving: 1.12–1.31× on 5-SAT over VMTF alone ([json](results/2026-08-28-laraserver4-phase.json))
+- [2026-08-28, laraserver4, restarts](results/2026-08-28-laraserver4-restarts.md) — Luby restarts on top of VMTF and phase saving: 2.3× on 5-SAT n=60; the package vs 2WL ([json](results/2026-08-28-laraserver4-restarts.json))
