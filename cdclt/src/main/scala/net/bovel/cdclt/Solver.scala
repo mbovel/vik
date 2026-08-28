@@ -5,11 +5,13 @@ import scala.collection.mutable.ArrayBuffer
 /** A CDCL(T) solver over `numVars` variables and the clauses given to
  *  [[addClause]], with `theory` deciding the atoms.
  *
- *  Deliberately unoptimized: unit propagation visits, for each literal that
- *  becomes false, every clause containing it (occurrence lists rather than
- *  watched literals), decisions take the first unassigned variable and set it
- *  to false, and there are no restarts, no clause deletion, no heuristics. What
- *  it does have is what makes it CDCL: after a conflict, the first unique
+ *  Unit propagation watches two literals per clause: a clause is visited only
+ *  when one of its two watched literals becomes false, and then either another
+ *  non-false literal takes over the watch, or the other watched literal is
+ *  true, or the clause is unit (the other watched literal is propagated) or
+ *  false (a conflict). Nothing is done on backtracking. Decisions take the
+ *  first unassigned variable and set it to false, and there are no restarts, no
+ *  clause deletion, no heuristics. After a conflict, the first unique
  *  implication point clause is learned and the solver backjumps to the level
  *  where it is unit.
  *
@@ -23,6 +25,11 @@ import scala.collection.mutable.ArrayBuffer
  *  equisatisfiable with the input. `Unsat` means a conflict at level 0, i.e.
  *  the empty clause by resolution; `Sat` means a complete assignment without
  *  conflict, which needs no completeness argument for propagation or decisions.
+ *
+ *  Watched literals are the first two of each clause of two or more literals;
+ *  when propagation is complete, a false watched literal implies that the other
+ *  one is true (assigned at the same level or before), so that backtracking
+ *  never invalidates a watch.
  */
 final class Solver(val numVars: Int, theory: Theory = NoTheory):
   enum Result:
@@ -56,8 +63,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
 
   private val clauses = ArrayBuffer.empty[Array[Lit]]
 
-  /** Indices of the clauses containing each literal. */
-  private val occurs = Array.fill(2 * numVars)(ArrayBuffer.empty[Int])
+  /** Indices of the clauses watching each literal (their literal 0 or 1). */
+  private val watches = Array.fill(2 * numVars)(ArrayBuffer.empty[Int])
 
   /** A conflict at level 0 (an empty clause, or a unit contradicting another).
    */
@@ -72,11 +79,26 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     require(decisionLevel == 0, "clauses are added before solving")
     val c = lits.distinct
     if c.exists(l => c.contains(l.neg)) then return // a tautology
+    // Literals false at level 0 are false for good: move the others first, and treat the clause accordingly.
+    val alive = c.count(l => value(l.index) >= 0)
+    if alive == 0 then
+      unsat = true
+      return
+    var i = 0
+    var j = 0
+    while j < alive do
+      if value(c(i).index) >= 0 then
+        val l = c(i)
+        c(i) = c(j)
+        c(j) = l
+        j += 1
+      i += 1
     val index = clauses.length
     clauses += c
-    for l <- c do occurs(l.index) += index
-    // The literals of `c` that are already false were propagated before `c` existed; examine it now.
-    if examine(c, index) then unsat = true
+    if alive == 1 && value(c(0).index) == 0 then enqueue(c(0), index)
+    if c.length >= 2 then
+      watches(c(0).index) += index
+      watches(c(1).index) += index
 
   private def enqueue(lit: Lit, why: Int): Unit =
     value(lit.index) = 1
@@ -84,29 +106,6 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     level(lit.variable) = decisionLevel
     reason(lit.variable) = why
     trail += lit
-
-  /** Propagates from clause `c` (index `index`) if it is unit, moving the
-   *  propagated literal to index 0, and returns whether `c` is false.
-   */
-  private def examine(c: Array[Lit], index: Int): Boolean =
-    var unassigned = 0
-    var unit = -1
-    var i = 0
-    while i < c.length do
-      val l = c(i)
-      if value(l.index) > 0 then return false
-      if value(l.index) == 0 then
-        unassigned += 1
-        unit = i
-      i += 1
-    if unassigned == 0 then true
-    else
-      if unassigned == 1 then
-        val l = c(unit)
-        c(unit) = c(0)
-        c(0) = l
-        enqueue(l, index)
-      false
 
   /** Boolean and theory propagation to a fixpoint. Returns a false clause when
    *  there is a conflict, `null` otherwise.
@@ -117,9 +116,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         val p = trail(qhead)
         qhead += 1
         theory.assertLit(p)
-        for index <- occurs(p.neg.index) do
-          val c = clauses(index)
-          if examine(c, index) then return c
+        val conflict = visitWatchers(p.neg)
+        if conflict != null then return conflict
       theory.propagate() match
         case Theory.Result.Conflict(reasons) => return reasons.map(_.neg).toArray
         case Theory.Result.Ok(implied) =>
@@ -131,6 +129,45 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
             else if value(l.index) < 0 then return reasonClause(l) // implied, yet false
           if !progress then return null
     null
+
+  /** Visits the clauses watching `falseLit`, which just became false: each one
+   *  either moves that watch to a non-false literal, is satisfied by its other
+   *  watched literal, propagates it (unit), or is a conflict. Returns the
+   *  conflicting clause, `null` if none.
+   */
+  private def visitWatchers(falseLit: Lit): Array[Lit] | Null =
+    val ws = watches(falseLit.index)
+    var i = 0
+    var j = 0 // watchers kept so far
+    var conflict: Array[Lit] | Null = null
+    while i < ws.length && conflict == null do
+      val index = ws(i)
+      i += 1
+      val c = clauses(index)
+      if c(0) == falseLit then // the false watched literal goes to index 1
+        c(0) = c(1)
+        c(1) = falseLit
+      val other = c(0)
+      if value(other.index) > 0 then
+        ws(j) = index
+        j += 1
+      else
+        var k = 2
+        while k < c.length && value(c(k).index) < 0 do k += 1
+        if k < c.length then // watch that literal instead
+          c(1) = c(k)
+          c(k) = falseLit
+          watches(c(1).index) += index
+        else
+          ws(j) = index
+          j += 1
+          if value(other.index) < 0 then conflict = c else enqueue(other, index)
+    while i < ws.length do // after a conflict, keep the remaining watchers
+      ws(j) = ws(i)
+      i += 1
+      j += 1
+    ws.takeInPlace(j)
+    conflict
 
   /** The clause explaining the assignment of `lit`: `lit` at index 0, then the
    *  negations of the literals that implied it, which are all false.
@@ -198,7 +235,17 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       backtrack(to)
       val index = clauses.length
       clauses += learned
-      for l <- learned do occurs(l.index) += index
+      if learned.length >= 2 then
+        // Watch the asserting literal and a literal of the backjump level, the last to become unassigned.
+        var k = 2
+        while k < learned.length do
+          if level(learned(k).variable) > level(learned(1).variable) then
+            val l = learned(1)
+            learned(1) = learned(k)
+            learned(k) = l
+          k += 1
+        watches(learned(0).index) += index
+        watches(learned(1).index) += index
       enqueue(learned(0), index) // unit at the backjump level
       true
 
