@@ -14,10 +14,10 @@ final class EGraphBuilder:
   def sym(name: String): EClassId =
     syms.getOrElseUpdate(name, eg.newClass())
 
+  /** Adds the application of `funName` to `args`; for a constant use `sym` instead. */
   def node(funName: String, args: EClassId*): EClassId =
+    require(args.nonEmpty, s"node(\"$funName\") needs at least one argument; use sym(\"$funName\") for a constant")
     eg.add(ENode(sym(funName), ArraySeq.from(args)))
-
-  def leaf(name: String): EClassId = node(name)
 
   def find(id: EClassId): EClassId = eg.find(id)
   def merge(a: EClassId, b: EClassId): Unit = eg.merge(a, b)

@@ -44,7 +44,9 @@ final class EGraph:
     classes(id) = EClass(repr = id, members = ArrayBuffer(id))
     id
 
+  /** Adds an application e-node. `args` must be non-empty: a constant is simply its own e-class. */
   def add(rawNode: ENode): EClassId =
+    require(rawNode.args.nonEmpty, "an e-node must have at least one argument; a constant is its own e-class")
     val node = canonicalize(rawNode)
     hashcons.getOrElse(
       node, {
