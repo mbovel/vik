@@ -30,7 +30,7 @@ families state a `:source` only. See each file's `set-info` header for the autho
 From the repository root (see [egraph-bench/README.md](../egraph-bench/README.md) for the setup of `jmh2md.py`):
 
 ```sh
-sbt "smtBench/Jmh/run -rf json -rff target/jmh-result.json"     # every instance: parse and solve
+sbt "smtBench/Jmh/run -rf json -rff target/jmh-result.json"     # the instances VIK solves in under a minute: parse and solve
 sbt "smtBench/Jmh/run -p file=eq_diamond__eq_diamond50.smt2"     # one instance
 egraph-bench/.venv/bin/python egraph-bench/jmh2md.py target/jmh-result.json
 smt-bench/compare.sh 60 > smt-bench/results/compare.tsv           # wall clock vs z3, cvc5, princess, SMTInterpol

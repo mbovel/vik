@@ -94,6 +94,9 @@ lazy val smt2Bench = project
   .dependsOn(smt2.jvm(scala3Version))
   .settings(name := "smt2-bench")
 
+// The runtime classpath of a project as real paths, for scripts (sbt 2 exports virtual file references).
+lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
+
 // SMT-LIB benchmarks end to end (JVM only): `sbt "smtBench/Jmh/run"`.
 lazy val smtBench = project
   .in(file("smt-bench"))
@@ -105,5 +108,9 @@ lazy val smtBench = project
     libraryDependencies ++= Seq(
       ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),
       "de.uni-freiburg.informatik.ultimate" % "smtinterpol" % "2.5-916-ga5843d8b"
-    )
+    ),
+    runtimeClasspath := {
+      val converter = fileConverter.value
+      (Runtime / fullClasspath).value.map(entry => converter.toPath(entry.data).toString).mkString(":")
+    }
   )

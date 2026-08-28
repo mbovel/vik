@@ -10,7 +10,8 @@ import net.bovel.smt2.{Parser, Player, Script}
 
 /** Solving SMT-LIB QF_UF benchmarks (SMT-LIB release 2025, see
  *  `smt-bench/README.md`): each operation parses and solves one file; `parse`
- *  measures the parsing alone.
+ *  measures the parsing alone. The instances VIK cannot solve within a minute
+ *  (`eq_diamond*`, `SEQ009_size10`) are left to `compare.sh`.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -22,12 +23,9 @@ class SmtBench:
 
   @Param(
     Array(
-      "eq_diamond__eq_diamond20.smt2",
-      "eq_diamond__eq_diamond50.smt2",
       "NEQ__NEQ004_size4.smt2",
       "PEQ__PEQ018_size4.smt2",
       "SEQ__SEQ032_size3.smt2",
-      "SEQ__SEQ009_size10.smt2",
       "QG-classification__qg5__iso_brn001.smt2",
       "QG-classification__qg5__iso_icl662.smt2",
       "2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2",

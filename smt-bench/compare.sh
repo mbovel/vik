@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 TIMEOUT="${1:-60}"
 FILES=$(ls smt-bench/src/main/resources/smtlib/*.smt2)
 # One classpath for the three JVM solvers (VIK, princess, SMTInterpol): smt-bench depends on all of them.
-CP=$(sbt -error "export smtBench/Runtime/fullClasspath" 2>/dev/null | tail -1)
+CP=$(sbt "print smtBench/runtimeClasspath" 2>/dev/null | grep -E "^/" | tail -1)
 run() { # name, command...
   local name=$1; shift
   local start end out
