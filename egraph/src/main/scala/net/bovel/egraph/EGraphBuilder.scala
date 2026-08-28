@@ -1,7 +1,7 @@
 package net.bovel.egraph
 
-import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 
 /** High-level API for building e-graphs using string-named symbols. */
@@ -13,7 +13,9 @@ final class EGraphBuilder:
   def sym(name: String): EClassId =
     syms.getOrElseUpdate(name, eg.newClass())
 
-  /** Adds the application of `funName` to `args`; for a constant use `sym` instead. */
+  /** Adds the application of `funName` to `args`; for a constant use `sym`
+   *  instead.
+   */
   def node(funName: String, args: EClassId*): EClassId =
     require(args.nonEmpty, s"node(\"$funName\") needs at least one argument; use sym(\"$funName\") for a constant")
     eg.add(sym(funName), args.toArray)

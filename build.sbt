@@ -10,7 +10,7 @@ lazy val egraph = projectMatrix
   .in(file("egraph"))
   .settings(
     name := "egraph",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -22,7 +22,7 @@ lazy val egraphPlayground = project
   .settings(
     name := "egraph-playground",
     scalaJSUseMainModuleInitializer := true,
-    libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1",
+    libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1"
   )
 
 // JMH benchmarks for the e-graph (JVM only): `sbt "egraphBench/Jmh/run"`.

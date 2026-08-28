@@ -1,11 +1,11 @@
 package net.bovel.egraph.playground
 
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSGlobal
+
 import org.scalajs.dom
 import org.scalajs.dom.{document, html}
 import net.bovel.egraph.{EClassId, EGraphBuilder}
-
-import scala.scalajs.js
-import scala.scalajs.js.annotation.JSGlobal
 
 @js.native
 @JSGlobal("Viz")
@@ -50,7 +50,9 @@ object Main:
     input.addEventListener("input", (_: dom.Event) => update())
     update()
 
-  /** Parse a term like "f(x, g(y))" into e-graph nodes, returning the e-class ID. */
+  /** Parse a term like "f(x, g(y))" into e-graph nodes, returning the e-class
+   *  ID.
+   */
   private def parseTerm(builder: EGraphBuilder, s: String): (EClassId, Int) =
     parseTermAt(builder, s, 0)
 

@@ -7,13 +7,13 @@ import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-
 import net.bovel.egraph.{EClassId, EGraph}
 
-/** Each benchmark builds a fresh e-graph, so construction time is included; `build` measures that part alone. All
-  * workloads are linear in `n` except `star`, which is quadratic as long as `rebuild` re-scans the parents of the
-  * larger class on every merge.
-  */
+/** Each benchmark builds a fresh e-graph, so construction time is included;
+ *  `build` measures that part alone. All workloads are linear in `n` except
+ *  `star`, which is quadratic as long as `rebuild` re-scans the parents of the
+ *  larger class on every merge.
+ */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -25,7 +25,9 @@ class EGraphBench:
   @Param(Array("1000", "4000"))
   var n: Int = uninitialized
 
-  /** `n` symbol classes, then `2n` binary nodes `h(x, y)` over previously created classes. */
+  /** `n` symbol classes, then `2n` binary nodes `h(x, y)` over previously
+   *  created classes.
+   */
   private def randomDag(eg: EGraph, rnd: Random): ArrayBuffer[EClassId] =
     val h = eg.newClass()
     val ids = ArrayBuffer.fill(n)(eg.newClass())
@@ -48,7 +50,9 @@ class EGraphBench:
     eg.rebuild()
     eg.find(ids.last)
 
-  /** CDCL(T)-style increments: leaves `x_i` with parents `f(x_i)`; merge `x_i = x_{i+1}` and `rebuild` after each. */
+  /** CDCL(T)-style increments: leaves `x_i` with parents `f(x_i)`; merge
+   *  `x_i = x_{i+1}` and `rebuild` after each.
+   */
   @Benchmark
   def chain(): EClassId =
     val eg = EGraph()
@@ -60,7 +64,9 @@ class EGraphBench:
       eg.rebuild()
     eg.find(xs(0))
 
-  /** One class `a` with `n` parents `g(a, c_j)`, merged with `n` fresh singletons one at a time, `rebuild` after each. */
+  /** One class `a` with `n` parents `g(a, c_j)`, merged with `n` fresh
+   *  singletons one at a time, `rebuild` after each.
+   */
   @Benchmark
   def star(): EClassId =
     val eg = EGraph()
