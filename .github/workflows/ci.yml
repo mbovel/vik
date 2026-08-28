@@ -17,8 +17,8 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - name: Check formatting
-        run: sbt --batch "scalafmtCheckAll; scalafmtSbtCheck"
+        run: sbt "scalafmtCheckAll; scalafmtSbtCheck"
       - name: Test (JVM and Scala.js)
-        run: sbt --batch test
+        run: sbt test
       - name: Benchmark dry run
-        run: sbt --batch "egraphBench/Jmh/run -f 1 -wi 0 -i 1"
+        run: sbt "egraphBench/Jmh/run -f 1 -wi 0 -i 1"
