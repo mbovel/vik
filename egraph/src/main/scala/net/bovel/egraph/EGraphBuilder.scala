@@ -54,17 +54,17 @@ final class EGraphBuilder:
       sb ++= "    fontname=\"sans-serif\"\n"
       sb ++= "    fontsize=10\n"
 
-      for (enode, idx) <- nodes.zipWithIndex do
+      for ((fun, args), idx) <- nodes.zipWithIndex do
         val nodeId = s"n${id}_$idx"
-        val funSelf = eg.find(enode.fun) == id
+        val funSelf = eg.find(fun) == id
         val funLabel = if funSelf then "⟲" else ""
-        val argLabels = enode.args.indices.map { i =>
-          val argSelf = eg.find(enode.args(i)) == id
+        val argLabels = args.indices.map { i =>
+          val argSelf = eg.find(args(i)) == id
           if argSelf then s"<a$i>⟲" else s"<a$i>"
         }
         val label = (s"<f>$funLabel" +: argLabels).mkString("|")
-        if !funSelf then links += ((s"$nodeId:f", enode.fun))
-        for (arg, argIdx) <- enode.args.zipWithIndex do
+        if !funSelf then links += ((s"$nodeId:f", fun))
+        for (arg, argIdx) <- args.zipWithIndex do
           if eg.find(arg) != id then links += ((s"$nodeId:a$argIdx", arg))
         sb ++= s"    $nodeId [label=\"$label\" shape=record]\n"
 

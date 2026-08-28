@@ -200,10 +200,9 @@ class EGraphTest extends munit.FunSuite:
     t.rebuild()
     val classOfForm = HashMap.empty[(EClassId, Seq[EClassId]), EClassId]
     var nodes = 0
-    for (cls, ns) <- t.eg.getClasses(); n <- ns do
+    for (cls, ns) <- t.eg.getClasses(); (fun, args) <- ns do
       nodes += 1
-      val args = Array.tabulate(n.args.length)(n.args(_))
-      val form = (t.find(n.fun), args.map(t.find).toSeq)
+      val form = (t.find(fun), args.map(t.find))
       assertEquals(classOfForm.getOrElseUpdate(form, cls), cls) // congruent nodes share a class
-      assertEquals(t.find(t.eg.add(n.fun, args)), cls) // and the hashcons knows the node
+      assertEquals(t.find(t.eg.add(fun, args.toArray)), cls) // and the hashcons knows the node
     assert(nodes > 100)

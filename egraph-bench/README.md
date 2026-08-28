@@ -32,20 +32,20 @@ Configuration (annotations in the benchmark class): 5 forks, 10 warmup and 5 mea
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, dense-array `EGraph`. Setup, noise, warmup analysis and comparison with the baseline: [results/2026-08-28-laraserver4-arrays.md](results/2026-08-28-laraserver4-arrays.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, case-class `ENode` over dense arrays. Setup, noise and warmup analysis: [results/2026-08-28-laraserver4-case-class.md](results/2026-08-28-laraserver4-case-class.md).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
-| build | n=1000 | 0.165 | ± 0.009 | 5.2% | 0.143 | 0.227 | 5 × 5 |
-| build | n=4000 | 1.014 | ± 0.036 | 3.6% | 0.860 | 1.164 | 5 × 5 |
-| chain | n=1000 | 0.114 | ± 0.009 | 7.7% | 0.092 | 0.171 | 5 × 5 |
-| chain | n=4000 | 0.459 | ± 0.035 | 7.7% | 0.371 | 0.756 | 5 × 5 |
-| randomBatch | n=1000 | 0.205 | ± 0.006 | 2.8% | 0.194 | 0.249 | 5 × 5 |
-| randomBatch | n=4000 | 1.209 | ± 0.019 | 1.5% | 1.121 | 1.286 | 5 × 5 |
-| star | n=1000 | 0.080 | ± 0.001 | 1.1% | 0.078 | 0.084 | 5 × 5 |
-| star | n=4000 | 0.415 | ± 0.056 | 13.4% | 0.319 | 0.829 | 5 × 5 |
+| build | n=1000 | 0.154 | ± 0.015 | 9.6% | 0.134 | 0.280 | 5 × 5 |
+| build | n=4000 | 0.882 | ± 0.044 | 5.0% | 0.810 | 1.258 | 5 × 5 |
+| chain | n=1000 | 0.093 | ± 0.004 | 4.4% | 0.083 | 0.115 | 5 × 5 |
+| chain | n=4000 | 0.394 | ± 0.030 | 7.7% | 0.348 | 0.621 | 5 × 5 |
+| randomBatch | n=1000 | 0.191 | ± 0.002 | 0.8% | 0.185 | 0.198 | 5 × 5 |
+| randomBatch | n=4000 | 1.178 | ± 0.023 | 1.9% | 1.113 | 1.371 | 5 × 5 |
+| star | n=1000 | 0.075 | ± 0.001 | 1.3% | 0.072 | 0.080 | 5 × 5 |
+| star | n=4000 | 0.345 | ± 0.038 | 10.9% | 0.300 | 0.732 | 5 × 5 |
 
-All workloads are linear in `n`. Versus the [baseline](results/2026-08-28-laraserver4.md): 2.3–7× on `build`, `chain` and `randomBatch`, and `star` went from quadratic (3.3 s at n=4000) to 0.4 ms.
+All workloads are linear in `n`. Versus the [baseline](results/2026-08-28-laraserver4.md): 2.6–8.2× on `build`, `chain` and `randomBatch`, and `star` went from quadratic (3.3 s at n=4000) to 0.35 ms. Equivalent to the [dense-array run](results/2026-08-28-laraserver4-arrays.md) up to run-to-run noise.
 
 ## All results
 
@@ -53,3 +53,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 
 - [2026-08-28, laraserver4](results/2026-08-28-laraserver4.md) — baseline before any optimization ([json](results/2026-08-28-laraserver4.json))
 - [2026-08-28, laraserver4, dense arrays](results/2026-08-28-laraserver4-arrays.md) — dense arrays, in-place canonicalization, smaller-class rescans ([json](results/2026-08-28-laraserver4-arrays.json))
+- [2026-08-28, laraserver4, case class](results/2026-08-28-laraserver4-case-class.md) — same structures, `ENode` as a private case class with structural equality ([json](results/2026-08-28-laraserver4-case-class.json))
