@@ -19,7 +19,7 @@ class EGraphTest extends munit.FunSuite:
     val fa = t.node("f", a)
     val fa2 = t.node("f", a)
     assertEquals(t.find(fa), t.find(fa2))
-    assertEquals(t.eg.getClasses()(t.find(fa)).length, 1) // listed once
+    assertEquals(t.eg.classes(t.find(fa)).length, 1) // listed once
 
   test("add returns different ids for different nodes"):
     val t = TestGraph()
@@ -196,7 +196,7 @@ class EGraphTest extends munit.FunSuite:
     t.rebuild()
     val classOfForm = HashMap.empty[(EClassId, Seq[EClassId]), EClassId]
     var nodes = 0
-    for (cls, ns) <- t.eg.getClasses(); App(fun, args) <- ns do
+    for (cls, ns) <- t.eg.classes; App(fun, args) <- ns do
       nodes += 1
       val form = (t.find(fun), args.map(t.find))
       assertEquals(classOfForm.getOrElseUpdate(form, cls), cls) // congruent nodes share a class
@@ -282,7 +282,7 @@ class EGraphTest extends munit.FunSuite:
         id -> (0 until eg.classCount).filter(eg.find(_) == eg.find(id)).min
       ).toMap
       val nodes =
-        eg.getClasses().map((cls, ns) => canon(cls) -> ns.map(app => (canon(app.fun), app.args.map(canon))).toSet)
+        eg.classes.map((cls, ns) => canon(cls) -> ns.map(app => (canon(app.fun), app.args.map(canon))).toSet)
       val reps = (0 until eg.classCount).filter(id => eg.find(id) == id)
       val diseqs = (for r1 <- reps; r2 <- reps if r1 < r2 && eg.areDisequal(r1, r2) yield (canon(r1), canon(r2))).toSet
       (eg.classCount, classes, nodes, diseqs, eg.conflict.isDefined)

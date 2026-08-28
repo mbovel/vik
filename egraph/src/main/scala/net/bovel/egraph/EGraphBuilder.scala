@@ -53,7 +53,7 @@ class EGraphBuilder:
 
     val links = ArrayBuffer.empty[(String, EClassId)]
 
-    for (id, nodes) <- eg.getClasses() do
+    for (id, nodes) <- eg.classes do
       val myNames = names.getOrElse(id, Nil).mkString(", ")
       sb ++= s"  subgraph cluster_$id {\n"
       sb ++= "    style=dashed\n"
