@@ -77,3 +77,18 @@ class EGraphBench:
       eg.merge(a, eg.newClass())
       eg.rebuild()
     eg.find(a)
+
+  /** Random DAG, then `n / 2` times: `push`, one random merge, `rebuild`,
+   *  `pop`.
+   */
+  @Benchmark
+  def backtrack(): EClassId =
+    val eg = EGraph()
+    val ids = randomDag(eg, Random(1))
+    val rnd = Random(2)
+    for _ <- 0 until n / 2 do
+      eg.push()
+      eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))
+      eg.rebuild()
+      eg.pop()
+    eg.find(ids.last)

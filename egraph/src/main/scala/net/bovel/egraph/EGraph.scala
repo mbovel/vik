@@ -32,6 +32,16 @@ private final case class ENode(var fun: EClassId, args: Array[EClassId]):
     case _ => false
   override def toString: String = s"$fun(${args.mkString(", ")})"
 
+/** What [[EGraph.pop]] must undo, one record per mutation done inside a level.
+ *  Records are undone in reverse order, so each one sees the exact state its
+ *  mutation left behind.
+ */
+private enum Undo:
+  case NewClass
+  case Added(node: ENode)
+  case Merged(from: EClassId, into: EClassId, intoUsesLen: Int, fromUses: ArrayBuffer[ENode])
+  case Repaired(node: ENode, fun: EClassId, args: Array[EClassId], died: Boolean)
+
 /** A congruence closure over e-classes identified by dense `Int` ids.
  *
  *  Union-find: `repr(id)` is the representative of `id`, so `find` is one array
@@ -40,6 +50,10 @@ private final case class ENode(var fun: EClassId, args: Array[EClassId]):
  *  egg-style: `merge` records the parents of the absorbed class as `pending`,
  *  and `rebuild` re-canonicalizes them and merges the classes of nodes that
  *  became identical, until no node is pending.
+ *
+ *  Backtracking: `push` opens a level and `pop` undoes every `add`, `merge` and
+ *  `rebuild` done since, through a trail of [[Undo]] records. Nothing is
+ *  recorded outside a level, so non-backtracking use costs nothing extra.
  */
 final class EGraph:
   /** Number of e-classes created so far; ids are `0 until count` and index the
@@ -53,8 +67,7 @@ final class EGraph:
   /** Next member in the circular list of the members of a class. The list is
    *  circular rather than nil-terminated so that two classes are joined by
    *  swapping the `next` of their representatives, which is O(1), needs no tail
-   *  pointer or terminator, and is its own inverse (useful for backtracking
-   *  later).
+   *  pointer or terminator, and is its own inverse (used by `pop`).
    */
   private var next = new Array[EClassId](16)
 
@@ -80,12 +93,23 @@ final class EGraph:
    */
   private val pending = ArrayBuffer.empty[ENode]
 
+  /** Undo records of the mutations done inside the current levels. */
+  private val trail = ArrayBuffer.empty[Undo]
+
+  /** Length of `trail` when each open level was pushed. */
+  private val levels = ArrayBuffer.empty[Int]
+
   def find(id: EClassId): EClassId = repr(id)
 
   /** The number of e-classes ever created (ids range over
    *  `0 until classCount`).
    */
   def classCount: Int = count
+
+  /** The number of open levels. */
+  def level: Int = levels.length
+
+  private def recording: Boolean = levels.nonEmpty
 
   def newClass(): EClassId =
     if count == repr.length then grow()
@@ -94,6 +118,7 @@ final class EGraph:
     repr(id) = id
     next(id) = id
     size(id) = 1
+    if recording then trail += Undo.NewClass
     id
 
   private def grow(): Unit =
@@ -118,6 +143,7 @@ final class EGraph:
       memo.put(node, node)
       addUse(node.fun, node)
       for arg <- node.args do addUse(arg, node)
+      if recording then trail += Undo.Added(node)
       node.cls
 
   /** Writes the representative of every element of `src` into `dst`; `dst` may
@@ -135,6 +161,10 @@ final class EGraph:
       list = ArrayBuffer.empty
       uses(root) = list
     list += node
+
+  private def removeLastUse(root: EClassId): Unit =
+    val list = uses(root)
+    list.remove(list.length - 1)
 
   /** Returns all e-classes (one per equivalence class) with the `(fun, args)`
    *  of their e-nodes.
@@ -168,9 +198,10 @@ final class EGraph:
 
     // Only the parents of the absorbed class need re-canonicalization.
     val fromUses = uses(from)
+    val intoUses = uses(into)
+    if recording then trail += Undo.Merged(from, into, if intoUses == null then -1 else intoUses.length, fromUses)
     if fromUses != null then
       pending ++= fromUses
-      val intoUses = uses(into)
       if intoUses == null then uses(into) = fromUses else intoUses ++= fromUses
       uses(from) = null
 
@@ -182,11 +213,54 @@ final class EGraph:
 
   private def repair(node: ENode): Unit =
     memo.remove(node) // stored under its previous form
+    val oldFun = node.fun
+    val oldArgs = if recording then node.args.clone() else null
     node.fun = repr(node.fun)
     canonicalArgs(node.args, node.args)
     val other = memo.get(node)
     if other == null then memo.put(node, node)
-    else
-      // Congruence: `node` and `other` have the same canonical form.
-      node.dead = true
-      merge(node.cls, other.cls)
+    else node.dead = true // congruence: `node` and `other` have the same canonical form
+    if recording then trail += Undo.Repaired(node, oldFun, oldArgs, other != null)
+    if other != null then merge(node.cls, other.cls)
+
+  /** Opens a level: [[pop]] will undo everything done after this call.
+   *  Completes the pending [[rebuild]] first, so that a level starts from a
+   *  closed congruence closure.
+   */
+  def push(): Unit =
+    rebuild()
+    levels += trail.length
+
+  /** Undoes every `add`, `merge` and `rebuild` done since the last [[push]]. */
+  def pop(): Unit =
+    require(levels.nonEmpty, "pop without a matching push")
+    pending.clear() // everything pending was merged in this level
+    val mark = levels.remove(levels.length - 1)
+    while trail.length > mark do undo(trail.remove(trail.length - 1))
+
+  private def undo(record: Undo): Unit = record match
+    case Undo.NewClass =>
+      count -= 1
+      uses(count) = null
+    case Undo.Added(node) =>
+      memo.remove(node)
+      removeLastUse(node.fun)
+      for arg <- node.args do removeLastUse(arg)
+    case Undo.Merged(from, into, intoUsesLen, fromUses) =>
+      size(into) -= size(from)
+      val t = next(from) // the join of the member lists is its own inverse
+      next(from) = next(into)
+      next(into) = t
+      repr(from) = from
+      var m = next(from)
+      while m != from do
+        repr(m) = from
+        m = next(m)
+      if fromUses != null then
+        if intoUsesLen < 0 then uses(into) = null else uses(into).takeInPlace(intoUsesLen)
+        uses(from) = fromUses
+    case Undo.Repaired(node, fun, args, died) =>
+      if died then node.dead = false else memo.remove(node)
+      node.fun = fun
+      System.arraycopy(args, 0, node.args, 0, args.length)
+      memo.put(node, node)

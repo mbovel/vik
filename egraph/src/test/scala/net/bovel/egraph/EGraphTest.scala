@@ -17,6 +17,8 @@ class EGraphTest extends munit.FunSuite:
     def find(id: EClassId): EClassId = eg.find(id)
     def merge(a: EClassId, b: EClassId): Unit = eg.merge(a, b)
     def rebuild(): Unit = eg.rebuild()
+    def push(): Unit = eg.push()
+    def pop(): Unit = eg.pop()
 
   test("add returns same id for identical nodes"):
     val t = TestGraph()
@@ -206,3 +208,118 @@ class EGraphTest extends munit.FunSuite:
       assertEquals(classOfForm.getOrElseUpdate(form, cls), cls) // congruent nodes share a class
       assertEquals(t.find(t.eg.add(fun, args.toArray)), cls) // and the hashcons knows the node
     assert(nodes > 100)
+
+  test("pop undoes merges and their congruences"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    val fa = t.node("f", a)
+    val fb = t.node("f", b)
+    t.push()
+    t.merge(a, b)
+    t.rebuild()
+    assertEquals(t.find(fa), t.find(fb))
+    t.pop()
+    assertNotEquals(t.find(a), t.find(b))
+    assertNotEquals(t.find(fa), t.find(fb))
+    assertEquals(t.node("f", b), fb) // the hashcons is restored too
+    assertEquals(t.eg.level, 0)
+
+  test("pop undoes nodes and classes added in the level"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val fa = t.node("f", a)
+    t.sym("g") // symbols created inside the level would be popped with it
+    val n = t.eg.classCount
+    t.push()
+    val ga = t.node("g", a)
+    t.merge(ga, fa)
+    t.rebuild()
+    t.pop()
+    assertEquals(t.eg.classCount, n)
+    assertEquals(t.node("f", a), fa) // still there
+    assertEquals(t.node("g", a), ga) // fresh again, and gets the same id back
+    assertNotEquals(t.find(ga), t.find(fa))
+
+  test("levels nest"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    val c = t.sym("c")
+    t.push()
+    t.merge(a, b)
+    t.push()
+    t.merge(b, c)
+    t.rebuild()
+    assertEquals(t.find(a), t.find(c))
+    t.pop()
+    assertEquals(t.find(a), t.find(b))
+    assertNotEquals(t.find(a), t.find(c))
+    t.pop()
+    assertNotEquals(t.find(a), t.find(b))
+
+  test("pop without push fails"):
+    val t = TestGraph()
+    intercept[IllegalArgumentException]:
+      t.eg.pop()
+
+  test("random operations with push/pop match a replay of the kept operations"):
+    enum Op:
+      case Add(f: EClassId, x: EClassId, y: EClassId)
+      case Merge(x: EClassId, y: EClassId)
+      case Rebuild
+    // The kept operations: one list per open level, the last one being the current level.
+    val kept = ArrayBuffer(ArrayBuffer.empty[Op])
+    def replay(): EGraph =
+      val eg = EGraph()
+      for _ <- 0 to 20 do eg.newClass() // h and the leaves
+      for level <- kept; op <- level do
+        op match
+          case Op.Add(f, x, y) => eg.add(f, Array(x, y))
+          case Op.Merge(x, y) => eg.merge(x, y)
+          case Op.Rebuild => eg.rebuild()
+      eg
+    // Representation-independent view: classes as sets of ids, nodes keyed by the smallest id of their class.
+    def state(eg: EGraph) =
+      val classes = (0 until eg.classCount).groupBy(eg.find).values.map(_.toSet).toSet
+      val canon = (0 until eg.classCount).map(id =>
+        id -> (0 until eg.classCount).filter(eg.find(_) == eg.find(id)).min
+      ).toMap
+      val nodes = eg.getClasses().map((cls, ns) => canon(cls) -> ns.map((f, args) => (canon(f), args.map(canon))).toSet)
+      (eg.classCount, classes, nodes)
+
+    val rnd = scala.util.Random(11)
+    val eg = EGraph()
+    val h = eg.newClass()
+    val ids = ArrayBuffer.fill(20)(eg.newClass())
+    val snapshots = ArrayBuffer.empty[Any] // state at each push
+    var pops = 0
+    for step <- 0 until 600 do
+      rnd.nextInt(10) match
+        case 0 | 1 | 2 | 3 =>
+          val x = ids(rnd.nextInt(ids.size))
+          val y = ids(rnd.nextInt(ids.size))
+          ids += eg.add(h, Array(x, y))
+          kept.last += Op.Add(h, x, y)
+        case 4 | 5 | 6 =>
+          val x = ids(rnd.nextInt(ids.size))
+          val y = ids(rnd.nextInt(ids.size))
+          eg.merge(x, y)
+          kept.last += Op.Merge(x, y)
+          if rnd.nextBoolean() then
+            eg.rebuild()
+            kept.last += Op.Rebuild
+        case 7 | 8 =>
+          eg.push() // rebuilds first
+          kept.last += Op.Rebuild
+          snapshots += state(eg)
+          kept += ArrayBuffer.empty
+        case _ if eg.level > 0 =>
+          eg.pop()
+          kept.remove(kept.length - 1)
+          pops += 1
+          ids.filterInPlace(_ < eg.classCount) // drop ids of popped classes
+          assertEquals(state(eg), snapshots.remove(snapshots.length - 1), s"pop at step $step vs. push snapshot")
+          assertEquals(state(eg), state(replay()), s"pop at step $step vs. replay")
+        case _ => ()
+    assert(pops > 20)
