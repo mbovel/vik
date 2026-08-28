@@ -33,10 +33,13 @@ import scala.collection.mutable.ArrayBuffer
  *  one is true (assigned at the same level or before), so that backtracking
  *  never invalidates a watch.
  */
-final class Solver(val numVars: Int, theory: Theory = NoTheory):
+object Solver:
   enum Result:
     case Sat(model: Array[Boolean])
     case Unsat
+
+final class Solver(val numVars: Int, theory: Theory = NoTheory):
+  import Solver.Result
 
   private val Decision = -1
   private val FromTheory = -2

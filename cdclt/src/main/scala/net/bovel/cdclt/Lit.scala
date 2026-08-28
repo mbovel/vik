@@ -11,6 +11,9 @@ opaque type Lit = Int
 object Lit:
   def apply(v: Var, positive: Boolean = true): Lit = 2 * v + (if positive then 0 else 1)
 
+  /** The literal at `index` (see `index`). */
+  def fromIndex(index: Int): Lit = index
+
   /** Arrays of literals are arrays of `Int`. */
   given ClassTag[Lit] = summon[ClassTag[Int]]
 

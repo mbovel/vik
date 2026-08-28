@@ -8,8 +8,8 @@ class SolverTest extends munit.FunSuite:
     val s = Solver(numVars, theory)
     for c <- clauses do s.addClause(c*)
     s.solve() match
-      case s.Result.Sat(model) => Some(model)
-      case s.Result.Unsat => None
+      case Solver.Result.Sat(model) => Some(model)
+      case Solver.Result.Unsat => None
 
   def satisfies(model: Array[Boolean], clauses: Seq[Seq[Lit]]): Boolean =
     clauses.forall(_.exists(l => model(l.variable) == l.positive))
