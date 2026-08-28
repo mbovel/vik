@@ -1,11 +1,12 @@
 package net.bovel.egraph
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 
 /** High-level API for building e-graphs using string-named symbols. */
-final class EGraphBuilder:
+class EGraphBuilder:
 
   val eg = EGraph()
   private val syms = HashMap.empty[String, EClassId]
@@ -13,16 +14,22 @@ final class EGraphBuilder:
   def sym(name: String): EClassId =
     syms.getOrElseUpdate(name, eg.newClass())
 
-  /** Adds the application of `funName` to `args`; for a constant use `sym`
-   *  instead.
+  /** Adds a node for the application of `funName` to `args` (one per call, see
+   *  [[EGraph.add]]); for a constant use `sym` instead.
    */
   def node(funName: String, args: EClassId*): EClassId =
     require(args.nonEmpty, s"node(\"$funName\") needs at least one argument; use sym(\"$funName\") for a constant")
-    eg.add(sym(funName), args.toArray)
+    eg.add(App(sym(funName), ArraySeq.from(args)))
 
   def find(id: EClassId): EClassId = eg.find(id)
-  def merge(a: EClassId, b: EClassId): Unit = eg.merge(a, b)
+  def merge(a: EClassId, b: EClassId, reason: Int): Unit = eg.merge(a, b, reason)
   def rebuild(): Unit = eg.rebuild()
+  def push(): Unit = eg.push()
+
+  /** Pops a level of `eg` and forgets the symbols created in it. */
+  def pop(): Unit =
+    eg.pop()
+    syms.filterInPlace((_, id) => id < eg.classCount)
 
   /** Returns the symbol name for an e-class ID, if it was created via sym(). */
   def nameOf(id: EClassId): Option[String] =
@@ -56,7 +63,7 @@ final class EGraphBuilder:
       sb ++= "    fontname=\"sans-serif\"\n"
       sb ++= "    fontsize=10\n"
 
-      for ((fun, args), idx) <- nodes.zipWithIndex do
+      for (App(fun, args), idx) <- nodes.zipWithIndex do
         val nodeId = s"n${id}_$idx"
         val funSelf = eg.find(fun) == id
         val funLabel = if funSelf then "⟲" else ""

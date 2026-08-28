@@ -7,22 +7,29 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 type EClassId = Int
 
-/** An application e-node `fun(args)`, where `fun` and every argument are
- *  e-classes (function symbols are e-classes too, so `f = g` makes `f(a)` and
- *  `g(a)` congruent).
- *
- *  Nodes are canonicalized in place by [[EGraph.rebuild]], so a node must be
- *  removed from the hashcons before and re-inserted after. Arrays compare by
- *  reference, hence the structural `equals` and `hashCode`.
+/** A function application `fun(args)`, the input of [[EGraph.add]]: `fun` and
+ *  every argument are e-classes (function symbols are e-classes too, so `f = g`
+ *  makes `f(a)` and `g(a)` congruent). `args` is non-empty: a constant is its
+ *  own e-class, not an application.
  */
-private final case class ENode(var fun: EClassId, args: Array[EClassId]):
+final case class App(fun: EClassId, args: ArraySeq[EClassId]):
+  require(args.nonEmpty, "an application needs at least one argument; a constant is its own e-class")
+
+/** An e-node: an [[App]] together with its canonical form `fun(args)`, the
+ *  representatives of the application's function and arguments as of the last
+ *  [[EGraph.rebuild]]. The canonical form is updated in place, so a node must
+ *  be removed from the congruence table before and re-inserted after. Equality
+ *  and hashing are on the canonical form (arrays compare by reference, hence
+ *  the overrides).
+ */
+private final case class ENode(app: App, var fun: EClassId, args: Array[EClassId]):
   /** A member of the e-class this node belongs to (use [[EGraph.find]] for its
    *  representative).
    */
   var cls: EClassId = -1
 
   /** Set once another live node has the same canonical form; the node is then
-   *  dropped from the hashcons.
+   *  dropped from the congruence table.
    */
   var dead: Boolean = false
 
@@ -31,6 +38,23 @@ private final case class ENode(var fun: EClassId, args: Array[EClassId]):
     case that: ENode => fun == that.fun && Arrays.equals(args, that.args)
     case _ => false
   override def toString: String = s"$fun(${args.mkString(", ")})"
+
+/** Why two terms were equated: an equality asserted for `reason` (a literal, in
+ *  CDCL(T)), or the congruence of two nodes.
+ */
+private enum Justification:
+  case Asserted(reason: Int)
+  case Congruence(n1: ENode, n2: ENode)
+
+/** An edge of the union tree: the class of `a` was merged into the class of
+ *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
+ *  the surviving one) were equated for `why`; for a congruence, `n1` is a node
+ *  of `a`'s class and `n2` of `b`'s. `time` orders the merges.
+ */
+private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int)
+
+/** A disequality `a != b` asserted for `reason`. */
+private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
 
 /** What [[EGraph.pop]] must undo, one record per mutation done inside a level.
  *  Records are undone in reverse order, so each one sees the exact state its
@@ -51,10 +75,8 @@ private enum Undo:
   case Disequated(ra: EClassId, rb: EClassId)
   case Violated
 
-/** A disequality `a != b` asserted between two terms. */
-private final case class Diseq(a: EClassId, b: EClassId)
-
-/** A congruence closure over e-classes identified by dense `Int` ids.
+/** A congruence closure over e-classes identified by dense `Int` ids, with
+ *  disequalities, backtracking and explanations.
  *
  *  Union-find: `repr(id)` is the representative of `id`, so `find` is one array
  *  read. `merge` repoints every member of the smaller class (they are kept in a
@@ -63,9 +85,15 @@ private final case class Diseq(a: EClassId, b: EClassId)
  *  and `rebuild` re-canonicalizes them and merges the classes of nodes that
  *  became identical, until no node is pending.
  *
- *  Backtracking: `push` opens a level and `pop` undoes every `add`, `merge` and
- *  `rebuild` done since, through a trail of [[Undo]] records. Nothing is
- *  recorded outside a level, so non-backtracking use costs nothing extra.
+ *  Every syntactically distinct term gets its own node and class; congruent
+ *  terms are then merged with a justification, so `explain` can account for
+ *  every equality (as in Z3, LISA and egg; a hashcons on canonical forms would
+ *  identify `f(a)` with `f(c)` after `a = c` without a record of it).
+ *
+ *  Backtracking: `push` opens a level and `pop` undoes every `add`, `merge`,
+ *  `disequate` and `rebuild` done since, through a trail of [[Undo]] records.
+ *  Nothing is recorded outside a level, so non-backtracking use costs nothing
+ *  extra.
  */
 final class EGraph:
   /** Number of e-classes created so far; ids are `0 until count` and index the
@@ -86,8 +114,8 @@ final class EGraph:
   /** Number of members of a class; only meaningful for representatives. */
   private var size = new Array[Int](16)
 
-  /** Parent nodes of a class (nodes having it as `fun` or argument); only
-   *  meaningful for representatives, `null` when empty.
+  /** Parent nodes of a class (nodes having it as canonical `fun` or argument);
+   *  only meaningful for representatives, `null` when empty.
    */
   private var uses = new Array[ArrayBuffer[ENode] | Null](16)
 
@@ -106,17 +134,31 @@ final class EGraph:
    */
   private var violated: Diseq | Null = null
 
-  /** Hashcons: maps a canonical form to the live node with that form.
+  /** The union tree, for explanations: `edges(from)` is the [[Edge]] by which
+   *  the class of `from` was absorbed, `null` while `from` is a representative.
+   *  Ids point to the root that absorbed them when they were roots, so
+   *  following `edges` from any id leads to its representative. Unlike `repr`,
+   *  the tree is never compressed, and union by size keeps it shallow.
+   */
+  private var edges = new Array[Edge | Null](16)
+
+  /** Timestamp of the next merge. */
+  private var time = 0
+
+  /** Every node, in creation order. */
+  private val nodes = ArrayBuffer.empty[ENode]
+
+  /** Congruence table: maps a canonical form to the live node with that form.
    *
    *  `java.util.HashMap` rather than Scala's `mutable.HashMap`: with the same
    *  code otherwise, the Scala map measured about 5% slower on `randomBatch`
    *  (disjoint 95% confidence intervals) and equal within noise elsewhere; see
    *  `egraph-bench/results/2026-08-28-laraserver4-scala-hashmap.md`.
    */
-  private val memo = new java.util.HashMap[ENode, ENode]
+  private val cg = new java.util.HashMap[ENode, ENode]
 
-  /** Nodes whose `fun` or arguments lost their representative since the last
-   *  [[rebuild]].
+  /** Nodes whose canonical `fun` or arguments lost their representative since
+   *  the last [[rebuild]].
    */
   private val pending = ArrayBuffer.empty[ENode]
 
@@ -155,24 +197,32 @@ final class EGraph:
     size = Arrays.copyOf(size, n)
     uses = Arrays.copyOf(uses, n)
     forbid = Arrays.copyOf(forbid, n)
+    edges = Arrays.copyOf(edges, n)
 
-  /** Adds the application `fun(args)` and returns its e-class. `args` must be
-   *  non-empty: a constant is its own e-class.
+  /** Adds a node for `app` and returns its e-class, a fresh one, merged at once
+   *  with the class of any congruent node. Adding the same application twice
+   *  gives two nodes in one class; callers that may add a term several times
+   *  should memoize, as [[EGraphBuilder]] does and as the hash-consing of terms
+   *  in an SMT solver does.
    */
-  def add(fun: EClassId, args: Array[EClassId]): EClassId =
-    require(args.nonEmpty, "an e-node must have at least one argument; a constant is its own e-class")
-    val cargs = new Array[EClassId](args.length)
-    canonicalArgs(args, cargs)
-    val node = ENode(repr(fun), cargs)
-    val existing = memo.get(node)
-    if existing != null then repr(existing.cls)
+  def add(app: App): EClassId =
+    val cargs = new Array[EClassId](app.args.length)
+    var i = 0
+    while i < cargs.length do
+      cargs(i) = repr(app.args(i))
+      i += 1
+    val node = ENode(app, repr(app.fun), cargs)
+    node.cls = newClass()
+    nodes += node
+    addUse(node.fun, node)
+    for arg <- node.args do addUse(arg, node)
+    if recording then trail += Undo.Added(node)
+    val other = cg.get(node)
+    if other == null then cg.put(node, node)
     else
-      node.cls = newClass()
-      memo.put(node, node)
-      addUse(node.fun, node)
-      for arg <- node.args do addUse(arg, node)
-      if recording then trail += Undo.Added(node)
-      node.cls
+      node.dead = true
+      union(node.cls, other.cls, Justification.Congruence(node, other)) // congruent to an existing node
+    node.cls
 
   /** Writes the representative of every element of `src` into `dst`; `dst` may
    *  be `src` itself.
@@ -192,11 +242,11 @@ final class EGraph:
     val list = uses(root).nn
     list.remove(list.length - 1)
 
-  /** Asserts `a != b`; a conflict if they are already equal. */
-  def disequate(a: EClassId, b: EClassId): Unit =
+  /** Asserts `a != b` for `reason`; a conflict if they are already equal. */
+  def disequate(a: EClassId, b: EClassId, reason: Int): Unit =
     val ra = repr(a)
     val rb = repr(b)
-    val d = Diseq(a, b)
+    val d = Diseq(a, b, reason)
     if ra == rb then violate(d)
     else
       addForbid(ra, d)
@@ -213,36 +263,53 @@ final class EGraph:
       violated = d
       if recording then trail += Undo.Violated
 
-  /** Whether `a != b` follows from the asserted disequalities and equalities.
-   *  `false` when `a` and `b` are equal, even if the graph is inconsistent (see
-   *  [[conflict]]).
+  /** A disequality between the classes of `a` and `b`, if any: its side in
+   *  `a`'s class, its side in `b`'s class, and its reason. With `explain` of
+   *  `a` and `b` with those sides, this explains why `a = b` is false, e.g. to
+   *  propagate a negated equality atom in CDCL(T). `None` when `a` and `b` are
+   *  equal, even if the graph is inconsistent (see [[conflict]]).
    */
-  def areDisequal(a: EClassId, b: EClassId): Boolean =
+  def disequality(a: EClassId, b: EClassId): Option[(EClassId, EClassId, Int)] =
     val ra = repr(a)
     val rb = repr(b)
     val fa = forbid(ra)
     val fb = forbid(rb)
-    if ra == rb || fa == null || fb == null then false
-    else if fa.length <= fb.length then fa.exists(d => repr(d.a) == rb || repr(d.b) == rb)
-    else fb.exists(d => repr(d.a) == ra || repr(d.b) == ra)
+    if ra == rb || fa == null || fb == null then None
+    else
+      val found =
+        if fa.length <= fb.length then fa.find(d => repr(d.a) == rb || repr(d.b) == rb)
+        else fb.find(d => repr(d.a) == ra || repr(d.b) == ra)
+      found.map(d => if repr(d.a) == ra then (d.a, d.b, d.reason) else (d.b, d.a, d.reason))
 
-  /** The two sides of a violated disequality, if the asserted equalities and
-   *  disequalities are inconsistent.
+  /** Whether `a != b` follows from the asserted disequalities and equalities.
    */
-  def conflict: Option[(EClassId, EClassId)] =
+  def areDisequal(a: EClassId, b: EClassId): Boolean = disequality(a, b).isDefined
+
+  /** The two sides and the reason of a violated disequality, if the asserted
+   *  equalities and disequalities are inconsistent; `explain` on the two sides
+   *  gives the rest of the explanation.
+   */
+  def conflict: Option[(EClassId, EClassId, Int)] =
     val v = violated
-    if v == null then None else Some((v.a, v.b))
+    if v == null then None else Some((v.a, v.b, v.reason))
 
-  /** Returns all e-classes (one per equivalence class) with the `(fun, args)`
-   *  of their e-nodes.
+  /** Returns all e-classes (one per equivalence class) with the distinct
+   *  applications added to them.
    */
-  def getClasses(): HashMap[EClassId, ArrayBuffer[(EClassId, ArraySeq[EClassId])]] =
-    val res = HashMap.empty[EClassId, ArrayBuffer[(EClassId, ArraySeq[EClassId])]]
+  def getClasses(): HashMap[EClassId, ArrayBuffer[App]] =
+    val res = HashMap.empty[EClassId, ArrayBuffer[App]]
     for id <- 0 until count if repr(id) == id do res(id) = ArrayBuffer.empty
-    memo.values.forEach(node => res(repr(node.cls)) += ((node.fun, ArraySeq.unsafeWrapArray(node.args.clone()))))
+    for node <- nodes do res(repr(node.cls)) += node.app
+    res.mapValuesInPlace((_, apps) => apps.distinct)
     res
 
-  def merge(a: EClassId, b: EClassId): Unit =
+  /** Asserts `a = b` for `reason` (a literal, in CDCL(T)). */
+  def merge(a: EClassId, b: EClassId, reason: Int): Unit = union(a, b, Justification.Asserted(reason))
+
+  /** Merges the classes of `a` and `b` for `why`; for a congruence, `n1` must
+   *  be a node of `a`'s class and `n2` of `b`'s.
+   */
+  private def union(a: EClassId, b: EClassId, why: Justification): Unit =
     val ra = repr(a)
     val rb = repr(b)
     if ra == rb then return
@@ -251,6 +318,16 @@ final class EGraph:
     if size(ra) > size(rb) then
       from = rb
       into = ra
+
+    // Record the edge of the union tree, with `a` on the absorbed side.
+    edges(from) =
+      if repr(a) == from then Edge(into, a, b, why, time)
+      else
+        val flipped = why match
+          case Justification.Congruence(n1, n2) => Justification.Congruence(n2, n1)
+          case asserted => asserted
+        Edge(into, b, a, flipped, time)
+    time += 1
 
     // A disequality between the two classes is violated by this merge (checked before repointing).
     val fromForbid = forbid(from)
@@ -296,16 +373,78 @@ final class EGraph:
       if !node.dead then repair(node)
 
   private def repair(node: ENode): Unit =
-    memo.remove(node) // stored under its previous form
+    cg.remove(node) // stored under its previous form
     val oldFun = node.fun
     val oldArgs: Array[EClassId] | Null = if recording then node.args.clone() else null
     node.fun = repr(node.fun)
     canonicalArgs(node.args, node.args)
-    val other = memo.get(node)
-    if other == null then memo.put(node, node)
+    val other = cg.get(node)
+    if other == null then cg.put(node, node)
     else node.dead = true // congruence: `node` and `other` have the same canonical form
     if recording then trail += Undo.Repaired(node, oldFun, oldArgs.nn, other != null)
-    if other != null then merge(node.cls, other.cls)
+    if other != null then union(node.cls, other.cls, Justification.Congruence(node, other))
+
+  /** The reasons that make `x` and `y` equal: a set of reasons of `merge`s from
+   *  which `x = y` follows by congruence closure. Requires
+   *  `find(x) == find(y)`.
+   *
+   *  The explanation is read off the union tree the way LISA's
+   *  `Congruence.scala` does (EPFL LARA): the most recent edge on the paths
+   *  from `x` and `y` to their lowest common ancestor is the merge that
+   *  connected them, so it is explained by its justification together with,
+   *  recursively, the equalities of `x` and `y` with the two terms it equated,
+   *  which hold by older edges. A congruence is explained by the equalities of
+   *  the two terms' functions and arguments. This avoids the re-rooting of
+   *  Nieuwenhuis and Oliveras' proof forest at the price of a weaker bound on
+   *  the work per explanation.
+   */
+  def explain(x: EClassId, y: EClassId): ArrayBuffer[Int] =
+    require(repr(x) == repr(y), "explain: the two terms are not equal")
+    val reasons = ArrayBuffer.empty[Int]
+    explainInto(x, y, reasons)
+    reasons.distinct
+
+  private def explainInto(x: EClassId, y: EClassId, out: ArrayBuffer[Int]): Unit =
+    if x == y then return
+    // The lowest common ancestor of `x` and `y` in the union tree.
+    val ancestors = new java.util.HashSet[EClassId]
+    var u = x
+    var e = edges(u)
+    ancestors.add(u)
+    while e != null do
+      u = e.into
+      ancestors.add(u)
+      e = edges(u)
+    var lca = y
+    while !ancestors.contains(lca) do lca = edges(lca).nn.into
+    // The most recent edge on the two paths to it, and whether it lies on the path of `x`.
+    var best: Edge | Null = null
+    var bestOnX = true
+    u = x
+    while u != lca do
+      val e = edges(u).nn
+      val b = best
+      if b == null || e.time > b.time then best = e
+      u = e.into
+    u = y
+    while u != lca do
+      val e = edges(u).nn
+      val b = best
+      if b == null || e.time > b.time then
+        best = e
+        bestOnX = false
+      u = e.into
+    // That edge equated `a` (on the absorbed side, the side of `x` iff the edge is on its path) with `b`.
+    val edge = best.nn
+    val l = if bestOnX then edge.a else edge.b
+    val r = if bestOnX then edge.b else edge.a
+    explainInto(x, l, out)
+    edge.why match
+      case Justification.Asserted(reason) => out += reason
+      case Justification.Congruence(n1, n2) =>
+        explainInto(n1.app.fun, n2.app.fun, out)
+        for i <- n1.app.args.indices do explainInto(n1.app.args(i), n2.app.args(i), out)
+    explainInto(r, y, out)
 
   /** Opens a level: [[pop]] will undo everything done after this call.
    *  Completes the pending [[rebuild]] first, so that a level starts from a
@@ -330,10 +469,12 @@ final class EGraph:
       uses(count) = null
       forbid(count) = null
     case Undo.Added(node) =>
-      memo.remove(node)
+      nodes.remove(nodes.length - 1)
+      if !node.dead then cg.remove(node) // a node congruent to an existing one at creation was never inserted
       removeLastUse(node.fun)
       for arg <- node.args do removeLastUse(arg)
     case Undo.Merged(from, into, intoUsesLen, fromUses, intoForbidLen, fromForbid) =>
+      edges(from) = null
       size(into) -= size(from)
       val t = next(from) // the join of the member lists is its own inverse
       next(from) = next(into)
@@ -350,10 +491,10 @@ final class EGraph:
         if intoForbidLen < 0 then forbid(into) = null else forbid(into).nn.takeInPlace(intoForbidLen)
         forbid(from) = fromForbid
     case Undo.Repaired(node, fun, args, died) =>
-      if died then node.dead = false else memo.remove(node)
+      if died then node.dead = false else cg.remove(node)
       node.fun = fun
       System.arraycopy(args, 0, node.args, 0, args.length)
-      memo.put(node, node)
+      cg.put(node, node)
     case Undo.Disequated(ra, rb) =>
       val fa = forbid(ra).nn
       val fb = forbid(rb).nn

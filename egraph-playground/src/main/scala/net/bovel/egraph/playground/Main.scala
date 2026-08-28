@@ -36,8 +36,8 @@ object Main:
       try
         val builder = EGraphBuilder()
         val lines = input.value.split("\n").map(_.trim).filter(_.nonEmpty)
-        for line <- lines do
-          parseLine(builder, line)
+        for (line, i) <- lines.zipWithIndex do
+          parseLine(builder, line, i)
         builder.rebuild()
         val dot = builder.toDot
         val svg = viz.nn.renderSVGElement(dot)
@@ -96,7 +96,7 @@ object Main:
       (builder.sym(name), i)
 
   /** Parse a line like "f(x) = g(y)" and merge the two sides. */
-  private def parseLine(builder: EGraphBuilder, line: String): Unit =
+  private def parseLine(builder: EGraphBuilder, line: String, index: Int): Unit =
     if line.startsWith("//") || line.startsWith("#") then return
     val eqIdx = line.indexOf('=')
     if eqIdx < 0 then
@@ -108,4 +108,4 @@ object Main:
       val rhs = line.substring(eqIdx + 1).trim
       val (lhsId, _) = parseTerm(builder, lhs)
       val (rhsId, _) = parseTerm(builder, rhs)
-      builder.merge(lhsId, rhsId)
+      builder.merge(lhsId, rhsId, index)

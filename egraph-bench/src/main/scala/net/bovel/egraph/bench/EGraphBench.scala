@@ -2,12 +2,13 @@ package net.bovel.egraph.bench
 
 import java.util.concurrent.TimeUnit
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ArrayBuffer
 import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.egraph.{EClassId, EGraph}
+import net.bovel.egraph.{App, EClassId, EGraph}
 
 /** Each benchmark builds a fresh e-graph, so construction time is included;
  *  `build` measures that part alone. All workloads are linear in `n` except
@@ -32,7 +33,7 @@ class EGraphBench:
     val h = eg.newClass()
     val ids = ArrayBuffer.fill(n)(eg.newClass())
     for _ <- 0 until 2 * n do
-      ids += eg.add(h, Array(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size))))
+      ids += eg.add(App(h, ArraySeq(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))))
     ids
 
   /** Hashcons path only. */
@@ -46,7 +47,7 @@ class EGraphBench:
     val eg = EGraph()
     val ids = randomDag(eg, Random(1))
     val rnd = Random(2)
-    for _ <- 0 until n / 2 do eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))
+    for _ <- 0 until n / 2 do eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)), 0)
     eg.rebuild()
     eg.find(ids.last)
 
@@ -58,9 +59,9 @@ class EGraphBench:
     val eg = EGraph()
     val f = eg.newClass()
     val xs = Array.fill(n + 1)(eg.newClass())
-    for x <- xs do eg.add(f, Array(x))
+    for x <- xs do eg.add(App(f, ArraySeq(x)))
     for i <- 0 until n do
-      eg.merge(xs(i), xs(i + 1))
+      eg.merge(xs(i), xs(i + 1), 0)
       eg.rebuild()
     eg.find(xs(0))
 
@@ -72,9 +73,9 @@ class EGraphBench:
     val eg = EGraph()
     val g = eg.newClass()
     val a = eg.newClass()
-    for _ <- 0 until n do eg.add(g, Array(a, eg.newClass()))
+    for _ <- 0 until n do eg.add(App(g, ArraySeq(a, eg.newClass())))
     for _ <- 0 until n do
-      eg.merge(a, eg.newClass())
+      eg.merge(a, eg.newClass(), 0)
       eg.rebuild()
     eg.find(a)
 
@@ -88,7 +89,22 @@ class EGraphBench:
     val rnd = Random(2)
     for _ <- 0 until n / 2 do
       eg.push()
-      eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))
+      eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)), 0)
       eg.rebuild()
       eg.pop()
     eg.find(ids.last)
+
+  /** `randomBatch` with distinct reasons, then `explain` for every pair of
+   *  consecutive equal ids.
+   */
+  @Benchmark
+  def explain(): Int =
+    val eg = EGraph()
+    val ids = randomDag(eg, Random(1))
+    val rnd = Random(2)
+    for i <- 0 until n / 2 do eg.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)), i)
+    eg.rebuild()
+    var reasons = 0
+    for i <- 0 until ids.size - 1 do
+      if eg.find(ids(i)) == eg.find(ids(i + 1)) then reasons += eg.explain(ids(i), ids(i + 1)).length
+    reasons

@@ -13,6 +13,7 @@ Each benchmark builds a fresh e-graph, so its time includes construction; `build
 | `chain` | leaves `x_i` with parents `f(x_i)`; merge `x_i = x_{i+1}` and `rebuild` after each | incremental use (CDCL(T)-style) |
 | `star` | class `a` with `n` parents `g(a, c_j)`; merge `a` with `n` fresh singletons, `rebuild` after each | whether `rebuild` rescans the parents of the larger class on every merge (quadratic) or only those of the smaller one (linear) |
 | `backtrack` | `build`, then `n / 2` times: `push`, one random merge, `rebuild`, `pop` | the undo trail: cost of a merge + rebuild + its undo |
+| `explain` | `randomBatch` with distinct reasons, then `explain` for every pair of consecutive equal ids | explanations (union-tree walks, congruence recursion) |
 
 ## Running
 
@@ -33,22 +34,24 @@ Configuration (annotations in the benchmark class): 5 forks, 10 warmup and 5 mea
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, `EGraph` with backtracking. Setup, noise and warmup analysis: [results/2026-08-28-laraserver4-backtrack.md](results/2026-08-28-laraserver4-backtrack.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, `EGraph` with proof production. Setup, noise and warmup analysis: [results/2026-08-28-laraserver4-explain.md](results/2026-08-28-laraserver4-explain.md).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
-| backtrack | n=1000 | 0.258 | ± 0.017 | 6.7% | 0.231 | 0.416 | 5 × 5 |
-| backtrack | n=4000 | 1.441 | ± 0.135 | 9.4% | 1.286 | 2.960 | 5 × 5 |
-| build | n=1000 | 0.143 | ± 0.002 | 1.7% | 0.137 | 0.162 | 5 × 5 |
-| build | n=4000 | 0.821 | ± 0.006 | 0.7% | 0.798 | 0.863 | 5 × 5 |
-| chain | n=1000 | 0.087 | ± 0.001 | 1.4% | 0.084 | 0.100 | 5 × 5 |
-| chain | n=4000 | 0.347 | ± 0.002 | 0.6% | 0.338 | 0.360 | 5 × 5 |
-| randomBatch | n=1000 | 0.192 | ± 0.002 | 0.8% | 0.186 | 0.199 | 5 × 5 |
-| randomBatch | n=4000 | 1.163 | ± 0.016 | 1.4% | 1.102 | 1.218 | 5 × 5 |
-| star | n=1000 | 0.077 | ± 0.001 | 1.4% | 0.074 | 0.083 | 5 × 5 |
-| star | n=4000 | 0.321 | ± 0.003 | 1.0% | 0.313 | 0.337 | 5 × 5 |
+| backtrack | n=1000 | 0.310 | ± 0.023 | 7.6% | 0.273 | 0.546 | 5 × 5 |
+| backtrack | n=4000 | 1.485 | ± 0.027 | 1.8% | 1.438 | 1.734 | 5 × 5 |
+| build | n=1000 | 0.190 | ± 0.015 | 8.1% | 0.175 | 0.350 | 5 × 5 |
+| build | n=4000 | 1.019 | ± 0.057 | 5.6% | 0.935 | 1.489 | 5 × 5 |
+| chain | n=1000 | 0.119 | ± 0.001 | 0.6% | 0.116 | 0.122 | 5 × 5 |
+| chain | n=4000 | 0.478 | ± 0.003 | 0.6% | 0.469 | 0.491 | 5 × 5 |
+| explain | n=1000 | 0.265 | ± 0.002 | 0.8% | 0.258 | 0.286 | 5 × 5 |
+| explain | n=4000 | 1.427 | ± 0.018 | 1.3% | 1.370 | 1.521 | 5 × 5 |
+| randomBatch | n=1000 | 0.247 | ± 0.004 | 1.5% | 0.236 | 0.269 | 5 × 5 |
+| randomBatch | n=4000 | 1.328 | ± 0.021 | 1.6% | 1.244 | 1.404 | 5 × 5 |
+| star | n=1000 | 0.108 | ± 0.002 | 1.6% | 0.100 | 0.115 | 5 × 5 |
+| star | n=4000 | 0.437 | ± 0.007 | 1.6% | 0.420 | 0.473 | 5 × 5 |
 
-All workloads are linear in `n`. Versus the [baseline](results/2026-08-28-laraserver4.md): 2.6–9× on `build`, `chain` and `randomBatch`, and `star` went from quadratic (3.3 s at n=4000) to 0.3 ms. The undo trail costs nothing at level 0 (see the comparison in the results file).
+All workloads are linear in `n`. Proof production costs 12–29% on the workloads that do not ask for explanations (see the results file); `explain` adds 0.02–0.10 ms to `randomBatch`.
 
 ## All results
 
@@ -59,3 +62,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-28, laraserver4, case class](results/2026-08-28-laraserver4-case-class.md) — same structures, `ENode` as a private case class with structural equality ([json](results/2026-08-28-laraserver4-case-class.json))
 - [2026-08-28, laraserver4, Scala HashMap](results/2026-08-28-laraserver4-scala-hashmap.md) — hashcons as Scala `mutable.HashMap` instead of `java.util.HashMap`; about 5% slower on `randomBatch`, equal elsewhere; not adopted ([json](results/2026-08-28-laraserver4-scala-hashmap.json))
 - [2026-08-28, laraserver4, backtracking](results/2026-08-28-laraserver4-backtrack.md) — `push`/`pop` with an undo trail, new `backtrack` workload ([json](results/2026-08-28-laraserver4-backtrack.json))
+- [2026-08-28, laraserver4, proof production](results/2026-08-28-laraserver4-explain.md) — original arguments kept, justified congruences, union-tree explanations; new `explain` workload ([json](results/2026-08-28-laraserver4-explain.json))
