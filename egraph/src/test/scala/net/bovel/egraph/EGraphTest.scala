@@ -19,6 +19,7 @@ class EGraphTest extends munit.FunSuite:
     def rebuild(): Unit = eg.rebuild()
     def push(): Unit = eg.push()
     def pop(): Unit = eg.pop()
+    def disequate(a: EClassId, b: EClassId): Unit = eg.disequate(a, b)
 
   test("add returns same id for identical nodes"):
     val t = TestGraph()
@@ -267,6 +268,7 @@ class EGraphTest extends munit.FunSuite:
     enum Op:
       case Add(f: EClassId, x: EClassId, y: EClassId)
       case Merge(x: EClassId, y: EClassId)
+      case Diseq(x: EClassId, y: EClassId)
       case Rebuild
     // The kept operations: one list per open level, the last one being the current level.
     val kept = ArrayBuffer(ArrayBuffer.empty[Op])
@@ -277,6 +279,7 @@ class EGraphTest extends munit.FunSuite:
         op match
           case Op.Add(f, x, y) => eg.add(f, Array(x, y))
           case Op.Merge(x, y) => eg.merge(x, y)
+          case Op.Diseq(x, y) => eg.disequate(x, y)
           case Op.Rebuild => eg.rebuild()
       eg
     // Representation-independent view: classes as sets of ids, nodes keyed by the smallest id of their class.
@@ -286,7 +289,9 @@ class EGraphTest extends munit.FunSuite:
         id -> (0 until eg.classCount).filter(eg.find(_) == eg.find(id)).min
       ).toMap
       val nodes = eg.getClasses().map((cls, ns) => canon(cls) -> ns.map((f, args) => (canon(f), args.map(canon))).toSet)
-      (eg.classCount, classes, nodes)
+      val reps = (0 until eg.classCount).filter(id => eg.find(id) == id)
+      val diseqs = (for r1 <- reps; r2 <- reps if r1 < r2 && eg.areDisequal(r1, r2) yield (canon(r1), canon(r2))).toSet
+      (eg.classCount, classes, nodes, diseqs, eg.conflict.isDefined)
 
     val rnd = scala.util.Random(11)
     val eg = EGraph()
@@ -296,11 +301,16 @@ class EGraphTest extends munit.FunSuite:
     var pops = 0
     for step <- 0 until 600 do
       rnd.nextInt(10) match
-        case 0 | 1 | 2 | 3 =>
+        case 0 | 1 | 2 =>
           val x = ids(rnd.nextInt(ids.size))
           val y = ids(rnd.nextInt(ids.size))
           ids += eg.add(h, Array(x, y))
           kept.last += Op.Add(h, x, y)
+        case 3 =>
+          val x = ids(rnd.nextInt(ids.size))
+          val y = ids(rnd.nextInt(ids.size))
+          eg.disequate(x, y)
+          kept.last += Op.Diseq(x, y)
         case 4 | 5 | 6 =>
           val x = ids(rnd.nextInt(ids.size))
           val y = ids(rnd.nextInt(ids.size))
@@ -323,3 +333,62 @@ class EGraphTest extends munit.FunSuite:
           assertEquals(state(eg), state(replay()), s"pop at step $step vs. replay")
         case _ => ()
     assert(pops > 20)
+
+  test("disequate then merge is a conflict, undone by pop"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    t.disequate(a, b)
+    assert(t.eg.areDisequal(a, b))
+    assert(t.eg.areDisequal(b, a))
+    assert(!t.eg.areDisequal(a, a))
+    assertEquals(t.eg.conflict, None)
+    t.push()
+    t.merge(a, b)
+    assertEquals(t.eg.conflict, Some((a, b)))
+    t.pop()
+    assertEquals(t.eg.conflict, None)
+    assert(t.eg.areDisequal(a, b))
+
+  test("disequality conflict through congruence"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    val fa = t.node("f", a)
+    val fb = t.node("f", b)
+    t.disequate(fa, fb)
+    t.merge(a, b)
+    assertEquals(t.eg.conflict, None) // not before the rebuild
+    t.rebuild()
+    assertEquals(t.eg.conflict, Some((fa, fb)))
+
+  test("disequalities follow equalities"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    val c = t.sym("c")
+    t.disequate(a, b)
+    t.merge(b, c)
+    t.rebuild()
+    assert(t.eg.areDisequal(a, c))
+    assert(!t.eg.areDisequal(b, c))
+    assertEquals(t.eg.conflict, None)
+
+  test("disequate within a class is an immediate conflict"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    t.merge(a, b)
+    t.disequate(a, b)
+    assertEquals(t.eg.conflict, Some((a, b)))
+
+  test("pop undoes disequalities"):
+    val t = TestGraph()
+    val a = t.sym("a")
+    val b = t.sym("b")
+    t.push()
+    t.disequate(a, b)
+    t.pop()
+    assert(!t.eg.areDisequal(a, b))
+    t.merge(a, b)
+    assertEquals(t.eg.conflict, None)
