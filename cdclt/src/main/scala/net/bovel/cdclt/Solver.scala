@@ -14,6 +14,17 @@ import Lit.{neg, variable}
  *  it does have is what makes it CDCL: after a conflict, the first unique
  *  implication point clause is learned and the solver backjumps to the level
  *  where it is unit.
+ *
+ *  The trail is a stack of assigned literals with, per variable, its level and
+ *  reason, in the style of CreuSAT (Skotåm 2022), whose proofs rest on these
+ *  invariants: every literal is on the trail at most once, levels are
+ *  non-decreasing along it, the reason clause of a propagated literal is
+ *  "post-unit" (the literal, at index 0, is true and the others are false; a
+ *  theory reason is explained lazily into such a clause), and a learned clause
+ *  is a resolvent of clauses of the database, so the database stays
+ *  equisatisfiable with the input. `Unsat` means a conflict at level 0, i.e.
+ *  the empty clause by resolution; `Sat` means a complete assignment without
+ *  conflict, which needs no completeness argument for propagation or decisions.
  */
 final class Solver(val numVars: Int, theory: Theory = NoTheory):
   enum Result:
@@ -76,20 +87,27 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     reason(variable(lit)) = why
     trail += lit
 
-  /** Propagates from clause `c` (index `index`) if it is unit, and returns
-   *  whether it is false.
+  /** Propagates from clause `c` (index `index`) if it is unit, moving the
+   *  propagated literal to index 0, and returns whether `c` is false.
    */
   private def examine(c: Array[Lit], index: Int): Boolean =
     var unassigned = 0
     var unit = -1
-    for l <- c do
+    var i = 0
+    while i < c.length do
+      val l = c(i)
       if value(l) > 0 then return false
       if value(l) == 0 then
         unassigned += 1
-        unit = l
+        unit = i
+      i += 1
     if unassigned == 0 then true
     else
-      if unassigned == 1 then enqueue(unit, index)
+      if unassigned == 1 then
+        val l = c(unit)
+        c(unit) = c(0)
+        c(0) = l
+        enqueue(l, index)
       false
 
   /** Boolean and theory propagation to a fixpoint. Returns a false clause when
@@ -116,8 +134,8 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
           if !progress then return null
     null
 
-  /** The clause explaining the assignment of `lit`: `lit` and the negations of
-   *  the literals that implied it, which are all false.
+  /** The clause explaining the assignment of `lit`: `lit` at index 0, then the
+   *  negations of the literals that implied it, which are all false.
    */
   private def reasonClause(lit: Lit): Array[Lit] =
     val why = reason(variable(lit))
@@ -133,10 +151,12 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     val learned = ArrayBuffer[Lit](-1) // slot for the literal of the current level
     var counter = 0 // seen variables of the current level not yet resolved away
     var clause = conflict
-    var p = -1 // the literal resolved on, `-1` for the conflict clause itself
+    var first = 0 // literals of `clause` to resolve in: all of the conflict clause, then all but the implied one
+    var p = -1 // the literal resolved on
     var index = trail.length - 1
     while
-      for q <- clause if q != p do
+      for i <- first until clause.length do
+        val q = clause(i)
         val v = variable(q)
         if !seen(v) && level(v) > 0 then
           seen(v) = true
@@ -148,7 +168,9 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       seen(variable(p)) = false
       counter -= 1
       counter > 0
-    do clause = reasonClause(p)
+    do
+      clause = reasonClause(p)
+      first = 1
     learned(0) = neg(p)
     val backjump = if learned.length == 1 then 0 else learned.tail.map(l => level(variable(l))).max
     (learned.toArray, backjump)
