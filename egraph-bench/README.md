@@ -34,24 +34,24 @@ Configuration (annotations in the benchmark class): 5 forks, 10 warmup and 5 mea
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, `EGraph` with proof production, after simplifications. Setup, noise and warmup analysis: [results/2026-08-28-laraserver4-simplified.md](results/2026-08-28-laraserver4-simplified.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-28, `EGraph` with proof production, after simplifications and the `while` loops in `add`. Setup, noise and warmup analysis: [results/2026-08-28-laraserver4-while.md](results/2026-08-28-laraserver4-while.md).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
-| backtrack | n=1000 | 0.287 | ± 0.003 | 1.0% | 0.278 | 0.299 | 5 × 5 |
-| backtrack | n=4000 | 1.454 | ± 0.011 | 0.8% | 1.426 | 1.549 | 5 × 5 |
-| build | n=1000 | 0.184 | ± 0.003 | 1.5% | 0.174 | 0.199 | 5 × 5 |
-| build | n=4000 | 0.953 | ± 0.023 | 2.4% | 0.908 | 1.172 | 5 × 5 |
-| chain | n=1000 | 0.121 | ± 0.001 | 0.7% | 0.119 | 0.128 | 5 × 5 |
-| chain | n=4000 | 0.490 | ± 0.005 | 1.0% | 0.469 | 0.510 | 5 × 5 |
-| explain | n=1000 | 0.255 | ± 0.003 | 1.2% | 0.243 | 0.268 | 5 × 5 |
-| explain | n=4000 | 1.387 | ± 0.018 | 1.3% | 1.333 | 1.496 | 5 × 5 |
-| randomBatch | n=1000 | 0.247 | ± 0.014 | 5.7% | 0.227 | 0.393 | 5 × 5 |
-| randomBatch | n=4000 | 1.259 | ± 0.011 | 0.8% | 1.227 | 1.305 | 5 × 5 |
-| star | n=1000 | 0.104 | ± 0.001 | 1.1% | 0.100 | 0.110 | 5 × 5 |
-| star | n=4000 | 0.435 | ± 0.007 | 1.7% | 0.408 | 0.464 | 5 × 5 |
+| backtrack | n=1000 | 0.274 | ± 0.002 | 0.7% | 0.267 | 0.281 | 5 × 5 |
+| backtrack | n=4000 | 1.439 | ± 0.019 | 1.3% | 1.392 | 1.525 | 5 × 5 |
+| build | n=1000 | 0.177 | ± 0.002 | 1.0% | 0.168 | 0.183 | 5 × 5 |
+| build | n=4000 | 0.901 | ± 0.004 | 0.5% | 0.878 | 0.914 | 5 × 5 |
+| chain | n=1000 | 0.114 | ± 0.001 | 1.1% | 0.109 | 0.121 | 5 × 5 |
+| chain | n=4000 | 0.454 | ± 0.005 | 1.0% | 0.445 | 0.491 | 5 × 5 |
+| explain | n=1000 | 0.233 | ± 0.002 | 0.7% | 0.226 | 0.238 | 5 × 5 |
+| explain | n=4000 | 1.282 | ± 0.007 | 0.6% | 1.249 | 1.309 | 5 × 5 |
+| randomBatch | n=1000 | 0.225 | ± 0.005 | 2.2% | 0.218 | 0.262 | 5 × 5 |
+| randomBatch | n=4000 | 1.226 | ± 0.015 | 1.3% | 1.188 | 1.294 | 5 × 5 |
+| star | n=1000 | 0.107 | ± 0.001 | 1.3% | 0.101 | 0.113 | 5 × 5 |
+| star | n=4000 | 0.423 | ± 0.007 | 1.6% | 0.402 | 0.452 | 5 × 5 |
 
-All workloads are linear in `n`. Proof production costs 12–29% on the workloads that do not ask for explanations (see the [proof-production run](results/2026-08-28-laraserver4-explain.md)); `explain` adds 0.01–0.13 ms to `randomBatch`.
+All workloads are linear in `n`. Proof production costs 12–29% on the workloads that do not ask for explanations (see the [proof-production run](results/2026-08-28-laraserver4-explain.md)); `explain` adds 0.01–0.06 ms to `randomBatch`.
 
 ## All results
 
@@ -65,3 +65,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-28, laraserver4, proof production](results/2026-08-28-laraserver4-explain.md) — original arguments kept, justified congruences, union-tree explanations; new `explain` workload ([json](results/2026-08-28-laraserver4-explain.json))
 - [2026-08-28, laraserver4, simplified explain](results/2026-08-28-laraserver4-explain-simplified.md) — `explain` rewritten for readability; no measurable difference ([json](results/2026-08-28-laraserver4-explain-simplified.json))
 - [2026-08-28, laraserver4, simplifications](results/2026-08-28-laraserver4-simplified.md) — readability pass (`insertOrMerge`, no edge flip, no undo sentinels); no regression ([json](results/2026-08-28-laraserver4-simplified.json))
+- [2026-08-28, laraserver4, while loops](results/2026-08-28-laraserver4-while.md) — `while` instead of boxing `for` loops over argument arrays in `add`; 3–10% ([json](results/2026-08-28-laraserver4-while.json))

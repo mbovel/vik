@@ -224,7 +224,10 @@ final class EGraph:
     val node = ENode(app, repr(app.fun), Array.tabulate(app.args.length)(i => repr(app.args(i))), cls)
     nodes += node
     addUse(node.fun, node)
-    for arg <- node.args do addUse(arg, node)
+    var i = 0 // a while loop: `for` over an Array[Int] boxes every element
+    while i < node.args.length do
+      addUse(node.args(i), node)
+      i += 1
     if recording then trail += Undo.Added(node)
     insertOrMerge(node)
     cls
@@ -471,7 +474,10 @@ final class EGraph:
       nodes.remove(nodes.length - 1)
       if !node.dead then cg.remove(node) // a node congruent to an existing one at creation was never inserted
       removeLastUse(node.fun)
-      for arg <- node.args do removeLastUse(arg)
+      var i = 0
+      while i < node.args.length do
+        removeLastUse(node.args(i))
+        i += 1
     case Undo.Merged(from, into, intoUsesLen, fromUses, intoForbidLen, fromForbid) =>
       edges(from) = null
       size(into) -= size(from)
