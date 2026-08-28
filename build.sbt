@@ -24,3 +24,10 @@ lazy val egraphPlayground = project
     scalaJSUseMainModuleInitializer := true,
     libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1",
   )
+
+// JMH benchmarks for the e-graph (JVM only): `sbt "egraphBench/Jmh/run"`.
+lazy val egraphBench = project
+  .in(file("egraph-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(egraph.jvm(scala3Version))
+  .settings(name := "egraph-bench")

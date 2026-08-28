@@ -32,6 +32,17 @@ sbt test      # runs the tests on the JVM and on Scala.js
 > [!NOTE]
 > sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
 
+### Benchmarks
+
+The `egraphBench` subproject holds [JMH](https://github.com/openjdk/jmh) benchmarks for the e-graph:
+
+```sh
+sbt "egraphBench/Jmh/run"            # all benchmarks (about 15 minutes)
+sbt "egraphBench/Jmh/run .*star.*"   # only the benchmarks matching a regex
+```
+
+See [egraph-bench/README.md](egraph-bench/README.md) for the workloads and the current results.
+
 ### Playground
 
 Build it, serve its output directory, and open <http://localhost:8000/classes/index.html>:
