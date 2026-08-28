@@ -53,7 +53,12 @@ final class EGraph:
     */
   private var uses = new Array[ArrayBuffer[ENode]](16)
 
-  /** Hashcons: maps a canonical form to the live node with that form. */
+  /** Hashcons: maps a canonical form to the live node with that form.
+    *
+    * `java.util.HashMap` rather than Scala's `mutable.HashMap`: with the same code otherwise, the Scala map measured
+    * about 5% slower on `randomBatch` (disjoint 95% confidence intervals) and equal within noise elsewhere; see
+    * `egraph-bench/results/2026-08-28-laraserver4-scala-hashmap.md`.
+    */
   private val memo = new java.util.HashMap[ENode, ENode]
 
   /** Nodes whose `fun` or arguments lost their representative since the last [[rebuild]]. */
