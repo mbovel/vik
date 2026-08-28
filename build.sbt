@@ -38,7 +38,7 @@ lazy val cdclt = projectMatrix
   .in(file("cdclt"))
   .settings(
     name := "cdclt",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
