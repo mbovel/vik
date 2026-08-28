@@ -49,3 +49,61 @@ lazy val cdcltBench = project
   .enablePlugins(JmhPlugin)
   .dependsOn(cdclt.jvm(scala3Version))
   .settings(name := "cdclt-bench")
+
+// S-expression parser: subprojects `sexpr` (JVM) and `sexprJS`.
+lazy val sexpr = projectMatrix
+  .in(file("sexpr"))
+  .settings(
+    name := "sexpr",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+  )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
+
+// SMT expressions and solver over UF: subprojects `smt` (JVM) and `smtJS`.
+lazy val smt = projectMatrix
+  .in(file("smt"))
+  .dependsOn(cdclt, egraph)
+  .settings(
+    name := "smt",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+  )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
+
+// SMT-LIB 2 scripts: subprojects `smt2` (JVM) and `smt2JS`.
+lazy val smt2 = projectMatrix
+  .in(file("smt2"))
+  .dependsOn(sexpr, smt)
+  .settings(
+    name := "smt2",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+  )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
+
+lazy val sexprBench = project
+  .in(file("sexpr-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(sexpr.jvm(scala3Version))
+  .settings(name := "sexpr-bench")
+
+lazy val smt2Bench = project
+  .in(file("smt2-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(smt2.jvm(scala3Version))
+  .settings(name := "smt2-bench")
+
+// SMT-LIB benchmarks end to end (JVM only): `sbt "smtBench/Jmh/run"`.
+lazy val smtBench = project
+  .in(file("smt-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(smt2.jvm(scala3Version))
+  .settings(
+    name := "smt-bench",
+    // Other solvers, run in-process by the benchmarks and as separate processes by compare.sh.
+    libraryDependencies ++= Seq(
+      ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),
+      "de.uni-freiburg.informatik.ultimate" % "smtinterpol" % "2.5-916-ga5843d8b"
+    )
+  )
