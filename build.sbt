@@ -4,6 +4,7 @@ val scala3Version = "3.9.0"
 organization := "net.bovel"
 version := "0.1.0-SNAPSHOT"
 scalaVersion := scala3Version
+scalacOptions += "-Yexplicit-nulls"
 
 // Generates the subprojects `egraph` (JVM) and `egraphJS` from the same sources.
 lazy val egraph = projectMatrix

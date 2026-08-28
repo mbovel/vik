@@ -18,7 +18,7 @@ object Viz extends js.Object:
   def instance(): js.Promise[Viz] = js.native
 
 object Main:
-  private var viz: Viz = null
+  private var viz: Viz | Null = null
 
   def main(args: Array[String]): Unit =
     Viz.instance().`then`[Unit] { v =>
@@ -40,7 +40,7 @@ object Main:
           parseLine(builder, line)
         builder.rebuild()
         val dot = builder.toDot
-        val svg = viz.renderSVGElement(dot)
+        val svg = viz.nn.renderSVGElement(dot)
         output.innerHTML = ""
         output.appendChild(svg)
       catch

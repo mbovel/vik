@@ -43,9 +43,9 @@ private enum Undo:
       from: EClassId,
       into: EClassId,
       intoUsesLen: Int,
-      fromUses: ArrayBuffer[ENode],
+      fromUses: ArrayBuffer[ENode] | Null,
       intoForbidLen: Int,
-      fromForbid: ArrayBuffer[Diseq]
+      fromForbid: ArrayBuffer[Diseq] | Null
   )
   case Repaired(node: ENode, fun: EClassId, args: Array[EClassId], died: Boolean)
   case Disequated(ra: EClassId, rb: EClassId)
@@ -89,7 +89,7 @@ final class EGraph:
   /** Parent nodes of a class (nodes having it as `fun` or argument); only
    *  meaningful for representatives, `null` when empty.
    */
-  private var uses = new Array[ArrayBuffer[ENode]](16)
+  private var uses = new Array[ArrayBuffer[ENode] | Null](16)
 
   /** Disequalities involving a class: "forbid lists" (Nelson 1980), as in the
    *  die-graphs of Zakhour et al., POPL 2025. A `Diseq` sits in the lists of
@@ -99,12 +99,12 @@ final class EGraph:
    *  scanning the list of the absorbed class. Only meaningful for
    *  representatives, `null` when empty.
    */
-  private var forbid = new Array[ArrayBuffer[Diseq]](16)
+  private var forbid = new Array[ArrayBuffer[Diseq] | Null](16)
 
   /** The first disequality found violated; the graph is inconsistent from then
    *  on.
    */
-  private var violated: Diseq = null
+  private var violated: Diseq | Null = null
 
   /** Hashcons: maps a canonical form to the live node with that form.
    *
@@ -184,14 +184,12 @@ final class EGraph:
       i += 1
 
   private def addUse(root: EClassId, node: ENode): Unit =
-    var list = uses(root)
-    if list == null then
-      list = ArrayBuffer.empty
-      uses(root) = list
-    list += node
+    val list = uses(root)
+    if list == null then uses(root) = ArrayBuffer(node)
+    else list += node
 
   private def removeLastUse(root: EClassId): Unit =
-    val list = uses(root)
+    val list = uses(root).nn
     list.remove(list.length - 1)
 
   /** Asserts `a != b`; a conflict if they are already equal. */
@@ -206,11 +204,9 @@ final class EGraph:
       if recording then trail += Undo.Disequated(ra, rb)
 
   private def addForbid(root: EClassId, d: Diseq): Unit =
-    var list = forbid(root)
-    if list == null then
-      list = ArrayBuffer.empty
-      forbid(root) = list
-    list += d
+    val list = forbid(root)
+    if list == null then forbid(root) = ArrayBuffer(d)
+    else list += d
 
   private def violate(d: Diseq): Unit =
     if violated == null then
@@ -234,7 +230,8 @@ final class EGraph:
    *  disequalities are inconsistent.
    */
   def conflict: Option[(EClassId, EClassId)] =
-    if violated == null then None else Some((violated.a, violated.b))
+    val v = violated
+    if v == null then None else Some((v.a, v.b))
 
   /** Returns all e-classes (one per equivalence class) with the `(fun, args)`
    *  of their e-nodes.
@@ -301,13 +298,13 @@ final class EGraph:
   private def repair(node: ENode): Unit =
     memo.remove(node) // stored under its previous form
     val oldFun = node.fun
-    val oldArgs = if recording then node.args.clone() else null
+    val oldArgs: Array[EClassId] | Null = if recording then node.args.clone() else null
     node.fun = repr(node.fun)
     canonicalArgs(node.args, node.args)
     val other = memo.get(node)
     if other == null then memo.put(node, node)
     else node.dead = true // congruence: `node` and `other` have the same canonical form
-    if recording then trail += Undo.Repaired(node, oldFun, oldArgs, other != null)
+    if recording then trail += Undo.Repaired(node, oldFun, oldArgs.nn, other != null)
     if other != null then merge(node.cls, other.cls)
 
   /** Opens a level: [[pop]] will undo everything done after this call.
@@ -347,10 +344,10 @@ final class EGraph:
         repr(m) = from
         m = next(m)
       if fromUses != null then
-        if intoUsesLen < 0 then uses(into) = null else uses(into).takeInPlace(intoUsesLen)
+        if intoUsesLen < 0 then uses(into) = null else uses(into).nn.takeInPlace(intoUsesLen)
         uses(from) = fromUses
       if fromForbid != null then
-        if intoForbidLen < 0 then forbid(into) = null else forbid(into).takeInPlace(intoForbidLen)
+        if intoForbidLen < 0 then forbid(into) = null else forbid(into).nn.takeInPlace(intoForbidLen)
         forbid(from) = fromForbid
     case Undo.Repaired(node, fun, args, died) =>
       if died then node.dead = false else memo.remove(node)
@@ -358,7 +355,9 @@ final class EGraph:
       System.arraycopy(args, 0, node.args, 0, args.length)
       memo.put(node, node)
     case Undo.Disequated(ra, rb) =>
-      forbid(ra).remove(forbid(ra).length - 1)
-      forbid(rb).remove(forbid(rb).length - 1)
+      val fa = forbid(ra).nn
+      val fb = forbid(rb).nn
+      fa.remove(fa.length - 1)
+      fb.remove(fb.length - 1)
     case Undo.Violated =>
       violated = null
