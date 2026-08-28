@@ -2,7 +2,7 @@ package net.bovel.egraph.playground
 
 import org.scalajs.dom
 import org.scalajs.dom.{document, html}
-import net.bovel.egraph.EGraphBuilder
+import net.bovel.egraph.{EClassId, EGraphBuilder}
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
@@ -51,10 +51,10 @@ object Main:
     update()
 
   /** Parse a term like "f(x, g(y))" into e-graph nodes, returning the e-class ID. */
-  private def parseTerm(builder: EGraphBuilder, s: String): (Long, Int) =
+  private def parseTerm(builder: EGraphBuilder, s: String): (EClassId, Int) =
     parseTermAt(builder, s, 0)
 
-  private def parseTermAt(builder: EGraphBuilder, s: String, start: Int): (Long, Int) =
+  private def parseTermAt(builder: EGraphBuilder, s: String, start: Int): (EClassId, Int) =
     var i = start
     // skip whitespace
     while i < s.length && s(i).isWhitespace do i += 1
@@ -71,7 +71,7 @@ object Main:
     if i < s.length && s(i) == '(' then
       // function application
       i += 1 // skip '('
-      var args = Vector.empty[Long]
+      var args = Vector.empty[EClassId]
       // skip whitespace
       while i < s.length && s(i).isWhitespace do i += 1
       if i < s.length && s(i) != ')' then

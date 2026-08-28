@@ -1,6 +1,6 @@
 package net.bovel.egraph
 
-import scala.collection.immutable.ArraySeq
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 class EGraphTest extends munit.FunSuite:
 
@@ -12,7 +12,7 @@ class EGraphTest extends munit.FunSuite:
       syms.getOrElseUpdate(name, eg.newClass())
 
     def node(funName: String, args: EClassId*): EClassId =
-      eg.add(ENode(sym(funName), ArraySeq.from(args)))
+      eg.add(sym(funName), args.toArray)
 
     def find(id: EClassId): EClassId = eg.find(id)
     def merge(a: EClassId, b: EClassId): Unit = eg.merge(a, b)
@@ -36,7 +36,7 @@ class EGraphTest extends munit.FunSuite:
   test("add rejects e-nodes without arguments"):
     val t = TestGraph()
     intercept[IllegalArgumentException]:
-      t.eg.add(ENode(t.sym("a"), ArraySeq.empty))
+      t.eg.add(t.sym("a"), Array.empty)
 
   test("find returns self for fresh class"):
     val t = TestGraph()
@@ -190,3 +190,20 @@ class EGraphTest extends munit.FunSuite:
     t.rebuild()
     assertEquals(t.find(fa), t.find(b))
     assertEquals(t.find(fb), t.find(a))
+
+  test("random merges: every canonical form belongs to exactly one class"):
+    val t = TestGraph()
+    val rnd = scala.util.Random(7)
+    val ids = ArrayBuffer.fill(50)(t.eg.newClass())
+    for _ <- 0 until 200 do ids += t.node("h", ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))
+    for _ <- 0 until 40 do t.merge(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))
+    t.rebuild()
+    val classOfForm = HashMap.empty[(EClassId, Seq[EClassId]), EClassId]
+    var nodes = 0
+    for (cls, ns) <- t.eg.getClasses(); n <- ns do
+      nodes += 1
+      val args = Array.tabulate(n.args.length)(n.args(_))
+      val form = (t.find(n.fun), args.map(t.find).toSeq)
+      assertEquals(classOfForm.getOrElseUpdate(form, cls), cls) // congruent nodes share a class
+      assertEquals(t.find(t.eg.add(n.fun, args)), cls) // and the hashcons knows the node
+    assert(nodes > 100)

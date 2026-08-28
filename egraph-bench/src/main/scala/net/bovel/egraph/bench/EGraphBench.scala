@@ -2,14 +2,13 @@ package net.bovel.egraph.bench
 
 import java.util.concurrent.TimeUnit
 
-import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ArrayBuffer
 import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
 
-import net.bovel.egraph.{EClassId, EGraph, ENode}
+import net.bovel.egraph.{EClassId, EGraph}
 
 /** Each benchmark builds a fresh e-graph, so construction time is included; `build` measures that part alone. All
   * workloads are linear in `n` except `star`, which is quadratic as long as `rebuild` re-scans the parents of the
@@ -31,7 +30,7 @@ class EGraphBench:
     val h = eg.newClass()
     val ids = ArrayBuffer.fill(n)(eg.newClass())
     for _ <- 0 until 2 * n do
-      ids += eg.add(ENode(h, ArraySeq(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size)))))
+      ids += eg.add(h, Array(ids(rnd.nextInt(ids.size)), ids(rnd.nextInt(ids.size))))
     ids
 
   /** Hashcons path only. */
@@ -55,7 +54,7 @@ class EGraphBench:
     val eg = EGraph()
     val f = eg.newClass()
     val xs = Array.fill(n + 1)(eg.newClass())
-    for x <- xs do eg.add(ENode(f, ArraySeq(x)))
+    for x <- xs do eg.add(f, Array(x))
     for i <- 0 until n do
       eg.merge(xs(i), xs(i + 1))
       eg.rebuild()
@@ -67,7 +66,7 @@ class EGraphBench:
     val eg = EGraph()
     val g = eg.newClass()
     val a = eg.newClass()
-    for _ <- 0 until n do eg.add(ENode(g, ArraySeq(a, eg.newClass())))
+    for _ <- 0 until n do eg.add(g, Array(a, eg.newClass()))
     for _ <- 0 until n do
       eg.merge(a, eg.newClass())
       eg.rebuild()

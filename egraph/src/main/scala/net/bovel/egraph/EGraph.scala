@@ -1,117 +1,148 @@
 package net.bovel.egraph
 
-import scala.collection.immutable.ArraySeq
-import scala.collection.mutable.{ArrayBuffer, HashMap, LongMap}
-import scala.collection.MapView
+import java.util.Arrays
 
-type EClassId = Long
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
-final case class EClass(
-    repr: EClassId,
-    members: ArrayBuffer[EClassId] = ArrayBuffer.empty,
-    uses: ArrayBuffer[(ENode, EClassId)] = ArrayBuffer.empty
-)
+type EClassId = Int
 
-final case class ENode(
-    fun: EClassId,
-    args: ArraySeq[EClassId]
-)
+/** An application e-node `fun(args)`, where `fun` and every argument are e-classes (function symbols are e-classes
+  * too, so `f = g` makes `f(a)` and `g(a)` congruent).
+  *
+  * Nodes are canonicalized in place by [[EGraph.rebuild]]: after a rebuild, `fun` and `args` are representatives.
+  */
+final class ENode private[egraph] (private[egraph] var _fun: EClassId, private[egraph] val _args: Array[EClassId]):
+  /** A member of the e-class this node belongs to (use [[EGraph.find]] for its representative). */
+  private[egraph] var cls: EClassId = -1
+  /** Set once another live node has the same canonical form; the node is then dropped from the hashcons. */
+  private[egraph] var dead: Boolean = false
 
+  def fun: EClassId = _fun
+  def args: IArray[EClassId] = IArray.unsafeFromArray(_args)
+
+  override def hashCode: Int = 31 * Arrays.hashCode(_args) + _fun
+  override def equals(that: Any): Boolean = that match
+    case that: ENode => _fun == that._fun && Arrays.equals(_args, that._args)
+    case _           => false
+  override def toString: String = s"$fun(${_args.mkString(", ")})"
+
+/** A congruence closure over e-classes identified by dense `Int` ids.
+  *
+  * Union-find: `repr(id)` is the representative of `id`, so `find` is one array read. `merge` repoints every member of
+  * the smaller class (they are kept in a circular list `next`), as Z3 and cvc5 do. Congruence closure is deferred,
+  * egg-style: `merge` records the parents of the absorbed class as `pending`, and `rebuild` re-canonicalizes them
+  * and merges the classes of nodes that became identical, until no node is pending.
+  */
 final class EGraph:
-  private var nextClassId = 0L
-  private val classes = LongMap.empty[EClass]
-  private val hashcons = HashMap.empty[ENode, EClassId]
-  private val worklist = ArrayBuffer.empty[EClassId]
+  private var count = 0
+  private var repr = new Array[EClassId](16) // representative of each id
+  private var next = new Array[EClassId](16) // circular list of the members of a class
+  private var size = new Array[Int](16) // number of members, valid for representatives
+  private var uses = new Array[ArrayBuffer[ENode]](16) // parent nodes, valid for representatives; null when empty
+  private val memo = new java.util.HashMap[ENode, ENode] // hashcons: canonical form -> the live node with that form
+  private val pending = ArrayBuffer.empty[ENode] // nodes whose `fun` or arguments lost their representative
 
-  def find(id: EClassId): EClassId =
-    classes(id).repr
+  def find(id: EClassId): EClassId = repr(id)
 
-  /** Returns all e-classes (one per equivalence class). */
-  def getClasses(): HashMap[EClassId, ArrayBuffer[ENode]] =
-    val res = HashMap.empty[EClassId, ArrayBuffer[ENode]]
-    for (id, eclass) <- classes if id == eclass.repr do
-      res(id) = ArrayBuffer.empty
-    for ((enode, eclassId)) <- hashcons do
-      res(find(eclassId)) += enode
-    res
-
-  def getClass(id: EClassId): EClass =
-    classes(find(id))
+  /** The number of e-classes ever created (ids range over `0 until classCount`). */
+  def classCount: Int = count
 
   def newClass(): EClassId =
-    val id = nextClassId
-    nextClassId += 1
-    classes(id) = EClass(repr = id, members = ArrayBuffer(id))
+    if count == repr.length then grow()
+    val id = count
+    count += 1
+    repr(id) = id
+    next(id) = id
+    size(id) = 1
     id
 
-  /** Adds an application e-node. `args` must be non-empty: a constant is simply its own e-class. */
-  def add(rawNode: ENode): EClassId =
-    require(rawNode.args.nonEmpty, "an e-node must have at least one argument; a constant is its own e-class")
-    val node = canonicalize(rawNode)
-    hashcons.getOrElse(
-      node, {
-        val id = newClass()
-        classes(find(node.fun)).uses += ((node, id))
+  private def grow(): Unit =
+    val n = repr.length * 2
+    repr = Arrays.copyOf(repr, n)
+    next = Arrays.copyOf(next, n)
+    size = Arrays.copyOf(size, n)
+    uses = Arrays.copyOf(uses, n)
 
-        for arg <- node.args do
-          classes(find(arg)).uses += ((node, id))
+  /** Adds the application `fun(args)` and returns its e-class. `args` must be non-empty: a constant is its own
+    * e-class.
+    */
+  def add(fun: EClassId, args: Array[EClassId]): EClassId =
+    require(args.nonEmpty, "an e-node must have at least one argument; a constant is its own e-class")
+    val cargs = new Array[EClassId](args.length)
+    var i = 0
+    while i < args.length do
+      cargs(i) = repr(args(i))
+      i += 1
+    val node = ENode(repr(fun), cargs)
+    val existing = memo.get(node)
+    if existing != null then repr(existing.cls)
+    else
+      node.cls = newClass()
+      memo.put(node, node)
+      addUse(node._fun, node)
+      for arg <- cargs do addUse(arg, node)
+      node.cls
 
-        hashcons(node) = id
-        id
-      }
-    )
+  private def addUse(root: EClassId, node: ENode): Unit =
+    var list = uses(root)
+    if list == null then
+      list = ArrayBuffer.empty
+      uses(root) = list
+    list += node
 
-  def canonicalize(node: ENode): ENode =
-    ENode(find(node.fun), node.args.map(find))
+  /** Returns all e-classes (one per equivalence class) with their e-nodes. */
+  def getClasses(): HashMap[EClassId, ArrayBuffer[ENode]] =
+    val res = HashMap.empty[EClassId, ArrayBuffer[ENode]]
+    for id <- 0 until count if repr(id) == id do res(id) = ArrayBuffer.empty
+    memo.values.forEach(node => res(repr(node.cls)) += node)
+    res
 
-  def merge(rawA: EClassId, rawB: EClassId): Unit =
-    val a = find(rawA)
-    val b = find(rawB)
-    if a == b then return
+  def merge(a: EClassId, b: EClassId): Unit =
+    val ra = repr(a)
+    val rb = repr(b)
+    if ra == rb then return
+    var from = ra
+    var into = rb
+    if size(ra) > size(rb) then
+      from = rb
+      into = ra
 
-    val (from, into) =
-      if classes(a).members.size >= classes(b).members.size then (b, a)
-      else (a, b)
+    // Repoint every member of the smaller class, then splice the two circular member lists.
+    repr(from) = into
+    var m = next(from)
+    while m != from do
+      repr(m) = into
+      m = next(m)
+    val t = next(from)
+    next(from) = next(into)
+    next(into) = t
+    size(into) += size(from)
 
-    val fromClass = classes(from)
-    val intoClass = classes(into)
+    // Only the parents of the absorbed class need re-canonicalization.
+    val fromUses = uses(from)
+    if fromUses != null then
+      pending ++= fromUses
+      val intoUses = uses(into)
+      if intoUses == null then uses(into) = fromUses else intoUses ++= fromUses
+      uses(from) = null
 
-    for member <- fromClass.members do
-      classes(member) = intoClass
-
-    intoClass.members ++= fromClass.members
-    intoClass.uses ++= fromClass.uses
-    worklist += into
-
+  /** Restores the congruence closure after merges. */
   def rebuild(): Unit =
-    while worklist.nonEmpty do
-      val todo = worklist.map(find).distinct
-      worklist.clear()
-      for id <- todo do
-        repair(id)
+    while pending.nonEmpty do
+      val node = pending.remove(pending.length - 1)
+      if !node.dead then repair(node)
 
-  private def repair(id: EClassId): Unit =
-    val eclass = classes(id)
-    val oldUses = eclass.uses.toArray
-    eclass.uses.clear()
-
-    // Re-canonicalize all uses in the hashcons
-    for (oldNode, oldEClassId) <- oldUses do
-      hashcons.remove(oldNode)
-      val newNode = canonicalize(oldNode)
-      hashcons(newNode) = find(oldEClassId)
-
-    // Check for congruences: e-nodes that became identical after canonicalization
-    val newUses = HashMap.empty[ENode, EClassId]
-    for (oldNode, oldEClassId) <- oldUses do
-      val newNode = canonicalize(oldNode)
-      newUses.get(newNode) match
-        case Some(existingId) =>
-          merge(oldEClassId, existingId)
-        case None =>
-          newUses(newNode) = find(oldEClassId)
-
-    // Assign uses to the (possibly updated) representative
-    val repr = classes(find(id))
-    for (node, eClassId) <- newUses do
-      repr.uses += ((node, eClassId))
+  private def repair(node: ENode): Unit =
+    memo.remove(node) // stored under its previous form
+    node._fun = repr(node._fun)
+    val args = node._args
+    var i = 0
+    while i < args.length do
+      args(i) = repr(args(i))
+      i += 1
+    val other = memo.get(node)
+    if other == null then memo.put(node, node)
+    else
+      // Congruence: `node` and `other` have the same canonical form.
+      node.dead = true
+      merge(node.cls, other.cls)

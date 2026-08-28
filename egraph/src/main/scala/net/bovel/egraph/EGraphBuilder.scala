@@ -1,6 +1,5 @@
 package net.bovel.egraph
 
-import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
@@ -17,7 +16,7 @@ final class EGraphBuilder:
   /** Adds the application of `funName` to `args`; for a constant use `sym` instead. */
   def node(funName: String, args: EClassId*): EClassId =
     require(args.nonEmpty, s"node(\"$funName\") needs at least one argument; use sym(\"$funName\") for a constant")
-    eg.add(ENode(sym(funName), ArraySeq.from(args)))
+    eg.add(sym(funName), args.toArray)
 
   def find(id: EClassId): EClassId = eg.find(id)
   def merge(a: EClassId, b: EClassId): Unit = eg.merge(a, b)
