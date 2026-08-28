@@ -1,29 +1,26 @@
-import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
+val scala3Version = "3.9.0"
 
-val scala3Version = "3.8.2"
+// In sbt 2, bare settings are common settings injected into all subprojects.
+organization := "net.bovel"
+version := "0.1.0-SNAPSHOT"
 scalaVersion := scala3Version
 
-lazy val core = crossProject(JVMPlatform, JSPlatform)
-  .crossType(CrossType.Pure)
-  .in(file("core"))
+// Generates the subprojects `egraph` (JVM) and `egraphJS` from the same sources.
+lazy val egraph = projectMatrix
+  .in(file("egraph"))
   .settings(
-    name := "scala-egraph-core",
-    version := "0.1.0-SNAPSHOT",
-    scalaVersion := scala3Version,
-    libraryDependencies += "org.scalameta" %%% "munit" % "1.0.4" % Test,
+    name := "egraph",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
   )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
 
-lazy val coreJVM = core.jvm
-lazy val coreJS = core.js
-
-lazy val playground = project
-  .in(file("playground"))
+lazy val egraphPlayground = project
+  .in(file("egraph-playground"))
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(coreJS)
+  .dependsOn(egraph.js(scala3Version))
   .settings(
-    name := "scala-egraph-playground",
-    version := "0.1.0-SNAPSHOT",
-    scalaVersion := scala3Version,
+    name := "egraph-playground",
     scalaJSUseMainModuleInitializer := true,
-    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "2.8.0",
+    libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1",
   )

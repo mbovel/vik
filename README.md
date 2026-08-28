@@ -13,3 +13,33 @@ While not optimized for performance, its performance should be within an order o
 - EGraph: a standalone e-graph implementation.
 - LIA Solver: a simple solver for linear integer arithmetic.
 - CDLC(T) Solver: a SAT modulo theory solver, with pluggable theory solvers for LIA, ADTs and UFs.
+
+## Requirements
+
+- A JDK (17 or later)
+- [sbt](https://www.scala-sbt.org/) 2
+- [Node.js](https://nodejs.org/), for the Scala.js tests and the playground
+
+## Development
+
+Subprojects: `egraph` (JVM), `egraphJS` (Scala.js, same sources) and `egraphPlayground` (a browser playground for the e-graph).
+
+```sh
+sbt compile   # compiles all subprojects
+sbt test      # runs the tests on the JVM and on Scala.js
+```
+
+> [!NOTE]
+> sbt 2 keeps a server running in the background; pass several commands as one `;`-separated string, for example `sbt "egraph/test; egraphPlayground/fastLinkJS"`.
+
+> [!NOTE]
+> sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
+
+### Playground
+
+Build it, serve its output directory, and open <http://localhost:8000/classes/index.html>:
+
+```sh
+sbt "egraphPlayground/copyResources; egraphPlayground/fastLinkJS"
+python3 -m http.server --directory target/out/sjs1/scala-3.9.0/egraph-playground 8000
+```
