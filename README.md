@@ -30,9 +30,6 @@ sbt test      # runs the tests on the JVM and on Scala.js
 ```
 
 > [!NOTE]
-> sbt 2 keeps a server running in the background; pass several commands as one `;`-separated string, for example `sbt "egraph/test; egraphPlayground/fastLinkJS"`.
-
-> [!NOTE]
 > sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
 
 ### Playground
