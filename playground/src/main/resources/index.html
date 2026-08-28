@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Graph Playground</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #f5f5f5;
+    }
+    #left {
+      width: 35%;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 8px;
+      border-right: 1px solid #ddd;
+      background: #fff;
+    }
+    h1 { font-size: 18px; font-weight: 600; }
+    #input {
+      flex: 1;
+      font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      resize: none;
+      outline: none;
+    }
+    #input:focus { border-color: #888; }
+    #error {
+      color: #c00;
+      font-size: 13px;
+      min-height: 1.5em;
+    }
+    .hint {
+      font-size: 12px;
+      color: #888;
+      line-height: 1.4;
+    }
+    #right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 16px;
+    }
+    #output svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>E-Graph Playground</h1>
+    <p class="hint">
+      Enter equalities, one per line. Terms: <code>x</code>, <code>f(x)</code>, <code>f(x, y)</code>.<br>
+      Example: <code>f(a) = a</code>
+    </p>
+    <textarea id="input" spellcheck="false">f(a, b)
+g(a, b)
+a = b
+f(a, b) = g(a, b)</textarea>
+    <div id="error"></div>
+  </div>
+  <div id="right">
+    <div id="output"></div>
+  </div>
+
+  <script src="https://unpkg.com/@viz-js/viz@3.11.0/lib/viz-standalone.js"></script>
+  <script src="/scala-egraph-playground-fastopt/main.js"></script>
+</body>
+</html>
