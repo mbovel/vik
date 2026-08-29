@@ -21,4 +21,4 @@ jobs:
       - name: Test (JVM and Scala.js)
         run: sbt test
       - name: Benchmark dry run
-        run: sbt "bench/Jmh/run -f 1 -wi 0 -i 1"
+        run: sbt "bench/Jmh/run -f 1 -wi 0 -i 1 -e .*princess.* -e .*smtinterpol.*" # the other solvers need minutes per operation on some instances
