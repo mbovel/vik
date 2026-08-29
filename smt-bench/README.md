@@ -1,6 +1,6 @@
 # SMT benchmarks
 
-End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF and QF_LIA instances of the
+End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF, QF_LIA and QF_BV instances of the
 [SMT-LIB](https://smt-lib.org) benchmark library, and a comparison with other solvers.
 
 ## Instances
@@ -37,9 +37,24 @@ QF_LIA, from `QF_LIA.tar.zst` of the same release, the same way:
 | `convert__convert-tiff2jpg-query-1831.smt2` | convert | unsat | program verification queries |
 | `fft__Sz64_1160.smt2`, `nec-smt__small__int_from_list__prp-2-17.smt2`, `wisa__wisa1.smt2` | fft, nec-smt, wisa | sat, unsat, sat | larger structured instances (VIK 17 s, timeout, timeout: comparison only) |
 
+QF_BV, from `QF_BV.tar.zst` of the same release: instances in the arithmetic fragment that `smt2` lowers to integers
+(no bit-blasting; of 188 small files across 43 families, 53 were in the fragment: the others use `bvmul` or `bvand` of
+two variables, `bvor`, `bvxor`, or division and shifts by a variable):
+
+| File | Family | Status | Workload |
+|---|---|---|---|
+| `sage__app7__bench_8505.smt2` | sage | sat | symbolic execution queries (SAGE) |
+| `bench_ab__a97test0001.smt2` | bench_ab | sat | crafted arithmetic |
+| `bmc-bv__adpcm.smt2`, `bmc-bv__Prim_4.smt2` | bmc-bv | sat, unsat | bounded model checking |
+| `crafted__bitops7.smt2`, `crafted__bv8.smt2` | crafted | sat, unsat | small crafted instances |
+| `2018-Goel-hwbench__QF_BV_bv_bv_swap_two_cc_ref_max.smt2`, `2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max.smt2` | 2018-Goel-hwbench | sat, unsat | hardware verification |
+| `20190311-bv-term-small-rw-Noetzli__bv-term-small-rw_17.smt2` | 20190311-bv-term-small-rw-Noetzli | unsat | rewriting lemmas |
+| `pspace__ndist.a.20000.smt2` | pspace | unsat | wide bit-vectors: 0.3 ms in process for VIK, a 20 s timeout for z3, which bit-blasts |
+| `bruttomesso__core__ext_con_004_001_0016.smt2`, `fft__Sz128_2823.smt2` | bruttomesso, fft | unsat, unsat | `extract`/`concat` chains and FFT: VIK exceeds 20 s (comparison only) |
+
 Licenses, as stated in the files: 2018-Goel-hwbench [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
 20170829-Rodin and 20190906-CLEARSY [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); the other
-families, including all the QF_LIA ones, state a `:source` only. See each file's `set-info` header for the authors.
+families, including all the QF_LIA and QF_BV ones, state a `:source` only. See each file's `set-info` header for the authors.
 
 ## Running
 
@@ -113,3 +128,5 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, 5 forks](results/2026-08-29-laraserver4-5forks.json) — `parse`, `solve` and `vik` on the ten instances at 5 forks and 10 warmup iterations (JSON only), before the switch to 3 forks
 - [2026-08-29, laraserver4, QF_LIA comparison](results/2026-08-29-laraserver4-compare-lia.md) — one process per solver and instance on the 14 QF_LIA instances, 60 s limit ([tsv](results/compare-raw-lia.tsv))
 - [2026-08-29, laraserver4, scan](results/2026-08-29-laraserver4-scan.md) — the event-driven theory propagation reverted to the scan for readability: VIK in process on the 20 instances, before and after
+- [2026-08-29, laraserver4, QF_BV](results/2026-08-29-laraserver4-bv.md) — VIK on the ten QF_BV instances of the arithmetic fragment (3 forks)
+- [2026-08-29, laraserver4, QF_BV comparison](results/2026-08-29-laraserver4-compare-bv.md) — one process per solver and instance on the 12 QF_BV instances, 60 s limit ([tsv](results/compare-raw-bv.tsv))

@@ -8,10 +8,10 @@ import scala.io.Source
 import org.openjdk.jmh.annotations.*
 import net.bovel.smt2.{Parser, Player, Script}
 
-/** Solving SMT-LIB QF_UF and QF_LIA benchmarks (SMT-LIB release 2025, see
- *  `smt-bench/README.md`): each operation parses and solves one file; `parse`
- *  measures the parsing alone. The instances VIK cannot solve within seconds
- *  are left to `compare.sh`.
+/** Solving SMT-LIB QF_UF, QF_LIA and QF_BV benchmarks (SMT-LIB release 2025,
+ *  see `smt-bench/README.md`): each operation parses and solves one file;
+ *  `parse` measures the parsing alone. The instances VIK cannot solve within
+ *  seconds are left to `compare.sh`.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -42,7 +42,17 @@ class SmtBench:
       "rings__ring_2exp4_3vars_2ite_unsat.smt2",
       "prime-cone__prime_cone_unsat_3.smt2",
       "CIRC__multiplier_prime__MULTIPLIER_PRIME_2.msat.smt2",
-      "convert__convert-tiff2jpg-query-1831.smt2"
+      "convert__convert-tiff2jpg-query-1831.smt2",
+      "sage__app7__bench_8505.smt2",
+      "bench_ab__a97test0001.smt2",
+      "bmc-bv__adpcm.smt2",
+      "bmc-bv__Prim_4.smt2",
+      "crafted__bitops7.smt2",
+      "crafted__bv8.smt2",
+      "2018-Goel-hwbench__QF_BV_bv_bv_swap_two_cc_ref_max.smt2",
+      "2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max.smt2",
+      "20190311-bv-term-small-rw-Noetzli__bv-term-small-rw_17.smt2",
+      "pspace__ndist.a.20000.smt2"
     )
   )
   var file: String = uninitialized

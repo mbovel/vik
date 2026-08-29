@@ -49,7 +49,17 @@ class OtherSolversBench:
       "rings__ring_2exp4_3vars_2ite_unsat.smt2",
       "prime-cone__prime_cone_unsat_3.smt2",
       "CIRC__multiplier_prime__MULTIPLIER_PRIME_2.msat.smt2",
-      "convert__convert-tiff2jpg-query-1831.smt2"
+      "convert__convert-tiff2jpg-query-1831.smt2",
+      "sage__app7__bench_8505.smt2",
+      "bench_ab__a97test0001.smt2",
+      "bmc-bv__adpcm.smt2",
+      "bmc-bv__Prim_4.smt2",
+      "crafted__bitops7.smt2",
+      "crafted__bv8.smt2",
+      "2018-Goel-hwbench__QF_BV_bv_bv_swap_two_cc_ref_max.smt2",
+      "2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max.smt2",
+      "20190311-bv-term-small-rw-Noetzli__bv-term-small-rw_17.smt2",
+      "pspace__ndist.a.20000.smt2"
     )
   )
   var file: String = uninitialized

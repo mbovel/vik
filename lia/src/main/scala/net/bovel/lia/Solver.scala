@@ -24,6 +24,11 @@ object Solver:
   /** A bound replaced inside a level: the variable, the side, the old bound. */
   private final case class Undo(x: Var, isUpper: Boolean, old: Bound | Null)
 
+  /** An open branch of branch and bound on `x`: its two bounds, its reason, and
+   *  the explanation of its failed left side once on the right side.
+   */
+  private final case class Branch(x: Var, floor: BigInt, ceil: BigInt, reason: Int, var left: Set[Int] | Null = null)
+
 /** A solver for conjunctions of bounds on integer linear expressions
  *  (quantifier-free linear integer arithmetic), after Dutertre and de Moura, "A
  *  Fast Linear-Arithmetic Solver for DPLL(T)" (CAV 2006): a general simplex
@@ -265,28 +270,53 @@ final class Solver:
 
   /** Decides the bounds: `Sat`, and [[value]] is an integer solution, or
    *  `Unsat` with its explanation. Bound propagation first tightens the bounds
-   *  by the rows; the simplex (Bland's rule, so it terminates) decides the
+   *  by the rows; the simplex (Bland's rule, so it terminates) then decides the
    *  rational relaxation; a fractional value is then split, depth first, into
    *  `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the explanations of two failed branches combining
-   *  into one without the branch itself. Branch and bound may not terminate on
-   *  unbounded variables.
+   *  into one without the branch itself. The open branches are kept on an
+   *  explicit stack (a recursion would grow with their number: thousands for a
+   *  wide bit-vector lowered to an integer). Branch and bound may not terminate
+   *  on unbounded variables.
    */
-  def check(): Result = checkRelaxation() match
-    case Result.Sat =>
-      var x = 0
-      while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
-      if x == numVars then Result.Sat
-      else
-        val v = values(x)
-        branches += 1
-        val reason = -branches
-        branch(x, v.floor, reason, true) match
-          case Result.Sat => Result.Sat
-          case Result.Unsat(left) =>
-            branch(x, v.ceil, reason, false) match
-              case Result.Sat => Result.Sat
-              case Result.Unsat(right) => Result.Unsat((left ++ right) - reason)
-    case unsat => unsat
+  def check(): Result =
+    val open = ArrayBuffer.empty[Branch]
+
+    /** Decides the relaxation and splits on the first fractional unknown. */
+    def step(): Result | Branch = checkRelaxation() match
+      case Result.Sat =>
+        var x = 0
+        while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
+        if x == numVars then Result.Sat
+        else
+          branches += 1
+          Branch(x, values(x).floor, values(x).ceil, -branches)
+      case unsat => unsat
+    var current: Result | Branch = step()
+    while true do
+      current match
+        case Result.Sat =>
+          for _ <- open do pop() // the assignment stays valid: bounds only loosen
+          return Result.Sat
+        case Result.Unsat(reasons) if open.isEmpty => return Result.Unsat(reasons)
+        case Result.Unsat(reasons) =>
+          val branch = open.last
+          pop()
+          if branch.left == null then // the left side failed: try the right one
+            branch.left = reasons
+            push()
+            current = assertLower(branch.x, branch.ceil, branch.reason) match
+              case Result.Sat => step()
+              case unsat => unsat
+          else // both sides failed
+            open.remove(open.length - 1)
+            current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason)
+        case branch: Branch =>
+          open += branch
+          push()
+          current = assertUpper(branch.x, branch.floor, branch.reason) match
+            case Result.Sat => step()
+            case unsat => unsat
+    throw AssertionError("unreachable")
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the
    *  simplex; `Sat` leaves the integrality to [[check]].
@@ -294,14 +324,6 @@ final class Solver:
   def checkRelaxation(): Result = propagateBounds() match
     case Result.Sat => simplex()
     case unsat => unsat
-
-  private def branch(x: Var, c: BigInt, reason: Int, isUpper: Boolean): Result =
-    push()
-    val result = (if isUpper then assertUpper(x, c, reason) else assertLower(x, c, reason)) match
-      case Result.Sat => check()
-      case unsat => unsat
-    pop()
-    result
 
   /** Repairs the basic variables violating their bounds, smallest first, by
    *  pivoting with the smallest non-basic variable of their row that can move
