@@ -1,6 +1,6 @@
 # SMT benchmarks
 
-End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`) on QF_UF instances of the
+End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF and QF_LIA instances of the
 [SMT-LIB](https://smt-lib.org) benchmark library, and a comparison with other solvers.
 
 ## Instances
@@ -21,9 +21,25 @@ One or two per family, chosen small enough for a JMH run and, where possible, on
 | `20190906-CLEARSY__0016__00003.smt2` | 20190906-CLEARSY | sat | Atelier B proof obligations |
 | `TypeSafe__z3.1184131.smt2` | TypeSafe | unsat | Sledgehammer / Isabelle |
 
+QF_LIA, from `QF_LIA.tar.zst` of the same release, the same way:
+
+| File | Family | Status | Workload |
+|---|---|---|---|
+| `CAV_2009_benchmarks__20-vars__problem__001.smt2` | CAV_2009_benchmarks | sat | random linear systems (Dillig, Dillig, Aiken 2009) |
+| `cut_lemmas__10-vars__cut_lemma_01_001.smt2`, `cut_lemmas__20-vars__cut_lemma_01_001.smt2` | cut_lemmas | unsat | integer infeasibility needing cuts or search (the 20-variable one takes VIK 18 s: comparison only) |
+| `pidgeons__pigeon-hole-6.smt2` | pidgeons | unsat | pigeonhole over integers |
+| `calypto__problem-005675.cvc.2.smt2` | calypto | sat | hardware verification (Calypto) |
+| `dillig__20-4.smt2` | dillig | sat | random systems |
+| `mathsat__FISCHER1-1-fair.smt2` | mathsat | sat | bounded model checking of Fischer's protocol |
+| `rings__ring_2exp4_3vars_2ite_unsat.smt2` | rings | unsat | modular arithmetic encoded with `ite` |
+| `prime-cone__prime_cone_unsat_3.smt2` | prime-cone | unsat | small crafted cones |
+| `CIRC__multiplier_prime__MULTIPLIER_PRIME_2.msat.smt2` | CIRC | sat | arithmetic circuits |
+| `convert__convert-tiff2jpg-query-1831.smt2` | convert | unsat | program verification queries |
+| `fft__Sz64_1160.smt2`, `nec-smt__small__int_from_list__prp-2-17.smt2`, `wisa__wisa1.smt2` | fft, nec-smt, wisa | sat, unsat, sat | larger structured instances (VIK 17 s, timeout, timeout: comparison only) |
+
 Licenses, as stated in the files: 2018-Goel-hwbench [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
 20170829-Rodin and 20190906-CLEARSY [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); the other
-families state a `:source` only. See each file's `set-info` header for the authors.
+families, including all the QF_LIA ones, state a `:source` only. See each file's `set-info` header for the authors.
 
 ## Running
 
@@ -95,3 +111,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, linear LCA](results/2026-08-29-laraserver4-lca.md) — the lowest common ancestor in `explain` in linear time (kept); quick configuration
 - [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — VIK (`SmtBench
 - [2026-08-29, laraserver4, 5 forks](results/2026-08-29-laraserver4-5forks.json) — `parse`, `solve` and `vik` on the ten instances at 5 forks and 10 warmup iterations (JSON only), before the switch to 3 forks
+- [2026-08-29, laraserver4, QF_LIA comparison](results/2026-08-29-laraserver4-compare-lia.md) — one process per solver and instance on the 14 QF_LIA instances, 60 s limit ([tsv](results/compare-raw-lia.tsv))

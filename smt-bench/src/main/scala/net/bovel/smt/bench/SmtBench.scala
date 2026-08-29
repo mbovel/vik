@@ -8,10 +8,10 @@ import scala.io.Source
 import org.openjdk.jmh.annotations.*
 import net.bovel.smt2.{Parser, Player, Script}
 
-/** Solving SMT-LIB QF_UF benchmarks (SMT-LIB release 2025, see
+/** Solving SMT-LIB QF_UF and QF_LIA benchmarks (SMT-LIB release 2025, see
  *  `smt-bench/README.md`): each operation parses and solves one file; `parse`
- *  measures the parsing alone. The instances VIK cannot solve within a minute
- *  (`eq_diamond*`, `SEQ009_size10`) are left to `compare.sh`.
+ *  measures the parsing alone. The instances VIK cannot solve within seconds
+ *  are left to `compare.sh`.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -32,7 +32,17 @@ class SmtBench:
       "2018-Goel-hwbench__QF_UF_mcs.1.prop1_ab_cti_max.smt2",
       "20170829-Rodin__smt3534838651727683253.smt2",
       "20190906-CLEARSY__0016__00003.smt2",
-      "TypeSafe__z3.1184131.smt2"
+      "TypeSafe__z3.1184131.smt2",
+      "CAV_2009_benchmarks__20-vars__problem__001.smt2",
+      "cut_lemmas__10-vars__cut_lemma_01_001.smt2",
+      "pidgeons__pigeon-hole-6.smt2",
+      "calypto__problem-005675.cvc.2.smt2",
+      "dillig__20-4.smt2",
+      "mathsat__FISCHER1-1-fair.smt2",
+      "rings__ring_2exp4_3vars_2ite_unsat.smt2",
+      "prime-cone__prime_cone_unsat_3.smt2",
+      "CIRC__multiplier_prime__MULTIPLIER_PRIME_2.msat.smt2",
+      "convert__convert-tiff2jpg-query-1831.smt2"
     )
   )
   var file: String = uninitialized

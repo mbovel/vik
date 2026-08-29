@@ -36,7 +36,15 @@ object Printer:
     case Formula.Ite(cond, thn, els) => s"(ite ${print(cond)} ${print(thn)} ${print(els)})"
     case Formula.Eq(lhs, rhs) => s"(= ${print(lhs)} ${print(rhs)})"
     case Formula.Pred(term) => print(term)
+    case Formula.Le(lhs, rhs) => s"(<= ${print(lhs)} ${print(rhs)})"
 
   def print(term: Term): String = term match
     case Term.Const(name) => name
     case Term.App(fun, args) => args.map(print).mkString(s"(${print(fun)} ", " ", ")")
+    case Term.Num(value) => if value.signum < 0 then s"(- ${-value})" else value.toString
+    case Term.Linear(terms, constant) =>
+      val summands = terms.map((a, t) => if a == 1 then print(t) else s"(* ${print(Term.Num(a))} ${print(t)})") ++
+        Option.when(constant.signum != 0)(print(Term.Num(constant)))
+      summands match
+        case single :: Nil => single
+        case _ => summands.mkString("(+ ", " ", ")")

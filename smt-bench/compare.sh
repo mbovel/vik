@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Wall-clock comparison of VIK's smt2 solver with z3, cvc5, princess and SMTInterpol on the benchmark files.
-# Usage, from the repository root: smt-bench/compare.sh [timeout-seconds] > results.tsv
+# Usage, from the repository root: smt-bench/compare.sh [timeout-seconds] [file-regex] > results.tsv
 set -u
 cd "$(dirname "$0")/.."
 TIMEOUT="${1:-60}"
-FILES=$(ls smt-bench/src/main/resources/smtlib/*.smt2)
+FILES=$(ls smt-bench/src/main/resources/smtlib/*.smt2 | grep -E "${2:-.}") # optional second argument: a regex selecting files
 # One classpath for the three JVM solvers (VIK, princess, SMTInterpol): smt-bench depends on all of them.
 CP=$(sbt "print smtBench/runtimeClasspath" 2>/dev/null | grep -E "^/" | tail -1)
 run() { # name, command...

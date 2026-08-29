@@ -40,15 +40,20 @@ object Simplifier:
       countConstants(l, counts)
       countConstants(r, counts)
     case Pred(t) => countConstants(t, counts)
+    case Le(l, r) =>
+      countConstants(l, counts)
+      countConstants(r, counts)
 
   private def countConstants(t: Term, counts: HashMap[String, Int]): Unit = t match
     case Const(name) => counts(name) = counts.getOrElse(name, 0) + 1
     case App(fun, args) =>
       countConstants(fun, counts)
       args.foreach(countConstants(_, counts))
+    case Num(_) => ()
+    case Linear(terms, _) => terms.foreach((_, u) => countConstants(u, counts))
 
   private def simplify(f: Formula, total: HashMap[String, Int]): Formula = f match
-    case True | False | Eq(_, _) | Pred(_) => f
+    case True | False | Eq(_, _) | Pred(_) | Le(_, _) => f
     case Not(a) => Not(simplify(a, total))
     case Or(as) => Or(as.map(simplify(_, total)))
     case Implies(a, b) => Implies(simplify(a, total), simplify(b, total))
@@ -78,6 +83,8 @@ object Simplifier:
   private def mentions(t: Term, c: String): Boolean = t match
     case Const(name) => name == c
     case App(fun, args) => mentions(fun, c) || args.exists(mentions(_, c))
+    case Num(_) => false
+    case Linear(terms, _) => terms.exists((_, u) => mentions(u, c))
 
   private def substitute(f: Formula, c: String, t: Term): Formula = f match
     case True | False => f
@@ -89,7 +96,10 @@ object Simplifier:
     case Ite(a, b, d) => Ite(substitute(a, c, t), substitute(b, c, t), substitute(d, c, t))
     case Eq(l, r) => Eq(substitute(l, c, t), substitute(r, c, t))
     case Pred(u) => Pred(substitute(u, c, t))
+    case Le(l, r) => Le(substitute(l, c, t), substitute(r, c, t))
 
   private def substitute(u: Term, c: String, t: Term): Term = u match
     case Const(name) => if name == c then t else u
     case App(fun, args) => App(substitute(fun, c, t), args.map(substitute(_, c, t)))
+    case Num(_) => u
+    case Linear(terms, k) => Term.linear(terms.map((a, v) => (a, substitute(v, c, t))), k)

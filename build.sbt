@@ -60,10 +60,27 @@ lazy val sexpr = projectMatrix
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
 
+// Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
+lazy val lia = projectMatrix
+  .in(file("lia"))
+  .settings(
+    name := "lia",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+  )
+  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jsPlatform(scalaVersions = Seq(scala3Version))
+
+// JMH benchmarks for the LIA solver (JVM only): `sbt "liaBench/Jmh/run"`.
+lazy val liaBench = project
+  .in(file("lia-bench"))
+  .enablePlugins(JmhPlugin)
+  .dependsOn(lia.jvm(scala3Version))
+  .settings(name := "lia-bench")
+
 // SMT expressions and solver over UF: subprojects `smt` (JVM) and `smtJS`.
 lazy val smt = projectMatrix
   .in(file("smt"))
-  .dependsOn(cdclt, egraph)
+  .dependsOn(cdclt, egraph, lia)
   .settings(
     name := "smt",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
@@ -81,23 +98,6 @@ lazy val smt2 = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-
-// Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
-lazy val lia = projectMatrix
-  .in(file("lia"))
-  .settings(
-    name := "lia",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
-  )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
-  .jsPlatform(scalaVersions = Seq(scala3Version))
-
-// JMH benchmarks for the LIA solver (JVM only): `sbt "liaBench/Jmh/run"`.
-lazy val liaBench = project
-  .in(file("lia-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(lia.jvm(scala3Version))
-  .settings(name := "lia-bench")
 
 lazy val sexprBench = project
   .in(file("sexpr-bench"))

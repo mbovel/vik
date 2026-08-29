@@ -12,9 +12,9 @@ While not optimized for performance, its performance should be within an order o
 
 - E-graph (`egraph`): a standalone congruence closure with disequalities, backtracking and explanations.
 - CDCL(T) solver (`cdclt`): a SAT modulo theory solver abstracting over theory solvers.
-- SMT solver (`smt`): terms and formulas, a simplifier, and the solver plugging the e-graph into `cdclt` as the theory of equality with uninterpreted functions (QF_UF).
+- SMT solver (`smt`): terms and formulas, a simplifier, and the solver plugging the e-graph (equality with uninterpreted functions) and the LIA solver (linear integer arithmetic) into `cdclt` as theories: QF_UF and QF_LIA, and their disjoint combination; functions over `Int` (QF_UFLIA) need the exchange of equalities between the two theories, which is future work.
 - SMT-LIB front end (`smt2`, on the S-expression parser `sexpr`): parses SMT-LIB 2 scripts into commands and plays them on the solver; `sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands.
-- LIA solver (`lia`): bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with branch and bound; standalone for now, to be plugged into `cdclt` by `smt`.
+- LIA solver (`lia`): bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound.
 
 ## Requirements
 
