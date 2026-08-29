@@ -30,3 +30,4 @@ Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, aver
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
+- [2026-08-29, laraserver4, experiments](results/2026-08-29-laraserver4-experiments.md) — `BigInt` rationals, the `Long` fast path (kept), most-fractional branching (not kept); quick configuration
