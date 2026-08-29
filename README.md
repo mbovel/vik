@@ -1,20 +1,211 @@
 # The Verification Intermediate Kit (VIK)
 
-VIK is a minimal but reasonnable SMT solver for the theories of linear integer arithmetic (LIA), algebraic data types (ADTs) and uninterpreted functions (UFs). It is designed to be used as a backend for verification tools, and to be easily understandable and modifiable.
+VIK is a minimal but reasonably fast SMT solver for the theories of uninterpreted functions (UF), linear integer
+arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers), with algebraic data types (ADTs)
+planned. It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
 
-## Design Principle
+## Design principle
 
-VIK is meant to be a minimal: its codbase is small, modular, and easy to understand, with a focus on clarity over performance. It should also be verification-friendly; verifying parts of VIK is future work.
+VIK is meant to be minimal: its codebase is small, modular and easy to understand, with clarity preferred over
+performance. It should also be verification-friendly; verifying parts of VIK is future work.
 
-While not optimized for performance, its performance should be within an order of magnitude of state-of-the-art solvers such as Z3 or CVC5.
+Performance still matters: the target is a factor of one to five of state-of-the-art solvers such as Z3 or cvc5 on
+typical instances, and ten or more on pathological ones is acceptable. Every optimization is measured before it is
+kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped for readability (see
+[Features](#features)).
 
 ## Components
 
-- E-graph (`egraph`): a standalone congruence closure with disequalities, backtracking and explanations.
-- CDCL(T) solver (`cdclt`): a SAT modulo theory solver abstracting over theory solvers.
-- SMT solver (`smt`): terms and formulas, a simplifier, and the solver plugging the e-graph (equality with uninterpreted functions) and the LIA solver (linear integer arithmetic) into `cdclt` as theories: QF_UF and QF_LIA, and their disjoint combination; functions over `Int` (QF_UFLIA) need the exchange of equalities between the two theories, which is future work.
-- SMT-LIB front end (`smt2`, on the S-expression parser `sexpr`): parses SMT-LIB 2 scripts into commands and plays them on the solver; `sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands. Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`/shifts/`bvudiv`/`bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected.
-- LIA solver (`lia`): bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound.
+| Package | Description |
+|---|---|
+| `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
+| `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
+| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions) and the LIA solver into `cdclt` as theories: QF_UF, QF_LIA and their disjoint combination (functions over `Int`, i.e. QF_UFLIA, need an exchange of equalities between the theories: future work). |
+| `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatype declarations are parsed and printed, and refused at `check-sat` until the ADT theory exists. |
+| `sexpr` | The S-expression lexer and parser used by `smt2`. |
+| `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
+| `playground` | Two browser pages (Scala.js): an e-graph playground and an SMT-LIB playground. |
+| `bench` | The JMH benchmarks of every module and the comparison with other solvers, with results per module. |
+
+## Usage
+
+The examples below are checked by [`smt2/src/test/scala/net/bovel/smt2/ReadmeExamplesTest.scala`](smt2/src/test/scala/net/bovel/smt2/ReadmeExamplesTest.scala).
+
+### The `smt` solver
+
+Formulas are built from terms with the operators of `net.bovel.smt` (`===`, `!==`, `<=`, `<`, `+`, `-`, `*`, `&&`,
+`||`, `!`, `==>`), and asserted on a `Solver`, which answers `Sat` or `Unsat`. Uninterpreted functions:
+
+```scala
+import net.bovel.smt.*
+import net.bovel.smt.Term.{App, Const, Num}
+
+val solver = Solver()
+val (a, b, f) = (Const("a"), Const("b"), Const("f"))
+solver.assert(a === b)
+solver.assert(App(f, List(a)) !== App(f, List(b)))
+solver.solve() // solver.Result.Unsat: f(a) = f(b) by congruence
+```
+
+Linear integer arithmetic, on the same solver, with `Int`-valued constants:
+
+```scala
+val (x, y) = (Const("x"), Const("y"))
+val lia = Solver()
+lia.assert(x + y <= Num(1))
+lia.assert(x >= Num(1))
+lia.assert(y >= Num(1))
+lia.solve() // lia.Result.Unsat
+```
+
+Levels of assertions with `push` and `pop`:
+
+```scala
+val s = Solver()
+s.assert(x + y <= Num(3))
+s.assert(x >= Num(1))
+s.solve() // Sat
+s.push()
+s.assert(y >= Num(3))
+s.solve() // Unsat
+s.pop()
+s.solve() // Sat again
+```
+
+Bit-vectors go through the SMT-LIB front end, which lowers them to integers (there is no bit-vector term in `smt`):
+
+```scala
+import net.bovel.smt2.{Parser, Player}
+
+val script = Parser.parse("""
+  (declare-const x (_ BitVec 8))
+  (assert (= (bvadd x #xFF) #x00))
+  (assert (bvult #x00 x))
+  (check-sat)""")
+Player.play(script) // List(true): x = #x01
+```
+
+### The `smt2` front end
+
+`Parser.parse` turns an SMT-LIB script into a `Script` of commands (`declare-fun`, `assert`, `push`, `pop`,
+`check-sat`, ...), `Player.play` runs it on a `Solver` and returns the answers of the `check-sat` commands, and
+`Printer.print` prints a script back (after lowering: a QF_BV script comes out as QF_LIA):
+
+```scala
+import net.bovel.smt2.{Parser, Player, Printer}
+
+val script = Parser.parse("""
+  (set-logic QF_UF)
+  (declare-sort U 0)
+  (declare-fun f (U) U)
+  (declare-const a U)
+  (assert (= (f (f a)) a))
+  (assert (not (= (f (f (f (f a)))) a)))
+  (check-sat)""")
+Player.play(script)   // List(false): unsat
+Printer.print(script) // the script as text, one command per line
+```
+
+### The `cdclt` solver alone
+
+A SAT solver over variables `0 until numVars`; `Lit(v)` is the positive literal, `Lit(v, false)` the negative one. A
+theory is plugged in through the `Theory` trait (see `smt.UfTheory` and `smt.LiaTheory`).
+
+```scala
+import net.bovel.cdclt.{Lit, Solver as Sat}
+
+val sat = Sat(numVars = 3)
+sat.addClause(Lit(0), Lit(1))               // x0 ∨ x1
+sat.addClause(Lit(0, false), Lit(2))        // ¬x0 ∨ x2
+sat.addClause(Lit(1, false), Lit(2, false)) // ¬x1 ∨ ¬x2
+sat.solve() match
+  case Sat.Result.Sat(model) => model.toList // one satisfying assignment, e.g. List(true, false, true)
+  case Sat.Result.Unsat => Nil
+```
+
+### The `egraph` alone
+
+Classes are `Int` ids; an application is a node over the classes of a function symbol and its arguments. Merges
+carry an `Int` reason (a literal, in the solver) and `explain` returns the reasons an equality follows from.
+
+```scala
+import scala.collection.immutable.ArraySeq
+import net.bovel.egraph.{App, EGraph}
+
+val eg = EGraph()
+val (f, a, b) = (eg.newClass(), eg.newClass(), eg.newClass())
+val (fa, fb) = (eg.add(App(f, ArraySeq(a))), eg.add(App(f, ArraySeq(b))))
+eg.merge(a, b, reason = 1)
+eg.rebuild()
+eg.find(fa) == eg.find(fb) // true, by congruence
+eg.explain(fa, fb)         // ArrayBuffer(1)
+eg.push()
+eg.disequate(fa, fb, reason = 2)
+eg.conflict                // Some((fa, fb, 2)): the disequality contradicts the closure
+eg.pop()                   // the disequality is gone
+```
+
+`EGraphBuilder` does the same with named symbols (`node("f", sym("a"))`) and prints the e-graph in DOT.
+
+### The `lia` solver alone
+
+Integer unknowns, expressions over them as slack variables, and bounds asserted with an `Int` reason; `check` decides
+and `value` reads a solution, an `Unsat` names the reasons of an inconsistent subset of bounds.
+
+```scala
+import net.bovel.lia.Solver as Lia
+
+val lia = Lia()
+val (x, y) = (lia.newVar(), lia.newVar())
+val s = lia.newSlack(List((BigInt(2), x), (BigInt(2), y))) // s stands for 2x + 2y
+lia.assertLower(s, 3, reason = 0)                            // 2x + 2y ≥ 3, tightened to x + y ≥ 2
+lia.assertUpper(s, 3, reason = 1)                            // 2x + 2y ≤ 3, tightened to x + y ≤ 1: Unsat(Set(0, 1))
+```
+
+## Features
+
+Ticks are what is implemented; the rest says why not, with the commit or the measurement.
+
+### `egraph`
+
+| Feature | | Notes |
+|---|---|---|
+| Dense `Int` ids, eager union-find (union by size, circular member lists) | ✓ | as Z3 and cvc5 |
+| Deferred congruence rebuild with a pending list (egg) | ✓ | |
+| `java.util.HashMap` as the congruence table | ✓ | 5% faster than Scala's, [measured](bench/results/egraph/2026-08-28-laraserver4-scala-hashmap.md) |
+| Backtracking: `push`/`pop` over an undo trail | ✓ | |
+| Disequalities (forbid lists) and conflicts | ✓ | |
+| Explanations: union tree, most recent edge below the LCA (LISA's scheme), linear LCA | ✓ | [`f3d89a4`](https://github.com/mbovel/vik/commit/f3d89a4) |
+| Event log and per-class atom lists for theory propagation | ✗ | 1.8× on one instance, nothing elsewhere, 85 subtle lines: removed for readability ([`6badd0f`](https://github.com/mbovel/vik/commit/6badd0f) → [`bf015d6`](https://github.com/mbovel/vik/commit/bf015d6), [measurements](bench/results/smt/2026-08-29-laraserver4-scan.md)) |
+| Cached node hashes | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-cached-hash.md) |
+| Union-tree edges as flat arrays | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-flat-edges.md) |
+| Rewrite and merge hooks (for ADTs and normalizations) | planned | [docs/adt-plan.md](docs/adt-plan.md) |
+
+### `cdclt`
+
+| Feature | | Notes |
+|---|---|---|
+| Two watched literals | ✓ | [1.7–4.6×](bench/results/cdclt/2026-08-28-laraserver4-2wl.md) |
+| First-UIP learning and backjumping | ✓ | trail invariants after CreuSAT |
+| VMTF decisions, phase saving, Luby restarts | ✓ | [measured](bench/results/cdclt/2026-08-28-laraserver4-restarts.md) (pigeonhole gets slower) |
+| Theory interface: assert, propagate, explain lazily, push/pop, final check; backjump to a conflict's level | ✓ | [`7b748a8`](https://github.com/mbovel/vik/commit/7b748a8) |
+| Learned clause minimization | ✗ | [within noise, 0.75× on pigeonhole](bench/results/cdclt/2026-08-29-laraserver4-minimization.md) |
+| Clause deletion | ✗ | would only help the hard tail (`SEQ009`); not worth the bookkeeping yet |
+| VSIDS | ✗ | VMTF instead, as CaDiCaL and CreuSAT |
+| Assumptions and unsat cores | ✗ | not yet |
+
+### `lia`
+
+| Feature | | Notes |
+|---|---|---|
+| Dutertre–de Moura simplex: tableau built once, bounds as the only backtracked state, Bland's rule | ✓ | |
+| Integers only: bounds tightened by the gcd of an expression, no δ-rationals | ✓ | |
+| Branch and bound, iterative, explanations combined across branches | ✓ | |
+| Bound propagation, incremental over the tightened variables | ✓ | [2–4× slower on random systems, decisive on SMT-LIB instances](bench/results/lia/2026-08-29-laraserver4-propagation.md) |
+| `Long` fast path for rationals | ✓ | [1.4–1.6×](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
+| Branching on the most fractional unknown | ✗ | [mixed](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
+| Cuts | ✗ | not yet (`cut_lemmas`, `wisa`) |
+| Theory propagation of bounds as literals, equality exchange with `egraph` | ✗ | not yet |
 
 ## Requirements
 
@@ -24,7 +215,7 @@ While not optimized for performance, its performance should be within an order o
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources), `egraphPlayground` (a browser playground for the e-graph), and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources), `playground` (the browser playgrounds) and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects
@@ -50,13 +241,14 @@ See [bench/README.md](bench/README.md) for running and result files, and [bench/
 [smt2](bench/results/smt2/README.md) and [smt](bench/results/smt/README.md) (SMT-LIB instances and the comparison with
 z3, cvc5, princess and SMTInterpol, in process through their Java bindings and as separate processes) for the workloads and current results.
 
-### Playground
+### Playgrounds
 
-Build it, serve its output directory, and open <http://localhost:8000/classes/index.html>:
+Build them, serve the output directory, and open <http://localhost:8000/classes/index.html>: an e-graph playground
+(equalities in, the e-graph drawn) and an SMT-LIB playground (a script in, the answers and the lowered script out).
 
 ```sh
-sbt "egraphPlayground/copyResources; egraphPlayground/fastLinkJS"
-python3 -m http.server --directory target/out/sjs1/scala-3.9.0/egraph-playground 8000
+sbt "playground/copyResources; playground/fastLinkJS"
+python3 -m http.server --directory target/out/sjs1/scala-3.9.0/playground 8000
 ```
 
 ## References and Inspirations
