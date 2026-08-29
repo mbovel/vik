@@ -63,7 +63,7 @@ SMTInterpol are fetched with [coursier](https://get-coursier.io).
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md). Process-level comparison with z3, cvc5, princess and SMTInterpol: [results/2026-08-29-laraserver4-compare.md](results/2026-08-29-laraserver4-compare.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md). Process-level comparison with z3, cvc5, princess and SMTInterpol: [results/2026-08-29-laraserver4-compare.md](results/2026-08-29-laraserver4-compare.md) (QF_UF) and [results/2026-08-29-laraserver4-compare-lia.md](results/2026-08-29-laraserver4-compare-lia.md) (QF_LIA).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|

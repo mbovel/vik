@@ -26,16 +26,18 @@ Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 meas
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4-propagation.md](results/2026-08-29-laraserver4-propagation.md).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
-| backtrack | n=10 | 1.820 | ± 0.021 | 1.1% | 1.789 | 1.921 | 3 × 5 |
-| backtrack | n=20 | 77.873 | ± 1.082 | 1.4% | 75.671 | 82.306 | 3 × 5 |
-| incremental | n=10 | 2.343 | ± 0.063 | 2.7% | 2.238 | 2.614 | 3 × 5 |
-| incremental | n=20 | 40.789 | ± 0.771 | 1.9% | 39.437 | 43.111 | 3 × 5 |
-| solve | n=10 | 0.928 | ± 0.021 | 2.2% | 0.889 | 0.987 | 3 × 5 |
-| solve | n=20 | 9.619 | ± 0.144 | 1.5% | 9.293 | 10.107 | 3 × 5 |
+| backtrack | n=10 | 9.728 | ± 0.108 | 1.1% | 9.546 | 10.130 | 3 × 5 |
+| backtrack | n=20 | 102.247 | ± 1.681 | 1.6% | 99.062 | 108.563 | 3 × 5 |
+| incremental | n=10 | 10.409 | ± 0.209 | 2.0% | 10.053 | 11.138 | 3 × 5 |
+| incremental | n=20 | 164.960 | ± 4.212 | 2.6% | 160.005 | 184.588 | 3 × 5 |
+| solve | n=10 | 1.584 | ± 0.035 | 2.2% | 1.517 | 1.700 | 3 × 5 |
+| solve | n=20 | 4.088 | ± 0.069 | 1.7% | 3.955 | 4.306 | 3 × 5 |
+| stepChains | n=10 | 0.814 | ± 0.017 | 2.1% | 0.783 | 0.865 | 3 × 5 |
+| stepChains | n=20 | 3.846 | ± 0.237 | 6.2% | 3.479 | 4.642 | 3 × 5 |
 
 ## All results
 
@@ -43,3 +45,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, experiments](results/2026-08-29-laraserver4-experiments.md) — `BigInt` rationals, the `Long` fast path (kept), most-fractional branching (not kept); quick configuration
 - [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — First full run of `SolverBench`: simplex with branch and bound, `Long` fast-path rationals, before bound propagation
 - [2026-08-29, laraserver4, bound propagation](results/2026-08-29-laraserver4-propagation.md) — every row vs. incremental over a worklist (4 or 1 visits per row; the latter kept), on the random workloads, `stepChains` and the SMT-LIB instances; quick configuration
+- [2026-08-29, laraserver4](results/2026-08-29-laraserver4-propagation.md) — Record on the final code of the day: incremental bound propagation (one row visit per propagation), branch and bound, `Long` fast-path rationals, including the new `stepChains` workload; compared with the record before propagation

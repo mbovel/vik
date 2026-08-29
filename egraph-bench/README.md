@@ -34,7 +34,7 @@ Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 meas
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29, with the event log for theory propagation and the linear LCA in `explain`. Setup, noise and the comparison with the previous record: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md) — the event log costs 4–6% on `chain` and `backtrack` (one small object per merge), nothing measurable elsewhere.
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
