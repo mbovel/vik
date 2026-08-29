@@ -1,5 +1,7 @@
 package net.bovel.smt
 
+import scala.util.hashing.MurmurHash3
+
 /** A term of an uninterpreted sort: a constant, or the application of a term (a
  *  function symbol, itself a constant) to arguments, as in the e-graph.
  */
@@ -10,6 +12,13 @@ enum Term:
   override def toString: String = this match
     case Const(name) => name
     case App(fun, args) => s"($fun ${args.mkString(" ")})"
+
+  /** The structural hash, computed once: the encoder looks terms up in hash
+   *  maps, and a subterm shared through `let` would otherwise be hashed in full
+   *  at each lookup of each term containing it.
+   */
+  private lazy val hash: Int = MurmurHash3.productHash(this)
+  override def hashCode: Int = hash
 
 /** A quantifier-free formula over equalities of terms and Boolean-sorted terms
  *  (`Pred(t)` holds when `t` is true), with the usual connectives.
@@ -25,6 +34,10 @@ enum Formula:
   case Ite(cond: Formula, thn: Formula, els: Formula)
   case Eq(lhs: Term, rhs: Term)
   case Pred(term: Term)
+
+  /** Computed once, as for terms. */
+  private lazy val hash: Int = MurmurHash3.productHash(this)
+  override def hashCode: Int = hash
 
   def unary_! : Formula = Not(this)
   def &&(that: Formula): Formula = And(List(this, that))

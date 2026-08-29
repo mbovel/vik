@@ -51,3 +51,4 @@ Process-level comparison with z3, cvc5, princess and SMTInterpol, and the effect
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
 - [2026-08-29, laraserver4, comparison](results/2026-08-29-laraserver4-compare.md) — one process per solver and instance, 60 s limit, before and after the simplifier ([tsv](results/compare-raw.tsv))
 - [2026-08-29, laraserver4, theory propagation](results/2026-08-29-laraserver4-theory.md) — the UF theory scanning all atoms vs. event-driven per-class atom lists (kept) vs. a dirty flag; quick configuration
+- [2026-08-29, laraserver4, cached hashes](results/2026-08-29-laraserver4-hashes.md) — structural hashes of terms and formulas computed once (kept); quick configuration
