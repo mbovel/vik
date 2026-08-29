@@ -17,12 +17,18 @@ sbt "sexprBench/Jmh/run -rf json -rff target/jmh-result.json"
 egraph-bench/.venv/bin/python egraph-bench/jmh2md.py target/jmh-result.json
 ```
 
-Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, average time per operation.
+Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
 ## Current results
 
-(none yet)
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md).
+
+| Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
+|---|---|---:|---:|---:|---:|---:|---:|
+| parse | n=1000 | 2.571 | ± 0.075 | 2.9% | 2.206 | 2.912 | 5 × 5 |
+| parse | n=10000 | 25.009 | ± 0.473 | 1.9% | 24.034 | 28.209 | 5 × 5 |
 
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
+- [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — First full run of `SExprBench` (regex lexer, tree construction)

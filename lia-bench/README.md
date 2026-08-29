@@ -21,7 +21,7 @@ sbt "liaBench/Jmh/run -rf json -rff target/jmh-result.json"
 egraph-bench/.venv/bin/python egraph-bench/jmh2md.py target/jmh-result.json
 ```
 
-Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, average time per operation.
+Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
 ## Current results
 

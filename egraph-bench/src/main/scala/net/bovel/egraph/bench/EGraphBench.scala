@@ -18,8 +18,8 @@ import net.bovel.egraph.{App, EClassId, EGraph}
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Fork(5)
-@Warmup(iterations = 10, time = 1)
+@Fork(3)
+@Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 5, time = 1)
 class EGraphBench:
 

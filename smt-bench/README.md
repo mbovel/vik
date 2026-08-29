@@ -30,13 +30,16 @@ families state a `:source` only. See each file's `set-info` header for the autho
 From the repository root (see [egraph-bench/README.md](../egraph-bench/README.md) for the setup of `jmh2md.py`):
 
 ```sh
-sbt "smtBench/Jmh/run -rf json -rff target/jmh-result.json"     # the instances VIK solves in under a minute: parse and solve
+sbt "smtBench/Jmh/run -rf json -rff target/jmh-result.json .*SmtBench.solve .*OtherSolversBench.vik"   # VIK on every instance
 sbt "smtBench/Jmh/run -p file=eq_diamond__eq_diamond50.smt2"     # one instance
 egraph-bench/.venv/bin/python egraph-bench/jmh2md.py target/jmh-result.json
 smt-bench/compare.sh 60 > smt-bench/results/compare.tsv           # wall clock vs z3, cvc5, princess, SMTInterpol
 ```
 
-Configuration: 5 forks, 10 warmup and 5 measurement iterations of 1 s each, average time per operation.
+The other benchmarks are recorded on subsets (`-p file=...`): `parse` and `smtinterpol` on a few representative instances,
+`princess` on those it solves in seconds (it needs minutes on NEQ004, PEQ018 and SEQ032).
+
+Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
 `compare.sh` runs each solver as a separate process with a timeout (default 60 s) and records the answer and the wall
 clock, JVM start-up included for VIK, princess and SMTInterpol. z3 and cvc5 are taken from the `PATH`; princess and
