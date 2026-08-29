@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMT-LIB Playground</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; height: 100vh; background: #f5f5f5; }
+    #left, #right { display: flex; flex-direction: column; padding: 16px; gap: 8px; }
+    #left { width: 50%; min-width: 320px; border-right: 1px solid #ddd; background: #fff; }
+    #right { flex: 1; overflow: auto; }
+    h1 { font-size: 18px; font-weight: 600; }
+    h1 a, h2 { font-size: 12px; font-weight: normal; color: #666; }
+    h2 { font-weight: 600; margin-top: 8px; }
+    textarea, pre { font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace; font-size: 13px; line-height: 1.5; }
+    #smt2-input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; resize: none; outline: none; }
+    #smt2-input:focus { border-color: #888; }
+    button { align-self: flex-start; padding: 6px 14px; font-size: 14px; }
+    #smt2-error { color: #c00; font-size: 13px; min-height: 1.5em; white-space: pre-wrap; }
+    #smt2-output { font-size: 16px; white-space: pre-wrap; }
+    #smt2-lowered { white-space: pre-wrap; color: #444; }
+    .hint { font-size: 12px; color: #888; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>SMT-LIB Playground <a href="index.html">(all playgrounds)</a></h1>
+    <p class="hint">QF_UF, QF_LIA and the arithmetic fragment of QF_BV (lowered to integers). Runs in the browser.</p>
+    <textarea id="smt2-input" spellcheck="false">(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (<= (+ (* 2 x) (* 2 y)) 3))
+(assert (>= (+ (* 2 x) (* 2 y)) 3))
+(check-sat)
+(push 1)
+(assert (= x y))
+(check-sat)
+(pop 1)</textarea>
+    <button id="smt2-run">Run</button>
+    <div id="smt2-error"></div>
+  </div>
+  <div id="right">
+    <h2>Answers</h2>
+    <pre id="smt2-output"></pre>
+    <h2>The script as VIK plays it</h2>
+    <pre id="smt2-lowered"></pre>
+  </div>
+  <script src="/playground-fastopt/main.js"></script>
+</body>
+</html>

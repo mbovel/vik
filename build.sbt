@@ -16,16 +16,6 @@ lazy val egraph = projectMatrix
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
 
-lazy val egraphPlayground = project
-  .in(file("egraph-playground"))
-  .enablePlugins(ScalaJSPlugin)
-  .dependsOn(egraph.js(scala3Version))
-  .settings(
-    name := "egraph-playground",
-    scalaJSUseMainModuleInitializer := true,
-    libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1"
-  )
-
 // Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
 lazy val cdclt = projectMatrix
   .in(file("cdclt"))
@@ -77,6 +67,17 @@ lazy val smt2 = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
+
+// The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
+lazy val playground = project
+  .in(file("playground"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(egraph.js(scala3Version), smt2.js(scala3Version))
+  .settings(
+    name := "playground",
+    scalaJSUseMainModuleInitializer := true,
+    libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1"
+  )
 
 // The runtime classpath of a project as real paths, for scripts (sbt 2 exports virtual file references).
 lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")

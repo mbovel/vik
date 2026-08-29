@@ -1,4 +1,4 @@
-package net.bovel.egraph.playground
+package net.bovel.playground
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
@@ -17,10 +17,11 @@ class Viz extends js.Object:
 object Viz extends js.Object:
   def instance(): js.Promise[Viz] = js.native
 
-object Main:
+/** The e-graph page: equalities in, the e-graph drawn with Viz.js. */
+object EGraphPage:
   private var viz: Viz | Null = null
 
-  def main(args: Array[String]): Unit =
+  def start(): Unit =
     Viz.instance().`then`[Unit] { v =>
       viz = v
       setup()
