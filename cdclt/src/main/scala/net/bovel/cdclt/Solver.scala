@@ -98,7 +98,12 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
    *  times 100).
    */
   private var conflicts = 0L
+  private var decisions = 0L
   private var restarts = 0
+
+  /** Statistics of the search so far. */
+  def numConflicts: Long = conflicts
+  def numDecisions: Long = decisions
   private var nextRestart = 100L
 
   /** The `i`-th term (from 0) of the Luby sequence 1, 1, 2, 1, 1, 2, 4, 1, 1,
@@ -294,6 +299,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     vmtfSearch
 
   private def decide(v: Var): Unit =
+    decisions += 1
     trailLim += trail.length
     theory.push()
     enqueue(Lit(v, phase(v)), Decision)
