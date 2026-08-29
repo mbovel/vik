@@ -43,8 +43,8 @@ final class Solver(simplify: Boolean = true):
    */
   def declare(datatype: Datatype): Unit =
     for c <- datatype.constructors; (_, sort) <- c.selectors do
-      if sort == "Int" || sort == "Bool" || sort.startsWith("(_ BitVec") then
-        throw UnsupportedOperationException(s"datatype ${datatype.name}: fields of sort $sort are not supported yet")
+      if sort == "Bool" then
+        throw UnsupportedOperationException(s"datatype ${datatype.name}: fields of sort Bool are not supported")
     datatypes += datatype
     for c <- datatype.constructors do
       declarations(c.name) = (c.selectors.map(_._2), datatype.name)
@@ -66,6 +66,7 @@ final class Solver(simplify: Boolean = true):
     for formula <- (if simplify then Simplifier.simplify(assertions, constructors) else assertions) do
       encoder.assert(formula)
     encoder.assertExhaustiveness()
+    encoder.shareIntegers()
     encoder.solve() match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
@@ -119,6 +120,42 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       known ++= more
     known
 
+  /** The terms known to be `Int`-sorted from their use in arithmetic (a summand
+   *  of a combination, a side of `Le`), for undeclared constants.
+   */
+  private val intTerms = scala.collection.mutable.HashSet.empty[Term]
+
+  private def noteInts(t: Term): Unit = t match
+    case Term.Linear(terms, _) => terms.foreach((_, u) => intTerms += u)
+    case Term.Num(_) => ()
+    case _ => intTerms += t
+
+  private def isInt(t: Term): Boolean = t match
+    case Term.Num(_) | Term.Linear(_, _) => true
+    case _ => sortOf(t) == "Int" || intTerms(t)
+
+  /** Theory combination: an `Int` term gets an e-class only when it occurs
+   *  under an uninterpreted function or a constructor, or is compared by `Eq`;
+   *  such shared terms are leaves for the e-graph and variables for the LIA
+   *  solver. For every pair of them, this asserts that their equality atom (the
+   *  one the e-graph propagates by congruence) holds iff their difference is
+   *  bounded by 0 on both sides: the SAT solver then decides an arrangement of
+   *  the shared terms that both theories accept, which is a model of both
+   *  (Nelson and Oppen; both theories are stably infinite).
+   */
+  def shareIntegers(): Unit =
+    val shared = classes.keys.filter(isInt).toList
+    for (a, i) <- shared.zipWithIndex; b <- shared.drop(i + 1) do
+      val e = lit(Formula.Eq(a, b))
+      Term.linear(List((1, a), (-1, b))) match
+        case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
+        case difference =>
+          val le = lit(Formula.Le(difference, Term.Num(0)))
+          val ge = lit(Formula.Le(Term.Num(0), difference))
+          clauses += Array(e.neg, le)
+          clauses += Array(e.neg, ge)
+          clauses += Array(e, le.neg, ge.neg)
+
   /** Asserts, for every term of a datatype sort seen so far, that one of its
    *  testers holds; for a term of a finite sort, also for its selector terms,
    *  recursively (see the class documentation).
@@ -157,7 +194,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     term match
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) => eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
-      case Term.Num(_) | Term.Linear(_, _) => throw IllegalArgumentException(s"$term: an Int term compared by =")
+      case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
   )
 
   private def atom(t: EClassId, u: EClassId): Lit =
@@ -170,7 +207,15 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     bounds += ((x, c))
     Lit(atoms.length - 1)
 
-  private def intVar(term: Term): lia.Var = intVars.getOrElseUpdate(term, liaSolver.newVar())
+  /** The LIA variable of an atomic `Int` term. An application is a node of the
+   *  e-graph as well, so that congruence relates it to other applications (a
+   *  shared term, see [[shareIntegers]]).
+   */
+  private def intVar(term: Term): lia.Var =
+    term match
+      case Term.App(_, _) => classOf(term)
+      case _ => ()
+    intVars.getOrElseUpdate(term, liaSolver.newVar())
 
   /** The LIA variable standing for a linear combination of `Int` terms. */
   private def slack(terms: List[(BigInt, Term)]): lia.Var =
@@ -188,6 +233,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       case Eq(lhs, rhs) => if lhs == rhs then trueLit else atom(classOf(lhs), classOf(rhs))
       case Pred(term) => atom(classOf(term), trueTerm)
       case Le(lhs, rhs) =>
+        noteInts(lhs)
+        noteInts(rhs)
         // `lhs − rhs ≤ 0`, as a bound on the combination `Σ a × t` (`+ c ≤ 0`) or on a lone term.
         Term.linear(List((1, lhs), (-1, rhs))) match
           case Term.Num(v) => if v.signum <= 0 then trueLit else trueLit.neg

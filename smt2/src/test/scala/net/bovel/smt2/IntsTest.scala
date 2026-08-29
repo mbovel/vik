@@ -44,5 +44,4 @@ class IntsTest extends munit.FunSuite:
     assertEquals(Player.play(Parser.parse(script.replace("(check-sat)", "(assert (< x 1)) (check-sat)"))), List(false))
 
   test("rejected inputs"):
-    intercept[Smt2Error](Parser.parse("(declare-fun f (Int) Int)"))
     intercept[Smt2Error](Parser.parse("(declare-const x Int) (assert (<= (* x x) 1))"))

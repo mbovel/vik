@@ -1,7 +1,8 @@
 # The Verification Intermediate Kit (VIK)
 
 VIK is a minimal but reasonably fast SMT solver for the theories of uninterpreted functions (UF), algebraic data
-types (ADTs), linear integer arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers). It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
+types (ADTs), linear integer arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers),
+and their combinations. It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
 
 ## Design principle
 
@@ -19,7 +20,7 @@ kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped
 |---|---|
 | `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
 | `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
-| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their disjoint combination (functions over `Int`, i.e. QF_UFLIA, and datatype fields of sort `Int` need an exchange of equalities between the theories: future work). |
+| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their combination (QF_UFLIA, datatypes with `Int` fields): integer leaves are LIA variables, applications are e-graph nodes, and an equality atom per pair of shared terms, tied to the bounds on their difference, lets the SAT solver choose an arrangement both theories accept. |
 | `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatypes (`declare-datatype(s)`, constructors, selectors, testers) are decided by the solver. |
 | `sexpr` | The S-expression lexer and parser used by `smt2`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
@@ -190,7 +191,8 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Exhaustiveness: some tester of every datatype term holds, as a clause; finite sorts expanded eagerly, so the search is complete on them | ✓ | `Unit`/`Option` cardinality examples in the tests |
 | Acyclicity, at the final check | ✓ | depth-first search over constructor nodes |
 | Differential test against brute force over finite datatypes | ✓ | 200 random formulas |
-| Fields of sort `Int`, `Bool` or bit-vectors | ✗ | need an exchange of equalities between theories |
+| Fields of sort `Int` (and bit-vectors, lowered to `Int`) | ✓ | through the UF–LIA combination |
+| Fields of sort `Bool` | ✗ | Boolean terms are formulas here |
 | Parametric datatypes | ✗ | rejected by the parser |
 
 ### `cdclt`
@@ -217,7 +219,8 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | `Long` fast path for rationals | ✓ | [1.4–1.6×](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
 | Branching on the most fractional unknown | ✗ | [mixed](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
 | Cuts | ✗ | not yet (`cut_lemmas`, `wisa`) |
-| Theory propagation of bounds as literals, equality exchange with `egraph` | ✗ | not yet |
+| Theory propagation of bounds as literals | ✗ | not yet |
+| Combination with `egraph` | ✓ | arrangement by SAT: an equality atom per pair of shared integer terms, in `smt`'s encoder; the solvers stay independent |
 
 ## Requirements
 

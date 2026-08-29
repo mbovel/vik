@@ -92,8 +92,6 @@ final class Parser:
    *  theory combination yet).
    */
   private def declare(name: String, argSorts: List[String], sort: String): List[Command] =
-    if argSorts.nonEmpty && (sort :: argSorts).exists(isArithmetic) then
-      throw Smt2Error(s"$name: functions over Int or bit-vectors are not supported (no theory combination yet)")
     functions(name) = (argSorts, sort)
     val width = BitVectors.width(sort)
     if argSorts.isEmpty && width >= 0 then

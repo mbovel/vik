@@ -47,7 +47,10 @@ class DatatypesTest extends munit.FunSuite:
     assertEquals(play("(assert (= l (cons a m))) (assert (= (tail l) l))"), List(false))
     assertEquals(play("(assert (= l (cons a m))) (assert ((_ is cons) l)) (assert (= (head l) a))"), List(true))
     assertEquals(play("(assert (not ((_ is nil) l))) (assert (not ((_ is cons) l)))"), List(false))
-    // Int fields need theory combination: refused
-    intercept[UnsupportedOperationException](Player.play(Parser.parse(
-      "(declare-datatype L ((nil) (cons (head Int) (tail L)))) (declare-const l L) (assert (= l nil)) (check-sat)"
-    )))
+    // Int fields: the datatype rules and the LIA solver combined
+    assertEquals(
+      Player.play(Parser.parse(
+        "(declare-datatype L ((nil) (cons (head Int) (tail L)))) (declare-const l L) (assert (= l (cons 3 nil))) (assert (< (head l) 2)) (check-sat)"
+      )),
+      List(false)
+    )

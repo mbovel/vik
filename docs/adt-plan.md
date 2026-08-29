@@ -4,8 +4,8 @@ Status: implemented on 2026-08-29 (`egraph.Rules`, `smt.AdtRules`, the exhaustiv
 departures from the plan below: a rewrite that identifies a term with an existing class goes through a derived merge
 with a rule justification (an `added` hook), never a silent substitution, so that it can be explained and undone; and
 testers need no lemma mechanism, since the encoder asserts the exhaustiveness clauses eagerly for every datatype term
-(and pre-expands the selector terms of finite sorts). Fields of sort `Int`, `Bool` or bit-vectors are still refused
-(theory combination).
+(and pre-expands the selector terms of finite sorts). Fields of sort `Int` work through the UF–LIA combination of the encoder (shared integer terms, an equality atom per
+pair); `Bool` fields are refused.
 
 ## What the theory has to decide
 
