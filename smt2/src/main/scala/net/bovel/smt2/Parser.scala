@@ -6,17 +6,18 @@ import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{Atom, SList}
 import net.bovel.smt.{Formula, Term}
 
-/** Reads an SMT-LIB 2 script (QF_UF, QF_LIA) into a [[Script]], translating
- *  terms of uninterpreted sorts and of `Int` into [[Term]]s and Boolean terms
- *  into [[Formula]]s. Sorts of declared symbols decide which is which: `=` on
- *  Booleans is `Iff`, on integers two bounds; a Boolean-sorted constant or
- *  application is a `Pred`; `+`, `-` and `*` by a numeral build linear
- *  combinations, `<=`, `<`, `>=` and `>` bounds. `let` binds names to
- *  translated values; `define-fun` is a macro; `distinct` is expanded to
- *  pairwise disequalities; `ite` on terms is lowered to a fresh constant with
- *  two defining assertions placed before the assertion that uses it. Functions
- *  with `Int` in their signature are rejected: the solver does not combine the
- *  two theories yet.
+/** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
+ *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
+ *  `Int` into [[Term]]s and Boolean terms into [[Formula]]s. Bit-vectors are
+ *  lowered to integers (see [[BitVectors]]). Sorts of declared symbols decide
+ *  which is which: `=` on Booleans is `Iff`, on integers two bounds; a
+ *  Boolean-sorted constant or application is a `Pred`; `+`, `-` and `*` by a
+ *  numeral build linear combinations, `<=`, `<`, `>=` and `>` bounds. `let`
+ *  binds names to translated values; `define-fun` is a macro; `distinct` is
+ *  expanded to pairwise disequalities; `ite` on terms is lowered to a fresh
+ *  constant with two defining assertions placed before the assertion that uses
+ *  it. Functions with `Int` in their signature are rejected: the solver does
+ *  not combine the two theories yet.
  */
 final class Parser:
   import Formula.*
@@ -46,21 +47,16 @@ final class Parser:
     case SList(Atom("set-info") :: Atom(key) :: value :: Nil) => List(Command.SetInfo(key, value.toString))
     case SList(Atom("declare-sort") :: Atom(name) :: Atom(arity) :: Nil) => List(Command.DeclareSort(name, arity.toInt))
     case SList(Atom("declare-sort") :: Atom(name) :: Nil) => List(Command.DeclareSort(name, 0))
-    case SList(Atom("declare-fun") :: Atom(name) :: SList(args) :: Atom(sort) :: Nil) =>
-      if args.nonEmpty && (sort == "Int" || args.exists(_.toString == "Int")) then
-        throw Smt2Error(s"$name: functions over Int are not supported (no theory combination yet)")
-      functions(name) = (args.map(_.toString), sort)
-      List(Command.DeclareFun(name, args.map(_.toString), sort))
-    case SList(Atom("declare-const") :: Atom(name) :: Atom(sort) :: Nil) =>
-      functions(name) = (Nil, sort)
-      List(Command.DeclareFun(name, Nil, sort))
-    case SList(Atom("define-fun") :: Atom(name) :: SList(params) :: Atom(sort) :: body :: Nil) =>
+    case SList(Atom("declare-fun") :: Atom(name) :: SList(args) :: sort :: Nil) =>
+      declare(name, args.map(_.toString), sort.toString)
+    case SList(Atom("declare-const") :: Atom(name) :: sort :: Nil) => declare(name, Nil, sort.toString)
+    case SList(Atom("define-fun") :: Atom(name) :: SList(params) :: sort :: body :: Nil) =>
       val ps = params.map {
-        case SList(Atom(p) :: Atom(s) :: Nil) => (p, s)
+        case SList(Atom(p) :: s :: Nil) => (p, s.toString)
         case other => throw Smt2Error(s"bad parameter $other")
       }
-      macros(name) = (ps, sort, body)
-      List(Command.DefineFun(name, ps, sort, body))
+      macros(name) = (ps, sort.toString, body)
+      List(Command.DefineFun(name, ps, sort.toString, body))
     case SList(Atom("assert") :: body :: Nil) =>
       introduced.clear()
       definitions.clear()
@@ -77,11 +73,40 @@ final class Parser:
     case SList(Atom(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
 
+  /** Declares `name`: a bit-vector constant becomes an `Int` constant with its
+   *  range asserted; functions over `Int` or bit-vectors are rejected (no
+   *  theory combination yet).
+   */
+  private def declare(name: String, argSorts: List[String], sort: String): List[Command] =
+    if argSorts.nonEmpty && (sort :: argSorts).exists(isArithmetic) then
+      throw Smt2Error(s"$name: functions over Int or bit-vectors are not supported (no theory combination yet)")
+    functions(name) = (argSorts, sort)
+    val width = BitVectors.width(sort)
+    if argSorts.isEmpty && width >= 0 then
+      List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(BitVectors.range(Term.Const(name), width)))
+    else List(Command.DeclareFun(name, argSorts, sort))
+
+  /** Whether terms of `sort` are integers after lowering: `Int` or a bit-vector
+   *  sort.
+   */
+  private def isArithmetic(sort: String): Boolean = sort == "Int" || BitVectors.width(sort) >= 0
+
   private def isNumeral(name: String): Boolean = name.nonEmpty && name.forall(_.isDigit)
 
   private def sortOf(sexpr: SExpr, env: Map[String, Value]): String = sexpr match
     case Atom("true" | "false") => "Bool"
     case Atom(name) if isNumeral(name) => "Int"
+    case Atom(name) if name.startsWith("#b") => BitVectors.sort(name.length - 2)
+    case Atom(name) if name.startsWith("#x") => BitVectors.sort(4 * (name.length - 2))
+    case SList(Atom("_") :: Atom(literal) :: Atom(width) :: Nil) if literal.startsWith("bv") =>
+      BitVectors.sort(width.toInt)
+    case SList(Atom(BitVectors.Arithmetic(_)) :: a :: _) => sortOf(a, env)
+    case SList(Atom(BitVectors.Comparison(_)) :: _) => "Bool"
+    case SList(SList(Atom("_") :: Atom("extract") :: Atom(i) :: Atom(j) :: Nil) :: _ :: Nil) =>
+      BitVectors.sort(i.toInt - j.toInt + 1)
+    case SList(SList(Atom("_") :: Atom("zero_extend" | "sign_extend") :: Atom(k) :: Nil) :: a :: Nil) =>
+      BitVectors.sort(BitVectors.width(sortOf(a, env)) + k.toInt)
+    case SList(Atom("concat") :: args) => BitVectors.sort(args.map(a => BitVectors.width(sortOf(a, env))).sum)
     case Atom(name) =>
       env.get(name) match
         case Some(Value.F(_)) => "Bool"
@@ -134,7 +159,10 @@ final class Parser:
           chain(ts.zip(ts.tail).map(equal(sort, _, _)))
     case SList(Atom("distinct") :: args) =>
       val ts = args.map(term(_, env))
-      if sortOf(args.head, env) == "Int" then IntDistinct(ts) else Distinct(ts)
+      if isArithmetic(sortOf(args.head, env)) then IntDistinct(ts) else Distinct(ts)
+    case SList(Atom(BitVectors.Comparison(op)) :: a :: b :: Nil) =>
+      val width = BitVectors.width(sortOf(a, env))
+      BitVectors.compare(op, term(a, env), term(b, env), width, this)
     case SList(Atom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
       val ts = args.map(term(_, env))
       val compare: (Term, Term) => Formula = op match
@@ -156,10 +184,42 @@ final class Parser:
 
   /** Equality of two terms of `sort`. */
   private def equal(sort: String, lhs: Term, rhs: Term): Formula =
-    if sort == "Int" then IntEq(lhs, rhs) else Eq(lhs, rhs)
+    if isArithmetic(sort) then IntEq(lhs, rhs) else Eq(lhs, rhs)
+
+  /** A fresh `Int` constant in `[lo, hi]`, declared and bounded before the
+   *  current assertion (for the lowering of bit-vectors).
+   */
+  def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
+    fresh += 1
+    val name = s"$prefix!$fresh"
+    introduced += ((name, "Int"))
+    functions(name) = (Nil, "Int")
+    val k = Term.Const(name)
+    definitions += Ge(k, Term.Num(lo))
+    definitions += Le(k, Term.Num(hi))
+    k
+
+  /** Asserts `formula` before the current assertion. */
+  def define(formula: Formula): Unit = definitions += formula
 
   private def term(sexpr: SExpr, env: Map[String, Value]): Term = sexpr match
     case Atom(name) if isNumeral(name) => Term.Num(BigInt(name))
+    case Atom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
+    case Atom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
+    case SList(Atom("_") :: Atom(literal) :: Atom(width) :: Nil) if literal.startsWith("bv") =>
+      Term.Num(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)))
+    case SList(Atom(BitVectors.Arithmetic(op)) :: args) =>
+      val width = BitVectors.width(sortOf(args.head, env))
+      BitVectors.arithmetic(op, args.map(term(_, env)), width, this)
+    case SList(SList(Atom("_") :: Atom("extract") :: Atom(i) :: Atom(j) :: Nil) :: a :: Nil) =>
+      BitVectors.extract(i.toInt, j.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
+    case SList(SList(Atom("_") :: Atom("zero_extend") :: Atom(_) :: Nil) :: a :: Nil) => term(a, env)
+    case SList(SList(Atom("_") :: Atom("sign_extend") :: Atom(k) :: Nil) :: a :: Nil) =>
+      BitVectors.signExtend(k.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
+    case SList(Atom("concat") :: args) =>
+      args.map(a => (term(a, env), BitVectors.width(sortOf(a, env)))).reduceLeft { case ((hi, wh), (lo, wl)) =>
+        (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
+      }._1
     case Atom(name) =>
       env.get(name) match
         case Some(Value.T(t, _)) => t

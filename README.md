@@ -13,7 +13,7 @@ While not optimized for performance, its performance should be within an order o
 - E-graph (`egraph`): a standalone congruence closure with disequalities, backtracking and explanations.
 - CDCL(T) solver (`cdclt`): a SAT modulo theory solver abstracting over theory solvers.
 - SMT solver (`smt`): terms and formulas, a simplifier, and the solver plugging the e-graph (equality with uninterpreted functions) and the LIA solver (linear integer arithmetic) into `cdclt` as theories: QF_UF and QF_LIA, and their disjoint combination; functions over `Int` (QF_UFLIA) need the exchange of equalities between the two theories, which is future work.
-- SMT-LIB front end (`smt2`, on the S-expression parser `sexpr`): parses SMT-LIB 2 scripts into commands and plays them on the solver; `sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands.
+- SMT-LIB front end (`smt2`, on the S-expression parser `sexpr`): parses SMT-LIB 2 scripts into commands and plays them on the solver; `sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands. Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`/shifts/`bvudiv`/`bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected.
 - LIA solver (`lia`): bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound.
 
 ## Requirements
