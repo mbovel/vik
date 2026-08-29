@@ -74,5 +74,6 @@ final class Z3Encoder(ctx: Context):
       val summands = terms.map((a, u) => if a == 1 then int(u) else ctx.mkMul(ctx.mkInt(a.toString), int(u))) ++
         Option.when(c.signum != 0)(ctx.mkInt(c.toString))
       ctx.mkAdd(summands*)
+    case Term.Lambda(_, _) | Term.Var(_) => throw UnsupportedOperationException("lambdas are not encoded for z3")
 
   private def int(t: Term): IntExpr = term(t).asInstanceOf[IntExpr]

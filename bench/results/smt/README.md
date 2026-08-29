@@ -161,3 +161,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, QF_BV comparison](2026-08-29-laraserver4-compare-bv.md) — one process per solver and instance on the 12 QF_BV instances, 60 s limit ([tsv](compare-raw-bv.tsv))
 - [2026-08-29, laraserver4, in process](2026-08-29-laraserver4-inprocess.md) — VIK, z3 (direct AST and parsed), cvc5, princess and SMTInterpol in the same JVM on the 30 instances
 - [2026-08-29, laraserver4, datatypes](2026-08-29-laraserver4-dt.md) — `AdtBench`, the QF_DT instances in process (VIK, z3 direct and parsed, cvc5) and one process per solver ([tsv](compare-raw-dt.tsv))
+- [2026-08-29, laraserver4, lambdas](2026-08-29-laraserver4-lambda.md) — `LambdaBench`: a chain of `n` lambda-defined functions unfolded by the beta lemmas; the `n = 30` cost is the quadratic sharing of the ~95 integer terms the lemmas create

@@ -20,7 +20,7 @@ kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped
 |---|---|
 | `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
 | `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
-| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their combination (QF_UFLIA, datatypes with `Int` fields): integer leaves are LIA variables, applications are e-graph nodes, and an equality atom per pair of shared terms, tied to the bounds on their difference, lets the SAT solver choose an arrangement both theories accept. |
+| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their combination (QF_UFLIA, datatypes with `Int` fields): integer leaves are LIA variables, applications are e-graph nodes, and an equality atom per pair of shared terms, tied to the bounds on their difference, lets the SAT solver choose an arrangement both theories accept. Lambdas are terms with de Bruijn indices, beta-reduced by lemmas. |
 | `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatypes (`declare-datatype(s)`, constructors, selectors, testers) are decided by the solver. |
 | `sexpr` | The S-expression lexer and parser used by `smt2`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
@@ -194,6 +194,16 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Fields of sort `Int` (and bit-vectors, lowered to `Int`) | ✓ | through the UF–LIA combination |
 | Fields of sort `Bool` | ✗ | Boolean terms are formulas here |
 | Parametric datatypes | ✗ | rejected by the parser |
+
+### `smt`: lambdas
+
+| Feature | | Notes |
+|---|---|---|
+| `(lambda ((x S) ...) body)` as terms, de Bruijn indices: alpha-equivalent lambdas are the same term, and equal lambdas are congruent | ✓ | `Term.Lambda`, `Term.Var`; function sorts `(-> S ... T)`, curried applications |
+| Beta-reduction, as lemmas `f ≠ l ∨ f(args) = l(args)` for the closed applications and lambdas, to a fixpoint | ✓ | `Encoder.instantiateLambdas`; nothing in the e-graph |
+| Soundness: no atom on a term with a bound variable, so bound variables are never equated with anything | ✓ | argument at `Term.instantiate`; tested with the finite-sort expansion |
+| Extensionality (`λx. f(x) = f`, or `λx. f(x) = λx. g(x)` giving `f(1) = g(1)`) | ✗ | `unsat` is sound for extensional functions, `sat` may miss it |
+| Formulas under lambdas (`ite`, `and`, comparisons) | ✗ | bodies are terms; an uninterpreted Boolean function application is fine |
 
 ### `cdclt`
 

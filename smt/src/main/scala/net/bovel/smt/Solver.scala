@@ -7,7 +7,7 @@ import scala.util.boundary.break
 
 import net.bovel.cdclt
 import net.bovel.cdclt.{Lit, Theory}
-import net.bovel.egraph.{App, EClassId, EGraph}
+import net.bovel.egraph.{App, EClassId, EGraph, NoRules}
 import net.bovel.lia
 
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
@@ -65,6 +65,7 @@ final class Solver(simplify: Boolean = true):
     val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
     for formula <- (if simplify then Simplifier.simplify(assertions, constructors) else assertions) do
       encoder.assert(formula)
+    encoder.instantiateLambdas()
     encoder.assertExhaustiveness()
     encoder.shareIntegers()
     encoder.solve() match
@@ -81,13 +82,17 @@ final class Solver(simplify: Boolean = true):
  *  sorts).
  */
 private final class Encoder(declarations: HashMap[String, (List[String], String)], datatypes: List[Datatype]):
-  private val rules = if datatypes.isEmpty then net.bovel.egraph.NoRules else AdtRules()
-  private val eg = EGraph(rules)
   private val classes = HashMap.empty[Term, EClassId]
+  private val adt = if datatypes.isEmpty then None else Some(AdtRules())
+  private val eg = EGraph(adt.getOrElse(NoRules))
   private val trueTerm = eg.newClass() // the class of Boolean-sorted terms that hold
 
-  rules match
-    case adt: AdtRules =>
+  /** The symbol applied to a body to make a lambda of `params` parameters. */
+  private val lambdaSymbols = HashMap.empty[Int, EClassId]
+  private def lambdaSymbol(params: Int): EClassId = lambdaSymbols.getOrElseUpdate(params, eg.newClass())
+
+  adt match
+    case Some(adt) =>
       adt.truth(trueTerm)
       for d <- datatypes; c <- d.constructors do
         val constructor = classOf(Term.Const(c.name))
@@ -101,7 +106,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private def sortOf(term: Term): String = term match
     case Term.Const(name) => declarations.get(name).filter(_._1.isEmpty).map(_._2).getOrElse("?")
     case Term.App(Term.Const(name), _) => declarations.get(name).map(_._2).getOrElse("?")
-    case _ => "Int"
+    case Term.Num(_) | Term.Linear(_, _) => "Int"
+    case _ => "?"
 
   private val datatypeNames = datatypes.map(_.name).toSet
 
@@ -130,9 +136,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     case Term.Num(_) => ()
     case _ => intTerms += t
 
-  private def isInt(t: Term): Boolean = t match
-    case Term.Num(_) | Term.Linear(_, _) => true
-    case _ => sortOf(t) == "Int" || intTerms(t)
+  private def isInt(t: Term): Boolean = Term.closed(t) &&
+    (t match
+      case Term.Num(_) | Term.Linear(_, _) => true
+      case _ => sortOf(t) == "Int" || intTerms(t))
 
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
@@ -156,6 +163,43 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
           clauses += Array(e.neg, ge)
           clauses += Array(e, le.neg, ge.neg)
 
+  /** Beta-reduction as lemmas: for every closed application `f(args)` and
+   *  closed lambda `l` with as many parameters, of the sorts of the arguments
+   *  when known, the clause `f ≠ l ∨ f(args) = l(args)`, `l(args)` being the
+   *  body instantiated ([[Term.instantiate]]); repeated for the terms this
+   *  makes, to a fixpoint. It ends for well-sorted terms, whose reductions are
+   *  finite (simply typed lambda terms normalize), and is bounded anyway.
+   *  Lambdas need nothing else: alpha-equivalent ones are the same term (de
+   *  Bruijn indices), congruence relates those with equal bodies, and no atom
+   *  is ever on an open term (see [[Term.Lambda]]).
+   */
+  def instantiateLambdas(): Unit =
+    val done = scala.collection.mutable.HashSet.empty[(Term.App, Term.Lambda)]
+    val equated = ArrayBuffer.empty[(Term, Term)]
+    var more = true
+    while more do
+      more = false
+      val lambdas = classes.keys.collect { case l: Term.Lambda if Term.closed(l) => l }.toList
+      val apps = classes.keys.collect { case a: Term.App if Term.closed(a) => a }.toList
+      for l <- lambdas; a <- apps if applicable(a, l) && done.add((a, l)) do
+        require(done.size <= 100000, "too many lambda instantiations: are the lambdas well sorted?")
+        more = true
+        val instance = Term.instantiate(l, a.args)
+        equated += ((a, instance))
+        clauses += Array(lit(Formula.Eq(a.fun, l)).neg, lit(Formula.Eq(a, instance)))
+    // An application equated with an integer term is one, and conversely (for the sharing).
+    var changed = true
+    while changed do
+      changed = false
+      for (a, b) <- equated if isInt(a) != isInt(b) do
+        noteInts(a)
+        noteInts(b)
+        changed = true
+
+  private def applicable(a: Term.App, l: Term.Lambda): Boolean =
+    a.args.length == l.sorts.length &&
+      a.args.zip(l.sorts).forall((arg, sort) => sortOf(arg) == "?" || sortOf(arg) == sort)
+
   /** Asserts, for every term of a datatype sort seen so far, that one of its
    *  testers holds; for a term of a finite sort, also for its selector terms,
    *  recursively (see the class documentation).
@@ -163,7 +207,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   def assertExhaustiveness(): Unit =
     if datatypes.nonEmpty then
       val seen = scala.collection.mutable.HashSet.empty[Term]
-      val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t))))
+      val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t)) && Term.closed(t)))
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
         if seen.add(t) then
@@ -189,13 +233,15 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     bounds += null
     Lit(atoms.length - 1)
 
-  private def classOf(term: Term): EClassId = classes.getOrElseUpdate(
-    term,
+  def classOf(term: Term): EClassId = classes.getOrElseUpdate(term, classOfNew(term))
+
+  private def classOfNew(term: Term): EClassId =
     term match
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) => eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
       case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
-  )
+      case Term.Var(_) => eg.newClass() // a bound variable: a leaf shared by every lambda, never merged
+      case Term.Lambda(sorts, body) => eg.add(App(lambdaSymbol(sorts.length), ArraySeq(classOf(body))))
 
   private def atom(t: EClassId, u: EClassId): Lit =
     atoms += ((t, u))
