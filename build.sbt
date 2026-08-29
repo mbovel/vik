@@ -26,13 +26,6 @@ lazy val egraphPlayground = project
     libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1"
   )
 
-// JMH benchmarks for the e-graph (JVM only): `sbt "egraphBench/Jmh/run"`.
-lazy val egraphBench = project
-  .in(file("egraph-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(egraph.jvm(scala3Version))
-  .settings(name := "egraph-bench")
-
 // Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
 lazy val cdclt = projectMatrix
   .in(file("cdclt"))
@@ -42,13 +35,6 @@ lazy val cdclt = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-
-// JMH benchmarks for the CDCL(T) solver (JVM only): `sbt "cdcltBench/Jmh/run"`.
-lazy val cdcltBench = project
-  .in(file("cdclt-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(cdclt.jvm(scala3Version))
-  .settings(name := "cdclt-bench")
 
 // S-expression parser: subprojects `sexpr` (JVM) and `sexprJS`.
 lazy val sexpr = projectMatrix
@@ -69,13 +55,6 @@ lazy val lia = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-
-// JMH benchmarks for the LIA solver (JVM only): `sbt "liaBench/Jmh/run"`.
-lazy val liaBench = project
-  .in(file("lia-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(lia.jvm(scala3Version))
-  .settings(name := "lia-bench")
 
 // SMT expressions and solver over UF: subprojects `smt` (JVM) and `smtJS`.
 lazy val smt = projectMatrix
@@ -99,28 +78,23 @@ lazy val smt2 = projectMatrix
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
 
-lazy val sexprBench = project
-  .in(file("sexpr-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(sexpr.jvm(scala3Version))
-  .settings(name := "sexpr-bench")
-
-lazy val smt2Bench = project
-  .in(file("smt2-bench"))
-  .enablePlugins(JmhPlugin)
-  .dependsOn(smt2.jvm(scala3Version))
-  .settings(name := "smt2-bench")
-
 // The runtime classpath of a project as real paths, for scripts (sbt 2 exports virtual file references).
 lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
 
-// SMT-LIB benchmarks end to end (JVM only): `sbt "smtBench/Jmh/run"`.
-lazy val smtBench = project
-  .in(file("smt-bench"))
+// JMH benchmarks of every module (JVM only), and the comparison with other solvers: `sbt "bench/Jmh/run"`.
+lazy val bench = project
+  .in(file("bench"))
   .enablePlugins(JmhPlugin)
-  .dependsOn(smt2.jvm(scala3Version))
+  .dependsOn(
+    egraph.jvm(scala3Version),
+    cdclt.jvm(scala3Version),
+    lia.jvm(scala3Version),
+    sexpr.jvm(scala3Version),
+    smt.jvm(scala3Version),
+    smt2.jvm(scala3Version)
+  )
   .settings(
-    name := "smt-bench",
+    name := "bench",
     // Other solvers, run in-process by the benchmarks and as separate processes by compare.sh.
     libraryDependencies ++= Seq(
       ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),

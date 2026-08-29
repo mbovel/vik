@@ -24,7 +24,7 @@ While not optimized for performance, its performance should be within an order o
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources), `egraphPlayground` (a browser playground for the e-graph), and the benchmark projects below.
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources), `egraphPlayground` (a browser playground for the e-graph), and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects
@@ -38,18 +38,17 @@ Other sbt 2 edges met here (thin client hangs, forked processes outliving a kill
 
 ### Benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks live in one subproject per component, each with a README describing the workloads and holding the results:
+[JMH](https://github.com/openjdk/jmh) benchmarks for every module live in the `bench` subproject, with the workloads and results kept per module:
 
 ```sh
-sbt "egraphBench/Jmh/run"            # all benchmarks of the e-graph (about 15 minutes)
-sbt "egraphBench/Jmh/run .*star.*"   # only the benchmarks matching a regex
+sbt "bench/Jmh/run -l"                # lists the benchmarks
+sbt "bench/Jmh/run .*EGraphBench.*"   # the benchmarks matching a regex
 ```
 
-- [egraph-bench](egraph-bench/README.md): the e-graph.
-- [cdclt-bench](cdclt-bench/README.md): the CDCL(T) solver on random k-SAT and pigeonhole instances.
-- [lia-bench](lia-bench/README.md): the LIA solver on random systems of bounds.
-- [sexpr-bench](sexpr-bench/README.md) and [smt2-bench](smt2-bench/README.md): the parsers.
-- [smt-bench](smt-bench/README.md): SMT-LIB QF_UF instances end to end, and a comparison with z3, cvc5, princess and SMTInterpol.
+See [bench/README.md](bench/README.md) for running and result files, and [bench/results/egraph](bench/results/egraph/README.md),
+[cdclt](bench/results/cdclt/README.md), [lia](bench/results/lia/README.md), [sexpr](bench/results/sexpr/README.md),
+[smt2](bench/results/smt2/README.md) and [smt](bench/results/smt/README.md) (SMT-LIB instances and the comparison with
+z3, cvc5, princess and SMTInterpol) for the workloads and current results.
 
 ### Playground
 

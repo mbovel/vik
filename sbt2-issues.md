@@ -63,7 +63,15 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 - **Workaround**: delete the links (`find target -type l -lname '/root/*' -delete`) and the `zinc` directories; run
   containers as the host user.
 
-## 7. Small things
+## 7. A malformed `build.sbt` is reported as a `MatchError` on the whole tree
+
+- **Observed** (2026-08-29): a stray `  )` line left in `build.sbt` by an edit made the server fail to load the
+  build with `scala.MatchError: PackageDef(Ident(<empty>),List(ModuleDef(...` followed by the full tree of the file
+  (thousands of characters), then `failed to connect to server`; no line number, no "expected ... but found".
+- **Reproduce**: add a line containing only `)` between two top-level definitions of `build.sbt`.
+- **Workaround**: none needed once found; `git diff build.sbt` is the fastest way to find it.
+
+## 8. Small things
 
 - `sbt "cmd1; cmd2"` stops at the first failing command, as in sbt 1, but with the thin client the exit code of the
   whole call is that of the last command started; a script has to check each command separately.

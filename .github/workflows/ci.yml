@@ -21,4 +21,4 @@ jobs:
       - name: Test (JVM and Scala.js)
         run: sbt test
       - name: Benchmark dry run
-        run: sbt "egraphBench/Jmh/run -f 1 -wi 0 -i 1; cdcltBench/Jmh/run -f 1 -wi 0 -i 1; sexprBench/Jmh/run -f 1 -wi 0 -i 1; smt2Bench/Jmh/run -f 1 -wi 0 -i 1; liaBench/Jmh/run -f 1 -wi 0 -i 1"
+        run: sbt "bench/Jmh/run -f 1 -wi 0 -i 1"
