@@ -85,7 +85,7 @@ SMTInterpol are fetched with [coursier](https://get-coursier.io).
 
 ## Current results
 
-laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](2026-08-29-laraserver4.md). Process-level comparison with z3, cvc5, princess and SMTInterpol: [results/2026-08-29-laraserver4-compare.md](2026-08-29-laraserver4-compare.md) (QF_UF) and [results/2026-08-29-laraserver4-compare-lia.md](2026-08-29-laraserver4-compare-lia.md) (QF_LIA).
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](2026-08-29-laraserver4.md). In-process comparison with z3 and cvc5 through their Java bindings, princess and SMTInterpol: [2026-08-29-laraserver4-inprocess.md](2026-08-29-laraserver4-inprocess.md) (a z3 operation costs at least 0.6 ms through JNI, a cvc5 one 1.2 ms; VIK is 1–5 µs on the small instances and ahead on most medium ones, z3 up to 7.7× faster on the search-heavy crafted ones). Process-level comparison with z3, cvc5, princess and SMTInterpol: [results/2026-08-29-laraserver4-compare.md](2026-08-29-laraserver4-compare.md) (QF_UF) and [results/2026-08-29-laraserver4-compare-lia.md](2026-08-29-laraserver4-compare-lia.md) (QF_LIA).
 
 | Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -137,3 +137,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, scan](2026-08-29-laraserver4-scan.md) — the event-driven theory propagation reverted to the scan for readability: VIK in process on the 20 instances, before and after
 - [2026-08-29, laraserver4, QF_BV](2026-08-29-laraserver4-bv.md) — VIK on the ten QF_BV instances of the arithmetic fragment (3 forks)
 - [2026-08-29, laraserver4, QF_BV comparison](2026-08-29-laraserver4-compare-bv.md) — one process per solver and instance on the 12 QF_BV instances, 60 s limit ([tsv](compare-raw-bv.tsv))
+- [2026-08-29, laraserver4, in process](2026-08-29-laraserver4-inprocess.md) — VIK, z3 (direct AST and parsed), cvc5, princess and SMTInterpol in the same JVM on the 30 instances
