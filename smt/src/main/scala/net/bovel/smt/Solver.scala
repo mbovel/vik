@@ -9,11 +9,12 @@ import net.bovel.egraph.{App, EClassId, EGraph}
 
 /** An SMT solver for quantifier-free formulas over equality and uninterpreted
  *  functions: `assert` formulas, `push` and `pop` levels of assertions, and
- *  `solve`. Each `solve` encodes the assertions of all levels afresh into a
+ *  `solve`. Each `solve` simplifies the assertions of all levels (see
+ *  [[Simplifier]], unless `simplify` is false) and encodes them afresh into a
  *  [[cdclt.Solver]] with a [[UfTheory]] over an [[EGraph]] (Tseitin encoding,
  *  one CDCL(T) variable per distinct atom and per compound subformula).
  */
-final class Solver:
+final class Solver(simplify: Boolean = true):
   enum Result:
     case Sat
     case Unsat
@@ -29,8 +30,9 @@ final class Solver:
   def assert(formula: Formula): Unit = levels.last += formula
 
   def solve(): Result =
+    val assertions = levels.flatten.toList
     val encoder = Encoder()
-    for level <- levels; formula <- level do encoder.assert(formula)
+    for formula <- (if simplify then Simplifier.simplify(assertions) else assertions) do encoder.assert(formula)
     encoder.solve() match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat

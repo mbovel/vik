@@ -95,3 +95,46 @@ class SolverTest extends munit.FunSuite:
       assertEquals(isSat(formulas*), expected, formulas.toString)
       if expected then sats += 1
     assert(sats > 50)
+
+  test("simplifier: constants local to a conjunction are eliminated"):
+    val y = Const("y")
+    val z = Const("z")
+    val diamond = ((a === y) && (y === b)) || ((a === z) && (z === b))
+    assertEquals(Simplifier.simplify(List(diamond)), List((a === b) || (a === b)))
+    // Not when the constant escapes the conjunction (`a !== c` and `b !== c` pin `a` and `b`).
+    val pinned = List(a !== c, b !== c)
+    assertEquals(
+      Simplifier.simplify(((a === y) && (y === b)) :: (y !== c) :: pinned),
+      ((a === y) && (y === b)) :: (y !== c) :: pinned
+    )
+    // `y = f(y)` cannot define `y`, but `y = b` can: `y` is local and becomes `b`.
+    assertEquals(Simplifier.simplify(((y === fa(y)) && (y === b)) :: pinned), (b === fa(b)) :: pinned)
+    // A conjunction reduced to nothing is dropped.
+    assertEquals(Simplifier.simplify(List(And(List(y === a)))), Nil)
+
+  test("simplifier: random EUF formulas keep their satisfiability"):
+    val rnd = scala.util.Random(13)
+    val consts = Array.tabulate(12)(i => Const(s"k$i"))
+    val g = Const("g")
+    def term(depth: Int): Term =
+      if depth == 0 || rnd.nextInt(3) == 0 then consts(rnd.nextInt(consts.length))
+      else App(g, List(term(depth - 1)))
+    def formula(depth: Int): Formula =
+      if depth == 0 then if rnd.nextBoolean() then term(2) === term(2) else term(2) !== term(2)
+      else
+        rnd.nextInt(4) match
+          case 0 => Not(formula(depth - 1))
+          case 1 => And(List.fill(2 + rnd.nextInt(2))(formula(depth - 1)))
+          case 2 => Or(List.fill(2 + rnd.nextInt(2))(formula(depth - 1)))
+          case _ => Implies(formula(depth - 1), formula(depth - 1))
+    var simplifiedSomething = 0
+    for _ <- 0 until 300 do
+      val formulas = List.fill(1 + rnd.nextInt(3))(formula(3))
+      if Simplifier.simplify(formulas) != formulas then simplifiedSomething += 1
+      val plain = Solver(simplify = false)
+      val simplified = Solver()
+      for f <- formulas do
+        plain.assert(f)
+        simplified.assert(f)
+      assertEquals(simplified.solve().toString, plain.solve().toString, formulas.toString)
+    assert(simplifiedSomething > 20, s"only $simplifiedSomething simplified")

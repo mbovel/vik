@@ -1,0 +1,95 @@
+package net.bovel.smt
+
+import scala.collection.mutable.HashMap
+
+import Formula.*
+import Term.*
+
+/** Simplifications of a set of assertions before encoding.
+ *
+ *  Local constant elimination: in a conjunction `c = t ∧ φ` where every
+ *  occurrence of the constant `c` in the whole assertion set lies inside that
+ *  conjunction and `t` does not mention `c`, `c` is existentially local, so the
+ *  conjunction is equivalent to `φ[t/c]`. This turns the diamonds of the
+ *  `eq_diamond` benchmarks, `(x = y ∧ y = x') ∨ (x = z ∧ z = x')` with `y` and
+ *  `z` used nowhere else, into `x = x'`, which the solver then propagates at
+ *  level 0 instead of enumerating the paths (z3 and cvc5 preprocess likewise).
+ */
+object Simplifier:
+  def simplify(assertions: List[Formula]): List[Formula] =
+    val total = HashMap.empty[String, Int]
+    for f <- assertions do countConstants(f, total)
+    assertions.map(f => simplify(f, total)).filter(_ != True)
+
+  private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match
+    case True | False => ()
+    case Not(a) => countConstants(a, counts)
+    case And(as) => as.foreach(countConstants(_, counts))
+    case Or(as) => as.foreach(countConstants(_, counts))
+    case Implies(a, b) =>
+      countConstants(a, counts)
+      countConstants(b, counts)
+    case Iff(a, b) =>
+      countConstants(a, counts)
+      countConstants(b, counts)
+    case Ite(c, t, e) =>
+      countConstants(c, counts)
+      countConstants(t, counts)
+      countConstants(e, counts)
+    case Eq(l, r) =>
+      countConstants(l, counts)
+      countConstants(r, counts)
+    case Pred(t) => countConstants(t, counts)
+
+  private def countConstants(t: Term, counts: HashMap[String, Int]): Unit = t match
+    case Const(name) => counts(name) = counts.getOrElse(name, 0) + 1
+    case App(fun, args) =>
+      countConstants(fun, counts)
+      args.foreach(countConstants(_, counts))
+
+  private def simplify(f: Formula, total: HashMap[String, Int]): Formula = f match
+    case True | False | Eq(_, _) | Pred(_) => f
+    case Not(a) => Not(simplify(a, total))
+    case Or(as) => Or(as.map(simplify(_, total)))
+    case Implies(a, b) => Implies(simplify(a, total), simplify(b, total))
+    case Iff(a, b) => Iff(simplify(a, total), simplify(b, total))
+    case Ite(c, t, e) => Ite(simplify(c, total), simplify(t, total), simplify(e, total))
+    case And(as) =>
+      var conjuncts = as.map(simplify(_, total))
+      // Eliminate the constants local to this conjunction, one equality at a time.
+      var changed = true
+      while changed do
+        changed = false
+        val local = HashMap.empty[String, Int]
+        conjuncts.foreach(countConstants(_, local))
+        conjuncts.zipWithIndex.collectFirst {
+          case (Eq(Const(c), t), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
+          case (Eq(t, Const(c)), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
+        } match
+          case Some((c, t, i)) =>
+            conjuncts = conjuncts.zipWithIndex.collect { case (g, j) if j != i => substitute(g, c, t) }
+            changed = true
+          case None => ()
+      conjuncts match
+        case Nil => True
+        case single :: Nil => single
+        case _ => And(conjuncts)
+
+  private def mentions(t: Term, c: String): Boolean = t match
+    case Const(name) => name == c
+    case App(fun, args) => mentions(fun, c) || args.exists(mentions(_, c))
+
+  private def substitute(f: Formula, c: String, t: Term): Formula = f match
+    case True | False => f
+    case Not(a) => Not(substitute(a, c, t))
+    case And(as) => And(as.map(substitute(_, c, t)))
+    case Or(as) => Or(as.map(substitute(_, c, t)))
+    case Implies(a, b) => Implies(substitute(a, c, t), substitute(b, c, t))
+    case Iff(a, b) => Iff(substitute(a, c, t), substitute(b, c, t))
+    case Ite(a, b, d) => Ite(substitute(a, c, t), substitute(b, c, t), substitute(d, c, t))
+    case Eq(l, r) => Eq(substitute(l, c, t), substitute(r, c, t))
+    case Pred(u) => Pred(substitute(u, c, t))
+
+  private def substitute(u: Term, c: String, t: Term): Term = u match
+    case Const(name) => if name == c then t else u
+    case App(fun, args) => App(substitute(fun, c, t), args.map(substitute(_, c, t)))

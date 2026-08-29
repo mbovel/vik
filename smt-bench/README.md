@@ -44,8 +44,9 @@ SMTInterpol are fetched with [coursier](https://get-coursier.io).
 
 ## Current results
 
-(none yet)
+Process-level comparison with z3, cvc5, princess and SMTInterpol, and the effect of the simplifier: [results/2026-08-29-laraserver4-compare.md](results/2026-08-29-laraserver4-compare.md). JMH results (in-process) to come.
 
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
+- [2026-08-29, laraserver4, comparison](results/2026-08-29-laraserver4-compare.md) — one process per solver and instance, 60 s limit, before and after the simplifier ([tsv](results/compare-raw.tsv))
