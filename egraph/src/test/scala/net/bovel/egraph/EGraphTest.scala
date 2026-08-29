@@ -339,7 +339,7 @@ class EGraphTest extends munit.FunSuite:
     assertEquals(t.eg.conflict, None)
     t.push()
     t.merge(a, b)
-    assertEquals(t.eg.conflict, Some((a, b, 0)))
+    assert(t.eg.conflict.exists(reasons => reasons.contains(0) && reasons.length == 2)) // the disequality and the merge
     t.pop()
     assertEquals(t.eg.conflict, None)
     assert(t.eg.areDisequal(a, b))
@@ -354,7 +354,7 @@ class EGraphTest extends munit.FunSuite:
     t.merge(a, b)
     assertEquals(t.eg.conflict, None) // not before the rebuild
     t.rebuild()
-    assertEquals(t.eg.conflict, Some((fa, fb, 0)))
+    assert(t.eg.conflict.exists(_.contains(0))) // a conflict whose reasons include the disequality's
 
   test("disequalities follow equalities"):
     val t = TestGraph()
@@ -374,8 +374,7 @@ class EGraphTest extends munit.FunSuite:
     val b = t.sym("b")
     t.merge(a, b)
     t.disequate(a, b)
-    assertEquals(t.eg.conflict, Some((a, b, 0)))
-
+    assert(t.eg.conflict.exists(reasons => reasons.contains(0) && reasons.length == 2)) // the disequality and the merge
   test("pop undoes disequalities"):
     val t = TestGraph()
     val a = t.sym("a")
@@ -456,7 +455,7 @@ class EGraphTest extends munit.FunSuite:
     t.eg.disequate(a, b, 5)
     t.merge(a, c, 1)
     t.merge(c, b, 2)
-    assertEquals(t.eg.conflict, Some((a, b, 5)))
+    assert(t.eg.conflict.exists(_.contains(5))) // a conflict whose reasons include the disequality's
     assertEquals(t.explain(a, b), Seq(1, 2))
 
   test("explain requires equal terms"):
@@ -519,3 +518,65 @@ class EGraphTest extends munit.FunSuite:
     assertEquals(t.eg.disequality(a, a), None)
     assertEquals(t.eg.disequality(a, t.sym("e")), None)
     assertEquals(t.explain(c, b) ++ t.explain(d, a), Seq(1, 2))
+
+  /** A toy theory: `f` is idempotent (`f(f(x)) = f(x)`, on addition), `g` is
+   *  injective (`g(x) = g(y)` implies `x = y`, on merge), and `a` and `b` may
+   *  never be equal (a contradiction on merge); the final check forbids `g(a)`.
+   */
+  class ToyRules(f: EClassId, g: EClassId, a: EClassId, b: EClassId) extends Rules:
+    var pushes = 0
+    override def added(eg: EGraph, app: App, cls: EClassId): Unit =
+      if app.fun == f && eg.nodes(app.args(0)).exists((inner, _) => eg.find(inner.fun) == f) then
+        eg.derive(
+          cls,
+          app.args(0),
+          List((app.args(0), eg.find(app.args(0))))
+        ) // f(f(x)) = f(x): the argument is an f-node
+    override def merged(eg: EGraph, from: EClassId, into: EClassId, parents: Iterable[App]): Unit =
+      if eg.find(a) == eg.find(b) && eg.conflict.isEmpty then eg.contradiction(eg.explain(a, b))
+      val gs = eg.nodes(into).filter((n, _) => eg.find(n.fun) == g).toList
+      for ((n1, c1), (n2, c2)) <- gs.zip(gs.drop(1)) do
+        eg.derive(n1.args(0), n2.args(0), List((c1, c2))) // the g-nodes are equal
+    override def finalCheck(eg: EGraph): Option[ArrayBuffer[Int]] =
+      eg.parents(a).find(p => eg.find(p.fun) == g && eg.find(p.args(0)) == eg.find(a)).map(_ => ArrayBuffer(-1))
+    override def push(): Unit = pushes += 1
+    override def pop(): Unit = pushes -= 1
+
+  test("rules: idempotence on addition, with the explanation of the premise"):
+    val eg = EGraph(ToyRules(0, 1, 2, 3))
+    for _ <- 0 until 5 do eg.newClass() // f = 0, g = 1, a = 2, b = 3, c = 4
+    val fa = eg.add(App(0, ArraySeq(2)))
+    val ffa = eg.add(App(0, ArraySeq(fa)))
+    assertEquals(eg.find(ffa), eg.find(fa))
+    assertEquals(eg.explain(ffa, fa).toList, Nil) // the premise holds trivially
+    // through a merge: c = f(a) asserted, then f(c) is f(f(a))
+    eg.merge(4, fa, 7)
+    eg.rebuild()
+    val fc = eg.add(App(0, ArraySeq(4)))
+    assertEquals(eg.find(fc), eg.find(fa))
+    assertEquals(eg.explain(fc, 4).toList, List(7))
+
+  test("rules: injectivity on merge, contradiction, final check, levels"):
+    val rules = ToyRules(0, 1, 2, 3)
+    val eg = EGraph(rules)
+    for _ <- 0 until 6 do eg.newClass() // f = 0, g = 1, a = 2, b = 3, x = 4, y = 5
+    val gx = eg.add(App(1, ArraySeq(4)))
+    val gy = eg.add(App(1, ArraySeq(5)))
+    eg.push()
+    assertEquals(rules.pushes, 1)
+    eg.merge(gx, gy, 9)
+    eg.rebuild()
+    assertEquals(eg.find(4), eg.find(5)) // x = y by injectivity
+    assertEquals(eg.explain(4, 5).toList, List(9))
+    eg.pop()
+    assertEquals(rules.pushes, 0)
+    assert(eg.find(4) != eg.find(5))
+    eg.push()
+    eg.merge(2, 3, 11)
+    eg.rebuild()
+    assertEquals(eg.conflict.map(_.toList), Some(List(11)))
+    eg.pop()
+    assertEquals(eg.conflict, None)
+    assertEquals(eg.finalCheck(), None)
+    eg.add(App(1, ArraySeq(2)))
+    assertEquals(eg.finalCheck().map(_.toList), Some(List(-1)))

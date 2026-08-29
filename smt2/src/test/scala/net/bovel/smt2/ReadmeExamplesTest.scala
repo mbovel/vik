@@ -77,7 +77,7 @@ class ReadmeExamplesTest extends munit.FunSuite:
     assertEquals(eg.explain(fa, fb).toList, List(1))
     eg.push()
     eg.disequate(fa, fb, reason = 2)
-    assertEquals(eg.conflict, Some((fa, fb, 2)))
+    assertEquals(eg.conflict.map(_.sorted.toList), Some(List(1, 2)))
     eg.pop()
     assertEquals(eg.conflict, None)
 

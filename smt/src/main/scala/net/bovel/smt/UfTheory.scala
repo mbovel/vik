@@ -41,7 +41,7 @@ final class UfTheory(eg: EGraph, atoms: Array[(EClassId, EClassId) | Null]) exte
   def propagate(): Theory.Result =
     eg.rebuild()
     eg.conflict match
-      case Some((a, b, reason)) => Theory.Result.Conflict(lits(eg.explain(a, b) += reason))
+      case Some(reasons) => Theory.Result.Conflict(lits(reasons))
       case None =>
         val implied = ArrayBuffer.empty[Lit]
         var v = 0
@@ -58,6 +58,13 @@ final class UfTheory(eg: EGraph, atoms: Array[(EClassId, EClassId) | Null]) exte
                 case None => ()
           v += 1
         Theory.Result.Ok(implied)
+
+  override def finalCheck(): Theory.Result = propagate() match
+    case Theory.Result.Ok(implied) if implied.isEmpty =>
+      eg.finalCheck() match
+        case Some(reasons) => Theory.Result.Conflict(lits(reasons))
+        case None => Theory.ok
+    case other => other
 
   def explain(lit: Lit): ArrayBuffer[Lit] =
     val (t, u) = atoms(lit.variable).nn

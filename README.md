@@ -141,7 +141,7 @@ eg.find(fa) == eg.find(fb) // true, by congruence
 eg.explain(fa, fb)         // ArrayBuffer(1)
 eg.push()
 eg.disequate(fa, fb, reason = 2)
-eg.conflict                // Some((fa, fb, 2)): the disequality contradicts the closure
+eg.conflict                // Some(ArrayBuffer(1, 2)): the reasons of the inconsistency
 eg.pop()                   // the disequality is gone
 ```
 

@@ -15,6 +15,36 @@ type EClassId = Int
 final case class App(fun: EClassId, args: ArraySeq[EClassId]):
   require(args.nonEmpty, "an application needs at least one argument; a constant is its own e-class")
 
+/** Theory rules run by an [[EGraph]]: callbacks on the nodes added and the
+ *  classes merged, a global check, and levels. They may merge classes with
+ *  [[EGraph.derive]] (an equality justified by rule premises), add nodes and
+ *  raise a [[EGraph.contradiction]]. Merges are reported by [[EGraph.rebuild]],
+ *  after the union, so a callback sees a consistent graph and may cause further
+ *  merges, reported in turn. Datatypes are decided this way (`smt.AdtRules`);
+ *  see `docs/adt-plan.md`.
+ */
+trait Rules:
+  /** A node was added for `app`, in the fresh class `cls` (already merged with
+   *  the class of a congruent node, if any).
+   */
+  def added(eg: EGraph, app: App, cls: EClassId): Unit = ()
+
+  /** The class of `from` was merged into the class of `into` (their
+   *  representatives at the time); `parents` are the nodes that mentioned the
+   *  absorbed class.
+   */
+  def merged(eg: EGraph, from: EClassId, into: EClassId, parents: Iterable[App]): Unit = ()
+
+  /** A global condition on the closure, checked at the theory's final check:
+   *  the reasons of a conflict, if any.
+   */
+  def finalCheck(eg: EGraph): Option[ArrayBuffer[Int]] = None
+
+  def push(): Unit = ()
+  def pop(): Unit = ()
+
+object NoRules extends Rules
+
 /** The internal types of [[EGraph]]. */
 object EGraph:
   /** An e-node: an [[App]] together with its canonical form `fun(args)`, the
@@ -43,6 +73,15 @@ object EGraph:
   private enum Justification:
     case Asserted(reason: Int)
     case Congruence(n1: ENode, n2: ENode)
+
+    /** A theory rule whose premises are the given equalities (see [[Rules]]).
+     */
+    case Rule(premises: ArraySeq[(EClassId, EClassId)])
+
+  /** A merge to report to the rules: the two representatives and the parents of
+   *  the absorbed class.
+   */
+  private final case class Merge(from: EClassId, into: EClassId, parents: ArrayBuffer[ENode] | Null)
 
   /** An edge of the union tree: the class of `a` was merged into the class of
    *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
@@ -107,7 +146,7 @@ object EGraph:
  *    - `push` completes the rebuild, so at `pop` time `pending` only holds
  *      nodes of merges of the popped level.
  */
-final class EGraph:
+final class EGraph(rules: Rules = NoRules):
   import EGraph.*
 
   /** Number of e-classes created so far; ids are `0 until count` and index the
@@ -143,10 +182,17 @@ final class EGraph:
    */
   private var forbid = new Array[ArrayBuffer[Diseq] | Null](16)
 
-  /** The first disequality found violated; the graph is inconsistent from then
-   *  on.
+  /** The node added in each class, `null` for a class of [[newClass]]. */
+  private var nodeOf = new Array[ENode | Null](16)
+
+  /** The first disequality found violated, or the reasons of the first
+   *  contradiction raised by a rule; the graph is inconsistent from then on.
    */
   private var violated: Diseq | Null = null
+  private var contradicted: ArrayBuffer[Int] | Null = null
+
+  /** Merges done since the last [[rebuild]], to report to the rules. */
+  private val merges = ArrayBuffer.empty[Merge]
 
   /** The union tree, for explanations: `edges(from)` is the [[Edge]] by which
    *  the class of `from` was absorbed, `null` while `from` is a representative.
@@ -216,6 +262,7 @@ final class EGraph:
     uses = Arrays.copyOf(uses, n)
     forbid = Arrays.copyOf(forbid, n)
     edges = Arrays.copyOf(edges, n)
+    nodeOf = Arrays.copyOf(nodeOf, n)
 
   /** Adds a node for `app` and returns its e-class, a fresh one, merged at once
    *  with the class of any congruent node. Adding the same application twice
@@ -232,8 +279,10 @@ final class EGraph:
     while i < node.args.length do
       addUse(node.args(i), node)
       i += 1
+    nodeOf(cls) = node
     if recording then trail += Undo.Added(node)
     insertOrMerge(node)
+    rules.added(this, app, cls)
     cls
 
   /** Inserts `node`, whose canonical form is up to date, into the congruence
@@ -311,13 +360,48 @@ final class EGraph:
    */
   def areDisequal(a: EClassId, b: EClassId): Boolean = disequality(a, b).isDefined
 
-  /** The two sides and the reason of a violated disequality, if the asserted
-   *  equalities and disequalities are inconsistent; `explain` on the two sides
-   *  gives the rest of the explanation.
+  /** The reasons of the inconsistency, if the asserted equalities and
+   *  disequalities (and the rules) are inconsistent: for a violated
+   *  disequality, its reason and the explanation of the equality of its sides.
    */
-  def conflict: Option[(EClassId, EClassId, Int)] =
+  def conflict: Option[ArrayBuffer[Int]] =
     val v = violated
-    if v == null then None else Some((v.a, v.b, v.reason))
+    val c = contradicted
+    if v != null then Some(explain(v.a, v.b) += v.reason) else if c != null then Some(c) else None
+
+  /** Raised by a rule: the graph is inconsistent for these reasons. */
+  def contradiction(reasons: ArrayBuffer[Int]): Unit =
+    if violated == null && contradicted == null then
+      contradicted = reasons
+      if recording then trail += Undo.Violated
+
+  /** Merges `a` and `b` for a rule whose premises are the given equalities,
+   *  which must hold before the call: their paths in the union tree then
+   *  predate the new edge, so explaining them never runs into it. `explain`
+   *  accounts for the merge by the premises.
+   */
+  def derive(a: EClassId, b: EClassId, premises: Seq[(EClassId, EClassId)]): Unit =
+    union(a, b, Justification.Rule(ArraySeq.from(premises)))
+
+  /** The applications whose node mentions the class of `cls` (as function or
+   *  argument), possibly with entries that stopped mentioning it after merges.
+   */
+  def parents(cls: EClassId): Iterator[App] =
+    val list = uses(repr(cls))
+    if list == null then Iterator.empty else list.iterator.map(_.app)
+
+  /** The applications added in the class of `cls`, each with its own class id
+   *  (a member of the class: the id to use in premises about the node).
+   */
+  def nodes(cls: EClassId): Iterator[(App, EClassId)] =
+    val root = repr(cls)
+    Iterator.iterate(root)(next).drop(1).takeWhile(_ != root).++(Iterator(root)).flatMap { m =>
+      val node = nodeOf(m)
+      if node == null then Iterator.empty else Iterator((node.app, m))
+    }
+
+  /** The rules' global check (see [[Rules.finalCheck]]). */
+  def finalCheck(): Option[ArrayBuffer[Int]] = rules.finalCheck(this)
 
   /** All e-classes (one per equivalence class) with the distinct applications
    *  added to them.
@@ -382,12 +466,24 @@ final class EGraph:
     if fromForbid != null then
       if intoForbid == null then forbid(into) = ArrayBuffer.from(fromForbid) else intoForbid ++= fromForbid
       forbid(from) = null
+    if rules ne NoRules then merges += Merge(from, into, fromUses)
 
-  /** Restores the congruence closure after merges. */
+  /** Restores the congruence closure after merges, and reports the merges to
+   *  the rules, whose consequences are processed in turn, until no node is
+   *  pending and no merge is unreported.
+   */
   def rebuild(): Unit =
-    while pending.nonEmpty do
-      val node = pending.remove(pending.length - 1)
-      if !node.dead then repair(node)
+    while pending.nonEmpty || merges.nonEmpty do
+      while pending.nonEmpty do
+        val node = pending.remove(pending.length - 1)
+        if !node.dead then repair(node)
+      var i = 0
+      while i < merges.length do // callbacks may append merges
+        val m = merges(i)
+        i += 1
+        val parents = if m.parents == null then Nil else m.parents.view.map(_.app)
+        rules.merged(this, m.from, m.into, parents)
+      merges.clear()
 
   private def repair(node: ENode): Unit =
     cg.remove(node) // stored under its previous form
@@ -462,6 +558,7 @@ final class EGraph:
     case Justification.Congruence(n1, n2) =>
       explainInto(n1.app.fun, n2.app.fun, out)
       for i <- n1.app.args.indices do explainInto(n1.app.args(i), n2.app.args(i), out)
+    case Justification.Rule(premises) => for (x, y) <- premises do explainInto(x, y, out)
 
   /** Opens a level: [[pop]] will undo everything done after this call.
    *  Completes the pending [[rebuild]] first, so that a level starts from a
@@ -470,6 +567,7 @@ final class EGraph:
   def push(): Unit =
     rebuild()
     levels += trail.length
+    rules.push()
 
   /** Undoes every `add`, `merge`, `disequate` and `rebuild` done since the last
    *  [[push]].
@@ -477,14 +575,17 @@ final class EGraph:
   def pop(): Unit =
     require(levels.nonEmpty, "pop without a matching push")
     pending.clear() // everything pending was merged in this level
+    merges.clear()
     val mark = levels.remove(levels.length - 1)
     while trail.length > mark do undo(trail.remove(trail.length - 1))
+    rules.pop()
 
   private def undo(record: Undo): Unit = record match
     case Undo.NewClass =>
       count -= 1
       uses(count) = null
       forbid(count) = null
+      nodeOf(count) = null
     case Undo.Added(node) =>
       nodes.remove(nodes.length - 1)
       if !node.dead then cg.remove(node) // a node congruent to an existing one at creation was never inserted
@@ -522,3 +623,4 @@ final class EGraph:
       fb.remove(fb.length - 1)
     case Undo.Violated =>
       violated = null
+      contradicted = null
