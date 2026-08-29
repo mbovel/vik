@@ -38,8 +38,16 @@ class DatatypesTest extends munit.FunSuite:
     assert(Printer.print(script).contains("(declare-datatypes ((List 0)) (((nil) (cons (head Int) (tail List)))))"))
     assert(Printer.print(script).contains("((_ is cons) l)"))
 
-  test("check-sat is refused until the theory exists"):
-    val script = Parser.parse(
-      "(declare-datatype List ((nil) (cons (head Int) (tail List)))) (declare-const l List) (assert (= l nil)) (check-sat)"
-    )
-    intercept[UnsupportedOperationException](Player.play(script))
+  test("scripts with datatypes are decided"):
+    val decls =
+      "(declare-sort U 0) (declare-datatype List ((nil) (cons (head U) (tail List)))) (declare-const l List) (declare-const m List) (declare-const a U) (declare-const b U)"
+    def play(script: String) = Player.play(Parser.parse(s"$decls $script (check-sat)"))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is nil) l))"), List(false))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (head l) b)) (assert (distinct a b))"), List(false))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (tail l) l))"), List(false))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is cons) l)) (assert (= (head l) a))"), List(true))
+    assertEquals(play("(assert (not ((_ is nil) l))) (assert (not ((_ is cons) l)))"), List(false))
+    // Int fields need theory combination: refused
+    intercept[UnsupportedOperationException](Player.play(Parser.parse(
+      "(declare-datatype L ((nil) (cons (head Int) (tail L)))) (declare-const l L) (assert (= l nil)) (check-sat)"
+    )))

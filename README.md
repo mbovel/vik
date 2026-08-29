@@ -1,8 +1,7 @@
 # The Verification Intermediate Kit (VIK)
 
-VIK is a minimal but reasonably fast SMT solver for the theories of uninterpreted functions (UF), linear integer
-arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers), with algebraic data types (ADTs)
-planned. It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
+VIK is a minimal but reasonably fast SMT solver for the theories of uninterpreted functions (UF), algebraic data
+types (ADTs), linear integer arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers). It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
 
 ## Design principle
 
@@ -20,8 +19,8 @@ kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped
 |---|---|
 | `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
 | `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
-| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions) and the LIA solver into `cdclt` as theories: QF_UF, QF_LIA and their disjoint combination (functions over `Int`, i.e. QF_UFLIA, need an exchange of equalities between the theories: future work). |
-| `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatype declarations are parsed and printed, and refused at `check-sat` until the ADT theory exists. |
+| `smt` | Terms and formulas, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their disjoint combination (functions over `Int`, i.e. QF_UFLIA, and datatype fields of sort `Int` need an exchange of equalities between the theories: future work). |
+| `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatypes (`declare-datatype(s)`, constructors, selectors, testers) are decided by the solver. |
 | `sexpr` | The S-expression lexer and parser used by `smt2`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
 | `playground` | Two browser pages (Scala.js): an e-graph playground and an SMT-LIB playground. |
@@ -179,7 +178,20 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Event log and per-class atom lists for theory propagation | ✗ | 1.8× on one instance, nothing elsewhere, 85 subtle lines: removed for readability ([`6badd0f`](https://github.com/mbovel/vik/commit/6badd0f) → [`bf015d6`](https://github.com/mbovel/vik/commit/bf015d6), [measurements](bench/results/smt/2026-08-29-laraserver4-scan.md)) |
 | Cached node hashes | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-cached-hash.md) |
 | Union-tree edges as flat arrays | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-flat-edges.md) |
-| Rewrite and merge hooks (for ADTs and normalizations) | planned | [docs/adt-plan.md](docs/adt-plan.md) |
+| Rules: callbacks on added nodes and merges, derived equalities with premises as justification, contradictions, a final check | ✓ | [docs/adt-plan.md](docs/adt-plan.md); the datatype theory is such a rule set |
+
+### `smt`: datatypes (`AdtRules`)
+
+| Feature | | Notes |
+|---|---|---|
+| Injectivity and distinctness of constructors, on merge | ✓ | premises: the two constructor nodes are equal |
+| Selectors of the constructor node of their argument's class | ✓ | on the selector's addition or when the class gains the node |
+| Testers: true on the right constructor, contradiction on another, expansion `t = C(s_1(t), ..., s_n(t))` when true | ✓ | |
+| Exhaustiveness: some tester of every datatype term holds, as a clause; finite sorts expanded eagerly, so the search is complete on them | ✓ | `Unit`/`Option` cardinality examples in the tests |
+| Acyclicity, at the final check | ✓ | depth-first search over constructor nodes |
+| Differential test against brute force over finite datatypes | ✓ | 200 random formulas |
+| Fields of sort `Int`, `Bool` or bit-vectors | ✗ | need an exchange of equalities between theories |
+| Parametric datatypes | ✗ | rejected by the parser |
 
 ### `cdclt`
 

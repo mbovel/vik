@@ -30,10 +30,16 @@ trait Rules:
   def added(eg: EGraph, app: App, cls: EClassId): Unit = ()
 
   /** The class of `from` was merged into the class of `into` (their
-   *  representatives at the time); `parents` are the nodes that mentioned the
-   *  absorbed class.
+   *  representatives at the time); `members` are the ids of the absorbed class
+   *  and `parents` the nodes that mentioned it, each with its own class id.
    */
-  def merged(eg: EGraph, from: EClassId, into: EClassId, parents: Iterable[App]): Unit = ()
+  def merged(
+      eg: EGraph,
+      from: EClassId,
+      into: EClassId,
+      members: Iterable[EClassId],
+      parents: Iterable[(App, EClassId)]
+  ): Unit = ()
 
   /** A global condition on the closure, checked at the theory's final check:
    *  the reasons of a conflict, if any.
@@ -81,7 +87,12 @@ object EGraph:
   /** A merge to report to the rules: the two representatives and the parents of
    *  the absorbed class.
    */
-  private final case class Merge(from: EClassId, into: EClassId, parents: ArrayBuffer[ENode] | Null)
+  private final case class Merge(
+      from: EClassId,
+      into: EClassId,
+      members: Array[EClassId],
+      parents: ArrayBuffer[ENode] | Null
+  )
 
   /** An edge of the union tree: the class of `a` was merged into the class of
    *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
@@ -386,9 +397,16 @@ final class EGraph(rules: Rules = NoRules):
   /** The applications whose node mentions the class of `cls` (as function or
    *  argument), possibly with entries that stopped mentioning it after merges.
    */
-  def parents(cls: EClassId): Iterator[App] =
+  def parents(cls: EClassId): Iterator[(App, EClassId)] =
     val list = uses(repr(cls))
-    if list == null then Iterator.empty else list.iterator.map(_.app)
+    if list == null then Iterator.empty else list.iterator.map(n => (n.app, n.cls))
+
+  /** The application added in the class `id` itself, `null` for a class of
+   *  [[newClass]].
+   */
+  def app(id: EClassId): App | Null =
+    val node = nodeOf(id)
+    if node == null then null else node.app
 
   /** The applications added in the class of `cls`, each with its own class id
    *  (a member of the class: the id to use in premises about the node).
@@ -437,11 +455,17 @@ final class EGraph(rules: Rules = NoRules):
     if fromForbid != null && violated == null then forbidding(fromForbid, into).foreach(violate)
 
     // Repoint every member of the smaller class, then join the two circular member lists (see `next`).
+    val members = if rules ne NoRules then new Array[EClassId](size(from)) else null // for the rules
     repr(from) = into
     var m = next(from)
+    var k = 0
     while m != from do
       repr(m) = into
+      if members != null then
+        members(k) = m
+        k += 1
       m = next(m)
+    if members != null then members(k) = from
     val t = next(from)
     next(from) = next(into)
     next(into) = t
@@ -466,7 +490,7 @@ final class EGraph(rules: Rules = NoRules):
     if fromForbid != null then
       if intoForbid == null then forbid(into) = ArrayBuffer.from(fromForbid) else intoForbid ++= fromForbid
       forbid(from) = null
-    if rules ne NoRules then merges += Merge(from, into, fromUses)
+    if members != null then merges += Merge(from, into, members, fromUses)
 
   /** Restores the congruence closure after merges, and reports the merges to
    *  the rules, whose consequences are processed in turn, until no node is
@@ -481,8 +505,8 @@ final class EGraph(rules: Rules = NoRules):
       while i < merges.length do // callbacks may append merges
         val m = merges(i)
         i += 1
-        val parents = if m.parents == null then Nil else m.parents.view.map(_.app)
-        rules.merged(this, m.from, m.into, parents)
+        val parents = if m.parents == null then Nil else m.parents.view.map(n => (n.app, n.cls))
+        rules.merged(this, m.from, m.into, ArraySeq.unsafeWrapArray(m.members), parents)
       merges.clear()
 
   private def repair(node: ENode): Unit =

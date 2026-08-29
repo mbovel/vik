@@ -11,12 +11,10 @@ import net.bovel.smt.Solver
 object Player:
   def play(script: Script, solver: Solver = Solver()): List[Boolean] =
     val results = ArrayBuffer.empty[Boolean]
-    var datatypes = false
     for command <- script.commands do
       command match
-        case Command.DeclareDatatypes(_) => datatypes = true
-        case Command.CheckSat if datatypes =>
-          throw UnsupportedOperationException("datatypes are parsed but not decided yet (see docs/adt-plan.md)")
+        case Command.DeclareFun(name, argSorts, sort) => solver.declare(name, argSorts, sort)
+        case Command.DeclareDatatypes(datatypes) => datatypes.foreach(solver.declare)
         case Command.Assert(formula) => solver.assert(formula)
         case Command.Push(n) => for _ <- 0 until n do solver.push()
         case Command.Pop(n) => for _ <- 0 until n do solver.pop()

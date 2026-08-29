@@ -28,6 +28,29 @@ final class Solver(simplify: Boolean = true):
 
   private val levels = ArrayBuffer(ArrayBuffer.empty[Formula])
 
+  /** The declared function symbols (argument sorts, result sort) and datatypes.
+   *  Declarations are optional for uninterpreted functions and integers, and
+   *  needed for datatypes: they tell which terms are of a datatype sort.
+   */
+  private val declarations = HashMap.empty[String, (List[String], String)]
+  private val datatypes = ArrayBuffer.empty[Datatype]
+
+  def declare(name: String, argSorts: List[String], sort: String): Unit = declarations(name) = (argSorts, sort)
+
+  /** Declares a datatype: its constructors, selectors and testers become known
+   *  function symbols. Fields of sort `Int`, `Bool` or bit-vectors need an
+   *  exchange of equalities between theories, which does not exist yet.
+   */
+  def declare(datatype: Datatype): Unit =
+    for c <- datatype.constructors; (_, sort) <- c.selectors do
+      if sort == "Int" || sort == "Bool" || sort.startsWith("(_ BitVec") then
+        throw UnsupportedOperationException(s"datatype ${datatype.name}: fields of sort $sort are not supported yet")
+    datatypes += datatype
+    for c <- datatype.constructors do
+      declarations(c.name) = (c.selectors.map(_._2), datatype.name)
+      declarations(c.tester) = (List(datatype.name), "Bool")
+      for (selector, sort) <- c.selectors do declarations(selector) = (List(datatype.name), sort)
+
   def push(): Unit = levels += ArrayBuffer.empty
 
   def pop(): Unit =
@@ -38,20 +61,80 @@ final class Solver(simplify: Boolean = true):
 
   def solve(): Result =
     val assertions = levels.flatten.toList
-    val encoder = Encoder()
-    for formula <- (if simplify then Simplifier.simplify(assertions) else assertions) do encoder.assert(formula)
+    val encoder = Encoder(declarations, datatypes.toList)
+    val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
+    for formula <- (if simplify then Simplifier.simplify(assertions, constructors) else assertions) do
+      encoder.assert(formula)
+    encoder.assertExhaustiveness()
     encoder.solve() match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into
- *  variables of a LIA solver and `Le` atoms into bounds on them.
+ *  variables of a LIA solver and `Le` atoms into bounds on them. Datatypes are
+ *  rules of the e-graph ([[AdtRules]]): the encoder registers their symbols'
+ *  classes and asserts, for every term of a datatype sort, that one of its
+ *  testers holds (and, for a term of a finite datatype sort, does the same for
+ *  its selector terms, recursively, so that the search is complete on finite
+ *  sorts).
  */
-private final class Encoder:
-  private val eg = EGraph()
+private final class Encoder(declarations: HashMap[String, (List[String], String)], datatypes: List[Datatype]):
+  private val rules = if datatypes.isEmpty then net.bovel.egraph.NoRules else AdtRules()
+  private val eg = EGraph(rules)
   private val classes = HashMap.empty[Term, EClassId]
   private val trueTerm = eg.newClass() // the class of Boolean-sorted terms that hold
+
+  rules match
+    case adt: AdtRules =>
+      adt.truth(trueTerm)
+      for d <- datatypes; c <- d.constructors do
+        val constructor = classOf(Term.Const(c.name))
+        adt.register(constructor, c.selectors.map((s, _) => classOf(Term.Const(s))), classOf(Term.Const(c.tester)))
+        if c.selectors.isEmpty then adt.constant(constructor)
+    case _ => ()
+
+  /** The sort of a term, from the declarations; `?` when unknown, and for a
+   *  function symbol (a constant with argument sorts), which is not a value.
+   */
+  private def sortOf(term: Term): String = term match
+    case Term.Const(name) => declarations.get(name).filter(_._1.isEmpty).map(_._2).getOrElse("?")
+    case Term.App(Term.Const(name), _) => declarations.get(name).map(_._2).getOrElse("?")
+    case _ => "Int"
+
+  private val datatypeNames = datatypes.map(_.name).toSet
+
+  /** The datatypes with finitely many values: no constructor field of an
+   *  uninterpreted sort or of an infinite (e.g. recursive) datatype, computed
+   *  as a least fixpoint.
+   */
+  private val finite: Set[String] =
+    var known = Set.empty[String]
+    var changed = true
+    while changed do
+      val more = datatypes.filter(d =>
+        !known(d.name) && d.constructors.forall(_.selectors.forall((_, s) => known(s)))
+      ).map(_.name)
+      changed = more.nonEmpty
+      known ++= more
+    known
+
+  /** Asserts, for every term of a datatype sort seen so far, that one of its
+   *  testers holds; for a term of a finite sort, also for its selector terms,
+   *  recursively (see the class documentation).
+   */
+  def assertExhaustiveness(): Unit =
+    if datatypes.nonEmpty then
+      val seen = scala.collection.mutable.HashSet.empty[Term]
+      val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t))))
+      while todo.nonEmpty do
+        val t = todo.remove(todo.length - 1)
+        if seen.add(t) then
+          val datatype = datatypes.find(_.name == sortOf(t)).get
+          assert(Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))))
+          if finite(datatype.name) then
+            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort) do
+              todo += Term.App(Term.Const(selector), List(t))
 
   private val liaSolver = lia.Solver()
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications

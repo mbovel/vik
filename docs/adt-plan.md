@@ -1,8 +1,11 @@
 # Plan: algebraic data types through e-graph hooks
 
-Status: plan only (2026-08-29). Nothing here is implemented; `smt2` parses `declare-datatype(s)` and represents
-constructors, selectors and testers, but the solver rejects `check-sat` on scripts that use them until the theory
-exists.
+Status: implemented on 2026-08-29 (`egraph.Rules`, `smt.AdtRules`, the exhaustiveness clauses of the encoder), with two
+departures from the plan below: a rewrite that identifies a term with an existing class goes through a derived merge
+with a rule justification (an `added` hook), never a silent substitution, so that it can be explained and undone; and
+testers need no lemma mechanism, since the encoder asserts the exhaustiveness clauses eagerly for every datatype term
+(and pre-expands the selector terms of finite sorts). Fields of sort `Int`, `Bool` or bit-vectors are still refused
+(theory combination).
 
 ## What the theory has to decide
 
