@@ -72,6 +72,13 @@ The other benchmarks are recorded on subsets (`-p file=...`): `parse` and `smtin
 
 Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
+In process, `OtherSolversBench` runs princess and SMTInterpol (JVM libraries) and z3 and cvc5 through their Java bindings
+as published by SoSy-Lab (the JavaSMT project) on Maven Central: the Java parts are dependencies of `bench`, the native
+libraries are downloaded by `bench/fetch-native.sh` into `bench/native/` (Linux x86-64) and found through
+`java.library.path`. `z3` parses the printed script, `z3Direct` builds z3's AST from the tree through the API (the
+counterpart of `vik`, which solves the tree). `sbt "bench/runMain net.bovel.bench.SolverCheck"` runs every in-process
+solver on every instance and reports disagreements with the expected status.
+
 `compare.sh` runs each solver as a separate process with a timeout (default 60 s) and records the answer and the wall
 clock, JVM start-up included for VIK, princess and SMTInterpol. z3 and cvc5 are taken from the `PATH`; princess and
 SMTInterpol are fetched with [coursier](https://get-coursier.io).

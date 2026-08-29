@@ -98,8 +98,15 @@ lazy val bench = project
     // Other solvers, run in-process by the benchmarks and as separate processes by compare.sh.
     libraryDependencies ++= Seq(
       ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),
-      "de.uni-freiburg.informatik.ultimate" % "smtinterpol" % "2.5-916-ga5843d8b"
+      "de.uni-freiburg.informatik.ultimate" % "smtinterpol" % "2.5-916-ga5843d8b",
+      // The Java bindings of z3 and cvc5 as published by SoSy-Lab (JavaSMT); their native libraries come from
+      // bench/fetch-native.sh into bench/native, found through java.library.path below.
+      "org.sosy-lab" % "javasmt-solver-z3" % "4.14.0",
+      "org.sosy-lab" % "javasmt-solver-cvc5" % "1.2.1-g8594a8e4dc"
     ),
+    fork := true, // runs and benchmarks in their own JVM, with the native libraries of z3 and cvc5 on its path
+    javaOptions += s"-Djava.library.path=${baseDirectory.value / "native"}",
+    Jmh / run / javaOptions += s"-Djava.library.path=${baseDirectory.value / "native"}",
     runtimeClasspath := {
       val converter = fileConverter.value
       (Runtime / fullClasspath).value.map(entry => converter.toPath(entry.data).toString).mkString(":")

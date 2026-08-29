@@ -8,17 +8,23 @@ import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
 import ap.api.SimpleAPI
+import com.microsoft.z3.{Context, Status}
+import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
+import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.logic.{FunctionSymbol, Script, Term, WrapperScript}
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import de.uni_freiburg.informatik.ultimate.smtinterpol.option.OptionMap
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.{ParseEnvironment, SMTInterpol}
 import net.bovel.smt2.{Parser, Player, Printer, Script as VikScript}
 
-/** In-process comparison on a parsed script: VIK solves the tree directly,
- *  while princess and SMTInterpol receive the tree printed back to SMT-LIB text
- *  and parse it themselves (`print` measures the printing alone). Same JVM,
- *  same thread, no process start-up; z3 and cvc5 have no JVM API here, see
- *  `compare.sh`.
+/** In-process comparison on a parsed script, same JVM, same thread, no process
+ *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
+ *  receive the tree printed back to SMT-LIB text and parse it themselves
+ *  (`print` measures the printing alone), and `z3Direct` builds z3's AST from
+ *  the tree through the Java API, the way a program would. z3 and cvc5 run
+ *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
+ *  native libraries of `fetch-native.sh`; every operation creates and closes
+ *  its own context, as the other solvers do.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -105,6 +111,49 @@ class OtherSolversBench:
       val result = super.checkSat()
       results ::= (result == Script.LBool.SAT)
       result
+
+  /** Prints the tree and has z3 parse it (declarations included); the parsed
+   *  assertions go to a fresh solver.
+   */
+  @Benchmark
+  def z3(): Boolean =
+    Natives.z3
+    val ctx = Context()
+    try
+      val solver = ctx.mkSolver()
+      solver.add(ctx.parseSMTLIB2String(Printer.print(script), null, null, null, null)*)
+      solver.check() == Status.SATISFIABLE
+    finally ctx.close()
+
+  /** Builds z3's AST from the tree through the Java API and checks it. */
+  @Benchmark
+  def z3Direct(): Boolean =
+    Natives.z3
+    val ctx = Context()
+    try
+      val solver = ctx.mkSolver()
+      solver.add(Z3Encoder(ctx).assertions(script)*)
+      solver.check() == Status.SATISFIABLE
+    finally ctx.close()
+
+  /** Prints the tree and has cvc5 run the text as a script through its parser,
+   *  recording the check-sat answers.
+   */
+  @Benchmark
+  def cvc5(): List[Boolean] =
+    val solver = Cvc5Solver()
+    try
+      val parser = InputParser(solver)
+      parser.setStringInput(InputLanguage.SMT_LIB_2_6, Printer.print(script), "script")
+      val symbols = parser.getSymbolManager
+      var results = List.empty[Boolean]
+      var command = parser.nextCommand()
+      while !command.isNull do
+        val output = command.invoke(solver, symbols)
+        if output.startsWith("sat") || output.startsWith("unsat") then results ::= output.startsWith("sat")
+        command = parser.nextCommand()
+      results.reverse
+    finally solver.deletePointer()
 
   /** Prints the tree and has SMTInterpol run the text as a script, recording
    *  the check-sat answers.

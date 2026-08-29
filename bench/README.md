@@ -11,7 +11,7 @@ are kept per module:
 | `lia` | `LiaBench` | [results/lia](results/lia/README.md) |
 | `sexpr` | `SExprBench` | [results/sexpr](results/sexpr/README.md) |
 | `smt2` | `Smt2Bench` | [results/smt2](results/smt2/README.md) |
-| `smt` (SMT-LIB instances, other solvers) | `SmtBench`, `OtherSolversBench` | [results/smt](results/smt/README.md) |
+| `smt` (SMT-LIB instances; princess, SMTInterpol, z3 and cvc5 in process) | `SmtBench`, `OtherSolversBench`, `SolverCheck` | [results/smt](results/smt/README.md) |
 
 ## Running
 
@@ -19,6 +19,7 @@ From the repository root:
 
 ```sh
 python3 -m venv bench/.venv && bench/.venv/bin/pip install -r bench/requirements.txt   # once, for jmh2md.py
+bench/fetch-native.sh                                                 # once, the native libraries of z3 and cvc5 (Linux x86-64)
 sbt "bench/Jmh/run -l"                                                # lists the benchmarks
 sbt "bench/Jmh/run .*EGraphBench.*"                                   # one module
 sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*LiaBench.*" # with the JSON results

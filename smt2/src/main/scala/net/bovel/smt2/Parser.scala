@@ -43,7 +43,8 @@ final class Parser:
   def parse(input: String): Script = Script(SExprParser.parseAll(input).flatMap(command))
 
   private def command(sexpr: SExpr): List[Command] = sexpr match
-    case SList(Atom("set-logic") :: Atom(logic) :: Nil) => List(Command.SetLogic(logic))
+    // Bit-vectors are lowered to integers, so the script that comes out is in the corresponding integer logic.
+    case SList(Atom("set-logic") :: Atom(logic) :: Nil) => List(Command.SetLogic(logic.replace("BV", "LIA")))
     case SList(Atom("set-info") :: Atom(key) :: value :: Nil) => List(Command.SetInfo(key, value.toString))
     case SList(Atom("declare-sort") :: Atom(name) :: Atom(arity) :: Nil) => List(Command.DeclareSort(name, arity.toInt))
     case SList(Atom("declare-sort") :: Atom(name) :: Nil) => List(Command.DeclareSort(name, 0))
@@ -251,7 +252,7 @@ final class Parser:
       val name = s"ite!$fresh"
       val k = Term.Const(name)
       val sort = sortOf(thn, env)
-      introduced += ((name, sort))
+      introduced += ((name, if isArithmetic(sort) then "Int" else sort)) // declared as it is printed: lowered
       functions(name) = (Nil, sort)
       val c = formula(cond, env)
       definitions += Implies(c, equal(sort, k, term(thn, env)))
