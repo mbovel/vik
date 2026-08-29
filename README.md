@@ -34,6 +34,8 @@ sbt test      # runs the tests on the JVM and on Scala.js
 > [!NOTE]
 > sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
 
+Other sbt 2 edges met here (thin client hangs, forked processes outliving a killed client, virtual classpath references) are collected in [sbt2-issues.md](sbt2-issues.md).
+
 ### Benchmarks
 
 [JMH](https://github.com/openjdk/jmh) benchmarks live in one subproject per component, each with a README describing the workloads and holding the results:
