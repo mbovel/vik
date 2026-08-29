@@ -11,7 +11,11 @@ import net.bovel.lia.{Solver, Var}
 /** Random systems of bounds on linear expressions over `n` integer variables in
  *  the box `[-10, 10]`: `2n` expressions of two or three terms with
  *  coefficients in `[-3, 3]`, each bounded on one side by a constant in
- *  `[-10, 10]` (a mix of feasible and infeasible systems).
+ *  `[-10, 10]` (a mix of feasible and infeasible systems); and structured
+ *  systems (`steps`): a chain `x_{i+1} = x_i + a_i × y_i` of `n` steps with
+ *  `y_i` in `[0, 3]` and `a_i` in `[2, 5]`, from `x_0 = 0` to a narrow window
+ *  on `x_n`, where the rational relaxation is loose and the window must be
+ *  propagated back along the chain.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -38,6 +42,31 @@ class SolverBench:
           (BigInt(1 + rnd.nextInt(3)) * (if rnd.nextBoolean() then 1 else -1), x)
         )
         Constraint(terms, rnd.nextBoolean(), rnd.nextInt(21) - 10)
+
+  /** Builds the `steps` chain of one system and decides it: the window is
+   *  `[target, target + 1]` for a random `target`.
+   */
+  private def steps(rnd: Random): Boolean =
+    val solver = Solver()
+    var x = solver.newVar()
+    solver.assertLower(x, 0, -1)
+    solver.assertUpper(x, 0, -1)
+    for i <- 0 until n do
+      val y = solver.newVar()
+      solver.assertLower(y, 0, -1)
+      solver.assertUpper(y, 3, -1)
+      val next = solver.newSlack(List((BigInt(1), x), (BigInt(1 + rnd.nextInt(4)) + 1, y)))
+      x = next
+    val target = rnd.nextInt(6 * n)
+    solver.assertLower(x, target, -1) == Solver.Result.Sat &&
+    solver.assertUpper(x, target + 1, -1) == Solver.Result.Sat &&
+    solver.check() == Solver.Result.Sat
+
+  /** Ten `steps` systems of `n` steps (see the class comment). */
+  @Benchmark
+  def stepChains(): Int =
+    val rnd = Random(2)
+    (0 until 10).count(_ => steps(rnd))
 
   private def boxed(solver: Solver): IndexedSeq[Var] = (0 until n).map: _ =>
     val x = solver.newVar()

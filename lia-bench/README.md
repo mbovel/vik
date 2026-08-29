@@ -4,13 +4,14 @@
 
 ## Workloads
 
-Ten random systems per size `n` (10 or 20 variables in the box `[-10, 10]`): `2n` expressions of two or three terms with coefficients in `[-3, 3]`, each bounded on one side by a constant in `[-10, 10]`, a mix of feasible and infeasible systems. Each operation builds fresh solvers.
+Ten random systems per size `n` (10 or 20 variables in the box `[-10, 10]`): `2n` expressions of two or three terms with coefficients in `[-3, 3]`, each bounded on one side by a constant in `[-10, 10]`, a mix of feasible and infeasible systems; and ten structured chains (`stepChains`). Each operation builds fresh solvers.
 
 | Benchmark | Workload | Exercises |
 |---|---|---|
 | `solve` | asserts all bounds of a system, then one `check` | the simplex from scratch, and branch and bound |
 | `incremental` | asserts the bounds one at a time with a `check` after each, until infeasible | the incremental simplex (what a CDCL(T) solver does), with bounds only tightening |
 | `backtrack` | asserts the first half, then tries each remaining bound alone between a `push` and a `pop` | backtracking: the tableau is kept, only bounds are undone |
+| `stepChains` | ten chains `x_{i+1} = x_i + a_i × y_i` of `n` steps (`y_i` in `[0, 3]`, `a_i` in `[2, 5]`) from `x_0 = 0` to a window of width 1 on `x_n` | bound propagation along a chain, branch and bound where the relaxation is loose |
 
 ## Running
 
@@ -41,3 +42,4 @@ laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
 - [2026-08-29, laraserver4, experiments](results/2026-08-29-laraserver4-experiments.md) — `BigInt` rationals, the `Long` fast path (kept), most-fractional branching (not kept); quick configuration
 - [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — First full run of `SolverBench`: simplex with branch and bound, `Long` fast-path rationals, before bound propagation
+- [2026-08-29, laraserver4, bound propagation](results/2026-08-29-laraserver4-propagation.md) — every row vs. incremental over a worklist (4 or 1 visits per row; the latter kept), on the random workloads, `stepChains` and the SMT-LIB instances; quick configuration

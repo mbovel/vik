@@ -1,6 +1,8 @@
 package net.bovel.lia
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.util.boundary
+import scala.util.boundary.break
 
 /** A variable of the [[Solver]]: an index in `0 until numVars`. */
 type Var = Int
@@ -14,8 +16,10 @@ object Solver:
      */
     case Unsat(reasons: Set[Int])
 
-  /** A bound on a variable: its value (an integer) and its reason. */
-  private final case class Bound(value: Rational, reason: Int)
+  /** A bound on a variable: its value (an integer) and the reasons it follows
+   *  from, one for an asserted bound, their union for a derived one.
+   */
+  private final case class Bound(value: Rational, reasons: Set[Int])
 
   /** A bound replaced inside a level: the variable, the side, the old bound. */
   private final case class Undo(x: Var, isUpper: Boolean, old: Bound | Null)
@@ -69,6 +73,9 @@ final class Solver:
 
   private val trail = ArrayBuffer.empty[Undo]
   private val levels = ArrayBuffer.empty[Int]
+
+  /** Variables whose bounds tightened since the last bound propagation. */
+  private val tightened = ArrayBuffer.empty[Var]
 
   /** Reasons of the branches of the current branch and bound search: negative
    *  (never a caller's), and removed from the explanations they contribute to.
@@ -132,23 +139,93 @@ final class Solver:
    *  the feasibility of the whole to [[check]].
    */
   def assertUpper(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Rational(floorDiv(c, scale(x))), reason, true)
+    assertBound(x, Rational(floorDiv(c, scale(x))), Set(reason), true)
 
   /** Asserts `x ≥ c` for `reason`, as [[assertUpper]]. */
   def assertLower(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Rational(-floorDiv(-c, scale(x))), reason, false)
+    assertBound(x, Rational(-floorDiv(-c, scale(x))), Set(reason), false)
 
   private def floorDiv(a: BigInt, b: BigInt): BigInt = (a - a.mod(b)) / b
 
-  private def assertBound(x: Var, c: Rational, reason: Int, isUpper: Boolean): Result =
+  private def assertBound(x: Var, c: Rational, reasons: Set[Int], isUpper: Boolean): Result =
     val same = if isUpper then upper(x) else lower(x)
     val opposite = if isUpper then lower(x) else upper(x)
     if same != null && (if isUpper then same.value <= c else same.value >= c) then return Result.Sat // not tighter
     if opposite != null && (if isUpper then c < opposite.value else c > opposite.value) then
-      return Result.Unsat(Set(reason, opposite.reason))
+      return Result.Unsat(reasons ++ opposite.reasons)
     if levels.nonEmpty then trail += Undo(x, isUpper, same)
-    if isUpper then upper(x) = Bound(c, reason) else lower(x) = Bound(c, reason)
+    if isUpper then upper(x) = Bound(c, reasons) else lower(x) = Bound(c, reasons)
     if rows(x) == null && (if isUpper then values(x) > c else values(x) < c) then update(x, c)
+    tightened += x
+    Result.Sat
+
+  /** Derives bounds from the rows, as Dutertre and de Moura's bound
+   *  propagation: the bounds of the variables of a row bound its basic
+   *  variable, and the bound of the basic variable with the bounds of the other
+   *  variables bound each variable of the row, all rounded to integers. Only
+   *  the rows mentioning a variable whose bound tightened since the last
+   *  propagation are visited, the derived bounds queueing their rows in turn, a
+   *  bounded number of times per variable, since a cyclic system can tighten
+   *  forever; the simplex decides the rest. The reasons of a derived bound are
+   *  those of every bound used (for a variable of the row, its own bound is
+   *  included as well: simpler, and still sound).
+   */
+  private def propagateBounds(): Result = boundary:
+    val visits = new Array[Int](numVars) // rows visited per basic variable, to bound the work
+    var i = 0
+    while i < tightened.length do
+      val x = tightened(i)
+      i += 1
+      // The rows mentioning `x`: those of the basic variables of its column, and its own if it is basic.
+      val owners = if rows(x) == null then columns(x).toList else x :: columns(x).toList
+      for b <- owners if visits(b) < 1 do
+        visits(b) += 1
+        propagateRow(b) match
+          case Result.Sat => ()
+          case unsat =>
+            tightened.clear()
+            break(unsat)
+    tightened.clear()
+    Result.Sat
+
+  /** Derives the bounds the row of `b` implies (see [[propagateBounds]]). */
+  private def propagateRow(b: Var): Result = boundary:
+    val row = rows(b).nn
+    // The lowest and highest values of the row given the bounds, when every variable has the bound needed.
+    var low = Rational.zero
+    var high = Rational.zero
+    var lowMissing = 0
+    var highMissing = 0
+    var lowReasons = Set.empty[Int]
+    var highReasons = Set.empty[Int]
+    for (j, a) <- row do
+      val forLow = if a.signum > 0 then lower(j) else upper(j)
+      val forHigh = if a.signum > 0 then upper(j) else lower(j)
+      if forLow == null then lowMissing += 1
+      else
+        low = low + a * forLow.value
+        lowReasons = lowReasons ++ forLow.reasons
+      if forHigh == null then highMissing += 1
+      else
+        high = high + a * forHigh.value
+        highReasons = highReasons ++ forHigh.reasons
+    def derive(x: Var, c: Rational, reasons: Set[Int], isUpper: Boolean): Unit =
+      assertBound(x, Rational(if isUpper then c.floor else c.ceil), reasons, isUpper) match
+        case Result.Sat => ()
+        case unsat => break(unsat)
+    if lowMissing == 0 then derive(b, low, lowReasons, false)
+    if highMissing == 0 then derive(b, high, highReasons, true)
+    // a × x_j = b − (the rest of the row), bounded by a bound of b and the lowest or highest value of the rest.
+    val u = upper(b)
+    val l = lower(b)
+    for (j, a) <- row do
+      val forLow = if a.signum > 0 then lower(j) else upper(j)
+      val forHigh = if a.signum > 0 then upper(j) else lower(j)
+      // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
+      if u != null && lowMissing == 0 then
+        derive(j, (u.value - low + a * forLow.nn.value) / a, u.reasons ++ lowReasons, a.signum > 0)
+      if l != null && highMissing == 0 then
+        derive(j, (l.value - high + a * forHigh.nn.value) / a, l.reasons ++ highReasons, a.signum < 0)
     Result.Sat
 
   /** Sets the non-basic `x` to `v`, updating the basic variables. */
@@ -187,13 +264,14 @@ final class Solver:
       for (j, aj) <- rowN do add(k, rowK, j, c * aj)
 
   /** Decides the bounds: `Sat`, and [[value]] is an integer solution, or
-   *  `Unsat` with its explanation. The simplex (Bland's rule, so it terminates)
-   *  decides the rational relaxation; a fractional value is then split, depth
-   *  first, into `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the explanations of two failed
-   *  branches combining into one without the branch itself. Branch and bound
-   *  may not terminate on unbounded variables.
+   *  `Unsat` with its explanation. Bound propagation first tightens the bounds
+   *  by the rows; the simplex (Bland's rule, so it terminates) decides the
+   *  rational relaxation; a fractional value is then split, depth first, into
+   *  `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the explanations of two failed branches combining
+   *  into one without the branch itself. Branch and bound may not terminate on
+   *  unbounded variables.
    */
-  def check(): Result = simplex() match
+  def check(): Result = checkRelaxation() match
     case Result.Sat =>
       var x = 0
       while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
@@ -208,6 +286,13 @@ final class Solver:
             branch(x, v.ceil, reason, false) match
               case Result.Sat => Result.Sat
               case Result.Unsat(right) => Result.Unsat((left ++ right) - reason)
+    case unsat => unsat
+
+  /** Decides the rational relaxation of the bounds: bound propagation, then the
+   *  simplex; `Sat` leaves the integrality to [[check]].
+   */
+  def checkRelaxation(): Result = propagateBounds() match
+    case Result.Sat => simplex()
     case unsat => unsat
 
   private def branch(x: Var, c: BigInt, reason: Int, isUpper: Boolean): Result =
@@ -239,8 +324,8 @@ final class Solver:
         val canMove = if a.signum > 0 == tooLow then canRaise(j) else canLower(j)
         if canMove && (n == -1 || j < n) then n = j
       if n == -1 then
-        val reasons = row.map((j, a) => (if a.signum > 0 == tooLow then upper(j) else lower(j)).nn.reason)
-        return Result.Unsat(reasons.toSet + bound.reason)
+        val reasons = row.iterator.map((j, a) => (if a.signum > 0 == tooLow then upper(j) else lower(j)).nn.reasons)
+        return Result.Unsat(reasons.foldLeft(bound.reasons)(_ ++ _))
       pivotAndUpdate(b, n, bound.value)
     throw AssertionError("unreachable")
 
@@ -269,3 +354,4 @@ final class Solver:
     while trail.length > mark do
       val undo = trail.remove(trail.length - 1)
       if undo.isUpper then upper(undo.x) = undo.old else lower(undo.x) = undo.old
+    tightened.clear() // popping only loosens bounds
