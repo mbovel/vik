@@ -98,6 +98,27 @@ class SolverTest extends munit.FunSuite:
     val model = sat(4, Seq(Seq(Lit(0)), Seq(Lit(1), Lit(2), Lit(3))), AtMostTheory(Seq((Seq(0, 1, 2), 1)))).get
     assert(model(0) && !model(1) && !model(2) && model(3))
 
+  /** Restarting at every conflict exercises a restart right after a unit clause
+   *  is learned, when its literal is on the trail but not yet propagated: it
+   *  used to be skipped, never reaching the theory (found on a QF_UFLIA
+   *  instance).
+   */
+  test("random problems with a theory agree with brute force, restarting at every conflict"):
+    val rnd = scala.util.Random(5)
+    for _ <- 0 until 300 do
+      val n = 4 + rnd.nextInt(6)
+      val m = (2.5 * n).toInt
+      val clauses = Seq.fill(m)(Seq.fill(3)(Lit(rnd.nextInt(n), rnd.nextBoolean())))
+      val groups =
+        Seq.fill(1 + rnd.nextInt(2))((Seq.fill(2 + rnd.nextInt(3))(rnd.nextInt(n)).distinct, 1 + rnd.nextInt(2)))
+      def ok(model: Array[Boolean]) = groups.forall((atoms, k) => atoms.count(model) <= k)
+      val solver = Solver(n, AtMostTheory(groups), restartInterval = 1)
+      clauses.foreach(c => solver.addClause(c*))
+      val result = solver.solve() match
+        case Solver.Result.Sat(model) => Some(model)
+        case Solver.Result.Unsat => None
+      assertEquals(result.isDefined, bruteForce(n, clauses, ok), s"n=$n clauses=$clauses groups=$groups")
+
   test("random problems with a theory agree with brute force"):
     val rnd = scala.util.Random(4)
     var sats = 0

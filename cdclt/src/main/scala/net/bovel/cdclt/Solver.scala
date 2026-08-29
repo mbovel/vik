@@ -38,7 +38,7 @@ object Solver:
     case Sat(model: Array[Boolean])
     case Unsat
 
-final class Solver(val numVars: Int, theory: Theory = NoTheory):
+final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval: Int = 100):
   import Solver.Result
 
   private val Decision = -1
@@ -104,7 +104,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
   /** Statistics of the search so far. */
   def numConflicts: Long = conflicts
   def numDecisions: Long = decisions
-  private var nextRestart = 100L
+  private var nextRestart = restartInterval.toLong
 
   /** The `i`-th term (from 0) of the Luby sequence 1, 1, 2, 1, 1, 2, 4, 1, 1,
    *  2, 1, 1, 2, 4, 8, ...
@@ -180,7 +180,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
             if value(l.index) == 0 then
               enqueue(l, FromTheory)
               progress = true
-            else if value(l.index) < 0 then return reasonClause(l) // implied, yet false
+            else if value(l.index) < 0 then return theoryClause(l) // implied, yet false: a conflict
             i += 1
           if !progress then return null
     null
@@ -224,13 +224,20 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     ws.takeInPlace(j)
     conflict
 
+  /** The clause of the theory's explanation of `lit`: `lit`, then the negations
+   *  of the literals that imply it. A reason clause when `lit` is assigned by
+   *  the theory, a conflict clause when the theory implies `lit` while it is
+   *  false.
+   */
+  private def theoryClause(lit: Lit): Array[Lit] = (lit +: theory.explain(lit).map(_.neg)).toArray
+
   /** The clause explaining the assignment of `lit`: `lit` at index 0, then the
    *  negations of the literals that implied it, which are all false.
    */
   private def reasonClause(lit: Lit): Array[Lit] =
     val why = reason(lit.variable)
-    if why == FromTheory then (lit +: theory.explain(lit).map(_.neg)).toArray
-    else clauses(why)
+    val clause = if why == FromTheory then theoryClause(lit) else clauses(why)
+    clause
 
   /** Conflict analysis: from a false clause, the first unique implication point
    *  clause (its first literal is the one of the current level) and the level
@@ -277,7 +284,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         phase(lit.variable) = lit.positive
         if vmtfSearch < 0 || vmtfStamp(lit.variable) > vmtfStamp(vmtfSearch) then vmtfSearch = lit.variable
       theory.pop()
-    qhead = trail.length
+    qhead = math.min(qhead, trail.length) // a literal enqueued at a surviving level stays to be propagated
 
   /** Moves `v` to the front of the move-to-front list. */
   private def bump(v: Var): Unit =
@@ -338,7 +345,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
       enqueue(learned(0), index) // unit at the backjump level
       if conflicts >= nextRestart then
         restarts += 1
-        nextRestart = conflicts + luby(restarts) * 100
+        nextRestart = conflicts + luby(restarts) * restartInterval
         backtrack(0)
       true
 
@@ -360,6 +367,6 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
               for l <- implied if value(l.index) == 0 do enqueue(l, FromTheory)
             case Theory.Result.Ok(implied) =>
               implied.find(l => value(l.index) < 0) match
-                case Some(l) => if !resolve(reasonClause(l)) then return Result.Unsat
+                case Some(l) => if !resolve(theoryClause(l)) then return Result.Unsat
                 case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v).index) > 0))
     Result.Unsat
