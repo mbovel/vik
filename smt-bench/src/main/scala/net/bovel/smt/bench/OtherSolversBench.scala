@@ -94,5 +94,11 @@ class OtherSolversBench:
     val solver = SMTInterpol(DefaultLogger())
     solver.setOption(":verbosity", 2)
     val recorder = Recorder(solver)
-    ParseEnvironment(recorder, OptionMap(DefaultLogger())).parseScript(Printer.print(script))
+    ParseEnvironment(
+      recorder,
+      OptionMap(DefaultLogger(), true)
+    ).parseStream(
+      StringReader(Printer.print(script)),
+      "script"
+    ) // front-end options on; `parseScript` takes a file name
     recorder.results.reverse

@@ -21,8 +21,14 @@ Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 meas
 
 ## Current results
 
-(none yet)
+laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup and noise: [results/2026-08-29-laraserver4.md](results/2026-08-29-laraserver4.md).
+
+| Benchmark | Params | Mean (ms/op) | 95% CI | CI / mean | Min | Max | Forks × iterations |
+|---|---|---:|---:|---:|---:|---:|---:|
+| parse | n=1000 | 3.735 | ± 0.047 | 1.2% | 3.520 | 3.954 | 5 × 5 |
+| parse | n=10000 | 53.931 | ± 4.668 | 8.7% | 44.749 | 95.761 | 5 × 5 |
 
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
+- [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — First full run of `Smt2Bench` (S-expression lexer, sort-directed translation)
