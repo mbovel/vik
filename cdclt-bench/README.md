@@ -47,3 +47,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-28, laraserver4, VMTF](results/2026-08-28-laraserver4-vmtf.md) — variable move-to-front alone: 1.55× on 3-SAT n=60, 0.33× on pigeonhole n=60 ([json](results/2026-08-28-laraserver4-vmtf.json))
 - [2026-08-28, laraserver4, phase saving](results/2026-08-28-laraserver4-phase.md) — VMTF + phase saving: 1.12–1.31× on 5-SAT over VMTF alone ([json](results/2026-08-28-laraserver4-phase.json))
 - [2026-08-28, laraserver4, restarts](results/2026-08-28-laraserver4-restarts.md) — Luby restarts on top of VMTF and phase saving: 2.3× on 5-SAT n=60; the package vs 2WL ([json](results/2026-08-28-laraserver4-restarts.json))
+- [2026-08-29, laraserver4, minimization](results/2026-08-29-laraserver4-minimization.md) — learned clause minimization measured and not kept (within noise on SMT-LIB instances, 0.75× on pigeonhole); quick configuration
