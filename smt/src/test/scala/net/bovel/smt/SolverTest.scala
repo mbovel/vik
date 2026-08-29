@@ -137,4 +137,7 @@ class SolverTest extends munit.FunSuite:
         plain.assert(f)
         simplified.assert(f)
       assertEquals(simplified.solve().toString, plain.solve().toString, formulas.toString)
-    assert(simplifiedSomething > 20, s"only $simplifiedSomething simplified")
+    assert(
+      simplifiedSomething > 5,
+      s"only $simplifiedSomething simplified"
+    ) // elimination applies in positive positions only

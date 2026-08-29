@@ -7,19 +7,26 @@ import Term.*
 
 /** Simplifications of a set of assertions before encoding.
  *
- *  Local constant elimination: in a conjunction `c = t ∧ φ` where every
- *  occurrence of the constant `c` in the whole assertion set lies inside that
- *  conjunction and `t` does not mention `c`, `c` is existentially local, so the
- *  conjunction is equivalent to `φ[t/c]`. This turns the diamonds of the
- *  `eq_diamond` benchmarks, `(x = y ∧ y = x') ∨ (x = z ∧ z = x')` with `y` and
- *  `z` used nowhere else, into `x = x'`, which the solver then propagates at
- *  level 0 instead of enumerating the paths (z3 and cvc5 preprocess likewise).
+ *  Local constant elimination: in a conjunction `c = t ∧ φ` in a positive
+ *  position (under `And`, `Or`, the branches of `Ite` and the right side of
+ *  `Implies` only: under a negation the conjunction is not an existential
+ *  context) where every occurrence of the constant `c` in the whole assertion
+ *  set lies inside that conjunction and `t` does not mention `c`, `c` is
+ *  existentially local, so the conjunction is equivalent to `φ[t/c]`. This
+ *  turns the diamonds of the `eq_diamond` benchmarks,
+ *  `(x = y ∧ y = x') ∨ (x = z ∧ z = x')` with `y` and `z` used nowhere else,
+ *  into `x = x'`, which the solver then propagates at level 0 instead of
+ *  enumerating the paths (z3 and cvc5 preprocess likewise).
  */
 object Simplifier:
-  def simplify(assertions: List[Formula]): List[Formula] =
+  /** `interpreted` names constants with a meaning of their own (nullary
+   *  constructors of datatypes): they are never eliminated.
+   */
+  def simplify(assertions: List[Formula], interpreted: Set[String] = Set.empty): List[Formula] =
     val total = HashMap.empty[String, Int]
     for f <- assertions do countConstants(f, total)
-    assertions.map(f => simplify(f, total)).filter(_ != True)
+    for name <- interpreted do total(name) = Int.MaxValue // never local to a conjunction
+    assertions.map(f => simplify(f, total, true)).filter(_ != True)
 
   private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match
     case True | False => ()
@@ -52,15 +59,17 @@ object Simplifier:
     case Num(_) => ()
     case Linear(terms, _) => terms.foreach((_, u) => countConstants(u, counts))
 
-  private def simplify(f: Formula, total: HashMap[String, Int]): Formula = f match
+  /** `positive`: whether `f` is in a positive position of the assertion. */
+  private def simplify(f: Formula, total: HashMap[String, Int], positive: Boolean): Formula = f match
     case True | False | Eq(_, _) | Pred(_) | Le(_, _) => f
-    case Not(a) => Not(simplify(a, total))
-    case Or(as) => Or(as.map(simplify(_, total)))
-    case Implies(a, b) => Implies(simplify(a, total), simplify(b, total))
-    case Iff(a, b) => Iff(simplify(a, total), simplify(b, total))
-    case Ite(c, t, e) => Ite(simplify(c, total), simplify(t, total), simplify(e, total))
+    case Not(a) => Not(simplify(a, total, false))
+    case Or(as) => Or(as.map(simplify(_, total, positive)))
+    case Implies(a, b) => Implies(simplify(a, total, false), simplify(b, total, positive))
+    case Iff(a, b) => Iff(simplify(a, total, false), simplify(b, total, false))
+    case Ite(c, t, e) => Ite(simplify(c, total, false), simplify(t, total, positive), simplify(e, total, positive))
+    case And(as) if !positive => And(as.map(simplify(_, total, false)))
     case And(as) =>
-      var conjuncts = as.map(simplify(_, total))
+      var conjuncts = as.map(simplify(_, total, true))
       // Eliminate the constants local to this conjunction, one equality at a time.
       var changed = true
       while changed do
