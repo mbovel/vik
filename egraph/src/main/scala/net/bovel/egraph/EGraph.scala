@@ -194,6 +194,10 @@ final class EGraph:
   /** Length of `trail` when each open level was pushed. */
   private val levels = ArrayBuffer.empty[Int]
 
+  /** Marks of the ids visited by the current `explainInto` call (see there). */
+  private var visited = new Array[Int](0)
+  private var stamp = 0
+
   /** See [[events]]; `eventMarks` holds its length at each [[push]]. */
   private val eventLog = ArrayBuffer.empty[Event]
   private val eventMarks = ArrayBuffer.empty[Int]
@@ -445,27 +449,38 @@ final class EGraph:
 
   private def explainInto(x: EClassId, y: EClassId, out: ArrayBuffer[Int]): Unit =
     if x == y then return
-    val pathX = pathToRoot(x)
-    val pathY = pathToRoot(y)
-    val lca = pathX.find(pathY.contains).get
+    // The lowest common ancestor of `x` and `y` in the union tree: mark the ancestors of `x`, climb from `y`.
+    stamp += 1
+    if visited.length < count then visited = new Array[Int](repr.length)
+    var u = x
+    while u != -1 do
+      visited(u) = stamp
+      val e = edges(u)
+      u = if e == null then -1 else e.into
+    var lca = y
+    while visited(lca) != stamp do lca = edges(lca).nn.into
     // The most recent merge below the lowest common ancestor is the one that connected the two sides.
-    val below = pathX.takeWhile(_ != lca).map(u => (edges(u).nn, true)) ++
-      pathY.takeWhile(_ != lca).map(u => (edges(u).nn, false))
-    val (edge, onPathX) = below.maxBy(_._1.time)
+    var edge = edges(if x != lca then x else y).nn
+    var onPathX = x != lca
+    u = x
+    while u != lca do
+      val e = edges(u).nn
+      if e.time > edge.time then
+        edge = e
+        onPathX = true
+      u = e.into
+    u = y
+    while u != lca do
+      val e = edges(u).nn
+      if e.time > edge.time then
+        edge = e
+        onPathX = false
+      u = e.into
     // It equated `edge.a`, then in the absorbed class (the side of `x` iff the edge is on its path), with `edge.b`.
     val (l, r) = if onPathX then (edge.a, edge.b) else (edge.b, edge.a)
     explainInto(x, l, out)
     justify(edge, out)
     explainInto(r, y, out)
-
-  /** The ids from `id` up to its representative, following the union tree. */
-  private def pathToRoot(id: EClassId): ArrayBuffer[EClassId] =
-    val path = ArrayBuffer(id)
-    var e = edges(id)
-    while e != null do
-      path += e.into
-      e = edges(e.into)
-    path
 
   /** Adds to `out` the reasons behind an edge: its own reason, or, for a
    *  congruence, the reasons making the two applications' functions and

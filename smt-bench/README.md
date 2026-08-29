@@ -52,3 +52,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, comparison](results/2026-08-29-laraserver4-compare.md) — one process per solver and instance, 60 s limit, before and after the simplifier ([tsv](results/compare-raw.tsv))
 - [2026-08-29, laraserver4, theory propagation](results/2026-08-29-laraserver4-theory.md) — the UF theory scanning all atoms vs. event-driven per-class atom lists (kept) vs. a dirty flag; quick configuration
 - [2026-08-29, laraserver4, cached hashes](results/2026-08-29-laraserver4-hashes.md) — structural hashes of terms and formulas computed once (kept); quick configuration
+- [2026-08-29, laraserver4, linear LCA](results/2026-08-29-laraserver4-lca.md) — the lowest common ancestor in `explain` in linear time (kept); quick configuration
