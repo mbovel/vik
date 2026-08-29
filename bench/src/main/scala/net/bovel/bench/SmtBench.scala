@@ -8,9 +8,9 @@ import scala.io.Source
 import org.openjdk.jmh.annotations.*
 import net.bovel.smt2.{Parser, Player, Script}
 
-/** Solving SMT-LIB QF_UF, QF_LIA and QF_BV benchmarks (SMT-LIB release 2025,
- *  see `bench/results/smt/README.md`): each operation parses and solves one
- *  file; `parse` measures the parsing alone. The instances VIK cannot solve
+/** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release
+ *  2025, see `bench/results/smt/README.md`): each operation parses and solves
+ *  one file; `parse` measures the parsing alone. The instances VIK cannot solve
  *  within seconds are left to `compare.sh`.
  */
 @State(Scope.Thread)
@@ -52,7 +52,14 @@ class SmtBench:
       "2018-Goel-hwbench__QF_BV_bv_bv_swap_two_cc_ref_max.smt2",
       "2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max.smt2",
       "20190311-bv-term-small-rw-Noetzli__bv-term-small-rw_17.smt2",
-      "pspace__ndist.a.20000.smt2"
+      "pspace__ndist.a.20000.smt2",
+      "20172804-Barrett__tests__v1__v1l20086.cvc.smt2",
+      "20172804-Barrett__tests__v10__v10l20080.cvc.smt2",
+      "20172804-Barrett__tests__v10__v10l60049.cvc.smt2",
+      "20172804-Barrett__typed__v3__typed_v3l30025.cvc.smt2",
+      "20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2",
+      "20230720-blocksworld__from_11_0_0_to_6_4_1_bmc_1.smt2",
+      "20230720-blocksworld__from_5_4_17_to_12_6_8_bmc_2.smt2"
     )
   )
   var file: String = uninitialized

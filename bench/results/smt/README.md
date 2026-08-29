@@ -1,6 +1,6 @@
 # SMT benchmarks
 
-End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF, QF_LIA and QF_BV instances of the
+End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF, QF_LIA, QF_BV and QF_DT instances of the
 [SMT-LIB](https://smt-lib.org) benchmark library, and a comparison with other solvers.
 
 ## Instances
@@ -52,9 +52,29 @@ two variables, `bvor`, `bvxor`, or division and shifts by a variable):
 | `pspace__ndist.a.20000.smt2` | pspace | unsat | wide bit-vectors: 0.3 ms in process for VIK, a 20 s timeout for z3, which bit-blasts |
 | `bruttomesso__core__ext_con_004_001_0016.smt2`, `fft__Sz128_2823.smt2` | bruttomesso, fft | unsat, unsat | `extract`/`concat` chains and FFT: VIK exceeds 20 s (comparison only) |
 
+QF_DT, from `QF_DT.tar.zst` of the same release (8,700 files in three families; 34 of the 35 small files tried are in
+the fragment: monomorphic datatypes without `Int` or `Bool` fields):
+
+| File | Family | Status | Workload |
+|---|---|---|---|
+| `20172804-Barrett__tests__v1__v1l20086.cvc.smt2`, `20172804-Barrett__tests__v10__v10l20080.cvc.smt2` | 20172804-Barrett | sat, sat | random constraints over lists and trees (jsat) |
+| `20172804-Barrett__tests__v10__v10l60049.cvc.smt2`, `20172804-Barrett__typed__v3__typed_v3l30025.cvc.smt2` | 20172804-Barrett | unsat, unsat | idem |
+| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2`, `..._bmc_1.smt2`, `..._bmc_2.smt2` | 20230720-blocksworld | unsat | bounded model checking of blocks-world plans (`ite` chains over datatypes) |
+| `20230720-blocksworld__from_0_9_4_to_3_3_7_bmc_5.smt2`, `20230720-blocksworld__from_14_0_3_to_12_4_1_bmc_7.smt2` | 20230720-blocksworld | unsat | deeper bounds: VIK 2 s and 26 s (comparison only) |
+| `20210312-Bouvier__vlsat3_b07.smt2` | 20210312-Bouvier | unsat | VIK and z3 both exceed 20 s (comparison only) |
+
 Licenses, as stated in the files: 2018-Goel-hwbench [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
 20170829-Rodin and 20190906-CLEARSY [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); the other
-families, including all the QF_LIA and QF_BV ones, state a `:source` only. See each file's `set-info` header for the authors.
+families, including all the QF_LIA and QF_BV ones, state a `:source` only; the QF_DT files state [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See each file's `set-info` header for the authors.
+
+## Datatype workloads (`AdtBench`)
+
+Random instances built directly with the `smt` API (no SMT-LIB file), sizes `n` = 10 and 30:
+
+| Benchmark | Workload | Exercises |
+|---|---|---|
+| `finite` | ten sets of `n` random formulas over `Color` (three constants) and `Pair` (two colors) with `n` pair constants, a mix of satisfiable and unsatisfiable | testers, selectors, injectivity and distinctness on finite sorts, the eager expansion of finite sorts |
+| `lists` | ten chains of `n` lists `l_i = cons(a_i, l_{i+1})`, closed by `l_n = nil` or, for half of them, by `l_n = l_0` (unsat by acyclicity), with disjunctions on their heads | injectivity along a chain, the acyclicity check at the final check |
 
 ## Running
 
@@ -124,6 +144,8 @@ laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup 
 | smtinterpol | file=2018-Goel-hwbench__QF_UF_mcs.1.prop1_ab_cti_max.smt2 | 31.419 | ± 0.969 | 3.1% | 29.400 | 35.019 | 3 × 5 |
 | smtinterpol | file=20190906-CLEARSY__0016__00003.smt2 | 1.154 | ± 0.061 | 5.3% | 1.041 | 1.345 | 3 × 5 |
 
+Datatypes (`AdtBench`, the QF_DT instances in process and one process per solver): [2026-08-29-laraserver4-dt.md](2026-08-29-laraserver4-dt.md).
+
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
@@ -138,3 +160,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, QF_BV](2026-08-29-laraserver4-bv.md) — VIK on the ten QF_BV instances of the arithmetic fragment (3 forks)
 - [2026-08-29, laraserver4, QF_BV comparison](2026-08-29-laraserver4-compare-bv.md) — one process per solver and instance on the 12 QF_BV instances, 60 s limit ([tsv](compare-raw-bv.tsv))
 - [2026-08-29, laraserver4, in process](2026-08-29-laraserver4-inprocess.md) — VIK, z3 (direct AST and parsed), cvc5, princess and SMTInterpol in the same JVM on the 30 instances
+- [2026-08-29, laraserver4, datatypes](2026-08-29-laraserver4-dt.md) — `AdtBench`, the QF_DT instances in process (VIK, z3 direct and parsed, cvc5) and one process per solver ([tsv](compare-raw-dt.tsv))

@@ -2,7 +2,7 @@ package net.bovel.bench
 
 import scala.collection.mutable.HashMap
 
-import com.microsoft.z3.{BoolExpr, Context, Expr, FuncDecl, IntExpr, Sort}
+import com.microsoft.z3.{BoolExpr, Constructor, Context, DatatypeSort, Expr, FuncDecl, IntExpr, Sort}
 import net.bovel.smt.{Formula, Term}
 import net.bovel.smt2.{Command, Script}
 
@@ -28,6 +28,25 @@ final class Z3Encoder(ctx: Context):
         Nil
       case Command.DeclareFun(name, args, result) =>
         decls(name) = ctx.mkFuncDecl(name, args.map(sort).toArray, sort(result))
+        Nil
+      case Command.DeclareDatatypes(datatypes) =>
+        // Mutually recursive datatypes: field sorts naming a datatype of the group are references by index.
+        val names = datatypes.map(_.name)
+        val constructors = datatypes.map { d =>
+          d.constructors.map { c =>
+            val fieldSorts = c.selectors.map((_, s) => if names.contains(s) then null else sort(s))
+            val refs = c.selectors.map((_, s) => names.indexOf(s))
+            ctx.mkConstructor(c.name, c.tester, c.selectors.map(_._1).toArray, fieldSorts.toArray, refs.toArray)
+          }.toArray
+        }
+        val sorts = ctx.mkDatatypeSorts(names.toArray, constructors.toArray)
+        for (d, i) <- datatypes.zipWithIndex do
+          this.sorts(d.name) = sorts(i)
+          for (c, k) <- d.constructors.zipWithIndex do
+            val constructor = constructors(i)(k)
+            decls(c.name) = constructor.ConstructorDecl()
+            decls(c.tester) = constructor.getTesterDecl
+            for ((selector, _), j) <- c.selectors.zipWithIndex do decls(selector) = constructor.getAccessorDecls()(j)
         Nil
       case Command.Assert(formula) => List(bool(formula))
       case _ => Nil

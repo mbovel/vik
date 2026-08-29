@@ -99,13 +99,12 @@ final class AdtRules extends Rules:
     if cf != null && ci != null then meet(eg, cf, ci)
     else if cf != null then
       set(into, cf)
-      selectorsAndTesters(eg, into, cf, eg.parents(into))
+      selectorsAndTesters(eg, into, cf, eg.parents(into).toList) // materialized: derived merges append to the list
     else if ci != null then selectorsAndTesters(eg, into, ci, parents)
     // Testers that just became true: the true class absorbed them, or was absorbed with them.
     if trueClass >= 0 && eg.find(trueClass) == into then
-      val candidates = if eg.find(from) == eg.find(trueClass) && members.exists(_ == trueClass) then Nil else members
-      val scope = if members.exists(_ == eg.find(trueClass)) || eg.find(trueClass) == from then eg.nodes(into).map(_._2)
-      else members
+      // The absorbed side's members became true, or, if the true class was the absorbed one, the whole class did.
+      val scope = if members.exists(_ == trueClass) then eg.nodes(into).map(_._2).toList else members // materialized
       for m <- scope do
         val app = eg.app(m)
         if app != null then testers.get(eg.find(app.fun)).foreach(constructor => holds(eg, app, m, constructor))
@@ -114,7 +113,7 @@ final class AdtRules extends Rules:
    *  now that it holds the constructor node `node`.
    */
   private def selectorsAndTesters(eg: EGraph, rep: EClassId, node: Node, parents: IterableOnce[(App, EClassId)]): Unit =
-    for (app, cls) <- parents.iterator do
+    for (app, cls) <- parents.iterator.toList do // materialized: derived merges append to parent lists
       val fun = eg.find(app.fun)
       if eg.find(app.args(0)) == eg.find(rep) then
         selectors.get(fun).foreach { (constructor, i) =>

@@ -28,3 +28,11 @@ rings__ring_2exp4_3vars_2ite_unsat.smt2
 sage__app7__bench_8505.smt2
 SEQ__SEQ032_size3.smt2
 TypeSafe__z3.1184131.smt2
+20172804-Barrett__tests__v1__v1l20086.cvc.smt2
+20172804-Barrett__tests__v10__v10l20080.cvc.smt2
+20172804-Barrett__tests__v10__v10l60049.cvc.smt2
+20172804-Barrett__typed__v3__typed_v3l30025.cvc.smt2
+20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2
+20230720-blocksworld__from_11_0_0_to_6_4_1_bmc_1.smt2
+20230720-blocksworld__from_5_4_17_to_12_6_8_bmc_2.smt2
+20230720-blocksworld__from_0_9_4_to_3_3_7_bmc_5.smt2
