@@ -53,18 +53,6 @@ object EGraph:
   /** A disequality `a != b` asserted for `reason`. */
   private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
 
-  /** What happened to the classes, for the theory built on the e-graph: see
-   *  [[EGraph.events]]. Sides are the representatives at the time.
-   */
-  enum Event:
-    /** The class of `from` was merged into the class of `into`. */
-    case Merged(from: EClassId, into: EClassId)
-
-    /** The classes of `a` and `b` became disequal: a disequality was asserted
-     *  between them, or a class disequal to one was merged into the other.
-     */
-    case Disequated(a: EClassId, b: EClassId)
-
   /** What [[EGraph.pop]] must undo, one record per mutation done inside a
    *  level. Records are undone in reverse order, so each one sees the exact
    *  state its mutation left behind (`Repaired` and the `Merged` of the
@@ -198,18 +186,7 @@ final class EGraph:
   private var visited = new Array[Int](0)
   private var stamp = 0
 
-  /** See [[events]]; `eventMarks` holds its length at each [[push]]. */
-  private val eventLog = ArrayBuffer.empty[Event]
-  private val eventMarks = ArrayBuffer.empty[Int]
-
   def find(id: EClassId): EClassId = repr(id)
-
-  /** Every merge and disequality so far, in order, and only those still in
-   *  force: [[pop]] drops the events of the popped level. A theory reads the
-   *  events from where it stopped and, after a `pop`, from where it was at the
-   *  matching `push`.
-   */
-  def events: collection.IndexedSeq[Event] = eventLog
 
   /** The number of e-classes ever created (ids range over
    *  `0 until classCount`).
@@ -297,7 +274,6 @@ final class EGraph:
       addForbid(ra, d)
       addForbid(rb, d)
       if recording then trail += Undo.Disequated(ra, rb)
-      eventLog += Event.Disequated(ra, rb)
 
   private def addForbid(root: EClassId, d: Diseq): Unit =
     val list = forbid(root)
@@ -403,14 +379,9 @@ final class EGraph:
       pending ++= fromUses
       if intoUses == null then uses(into) = ArrayBuffer.from(fromUses) else intoUses ++= fromUses
       uses(from) = null
-    eventLog += Event.Merged(from, into)
     if fromForbid != null then
       if intoForbid == null then forbid(into) = ArrayBuffer.from(fromForbid) else intoForbid ++= fromForbid
       forbid(from) = null
-      // The classes disequal to the absorbed class are now disequal to the merged one.
-      for d <- fromForbid do
-        val other = if repr(d.a) == into then repr(d.b) else repr(d.a)
-        if other != into then eventLog += Event.Disequated(into, other)
 
   /** Restores the congruence closure after merges. */
   def rebuild(): Unit =
@@ -499,7 +470,6 @@ final class EGraph:
   def push(): Unit =
     rebuild()
     levels += trail.length
-    eventMarks += eventLog.length
 
   /** Undoes every `add`, `merge`, `disequate` and `rebuild` done since the last
    *  [[push]].
@@ -509,7 +479,6 @@ final class EGraph:
     pending.clear() // everything pending was merged in this level
     val mark = levels.remove(levels.length - 1)
     while trail.length > mark do undo(trail.remove(trail.length - 1))
-    eventLog.takeInPlace(eventMarks.remove(eventMarks.length - 1))
 
   private def undo(record: Undo): Unit = record match
     case Undo.NewClass =>

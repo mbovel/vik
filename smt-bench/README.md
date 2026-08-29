@@ -112,3 +112,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4](results/2026-08-29-laraserver4.md) — VIK (`SmtBench
 - [2026-08-29, laraserver4, 5 forks](results/2026-08-29-laraserver4-5forks.json) — `parse`, `solve` and `vik` on the ten instances at 5 forks and 10 warmup iterations (JSON only), before the switch to 3 forks
 - [2026-08-29, laraserver4, QF_LIA comparison](results/2026-08-29-laraserver4-compare-lia.md) — one process per solver and instance on the 14 QF_LIA instances, 60 s limit ([tsv](results/compare-raw-lia.tsv))
+- [2026-08-29, laraserver4, scan](results/2026-08-29-laraserver4-scan.md) — the event-driven theory propagation reverted to the scan for readability: VIK in process on the 20 instances, before and after
