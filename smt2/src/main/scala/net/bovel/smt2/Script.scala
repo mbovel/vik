@@ -1,14 +1,17 @@
 package net.bovel.smt2
 
 import net.bovel.sexpr.SExpr
-import net.bovel.smt.Formula
+import net.bovel.smt.{Datatype, Formula}
 
-/** A command of an SMT-LIB 2 script, restricted to what QF_UF needs. */
+/** A command of an SMT-LIB 2 script, restricted to what the supported logics
+ *  need.
+ */
 enum Command:
   case SetLogic(logic: String)
   case SetInfo(key: String, value: String)
   case DeclareSort(name: String, arity: Int)
   case DeclareFun(name: String, argSorts: List[String], sort: String)
+  case DeclareDatatypes(datatypes: List[Datatype])
   case DefineFun(name: String, params: List[(String, String)], sort: String, body: SExpr)
   case Assert(formula: Formula)
   case CheckSat

@@ -13,6 +13,15 @@ object Printer:
     case Command.SetInfo(key, value) => s"(set-info $key $value)"
     case Command.DeclareSort(name, arity) => s"(declare-sort $name $arity)"
     case Command.DeclareFun(name, argSorts, sort) => s"(declare-fun $name (${argSorts.mkString(" ")}) $sort)"
+    case Command.DeclareDatatypes(datatypes) =>
+      val sorts = datatypes.map(d => s"(${d.name} 0)").mkString(" ")
+      val declarations = datatypes.map { d =>
+        d.constructors.map { c =>
+          if c.selectors.isEmpty then s"(${c.name})"
+          else s"(${c.name} ${c.selectors.map((s, sort) => s"($s $sort)").mkString(" ")})"
+        }.mkString("(", " ", ")")
+      }.mkString(" ")
+      s"(declare-datatypes ($sorts) ($declarations))"
     case Command.DefineFun(name, params, sort, body) =>
       s"(define-fun $name (${params.map((p, s) => s"($p $s)").mkString(" ")}) $sort $body)"
     case Command.Assert(formula) => s"(assert ${print(formula)})"

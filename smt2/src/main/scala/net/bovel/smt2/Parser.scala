@@ -4,7 +4,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{Atom, SList}
-import net.bovel.smt.{Formula, Term}
+import net.bovel.smt.{Constructor, Datatype, Formula, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
@@ -51,6 +51,19 @@ final class Parser:
     case SList(Atom("declare-fun") :: Atom(name) :: SList(args) :: sort :: Nil) =>
       declare(name, args.map(_.toString), sort.toString)
     case SList(Atom("declare-const") :: Atom(name) :: sort :: Nil) => declare(name, Nil, sort.toString)
+    case SList(Atom("declare-datatype") :: Atom(name) :: SList(constructors) :: Nil) =>
+      List(declareDatatypes(List((name, constructors))))
+    case SList(Atom("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil) =>
+      val sorts = names.map {
+        case SList(Atom(name) :: Atom("0") :: Nil) => name
+        case other => throw Smt2Error(s"unsupported datatype declaration $other (parametric?)")
+      }
+      if sorts.length != declarations.length then
+        throw Smt2Error("declare-datatypes: as many declarations as sorts expected")
+      List(declareDatatypes(sorts.zip(declarations.map {
+        case SList(constructors) => constructors
+        case other => throw Smt2Error(s"bad constructor list $other")
+      })))
     case SList(Atom("define-fun") :: Atom(name) :: SList(params) :: sort :: body :: Nil) =>
       val ps = params.map {
         case SList(Atom(p) :: s :: Nil) => (p, s.toString)
@@ -92,6 +105,34 @@ final class Parser:
    */
   private def isArithmetic(sort: String): Boolean = sort == "Int" || BitVectors.width(sort) >= 0
 
+  /** Declares datatypes: their constructors, selectors and testers become
+   *  function symbols (a constructor `C` of datatype `D` with selectors
+   *  `(s_i S_i)` is `C : S_1 ... S_n -> D`, `s_i : D -> S_i` and the tester
+   *  `(_ is C) : D -> Bool`).
+   */
+  private def declareDatatypes(declarations: List[(String, List[SExpr])]): Command =
+    val datatypes = declarations.map { (name, constructors) =>
+      Datatype(
+        name,
+        constructors.map {
+          case SList(Atom(constructor) :: selectors) =>
+            Constructor(
+              constructor,
+              selectors.map {
+                case SList(Atom(selector) :: sort :: Nil) => (selector, sort.toString)
+                case other => throw Smt2Error(s"bad selector $other")
+              }
+            )
+          case other => throw Smt2Error(s"bad constructor $other")
+        }
+      )
+    }
+    for datatype <- datatypes; constructor <- datatype.constructors do
+      functions(constructor.name) = (constructor.selectors.map(_._2), datatype.name)
+      functions(constructor.tester) = (List(datatype.name), "Bool")
+      for (selector, sort) <- constructor.selectors do functions(selector) = (List(datatype.name), sort)
+    Command.DeclareDatatypes(datatypes)
+
   private def isNumeral(name: String): Boolean = name.nonEmpty && name.forall(_.isDigit)
 
   private def sortOf(sexpr: SExpr, env: Map[String, Value]): String = sexpr match
@@ -117,6 +158,7 @@ final class Parser:
           ))
     case SList(Atom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
     case SList(Atom("+" | "-" | "*") :: _) => "Int"
+    case SList(SList(Atom("_") :: Atom("is") :: Atom(_) :: Nil) :: _ :: Nil) => "Bool"
     case SList(Atom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
     case SList(Atom("let") :: SList(bindings) :: body :: Nil) => sortOf(body, bind(bindings, env))
     case SList(Atom(name) :: _) => functions.get(
@@ -164,6 +206,8 @@ final class Parser:
     case SList(Atom(BitVectors.Comparison(op)) :: a :: b :: Nil) =>
       val width = BitVectors.width(sortOf(a, env))
       BitVectors.compare(op, term(a, env), term(b, env), width, this)
+    case SList(SList(Atom("_") :: Atom("is") :: Atom(constructor) :: Nil) :: arg :: Nil) =>
+      Pred(Term.App(declared(s"(_ is $constructor)"), List(term(arg, env))))
     case SList(Atom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
       val ts = args.map(term(_, env))
       val compare: (Term, Term) => Formula = op match
