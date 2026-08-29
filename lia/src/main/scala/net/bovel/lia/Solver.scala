@@ -1,0 +1,271 @@
+package net.bovel.lia
+
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+
+/** A variable of the [[Solver]]: an index in `0 until numVars`. */
+type Var = Int
+
+object Solver:
+  enum Result:
+    case Sat
+
+    /** No solution: the bounds asserted with these reasons are inconsistent by
+     *  themselves.
+     */
+    case Unsat(reasons: Set[Int])
+
+  /** A bound on a variable: its value (an integer) and its reason. */
+  private final case class Bound(value: Rational, reason: Int)
+
+  /** A bound replaced inside a level: the variable, the side, the old bound. */
+  private final case class Undo(x: Var, isUpper: Boolean, old: Bound | Null)
+
+/** A solver for conjunctions of bounds on integer linear expressions
+ *  (quantifier-free linear integer arithmetic), after Dutertre and de Moura, "A
+ *  Fast Linear-Arithmetic Solver for DPLL(T)" (CAV 2006): a general simplex
+ *  over the rationals whose tableau is set up once and never backtracked, with
+ *  bounds as the only assertions (the only state that [[pop]] undoes), then
+ *  branch and bound for integrality.
+ *
+ *  A variable is either an integer unknown ([[newVar]]) or stands for a linear
+ *  expression over earlier variables ([[newSlack]]), integer-valued as well.
+ *  Bounds are asserted with an `Int` reason (for a CDCL(T) solver, a literal)
+ *  and are tightened to integers, which for an expression means dividing by the
+ *  gcd of its coefficients (`2x + 2y ≤ 3` gives `x + y ≤ 1`); an
+ *  [[Solver.Result.Unsat]] names the reasons of some bounds that are
+ *  inconsistent by themselves.
+ *
+ *  Invariants between calls:
+ *    - each row holds: the value of its basic variable is the row's combination
+ *      of the values of the non-basic variables it mentions, and rows mention
+ *      non-basic variables only;
+ *    - every non-basic variable is within its bounds (asserting a bound on one
+ *      moves its value, popping only loosens bounds), so only basic variables
+ *      can violate their bounds, which [[check]] repairs by pivoting;
+ *    - after a [[check]] returning `Sat`, every variable is within its bounds
+ *      and every value is an integer: [[value]] is a solution.
+ */
+final class Solver:
+  import Solver.*
+
+  private val lower = ArrayBuffer.empty[Bound | Null]
+  private val upper = ArrayBuffer.empty[Bound | Null]
+  private val values = ArrayBuffer.empty[Rational]
+
+  /** The row of each basic variable (`null` for a non-basic one): the
+   *  coefficients of the non-basic variables whose combination it equals.
+   */
+  private val rows = ArrayBuffer.empty[HashMap[Var, Rational] | Null]
+
+  /** For each variable, the basic variables whose rows mention it. */
+  private val columns = ArrayBuffer.empty[HashSet[Var]]
+
+  /** Whether the variable stands for an expression, and then the gcd of the
+   *  expression's coefficients: the variable holds the expression divided by
+   *  it, so that its bounds can be tightened to integers.
+   */
+  private val isSlack = ArrayBuffer.empty[Boolean]
+  private val scale = ArrayBuffer.empty[BigInt]
+
+  private val trail = ArrayBuffer.empty[Undo]
+  private val levels = ArrayBuffer.empty[Int]
+
+  /** Reasons of the branches of the current branch and bound search: negative
+   *  (never a caller's), and removed from the explanations they contribute to.
+   */
+  private var branches = 0
+
+  def numVars: Int = values.length
+
+  /** A new integer variable, unbounded, non-basic, valued 0. */
+  def newVar(): Var =
+    lower += null
+    upper += null
+    values += Rational.zero
+    rows += null
+    columns += HashSet.empty
+    isSlack += false
+    scale += 1
+    values.length - 1
+
+  /** A new variable standing for `Σ coefficient × variable` over `terms`
+   *  (non-empty, integer coefficients, non-zero): basic, with the expression
+   *  substituted by the rows of the basic variables it mentions.
+   */
+  def newSlack(terms: Iterable[(BigInt, Var)]): Var =
+    require(terms.nonEmpty, "empty expression")
+    require(terms.forall((a, _) => a.signum != 0), "zero coefficient")
+    val g = terms.map((a, _) => a.abs).reduce(_ gcd _)
+    val s = newVar()
+    isSlack(s) = true
+    scale(s) = g
+    val row = HashMap.empty[Var, Rational]
+    for (a, x) <- terms do
+      val c = Rational(a / g)
+      val r = rows(x)
+      if r == null then add(s, row, x, c) else for (y, b) <- r do add(s, row, y, c * b)
+    rows(s) = row
+    values(s) = row.iterator.map((x, c) => c * values(x)).foldLeft(Rational.zero)(_ + _)
+    s
+
+  /** Adds `c × x` to the row of `owner`, keeping `columns` up to date. */
+  private def add(owner: Var, row: HashMap[Var, Rational], x: Var, c: Rational): Unit =
+    row.get(x) match
+      case None =>
+        if !c.isZero then
+          row(x) = c
+          columns(x) += owner
+      case Some(d) =>
+        val e = d + c
+        if e.isZero then
+          row.remove(x)
+          columns(x) -= owner
+        else row(x) = e
+
+  /** The value of `x` (of the expression it stands for): a solution after a
+   *  `Sat` [[check]].
+   */
+  def value(x: Var): BigInt = (values(x) * Rational(scale(x))).floor
+
+  /** Asserts `x ≤ c` for `reason` (on the expression `x` stands for): `Unsat`
+   *  if it contradicts the lower bound of `x`, `Sat` otherwise, which leaves
+   *  the feasibility of the whole to [[check]].
+   */
+  def assertUpper(x: Var, c: BigInt, reason: Int): Result =
+    assertBound(x, Rational(floorDiv(c, scale(x))), reason, true)
+
+  /** Asserts `x ≥ c` for `reason`, as [[assertUpper]]. */
+  def assertLower(x: Var, c: BigInt, reason: Int): Result =
+    assertBound(x, Rational(-floorDiv(-c, scale(x))), reason, false)
+
+  private def floorDiv(a: BigInt, b: BigInt): BigInt = (a - a.mod(b)) / b
+
+  private def assertBound(x: Var, c: Rational, reason: Int, isUpper: Boolean): Result =
+    val same = if isUpper then upper(x) else lower(x)
+    val opposite = if isUpper then lower(x) else upper(x)
+    if same != null && (if isUpper then same.value <= c else same.value >= c) then return Result.Sat // not tighter
+    if opposite != null && (if isUpper then c < opposite.value else c > opposite.value) then
+      return Result.Unsat(Set(reason, opposite.reason))
+    if levels.nonEmpty then trail += Undo(x, isUpper, same)
+    if isUpper then upper(x) = Bound(c, reason) else lower(x) = Bound(c, reason)
+    if rows(x) == null && (if isUpper then values(x) > c else values(x) < c) then update(x, c)
+    Result.Sat
+
+  /** Sets the non-basic `x` to `v`, updating the basic variables. */
+  private def update(x: Var, v: Rational): Unit =
+    val delta = v - values(x)
+    for b <- columns(x) do values(b) = values(b) + rows(b).nn(x) * delta
+    values(x) = v
+
+  /** Sets the basic `b` to `v` by moving the non-basic `n` of its row, then
+   *  makes `n` basic in its place (`PivotAndUpdate` in the paper).
+   */
+  private def pivotAndUpdate(b: Var, n: Var, v: Rational): Unit =
+    val theta = (v - values(b)) / rows(b).nn(n)
+    values(b) = v
+    values(n) = values(n) + theta
+    for k <- columns(n) if k != b do values(k) = values(k) + rows(k).nn(n) * theta
+    pivot(b, n)
+
+  /** Swaps the basic `b` and the non-basic `n` of its row: solves the row for
+   *  `n` and substitutes the result in the other rows mentioning `n`.
+   */
+  private def pivot(b: Var, n: Var): Unit =
+    val rowB = rows(b).nn
+    val a = rowB(n)
+    rows(b) = null
+    for j <- rowB.keys do columns(j) -= b
+    // n = (b - Σ_{j ≠ n} a_j x_j) / a
+    val rowN = HashMap.empty[Var, Rational]
+    add(n, rowN, b, Rational.one / a)
+    for (j, aj) <- rowB if j != n do add(n, rowN, j, -aj / a)
+    rows(n) = rowN
+    for k <- columns(n).toList do
+      val rowK = rows(k).nn
+      val c = rowK.remove(n).get
+      columns(n) -= k
+      for (j, aj) <- rowN do add(k, rowK, j, c * aj)
+
+  /** Decides the bounds: `Sat`, and [[value]] is an integer solution, or
+   *  `Unsat` with its explanation. The simplex (Bland's rule, so it terminates)
+   *  decides the rational relaxation; a fractional value is then split, depth
+   *  first, into `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the explanations of two failed
+   *  branches combining into one without the branch itself. Branch and bound
+   *  may not terminate on unbounded variables.
+   */
+  def check(): Result = simplex() match
+    case Result.Sat =>
+      var x = 0
+      while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
+      if x == numVars then Result.Sat
+      else
+        val v = values(x)
+        branches += 1
+        val reason = -branches
+        branch(x, v.floor, reason, true) match
+          case Result.Sat => Result.Sat
+          case Result.Unsat(left) =>
+            branch(x, v.ceil, reason, false) match
+              case Result.Sat => Result.Sat
+              case Result.Unsat(right) => Result.Unsat((left ++ right) - reason)
+    case unsat => unsat
+
+  private def branch(x: Var, c: BigInt, reason: Int, isUpper: Boolean): Result =
+    push()
+    val result = (if isUpper then assertUpper(x, c, reason) else assertLower(x, c, reason)) match
+      case Result.Sat => check()
+      case unsat => unsat
+    pop()
+    result
+
+  /** Repairs the basic variables violating their bounds, smallest first, by
+   *  pivoting with the smallest non-basic variable of their row that can move
+   *  in the right direction (`Check` in the paper); when none can, the row's
+   *  bounds explain the infeasibility.
+   */
+  private def simplex(): Result =
+    while true do
+      var b = 0
+      while b < numVars && !(rows(b) != null && violates(b)) do b += 1
+      if b == numVars then return Result.Sat
+      val row = rows(b).nn
+      val l = lower(b)
+      val u = upper(b)
+      val tooLow = l != null && values(b) < l.value
+      val bound = if tooLow then l.nn else u.nn
+      // To raise `b`, raise a non-basic variable with a positive coefficient or lower one with a negative coefficient (the converse to lower `b`).
+      var n = -1
+      for (j, a) <- row do
+        val canMove = if a.signum > 0 == tooLow then canRaise(j) else canLower(j)
+        if canMove && (n == -1 || j < n) then n = j
+      if n == -1 then
+        val reasons = row.map((j, a) => (if a.signum > 0 == tooLow then upper(j) else lower(j)).nn.reason)
+        return Result.Unsat(reasons.toSet + bound.reason)
+      pivotAndUpdate(b, n, bound.value)
+    throw AssertionError("unreachable")
+
+  private def violates(x: Var): Boolean =
+    val l = lower(x)
+    val u = upper(x)
+    (l != null && values(x) < l.value) || (u != null && values(x) > u.value)
+
+  private def canRaise(x: Var): Boolean =
+    val u = upper(x)
+    u == null || values(x) < u.value
+
+  private def canLower(x: Var): Boolean =
+    val l = lower(x)
+    l == null || values(x) > l.value
+
+  /** The number of open levels. */
+  def level: Int = levels.length
+
+  def push(): Unit = levels += trail.length
+
+  /** Removes the bounds asserted since the last [[push]]. */
+  def pop(): Unit =
+    require(levels.nonEmpty, "pop without a matching push")
+    val mark = levels.remove(levels.length - 1)
+    while trail.length > mark do
+      val undo = trail.remove(trail.length - 1)
+      if undo.isUpper then upper(undo.x) = undo.old else lower(undo.x) = undo.old
