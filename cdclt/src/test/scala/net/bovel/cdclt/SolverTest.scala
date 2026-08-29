@@ -76,9 +76,8 @@ class SolverTest extends munit.FunSuite:
     private val implied = collection.mutable.HashMap.empty[Var, Seq[Var]] // false atom -> the true atoms that imply it
     def assertLit(lit: Lit): Unit = if lit.positive then trueAtoms += lit.variable
     def propagate(): Theory.Result =
-      for (atoms, k) <- groups do
-        val t = atoms.filter(trueAtoms.contains)
-        if t.length > k then return Theory.Result.Conflict(ArrayBuffer.from(t.map(Lit(_))))
+      val violated = groups.map((atoms, k) => (atoms.filter(trueAtoms.contains), k)).find((t, k) => t.length > k)
+      if violated.isDefined then return Theory.Result.Conflict(ArrayBuffer.from(violated.get._1.map(Lit(_))))
       val out = ArrayBuffer.empty[Lit]
       for (atoms, k) <- groups do
         val t = atoms.filter(trueAtoms.contains)

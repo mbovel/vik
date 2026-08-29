@@ -174,11 +174,14 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
         case Theory.Result.Conflict(reasons) => return reasons.map(_.neg).toArray
         case Theory.Result.Ok(implied) =>
           var progress = false
-          for l <- implied do
+          var i = 0
+          while i < implied.length do
+            val l = implied(i)
             if value(l.index) == 0 then
               enqueue(l, FromTheory)
               progress = true
             else if value(l.index) < 0 then return reasonClause(l) // implied, yet false
+            i += 1
           if !progress then return null
     null
 
@@ -305,9 +308,15 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory):
     enqueue(Lit(v, phase(v)), Decision)
 
   /** Learns the clause of a conflict and backjumps, or reports level 0. Returns
-   *  whether the search can go on.
+   *  whether the search can go on. A theory conflict may involve no literal of
+   *  the current level (a final check can find one after unrelated decisions):
+   *  the search first backtracks to the level of its most recent literal, where
+   *  the conflict already held; an empty one holds at level 0.
    */
   private def resolve(conflict: Array[Lit]): Boolean =
+    if conflict.isEmpty then return false
+    val top = conflict.map(l => level(l.variable)).max
+    if top < decisionLevel then backtrack(top)
     if decisionLevel == 0 then false
     else
       conflicts += 1
