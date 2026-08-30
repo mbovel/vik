@@ -128,9 +128,15 @@ lazy val sexprJS = sexpr.js(scala3Version)
 lazy val liaJS = lia.js(scala3Version)
 lazy val smtJS = smt.js(scala3Version)
 lazy val smt2JS = smt2.js(scala3Version)
-egraphJS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-cdcltJS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-sexprJS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-liaJS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-smtJS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-smt2JS / scalaJSLinkerConfig ~= { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+egraphJS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+cdcltJS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+sexprJS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+liaJS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+smtJS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
+smt2JS / scalaJSLinkerConfig ~=
+  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
