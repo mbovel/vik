@@ -21,4 +21,5 @@ jobs:
       - name: Test (JVM and Scala.js)
         run: sbt test
       - name: Benchmark dry run
-        run: bench/fetch-native.sh && sbt "bench/Jmh/run -f 1 -wi 0 -i 1 -e .*princess.* -e .*smtinterpol.*" # the other solvers need minutes per operation on some instances
+        # The other solvers in process only on one instance (princess and SMTInterpol need minutes per operation on some).
+        run: bench/fetch-native.sh && sbt "bench/Jmh/run -f 1 -wi 0 -i 1 -e .*OtherSolversBench.*" "bench/Jmh/run -f 1 -wi 0 -i 1 -p instance=QG-classification__qg5__iso_brn001.smt2 .*OtherSolversBench.*"

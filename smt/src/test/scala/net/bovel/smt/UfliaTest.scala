@@ -128,7 +128,20 @@ class UfliaTest extends munit.FunSuite:
           f(y) <= Num(1)
         )
         val fRange = List(f(Num(-1)), f(Num(0)), f(Num(1))).flatMap(t => List(t >= Num(-1), t <= Num(1)))
-        val nested = List(f(f(x)), f(f(y))).flatMap(t => List(t >= Num(-1), t <= Num(1)))
+        // Every application in the formula is bounded too, so that the solver's models are the brute force's.
+        def apps(t: Term): List[Term] = t match
+          case a @ App(_, args) => a :: args.flatMap(apps)
+          case Linear(terms, _) => terms.flatMap((_, u) => apps(u))
+          case _ => Nil
+        def appsOf(h: Formula): List[Term] = h match
+          case Le(l, r) => apps(l) ++ apps(r)
+          case Eq(l, r) => apps(l) ++ apps(r)
+          case Not(h) => appsOf(h)
+          case And(hs) => hs.flatMap(appsOf)
+          case Or(hs) => hs.flatMap(appsOf)
+          case Implies(h, k) => appsOf(h) ++ appsOf(k)
+          case _ => Nil
+        val nested = (List(f(f(x)), f(f(y))) ++ appsOf(g)).distinct.flatMap(t => List(t >= Num(-1), t <= Num(1)))
         assertEquals(sat(s, (g :: bounds ++ fRange ++ nested)*), expected, s"round $round: $g")
         checked += 1
         if expected then sats += 1

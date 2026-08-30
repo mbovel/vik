@@ -63,9 +63,22 @@ the fragment: monomorphic datatypes without `Int` or `Bool` fields):
 | `20230720-blocksworld__from_0_9_4_to_3_3_7_bmc_5.smt2`, `20230720-blocksworld__from_14_0_3_to_12_4_1_bmc_7.smt2` | 20230720-blocksworld | unsat | deeper bounds: VIK 2 s and 26 s (comparison only) |
 | `20210312-Bouvier__vlsat3_b07.smt2` | 20210312-Bouvier | unsat | VIK and z3 both exceed 20 s (comparison only) |
 
+QF_UFLIA, from `QF_UFLIA.tar.zst` of the same release (659 files: mathsat 454, wisas 108, Certora 76, TwoSquares 21),
+uninterpreted functions over integers, the theory combination:
+
+| File | Family | Status | Workload |
+|---|---|---|---|
+| `TwoSquares__smtlib.598294.smt2`, `TwoSquares__smtlib.602033.smt2` | TwoSquares | sat, unsat | Sledgehammer proof obligations (Isabelle) |
+| `wisas__xs_5_5.smt2`, `wisas__xs_8_8.smt2`, `wisas__xs_20_20.smt2` | wisas | unsat, sat, sat | Wisconsin Safety Analyzer: format-string safety, counters as functions |
+| `wisas__xs_38_38.smt2` | wisas | sat | idem, larger: VIK 50 s (comparison only) |
+| `mathsat__Wisa__xs-09-05-2-4-4-5.smt2`, `mathsat__Wisa__xs-07-11-1-1-1-1.smt2` | mathsat/Wisa | sat, unsat | the same family, MathSAT's translation |
+| `mathsat__Hash__hash_uns_04_18.smt2` | mathsat/Hash | unsat | hash-table invariants |
+| `mathsat__Hash__hash_sat_09_08.smt2`, `mathsat__EufLaArithmetic__hard__hard13.smt2` | mathsat | sat, unsat | VIK exceeds 60 s (comparison only) |
+| `20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFLIA.smt2` | 20230314-Jaroslav-Bendik-Certora | unknown (z3: sat) | smart-contract verification conditions (comparison only) |
+
 Licenses, as stated in the files: 2018-Goel-hwbench [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
 20170829-Rodin and 20190906-CLEARSY [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); the other
-families, including all the QF_LIA and QF_BV ones, state a `:source` only; the QF_DT files state [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See each file's `set-info` header for the authors.
+families, including all the QF_LIA, QF_BV and QF_UFLIA ones, state a `:source` only; the QF_DT files and the Certora one state [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See each file's `set-info` header for the authors.
 
 ## Datatype workloads (`AdtBench`)
 
@@ -75,6 +88,15 @@ Random instances built directly with the `smt` API (no SMT-LIB file), sizes `n` 
 |---|---|---|
 | `finite` | ten sets of `n` random formulas over `Color` (three constants) and `Pair` (two colors) with `n` pair constants, a mix of satisfiable and unsatisfiable | testers, selectors, injectivity and distinctness on finite sorts, the eager expansion of finite sorts |
 | `lists` | ten chains of `n` lists `l_i = cons(a_i, l_{i+1})`, closed by `l_n = nil` or, for half of them, by `l_n = l_0` (unsat by acyclicity), with disjunctions on their heads | injectivity along a chain, the acyclicity check at the final check |
+
+## Integer and lambda workloads (`UfliaBench`, `LambdaBench`)
+
+Random instances built with the `smt` API:
+
+| Benchmark | Workload | Exercises |
+|---|---|---|
+| `UfliaBench.solve` | ten sets of `n` random formulas over `n` integer constants in `[-5, 5]` and `f : Int -> Int` (`f(x + 1) <= f(y)`, `f(x) = y - 1`, ...), `n` = 5 and 10 | the combination: shared terms, equality atoms of both theories, disequalities decided by branching; the atoms are quadratic in the shared terms (`n` = 20 takes minutes per set) |
+| `LambdaBench.{sat,unsat}` | a chain of `n` functions defined by lambdas, `g_0 = λx. f(x)`, `g_i = λx. g_{i-1}(x) + 1`, and `g_n(c)` against its unfolding, `n` = 10 and 30 | the beta lemmas to a fixpoint, the sharing of the integers they create |
 
 ## Running
 
@@ -162,3 +184,6 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, in process](2026-08-29-laraserver4-inprocess.md) — VIK, z3 (direct AST and parsed), cvc5, princess and SMTInterpol in the same JVM on the 30 instances
 - [2026-08-29, laraserver4, datatypes](2026-08-29-laraserver4-dt.md) — `AdtBench`, the QF_DT instances in process (VIK, z3 direct and parsed, cvc5) and one process per solver ([tsv](compare-raw-dt.tsv))
 - [2026-08-29, laraserver4, lambdas](2026-08-29-laraserver4-lambda.md) — `LambdaBench`: a chain of `n` lambda-defined functions unfolded by the beta lemmas; the `n = 30` cost is the quadratic sharing of the ~95 integer terms the lemmas create
+- [2026-08-29, laraserver4, integers and lambdas](2026-08-29-laraserver4-uflia.md) — `UfliaBench` (n = 5: 1.7 ms, n = 10: 200 ms) and `LambdaBench` again after the sharing was restricted to the pairs that can meet and syntactic redexes normalized: n = 30 from 234–341 ms to 0.23 ms
+- [2026-08-29, laraserver4, QF_UFLIA comparison](2026-08-29-laraserver4-compare-uflia.md) — one process per solver and instance on the 12 QF_UFLIA instances, 60 s limit ([tsv](compare-raw-uflia.tsv)): VIK 9/12 in 0.2–1.9 s (`xs_38_38` 50 s), z3 and cvc5 0.01–0.4 s, princess 0.5–1.9 s, SMTInterpol 0.1–1.1 s; `hash_sat_09_08` and `hard13` exceed 60 s
+- [2026-08-29, laraserver4, QF_UFLIA instances](2026-08-29-laraserver4-uflia-instances.md) — VIK in process on the eight QF_UFLIA instances of the JMH set (wisas `xs_20_20` 0.73 s, Hash `hash_uns_04_18` 0.37 s)

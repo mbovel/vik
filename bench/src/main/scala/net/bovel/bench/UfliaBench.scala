@@ -12,10 +12,12 @@ import net.bovel.smt.Formula.*
 import net.bovel.smt.Term.*
 
 /** Uninterpreted functions over integers (the combination of the e-graph and
- *  the LIA solver): ten random formula sets over `n` integer constants in
- *  `[-5, 5]`, `f : Int -> Int` bounded in the same box, comparisons and
- *  equalities between applications and combinations (`f(x + 1) <= f(y)`,
- *  `f(x) = y - 1`, ...), a mix of satisfiable and unsatisfiable sets.
+ *  the LIA solver): ten random formula sets of `n` formulas over `n` integer
+ *  constants in `[-5, 5]` and `f : Int -> Int`, comparisons and equalities
+ *  between applications and combinations (`f(x + 1) <= f(y)`, `f(x) = y - 1`,
+ *  ...), a mix of satisfiable and unsatisfiable sets. The shared integer terms
+ *  grow with `n` and the equality atoms of the combination with their square:
+ *  `n = 20` takes minutes per set.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -25,7 +27,7 @@ import net.bovel.smt.Term.*
 @Measurement(iterations = 5, time = 1)
 class UfliaBench:
 
-  @Param(Array("10", "30"))
+  @Param(Array("5", "10"))
   var n: Int = uninitialized
 
   private var sets: List[List[Formula]] = uninitialized

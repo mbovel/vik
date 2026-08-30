@@ -231,7 +231,7 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Branching on the most fractional unknown | ✗ | [mixed](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
 | Cuts | ✗ | not yet (`cut_lemmas`, `wisa`) |
 | Theory propagation of bounds as literals | ✗ | not yet |
-| Combination with `egraph` | ✓ | arrangement by SAT: an equality atom per pair of shared integer terms, in `smt`'s encoder; the solvers stay independent |
+| Combination with `egraph` | ✓ | arrangement by SAT: an equality atom per pair of shared integer terms, watched by both theories (a merge or a disequality for UF, two bounds or a disequality for LIA), in `smt`'s encoder; the solvers stay independent |
 
 ## Requirements
 

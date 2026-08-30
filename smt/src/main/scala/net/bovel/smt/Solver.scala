@@ -144,15 +144,31 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
    *  such shared terms are leaves for the e-graph and variables for the LIA
-   *  solver. For every pair of them, this asserts that their equality atom (the
-   *  one the e-graph propagates by congruence) holds iff their difference is
-   *  bounded by 0 on both sides: the SAT solver then decides an arrangement of
-   *  the shared terms that both theories accept, which is a model of both
-   *  (Nelson and Oppen; both theories are stably infinite).
+   *  solver. For every pair of them that can meet — arguments of the same
+   *  function at the same position, applications of the same function, the
+   *  sides of an equality atom, a selector's applications and its field in
+   *  constructor applications: the only equalities the e-graph uses or makes —
+   *  this makes their equality atom (the one the e-graph propagates by
+   *  congruence) an atom of the LIA theory too, the equality of their
+   *  difference to 0: the SAT solver then decides an arrangement of the shared
+   *  terms that both theories accept, which is a model of both (Nelson and
+   *  Oppen; both theories are stably infinite).
    */
   def shareIntegers(): Unit =
-    val shared = classes.keys.filter(isInt).toList
-    for (a, i) <- shared.zipWithIndex; b <- shared.drop(i + 1) do
+    val pairs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    def pair(a: Term, b: Term): Unit = if a != b && isInt(a) && isInt(b) && !pairs((b, a)) then pairs += ((a, b))
+    val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
+    for (_, group) <- applications do
+      for (a, i) <- group.zipWithIndex; b <- group.drop(i + 1) do
+        pair(a, b)
+        for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
+    // A selector's applications meet the arguments of its constructor at its position (the selector rule).
+    for d <- datatypes; c <- d.constructors; ((selector, _), i) <- c.selectors.zipWithIndex do
+      for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
+      do
+        if k.args.length > i then pair(s, k.args(i))
+    for (a, b) <- pairs do
       val e = lit(Formula.Eq(a, b))
       Term.linear(List((1, a), (-1, b))) match
         case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
@@ -223,14 +239,14 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   private val clauses = ArrayBuffer.empty[Array[Lit]]
   private val atoms = ArrayBuffer.empty[(EClassId, EClassId) | Null] // per variable, its UF atom `t = u`
-  private val bounds = ArrayBuffer.empty[(lia.Var, BigInt) | Null] // per variable, its LIA atom `x ≤ c`
+  private val liaAtoms = ArrayBuffer.empty[LiaTheory.Atom | Null] // per variable, its LIA atom, if any
   private val lits = HashMap.empty[Formula, Lit]
   private val trueLit = freshVar() // a variable asserted true, for `True`
   clauses += Array(trueLit)
 
   private def freshVar(): Lit =
     atoms += null
-    bounds += null
+    liaAtoms += null
     Lit(atoms.length - 1)
 
   def classOf(term: Term): EClassId = classes.getOrElseUpdate(term, classOfNew(term))
@@ -245,12 +261,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   private def atom(t: EClassId, u: EClassId): Lit =
     atoms += ((t, u))
-    bounds += null
+    liaAtoms += null
     Lit(atoms.length - 1)
 
   private def bound(x: lia.Var, c: BigInt): Lit =
     atoms += null
-    bounds += ((x, c))
+    liaAtoms += LiaTheory.Atom.Bound(x, c)
     Lit(atoms.length - 1)
 
   /** The LIA variable of an atomic `Int` term. An application is a node of the
@@ -320,7 +336,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   def solve(): cdclt.Solver.Result =
     val ufAtoms = atoms.toArray
-    val liaAtoms = bounds.toArray
+    val liaAtoms = this.liaAtoms.toArray
     val theories = List(
       Option.when(ufAtoms.exists(_ != null))(UfTheory(eg, ufAtoms)),
       Option.when(liaAtoms.exists(_ != null))(LiaTheory(liaSolver, liaAtoms))

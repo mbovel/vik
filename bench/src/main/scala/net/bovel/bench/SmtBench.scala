@@ -59,7 +59,15 @@ class SmtBench:
       "20172804-Barrett__typed__v3__typed_v3l30025.cvc.smt2",
       "20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2",
       "20230720-blocksworld__from_11_0_0_to_6_4_1_bmc_1.smt2",
-      "20230720-blocksworld__from_5_4_17_to_12_6_8_bmc_2.smt2"
+      "20230720-blocksworld__from_5_4_17_to_12_6_8_bmc_2.smt2",
+      "TwoSquares__smtlib.598294.smt2",
+      "TwoSquares__smtlib.602033.smt2",
+      "wisas__xs_5_5.smt2",
+      "wisas__xs_8_8.smt2",
+      "wisas__xs_20_20.smt2",
+      "mathsat__Wisa__xs-09-05-2-4-4-5.smt2",
+      "mathsat__Wisa__xs-07-11-1-1-1-1.smt2",
+      "mathsat__Hash__hash_uns_04_18.smt2"
     )
   )
   var file: String = uninitialized

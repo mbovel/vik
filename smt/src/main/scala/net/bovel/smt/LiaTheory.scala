@@ -6,15 +6,17 @@ import net.bovel.cdclt.{Lit, Theory}
 import net.bovel.lia
 
 /** Linear integer arithmetic as a theory of the CDCL(T) solver: the atom of
- *  variable `v` is `x ≤ c` for `bounds(v) = (x, c)`, `x` a variable of the LIA
- *  solver standing for an `Int` term or a linear combination, or none when
- *  `bounds(v)` is `null`; the negation of the atom is `x ≥ c + 1`. A literal
- *  asserts its bound with the literal (its index) as reason; `propagate`
- *  decides the rational relaxation (bound propagation and simplex) and
- *  `finalCheck` the integers (branch and bound), both reporting a conflict as
- *  the literals whose bounds are inconsistent. Nothing is implied yet.
+ *  variable `v` is `atoms(v)`, on a variable `x` of the LIA solver standing for
+ *  an `Int` term or a linear combination: `Bound(x, c)` is `x ≤ c`, its
+ *  negation `x ≥ c + 1`; `Equal(x, c)` is `x = c`, its negation `x ≠ c` (an
+ *  equality of shared terms is such an atom, of the UF theory as well); or none
+ *  when `null`. A literal asserts its bounds with the literal (its index) as
+ *  reason; `propagate` decides the rational relaxation (bound propagation and
+ *  simplex) and `finalCheck` the integers and the disequalities (branch and
+ *  bound), both reporting a conflict as the literals whose bounds are
+ *  inconsistent. Nothing is implied yet.
  */
-final class LiaTheory(solver: lia.Solver, bounds: Array[(lia.Var, BigInt) | Null]) extends Theory:
+final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) extends Theory:
   /** A conflict found while asserting, reported by the next `propagate`. */
   private var conflict: ArrayBuffer[Lit] | Null = null
 
@@ -22,10 +24,17 @@ final class LiaTheory(solver: lia.Solver, bounds: Array[(lia.Var, BigInt) | Null
 
   def assertLit(lit: Lit): Unit =
     val v = lit.variable
-    val bound = if v < bounds.length then bounds(v) else null
-    if bound != null && conflict == null then
-      val (x, c) = bound
-      val result = if lit.positive then solver.assertUpper(x, c, lit.index) else solver.assertLower(x, c + 1, lit.index)
+    val atom = if v < atoms.length then atoms(v) else null
+    if atom != null && conflict == null then
+      val result = atom match
+        case LiaTheory.Atom.Bound(x, c) =>
+          if lit.positive then solver.assertUpper(x, c, lit.index) else solver.assertLower(x, c + 1, lit.index)
+        case LiaTheory.Atom.Equal(x, c) =>
+          if !lit.positive then solver.assertDistinct(x, c, lit.index)
+          else
+            solver.assertUpper(x, c, lit.index) match
+              case lia.Solver.Result.Sat => solver.assertLower(x, c, lit.index)
+              case unsat => unsat
       result match
         case lia.Solver.Result.Unsat(reasons) => conflict = lits(reasons)
         case lia.Solver.Result.Sat => ()
@@ -51,3 +60,8 @@ final class LiaTheory(solver: lia.Solver, bounds: Array[(lia.Var, BigInt) | Null
   def pop(): Unit =
     conflict = null
     solver.pop()
+
+object LiaTheory:
+  enum Atom:
+    case Bound(x: lia.Var, c: BigInt)
+    case Equal(x: lia.Var, c: BigInt)
