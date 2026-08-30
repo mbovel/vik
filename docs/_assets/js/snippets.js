@@ -9,9 +9,17 @@
   const base = new URL(script.getAttribute("src"), document.baseURI)
   let solver = null
 
-  /** The module, imported at the first run: 780 kB of WebAssembly, not on the way of the page. */
+  /** The module, imported at the first run, not on the way of the page: the solver as WebAssembly, or as
+   *  JavaScript for the engines that do not have Wasm 3.0 yet (Safari before 26, and iOS with it).
+   */
   async function load() {
-    if (solver === null) solver = await import(new URL("vik/main.js", base).href)
+    if (solver === null) {
+      try {
+        solver = await import(new URL("vik/main.js", base).href)
+      } catch (wasm) {
+        solver = await import(new URL("vik-js/main.js", base).href)
+      }
+    }
     return solver
   }
 

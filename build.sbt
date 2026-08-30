@@ -71,6 +71,7 @@ lazy val smt2 = projectMatrix
   .dependsOn(sexpr, smt)
   .settings(
     name := "smt2",
+    Compile / mainClass := Some("net.bovel.smt2.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version)) // JVM-only sources in `src/main/scalajvm`: the corpus on disk
@@ -95,6 +96,17 @@ lazy val docsPlayground = project
     scalaJSLinkerConfig ~= {
       _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule)
     }
+  )
+
+// The same module, on the JavaScript backend, for the engines that have no Wasm 3.0 (Safari before 26).
+lazy val docsPlaygroundJs = project
+  .in(file("target/docsPlayground-js"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(smt2.js(scala3Version))
+  .settings(
+    name := "docsPlaygroundJs",
+    Compile / scalaSource := (docsPlayground / Compile / scalaSource).value,
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) }
   )
 
 lazy val playground = project
@@ -199,15 +211,22 @@ lazy val root = (project in file("."))
     // The solver, linked to WebAssembly into `docs/_assets/js/vik/`, where the pages of the site load it from.
     docsAssets := Def.uncached { // the linker's report has no hash for sbt's cache; the linker caches by itself
       val linked = (docsPlayground / Compile / fullLinkJS).value.data.publicModules.head
+      val _ = (docsPlaygroundJs / Compile / fullLinkJS).value
       val directory = (docsPlayground / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
-      val destination = file("docs") / "_assets" / "js" / "vik"
-      IO.delete(destination)
-      IO.copyDirectory(directory, destination)
-      streams.value.log.info(s"the solver (${linked.jsFileName}) is linked into $destination")
+      val javascript = (docsPlaygroundJs / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
+      val destination = file("docs") / "_assets" / "js"
+      IO.delete(destination / "vik")
+      IO.delete(destination / "vik-js")
+      IO.copyDirectory(directory, destination / "vik")
+      IO.copyDirectory(javascript, destination / "vik-js")
+      streams.value.log.info(
+        s"the solver (${linked.jsFileName}) is linked into $destination as WebAssembly and as JavaScript"
+      )
     },
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
       "-siteroot",
       "docs",
+      "-Yapi-subdirectory", // the guide at the root of the site, the API documentation under `api/`
       "-project-version",
       version.value,
       "-source-links:github://mbovel/vik/main",

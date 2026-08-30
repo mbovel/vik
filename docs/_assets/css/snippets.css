@@ -43,3 +43,19 @@
 .snippet code[contenteditable] * {
   outline: none;
 }
+
+/* The site spaces the spans of its own line numbers, and draws the number before each of them; the spans of
+   the highlighting are tokens, not lines. */
+.snippet code[contenteditable] > span {
+  padding-right: 0;
+}
+
+.snippet code[contenteditable] > span::before {
+  content: none;
+  display: none;
+}
+
+/* A block with no button underneath the corner leaves it no room. */
+.snippet-answers {
+  padding-top: calc(1.5 * var(--base-spacing));
+}

@@ -1,4 +1,7 @@
+index: index.md
 subsection:
+  - title: Getting started
+    page: getting-started.md
   - title: A tour of the solver
     page: guide.md
   - title: Algebraic datatypes, as rules of the e-graph

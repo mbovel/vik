@@ -6,3 +6,4 @@ target
 bench/native/
 smtlib/.import/
 docs/_assets/js/vik/
+docs/_assets/js/vik-js/
