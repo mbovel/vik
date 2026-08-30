@@ -2,12 +2,13 @@
 # Cold-start comparison, as a competition measures it: a new process per instance and solver, the whole
 # answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets.
 #
-# Usage, from the repository root: bench/cold.sh <instances-file> [repetitions] [timeout-seconds] > results.tsv
+# Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
+# The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
 # The instances file holds one path per line. Every run is repeated, and the median (with the extremes) is
 # reported, so a scheduling hiccup does not decide a number.
 set -u
 cd "$(dirname "$0")/.."
-INSTANCES="$1"
+INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-30}"
 

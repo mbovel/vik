@@ -8,7 +8,8 @@ extraCSS:
 
 # A tour of the solver
 
-Every script below runs in your browser. They are editable: change one and press **Run** again.
+Every script below runs in your browser: press the play button in the corner of a block. They are editable,
+so change one and run it again.
 
 ## Uninterpreted functions
 

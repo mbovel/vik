@@ -1,0 +1,16 @@
+smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2
+smtlib/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2
+smtlib/QF_UF/smt-lib/2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2
+smtlib/QF_UF/smt-lib/TypeSafe__z3.1184131.smt2
+smtlib/QF_LIA/smt-lib/CAV_2009_benchmarks__20-vars__problem__001.smt2
+smtlib/QF_LIA/smt-lib/dillig__20-4.smt2
+smtlib/QF_LIA/smt-lib/prime-cone__prime_cone_unsat_3.smt2
+smtlib/QF_LIA/smt-lib/convert__convert-tiff2jpg-query-1831.smt2
+smtlib/QF_UFLIA/smt-lib/wisas__xs_8_8.smt2
+smtlib/QF_UFLIA/smt-lib/TwoSquares__smtlib.598294.smt2
+smtlib/QF_UFLIA/smt-lib/mathsat__Wisa__xs-09-05-2-4-4-5.smt2
+smtlib/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2
+smtlib/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2
+smtlib/QF_BV/smt-lib/sage__app7__bench_8505.smt2
+smtlib/QF_BV/smt-lib/bmc-bv__adpcm.smt2
+smtlib/QF_BV/smt-lib/pspace__ndist.a.20000.smt2

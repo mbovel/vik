@@ -16,7 +16,7 @@ VIK reads [SMT-LIB 2](https://smt-lib.org) scripts and answers the `check-sat` c
 sbt "smt2/run problem.smt2"
 ```
 
-The same on a script you write here — press **Run**:
+The same on a script you write here — press the play button in its corner:
 
 ```smt2
 (set-logic QF_UFLIA)

@@ -13,8 +13,8 @@ arithmetic, algebraic datatypes, lambdas, and the arithmetic fragment of bit-vec
 solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be embedded — as a
 library, in the process of the tool that asks the questions.
 
-The snippets of this site are solved here, in your browser: press **Run**. They are editable, so change one
-and run it again.
+The snippets of this site are solved here, in your browser: press the **play button** in the corner of a block. They are
+editable, so change one and run it again.
 
 ```smt2
 (declare-fun f (Int) Int)
