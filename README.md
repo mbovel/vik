@@ -24,7 +24,7 @@ kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped
 | `smt2` | The SMT-LIB 2 front end: parses scripts into commands and plays them on the solver (`sbt "smt2/run file.smt2"` prints the answers of the `check-sat` commands). Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. Datatypes (`declare-datatype(s)`, constructors, selectors, testers) are decided by the solver. `check-sat-assuming`, `reset-assertions`, `reset`; `(set-option :rlimit n)` sets the fuel of each `check-sat` and `:timeout` a deadline in milliseconds, `unknown` then, with `(get-info :reason-unknown)` answering `resourceout` or `timeout`. |
 | `sexpr` | The S-expression lexer and parser used by `smt2`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
-| `playground` | Two browser pages (Scala.js): an e-graph playground and an SMT-LIB playground. |
+| `playground` | Two browser pages (Scala.js, linked to WebAssembly): an e-graph playground and an SMT-LIB playground. |
 | `bench` | The JMH benchmarks of every module and the comparison with other solvers, with results per module. |
 
 ## Usage
@@ -245,7 +245,7 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, on the JavaScript backend) and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, WebAssembly too) and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects
@@ -277,6 +277,8 @@ z3, cvc5, princess and SMTInterpol, in process through their Java bindings and a
 
 Build them, serve the output directory, and open <http://localhost:8000/classes/index.html>: an e-graph playground
 (equalities in, the e-graph drawn) and an SMT-LIB playground (a script in, the answers and the lowered script out).
+The pages load the solver as a WebAssembly module (Scala.js's WebAssembly backend), which needs a current browser —
+Wasm GC and the `exnref` exception handling — and a server: the module fetches `main.wasm`.
 
 ```sh
 sbt "playground/copyResources; playground/fastLinkJS"

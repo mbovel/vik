@@ -80,6 +80,8 @@ smt2JVM / Test / fork := true
 smt2JVM / Test / javaOptions += "-Xmx2g"
 
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
+import org.scalajs.linker.interface.ESVersion
+
 lazy val playground = project
   .in(file("playground"))
   .enablePlugins(ScalaJSPlugin)
@@ -87,6 +89,10 @@ lazy val playground = project
   .settings(
     name := "playground",
     scalaJSUseMainModuleInitializer := true,
+    // WebAssembly too (see the JS rows below): the pages load `main.js` as an ES module, which fetches `main.wasm`.
+    scalaJSLinkerConfig ~= {
+      _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule)
+    },
     libraryDependencies += "org.scala-js" %% "scalajs-dom" % "2.8.1"
   )
 
@@ -125,9 +131,7 @@ lazy val bench = project
     }
   )
 
-// Scala.js on the WebAssembly backend: ES modules and ES 2022 are required; the browser playground stays on the
-// JavaScript backend, which every browser runs.
-import org.scalajs.linker.interface.ESVersion
+// Scala.js on the WebAssembly backend: ES modules and ES 2022 are required.
 lazy val egraphJS = egraph.js(scala3Version)
 lazy val cdcltJS = cdclt.js(scala3Version)
 lazy val sexprJS = sexpr.js(scala3Version)
