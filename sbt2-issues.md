@@ -77,3 +77,10 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
   whole call is that of the last command started; a script has to check each command separately.
 - Long `-p file=a,b,c` arguments to `Jmh/run` work, but a benchmark that throws during setup (a missing resource) is
   reported only inside the JMH log as `<failure>`; the command itself succeeds with exit code 0.
+
+## Several command arguments are joined into one command (2026-08-30)
+
+`sbt "bench/Jmh/run -f 1 -e .*A.*" "bench/Jmh/run -f 1 -p instance=x .*B.*"` ran *one* command,
+`bench/Jmh/run -f 1 -e .*A.* bench/Jmh/run -f 1 -p instance=x .*B.*` (JMH: "Found multiple arguments for
+option i"); sbt 1 ran the two commands in sequence. Workaround: one argument with `;` between the commands,
+`sbt "cmd1; cmd2"`.
