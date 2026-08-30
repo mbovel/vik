@@ -7,11 +7,7 @@ import scala.io.Source
   val source = Source.fromFile(path)
   val script = try Parser.parse(source.mkString)
   finally source.close()
-  for answer <- Player.answers(script) do
-    println(answer match
-      case Some(true) => "sat"
-      case Some(false) => "unsat"
-      case None => "unknown")
+  Player.run(script).foreach(println)
 
 /** Parses the given SMT-LIB files and prints, per file, `ok` or the error:
  *  whether each is in the supported fragment.

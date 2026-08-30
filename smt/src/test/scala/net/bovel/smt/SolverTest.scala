@@ -141,3 +141,13 @@ class SolverTest extends munit.FunSuite:
       simplifiedSomething > 5,
       s"only $simplifiedSomething simplified"
     ) // elimination applies in positive positions only
+
+  test("unknown with a reason: the fuel, or the caller"):
+    val s = Solver()
+    for i <- 0 until 12 do s.declare(s"p$i", Nil, "Bool")
+    val ps = (0 until 12).map(i => Pred(Const(s"p$i"))).toList
+    s.assert(Or(ps))
+    for (a, i) <- ps.zipWithIndex; b <- ps.drop(i + 1) do s.assert(Or(List(Not(a), Not(b))))
+    assertEquals(s.solve(fuel = 1), s.Result.Unknown(s.Reason.Fuel))
+    assertEquals(s.solve(() => false), s.Result.Unknown(s.Reason.Stopped))
+    assertEquals(s.solve(), s.Result.Sat)

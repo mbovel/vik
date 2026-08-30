@@ -135,6 +135,8 @@ final class Parser:
     case SList(Atom("pop") :: Atom(n) :: Nil) => List(Command.Pop(n.toInt))
     case SList(Atom("pop") :: Nil) => List(Command.Pop(1))
     case SList(Atom("get-model") :: Nil) => List(Command.GetModel)
+    case SList(Atom("set-option") :: Atom(key) :: value :: Nil) => List(Command.SetOption(key, value.toString))
+    case SList(Atom("get-info") :: Atom(key) :: Nil) => List(Command.GetInfo(key))
     case SList(Atom("exit") :: Nil) => List(Command.Exit)
     case SList(Atom(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")

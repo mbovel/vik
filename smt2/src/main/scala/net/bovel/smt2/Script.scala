@@ -32,8 +32,15 @@ enum Command:
   case GetModel
   case Exit
 
-  /** A command with no effect on solving (`set-option`, `get-info`, `echo`,
-   *  ...).
+  /** `set-option`: `:rlimit` (the fuel of each `check-sat`) and `:timeout`
+   *  (milliseconds) matter to the player.
+   */
+  case SetOption(key: String, value: String)
+
+  /** `get-info`: `:reason-unknown` is answered by the player. */
+  case GetInfo(key: String)
+
+  /** A command with no effect on solving (`get-model`, `echo`, ...).
    */
   case Other(sexpr: SExpr)
 

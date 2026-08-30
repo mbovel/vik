@@ -26,8 +26,18 @@ final class Solver(val simplify: Boolean = true):
     case Sat
     case Unsat
 
-    /** The fuel of [[solve]] is spent. */
-    case Unknown
+    /** No answer, for a [[Reason]] (SMT-LIB's `unknown` and `:reason-unknown`).
+     */
+    case Unknown(reason: Reason)
+
+  enum Reason:
+    /** The fuel of [[solve]] is spent (`resourceout`). */
+    case Fuel
+
+    /** The caller's `keepGoing` of [[solve]] said to stop: a deadline, a
+     *  cancellation.
+     */
+    case Stopped
 
   private val levels = ArrayBuffer(ArrayBuffer.empty[Formula])
 
@@ -67,7 +77,9 @@ final class Solver(val simplify: Boolean = true):
     var left = fuel
     solve(() =>
       left -= 1; left >= 0
-    )
+    ) match
+      case Result.Unknown(_) => Result.Unknown(Reason.Fuel)
+      case result => result
 
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
@@ -84,7 +96,7 @@ final class Solver(val simplify: Boolean = true):
     encoder.solve(keepGoing) match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
-      case cdclt.Solver.Result.Unknown => Result.Unknown
+      case cdclt.Solver.Result.Unknown => Result.Unknown(Reason.Stopped)
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into

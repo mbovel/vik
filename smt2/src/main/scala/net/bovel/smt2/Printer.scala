@@ -36,6 +36,8 @@ object Printer:
     case Command.Pop(n) => s"(pop $n)"
     case Command.GetModel => "(get-model)"
     case Command.Exit => "(exit)"
+    case Command.SetOption(key, value) => s"(set-option $key $value)"
+    case Command.GetInfo(key) => s"(get-info $key)"
     case Command.Other(sexpr) => sexpr.toString
 
   def print(formula: Formula): String = formula match
