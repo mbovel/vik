@@ -1,28 +1,45 @@
-/* The Run button of a snippet and the answers it prints (see js/snippets.js). */
+/* The Run button of a snippet, the answers it prints, and the editable script (see js/snippets.js). */
+.snippet {
+  position: relative;
+}
+
+/* A triangle in the corner of the block, where the site puts the buttons of its own snippets. */
 .snippet-run {
-  background: var(--code-bg);
-  border: 1px solid var(--border-medium);
-  border-radius: 4px;
-  color: var(--text-primary);
+  background: none;
+  border: none;
+  color: var(--text-secondary, var(--code-syntax-highlighting-comment));
   cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
-  padding: 0.1rem 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.4rem 0.5rem;
+  position: absolute;
+  right: 0.3rem;
+  top: 0.3rem;
+}
+
+.snippet-run::before {
+  content: "▶";
 }
 
 .snippet-run:hover {
-  background: var(--border-light);
+  color: var(--text-primary);
 }
 
 .snippet-run:disabled {
   cursor: progress;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
-.snippet-output {
-  background: var(--code-bg);
-  border-left: 3px solid var(--border-medium);
-  margin: -0.6rem 0 1rem;
-  padding: 0.5rem 0.8rem;
-  white-space: pre-wrap;
+.snippet-answers .snippet-run {
+  display: none;
+}
+
+/* The script is edited in place: no outline around it, and none around its lines. */
+.snippet code[contenteditable] {
+  display: block;
+  outline: none;
+}
+
+.snippet code[contenteditable] * {
+  outline: none;
 }
