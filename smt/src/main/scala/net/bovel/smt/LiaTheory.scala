@@ -14,17 +14,33 @@ import net.bovel.lia
  *  reason; `propagate` decides the rational relaxation (bound propagation and
  *  simplex) and `finalCheck` the integers and the disequalities (branch and
  *  bound), both reporting a conflict as the literals whose bounds are
- *  inconsistent. Nothing is implied yet.
+ *  inconsistent. What the bounds already decide is implied rather than left to
+ *  the search: an atom whose bounds force it, or forbid it, is propagated with
+ *  those bounds as its explanation — which is what keeps the arrangement of the
+ *  shared terms of a combination out of the decisions.
  */
 final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) extends Theory:
   /** A conflict found while asserting, reported by the next `propagate`. */
   private var conflict: ArrayBuffer[Lit] | Null = null
+
+  /** Atoms asserted so far, with the level marks for `pop`; an implied atom is
+   *  asserted by the solver in turn, so this is also what `propagate` skips.
+   */
+  private val assigned = new Array[Boolean](atoms.length)
+  private val assignedTrail = ArrayBuffer.empty[Int]
+  private val marks = ArrayBuffer.empty[Int]
+
+  /** For each atom implied, the reasons of the bounds that implied it. */
+  private val reasonsOf = new Array[Set[Int] | Null](atoms.length)
 
   private def lits(reasons: Set[Int]): ArrayBuffer[Lit] = ArrayBuffer.from(reasons.map(Lit.fromIndex))
 
   def assertLit(lit: Lit): Unit =
     val v = lit.variable
     val atom = if v < atoms.length then atoms(v) else null
+    if atom != null then
+      assigned(v) = true
+      assignedTrail += v
     if atom != null && conflict == null then
       val result = atom match
         case LiaTheory.Atom.Bound(x, c) =>
@@ -43,6 +59,26 @@ final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) e
 
   override def finalCheck(): Theory.Result = report(solver.check())
 
+  /** The atoms the bounds decide, and not yet assigned. */
+  private def implied(): ArrayBuffer[Lit] =
+    val out = ArrayBuffer.empty[Lit]
+    var v = 0
+    while v < atoms.length do
+      val atom = atoms(v)
+      if atom != null && !assigned(v) then
+        // Only the bounds: implying an equality of the arrangement was measured to be far worse (see the
+        // results of 2026-08-31), because it merges classes that the search then has to take apart again.
+        val decided = atom match
+          case LiaTheory.Atom.Bound(x, c) => solver.decidesUpper(x, c)
+          case LiaTheory.Atom.Equal(_, _) => None
+        decided match
+          case Some((holds, reasons)) =>
+            reasonsOf(v) = reasons
+            out += Lit(v, holds)
+          case None => ()
+      v += 1
+    out
+
   private def report(check: => lia.Solver.Result): Theory.Result =
     val pending = conflict
     if pending != null then
@@ -50,16 +86,20 @@ final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) e
       Theory.Result.Conflict(pending)
     else
       check match
-        case lia.Solver.Result.Sat => Theory.ok
+        case lia.Solver.Result.Sat => Theory.Result.Ok(implied())
         case lia.Solver.Result.Unknown => Theory.Result.Unknown
         case lia.Solver.Result.Unsat(reasons) => Theory.Result.Conflict(lits(reasons))
 
-  def explain(lit: Lit): ArrayBuffer[Lit] = throw IllegalArgumentException("LiaTheory implies nothing")
+  def explain(lit: Lit): ArrayBuffer[Lit] = lits(reasonsOf(lit.variable).nn)
 
-  def push(): Unit = solver.push()
+  def push(): Unit =
+    marks += assignedTrail.length
+    solver.push()
 
   def pop(): Unit =
     conflict = null
+    val mark = marks.remove(marks.length - 1)
+    while assignedTrail.length > mark do assigned(assignedTrail.remove(assignedTrail.length - 1)) = false
     solver.pop()
 
 object LiaTheory:

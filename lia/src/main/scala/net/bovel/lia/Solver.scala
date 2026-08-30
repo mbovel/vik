@@ -196,6 +196,19 @@ final class Solver:
 
   private def floorDiv(a: BigInt, b: BigInt): BigInt = (a - a.mod(b)) / b
 
+  /** Whether the bounds asserted so far already decide `x ≤ c`, with the
+   *  reasons: `Some((true, ...))` when they force it, `Some((false, ...))` when
+   *  they forbid it, `None` when both remain possible. For the theory
+   *  propagation of a bound atom (see `smt.LiaTheory`).
+   */
+  def decidesUpper(x: Var, c: BigInt): Option[(Boolean, Set[Int])] =
+    val value = Rational(floorDiv(c, scale(x)))
+    val u = upper(x)
+    val l = lower(x)
+    if u != null && u.value <= value then Some((true, u.reasons))
+    else if l != null && l.value > value then Some((false, l.reasons))
+    else None
+
   private def assertBound(x: Var, bound: Bound, isUpper: Boolean): Result =
     val c = bound.value
     val same = if isUpper then upper(x) else lower(x)

@@ -501,10 +501,15 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
  *  atom of variable `v`, for explanations.
  */
 private final class Theories(theories: List[Theory], owner: cdclt.Var => Theory) extends Theory:
+  /** The theory that implied a literal: the atom of a shared equality belongs
+   *  to both, and only the one that implied it can explain it.
+   */
+  private val implier = HashMap.empty[cdclt.Var, Theory]
+
   def assertLit(lit: Lit): Unit = theories.foreach(_.assertLit(lit))
   def propagate(): Theory.Result = combine(_.propagate())
   override def finalCheck(): Theory.Result = combine(_.finalCheck())
-  def explain(lit: Lit): ArrayBuffer[Lit] = owner(lit.variable).explain(lit)
+  def explain(lit: Lit): ArrayBuffer[Lit] = implier.getOrElse(lit.variable, owner(lit.variable)).explain(lit)
   def push(): Unit = theories.foreach(_.push())
   def pop(): Unit = theories.foreach(_.pop())
 
@@ -512,6 +517,8 @@ private final class Theories(theories: List[Theory], owner: cdclt.Var => Theory)
     val implied = ArrayBuffer.empty[Lit]
     for theory <- theories do
       check(theory) match
-        case Theory.Result.Ok(lits) => implied ++= lits
+        case Theory.Result.Ok(lits) =>
+          for l <- lits do implier(l.variable) = theory
+          implied ++= lits
         case conflict => break(conflict)
     Theory.Result.Ok(implied)
