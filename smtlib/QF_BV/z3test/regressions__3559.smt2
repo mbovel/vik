@@ -1,0 +1,6 @@
+; From z3test: 3559.smt2 (MIT, LICENSES/z3test.txt)
+(set-logic QF_BV)
+(set-option :trace true)
+(assert (distinct true true true true true true true true (distinct (bvsub (_ bv480 9) (_ bv480 9)) (_ bv0 9) (_ bv480 9) (_ bv480 9))))
+(set-info :status unsat)
+(check-sat)

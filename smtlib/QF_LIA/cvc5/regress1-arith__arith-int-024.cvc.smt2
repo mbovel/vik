@@ -1,0 +1,11 @@
+; From cvc5: regress1/arith/arith-int-024.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+(set-logic ALL)
+(set-option :incremental false)
+(declare-fun x0 () Int)
+(declare-fun x1 () Int)
+(declare-fun x2 () Int)
+(declare-fun x3 () Int)
+(assert (= (+ (+ (+ (* 4 x0) (* 8 x1)) (* 27 x2)) (* (- 12) x3)) (- 5)))
+(set-info :status sat)
+(check-sat-assuming ( (not false) ))

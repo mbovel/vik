@@ -1,0 +1,18 @@
+; From z3test: t143.smt2 (MIT, LICENSES/z3test.txt)
+
+; Copyright (c) 2015 Microsoft Corporation
+
+(set-option :produce-models true)
+(declare-const p Bool)
+(declare-const q Bool)
+(declare-const r Bool)
+(define-fun pOqOr () Bool (or p q r))
+(define-fun np () Bool (not p))
+(define-fun nq () Bool (not q))
+(define-fun nr () Bool (not r))
+(assert pOqOr)
+(set-info :status sat)
+(check-sat np)
+(assert np)
+(set-info :status unsat)
+(check-sat nq nr)

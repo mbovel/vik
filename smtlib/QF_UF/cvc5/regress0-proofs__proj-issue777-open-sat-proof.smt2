@@ -1,0 +1,10 @@
+; From cvc5: regress0/proofs/proj-issue777-open-sat-proof.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+(set-logic QF_UF)
+(declare-const a Bool)
+(declare-fun b () Bool)
+(declare-fun c () Bool)
+(declare-fun d () Bool)
+(assert (or (and (ite c a false) (ite (or a d) (not b) a) (ite d (= b (ite b true d)) b)) false))
+(set-info :status unsat)
+(check-sat)

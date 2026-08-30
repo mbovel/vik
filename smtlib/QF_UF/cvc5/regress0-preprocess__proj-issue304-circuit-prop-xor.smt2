@@ -1,0 +1,10 @@
+; From cvc5: regress0/preprocess/proj-issue304-circuit-prop-xor.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+(set-logic ALL)
+(set-option :produce-proofs true)
+(declare-const a Bool)
+(declare-const b Bool)
+(assert b)
+(assert (xor b (not a)))
+(set-info :status sat)
+(check-sat)

@@ -1,0 +1,6 @@
+; From z3test: 3116.smt2 (MIT, LICENSES/z3test.txt)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(assert (or (not (and a b)) (not a)))
+(set-info :status sat)
+(check-sat-using qfufbv_ackr)

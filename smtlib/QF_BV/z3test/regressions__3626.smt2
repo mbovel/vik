@@ -1,0 +1,7 @@
+; From z3test: 3626.smt2 (MIT, LICENSES/z3test.txt)
+(set-logic QF_BV)
+(set-option :combined_solver.ignore_solver1 true)
+(set-option :sat.local_search true)
+(assert false)
+(set-info :status unsat)
+(check-sat)

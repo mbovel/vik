@@ -4,3 +4,4 @@
 target
 .venv
 bench/native/
+smtlib/.import/

@@ -1,0 +1,12 @@
+; From cvc5: regress0/preprocess/proj-issue305-circuit-prop-ite-d.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+(set-logic ALL)
+(set-option :produce-proofs true)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(declare-fun c () Bool)
+(assert (not (ite a b c)))
+(assert c)
+(assert (not b))
+(set-info :status sat)
+(check-sat)

@@ -1,0 +1,15 @@
+; From smt-lib: QF_BV/crafted/bitvec2.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+(set-info :smt-lib-version 2.6)
+(set-logic QF_BV)
+(set-info :source |
+Hand-crafted bit-vector benchmarks.  Some are from the SVC benchmark suite.
+Contributed by Vijay Ganesh (vganesh@stanford.edu).  Translated into SMT-LIB
+format by Clark Barrett using CVC3.
+
+|)
+(set-info :category "crafted")
+(set-info :status unsat)
+(declare-fun a () Bool)
+(assert (not (= (concat (_ bv1 1) (ite a (_ bv0 1) (_ bv1 1))) (ite a (_ bv2 2) (_ bv3 2)))))
+(check-sat)
+(exit)

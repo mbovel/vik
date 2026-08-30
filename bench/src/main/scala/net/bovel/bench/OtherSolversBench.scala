@@ -15,7 +15,7 @@ import de.uni_freiburg.informatik.ultimate.logic.{FunctionSymbol, Script, Term, 
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import de.uni_freiburg.informatik.ultimate.smtinterpol.option.OptionMap
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.{ParseEnvironment, SMTInterpol}
-import net.bovel.smt2.{Parser, Player, Printer, Script as VikScript}
+import net.bovel.smt2.{Corpus, Parser, Player, Printer, Script as VikScript}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
@@ -90,9 +90,7 @@ class OtherSolversBench:
 
   @Setup(Level.Trial)
   def setup(): Unit =
-    val stream = getClass.getResourceAsStream(s"/smtlib/$file")
-    require(stream != null, s"no resource smtlib/$file")
-    script = Parser.parse(Source.fromInputStream(stream).mkString)
+    script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
     text = Printer.print(script)
 
   @Benchmark

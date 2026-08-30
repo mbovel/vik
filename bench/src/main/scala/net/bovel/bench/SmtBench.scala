@@ -7,6 +7,7 @@ import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
 import net.bovel.smt2.{Parser, Player, Script}
+import net.bovel.smt2.Corpus
 
 /** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release
  *  2025, see `bench/results/smt/README.md`): each operation parses and solves
@@ -77,9 +78,7 @@ class SmtBench:
 
   @Setup(Level.Trial)
   def setup(): Unit =
-    val stream = getClass.getResourceAsStream(s"/smtlib/$file")
-    require(stream != null, s"no resource smtlib/$file")
-    text = Source.fromInputStream(stream).mkString
+    text = java.nio.file.Files.readString(Corpus.find(file))
     script = Parser.parse(text)
 
   @Benchmark

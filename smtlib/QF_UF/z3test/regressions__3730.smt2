@@ -1,0 +1,6 @@
+; From z3test: 3730.smt2 (MIT, LICENSES/z3test.txt)
+(set-logic ALL)
+(set-option :proof true)
+(declare-fun _substvar_3_ () Bool)
+(set-info :status sat)
+(check-sat-using (then simplify qe2))

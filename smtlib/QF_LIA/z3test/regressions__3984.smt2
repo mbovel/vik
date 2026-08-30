@@ -1,0 +1,8 @@
+; From z3test: 3984.smt2 (MIT, LICENSES/z3test.txt)
+(set-option :trace true)
+(set-info :status sat)
+(check-sat-using default)
+(reset-assertions)
+(declare-fun a () Int)
+(set-info :status sat)
+(check-sat-using default)

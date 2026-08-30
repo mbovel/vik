@@ -21,7 +21,7 @@ import net.bovel.lia
  *  `Int` under an uninterpreted function is not supported (the SMT-LIB front
  *  end rejects such declarations).
  */
-final class Solver(simplify: Boolean = true):
+final class Solver(val simplify: Boolean = true):
   enum Result:
     case Sat
     case Unsat

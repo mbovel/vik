@@ -1,0 +1,8 @@
+; From z3test: 3968.smt2 (MIT, LICENSES/z3test.txt)
+(declare-fun a () Int)
+(declare-fun b () Int)
+(assert (distinct a b))
+;(set-info :status sat)
+(check-sat)
+(set-info :status unknown)
+(check-sat-using (then qe2 smt))

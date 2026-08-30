@@ -11,13 +11,31 @@ import net.bovel.smt.Solver
 object Player:
   def play(script: Script, solver: Solver = Solver()): List[Boolean] =
     val results = ArrayBuffer.empty[Boolean]
+    var current = solver
+    val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
+    def declare(command: Command): Unit = command match
+      case Command.DeclareFun(name, argSorts, sort) => current.declare(name, argSorts, sort)
+      case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.declare)
+      case _ => ()
     for command <- script.commands do
       command match
-        case Command.DeclareFun(name, argSorts, sort) => solver.declare(name, argSorts, sort)
-        case Command.DeclareDatatypes(datatypes) => datatypes.foreach(solver.declare)
-        case Command.Assert(formula) => solver.assert(formula)
-        case Command.Push(n) => for _ <- 0 until n do solver.push()
-        case Command.Pop(n) => for _ <- 0 until n do solver.pop()
-        case Command.CheckSat => results += (solver.solve() == solver.Result.Sat)
+        case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
+          declarations += command
+          declare(command)
+        case Command.Assert(formula) => current.assert(formula)
+        case Command.Push(n) => for _ <- 0 until n do current.push()
+        case Command.Pop(n) => for _ <- 0 until n do current.pop()
+        case Command.CheckSat => results += (current.solve() == current.Result.Sat)
+        case Command.CheckSatAssuming(assumptions) =>
+          current.push()
+          assumptions.foreach(current.assert)
+          results += (current.solve() == current.Result.Sat)
+          current.pop()
+        case Command.ResetAssertions =>
+          current = Solver(simplify = solver.simplify)
+          declarations.foreach(declare)
+        case Command.Reset =>
+          current = Solver(simplify = solver.simplify)
+          declarations.clear()
         case _ => ()
     results.toList

@@ -1,0 +1,10 @@
+; From cvc5: regress0/proofs/dd_int_check_rec_elim_shadow.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+(set-logic ALL)
+(declare-fun p (Int) Int)
+(define-fun i ((k Int) (a Int)) Int (p 0))
+(define-fun l ((k Int) (x Int) (s Int) (t Int)) Bool (= 0 (i k x)))
+(define-fun n ((k Int) (t Int) (x Int)) Bool (and false (l 0 0 0 0)))
+(assert (n 0 0 0))
+(set-info :status unsat)
+(check-sat)

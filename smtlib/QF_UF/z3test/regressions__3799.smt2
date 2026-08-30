@@ -1,0 +1,5 @@
+; From z3test: 3799.smt2 (MIT, LICENSES/z3test.txt)
+(set-logic HORN)
+(set-option :fp.engine bmc)
+(set-info :status sat)
+(check-sat)

@@ -1,0 +1,10 @@
+; From cvc5: regress0/test11.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+(set-logic ALL)
+(set-option :incremental false)
+(declare-fun x () Bool)
+(declare-fun y () Bool)
+(assert (or x y))
+(assert (not (or x y)))
+(set-info :status unsat)
+(check-sat)

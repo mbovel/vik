@@ -1,0 +1,10 @@
+; From cvc5: regress0/arith/integers/arith-interval.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+(set-logic ALL)
+(set-option :incremental false)
+(declare-fun x () Int)
+(declare-fun P (Int) Bool)
+(assert (and (<= 1 x) (<= x 2)))
+(assert (and (P 1) (P 2)))
+(set-info :status unsat)
+(check-sat-assuming ( (not (P x)) ))

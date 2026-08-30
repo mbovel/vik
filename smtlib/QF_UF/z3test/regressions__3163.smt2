@@ -1,0 +1,7 @@
+; From z3test: 3163.smt2 (MIT, LICENSES/z3test.txt)
+(set-option :model_validate true)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(assert (or (not (and a b)) a))
+(set-info :status sat)
+(check-sat)

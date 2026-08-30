@@ -1,24 +1,27 @@
 package net.bovel.bench
 
-import scala.io.Source
+import net.bovel.smt2.Corpus
 
-/** Runs every in-process solver of [[OtherSolversBench]] on every SMT-LIB
- *  instance of the benchmarks and reports the answers that differ from the
+/** Runs every in-process solver of [[OtherSolversBench]] on the SMT-LIB
+ *  instances of the corpus taken from SMT-LIB (`smtlib/<logic>/smt-lib`, the
+ *  ones the benchmarks use) and reports the answers that differ from the
  *  expected status: `sbt "bench/runMain net.bovel.bench.SolverCheck"`
- *  (optionally a regex selecting files, and solver names).
+ *  (optionally a regex selecting files among the whole corpus, and solver
+ *  names).
  */
 object SolverCheck:
   def main(args: Array[String]): Unit =
-    val filter = args.headOption.getOrElse(".").r
+    val filter = args.headOption.getOrElse("/smt-lib/").r
     val solvers =
       if args.length > 1 then args.drop(1).toList else List("vik", "z3", "z3Direct", "cvc5", "princess", "smtinterpol")
-    val files = Source.fromResource("smtlib/index.txt").getLines().toList.filter(f => filter.findFirstIn(f).isDefined)
+    val files =
+      Corpus.files.filter(f => filter.findFirstIn(f).isDefined).map(f => java.nio.file.Path.of(f).getFileName.toString)
     var disagreements = 0
     for file <- files do
       val bench = OtherSolversBench()
       bench.file = file
       bench.setup()
-      val expected = net.bovel.smt2.Parser.parse(Source.fromResource(s"smtlib/$file").mkString).expectedStatus
+      val expected = net.bovel.smt2.Parser.parse(java.nio.file.Files.readString(Corpus.find(file))).expectedStatus
       val answers = solvers.map { name =>
         val sat = name match
           case "vik" => bench.vik().last

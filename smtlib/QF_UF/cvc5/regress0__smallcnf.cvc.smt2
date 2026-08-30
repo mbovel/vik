@@ -1,0 +1,13 @@
+; From cvc5: regress0/smallcnf.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+(set-logic ALL)
+(set-option :incremental false)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(declare-fun c () Bool)
+(assert (or (not a) (not b)))
+(assert (or (or c b) a))
+(assert (or b (not a)))
+(assert (or (or a (not b)) c))
+(set-info :status sat)
+(check-sat)

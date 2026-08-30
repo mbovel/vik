@@ -29,6 +29,9 @@ object Printer:
       s"(define-fun $name (${params.map((p, s) => s"($p $s)").mkString(" ")}) $sort $body)"
     case Command.Assert(formula) => s"(assert ${print(formula)})"
     case Command.CheckSat => "(check-sat)"
+    case Command.CheckSatAssuming(assumptions) => assumptions.map(print).mkString("(check-sat-assuming (", " ", "))")
+    case Command.ResetAssertions => "(reset-assertions)"
+    case Command.Reset => "(reset)"
     case Command.Push(n) => s"(push $n)"
     case Command.Pop(n) => s"(pop $n)"
     case Command.GetModel => "(get-model)"

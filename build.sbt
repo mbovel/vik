@@ -65,7 +65,7 @@ lazy val smt2 = projectMatrix
     name := "smt2",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version)) // JVM-only sources in `src/main/scalajvm`: the corpus on disk
   .jsPlatform(scalaVersions = Seq(scala3Version))
 
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.

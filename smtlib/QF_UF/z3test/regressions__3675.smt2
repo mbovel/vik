@@ -1,0 +1,8 @@
+; From z3test: 3675.smt2 (MIT, LICENSES/z3test.txt)
+(set-option :sat.prob_search true)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(assert a)
+(assert b)
+(set-info :status sat)
+(check-sat)

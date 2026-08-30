@@ -1,0 +1,11 @@
+; From cvc5: regress0/uf/simple.02.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+(set-logic ALL)
+(set-option :incremental false)
+(declare-sort A 0)
+(declare-sort B 0)
+(declare-fun x () A)
+(declare-fun y () A)
+(declare-fun f (A) B)
+(set-info :status sat)
+(check-sat-assuming ( (= (f x) (f y)) ))

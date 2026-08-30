@@ -54,7 +54,9 @@ final class Parser:
    *  level `depth + n - 1 - i`.
    */
   private def parameters(params: List[SExpr]): List[(String, String)] = params.map {
-    case SList(Atom(p) :: sort :: Nil) => (p, sort.toString)
+    case SList(Atom(p) :: sort :: Nil) =>
+      checkSort(sort.toString)
+      (p, sort.toString)
     case other => throw Smt2Error(s"bad parameter $other")
   }
 
@@ -118,6 +120,16 @@ final class Parser:
       introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
         definitions.toList.map(Command.Assert(_)) :+ Command.Assert(f)
     case SList(Atom("check-sat") :: Nil) => List(Command.CheckSat)
+    case SList(Atom("check-sat-using") :: _) => List(Command.CheckSat) // z3's, with a tactic: ignored
+    case SList(Atom("check-sat-assuming") :: SList(assumptions) :: Nil) => checkSatAssuming(assumptions)
+    case SList(Atom("check-sat") :: assumptions) => checkSatAssuming(assumptions) // z3's shorthand
+    case SList(Atom("reset-assertions") :: Nil) => List(Command.ResetAssertions)
+    case SList(Atom("reset") :: Nil) =>
+      functions.clear()
+      macros.clear()
+      List(Command.Reset)
+    case SList(Atom(name @ ("block-model" | "block-model-values" | "get-unsat-core" | "get-unsat-assumptions")) :: _) =>
+      throw Smt2Error(s"$name is not supported")
     case SList(Atom("push") :: Atom(n) :: Nil) => List(Command.Push(n.toInt))
     case SList(Atom("push") :: Nil) => List(Command.Push(1))
     case SList(Atom("pop") :: Atom(n) :: Nil) => List(Command.Pop(n.toInt))
@@ -127,16 +139,45 @@ final class Parser:
     case SList(Atom(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
 
+  private def checkSatAssuming(assumptions: List[SExpr]): List[Command] =
+    introduced.clear()
+    definitions.clear()
+    val fs = assumptions.map(formula(_, Map.empty))
+    introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
+      definitions.toList.map(Command.Assert(_)) :+ Command.CheckSatAssuming(fs)
+
   /** Declares `name`: a bit-vector constant becomes an `Int` constant with its
    *  range asserted; functions over `Int` or bit-vectors are rejected (no
    *  theory combination yet).
    */
   private def declare(name: String, argSorts: List[String], sort: String): List[Command] =
+    (sort :: argSorts).foreach(checkSort)
     functions(name) = (argSorts, sort)
     val width = BitVectors.width(sort)
     if argSorts.isEmpty && width >= 0 then
       List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(BitVectors.range(Term.Const(name), width)))
     else List(Command.DeclareFun(name, argSorts, sort))
+
+  /** Rejects the sorts of theories that are not supported, which would
+   *  otherwise pass for uninterpreted sorts: reals, strings, sets, arrays, ...
+   */
+  private def checkSort(sort: String): Unit =
+    val unsupported = List(
+      "Real",
+      "String",
+      "RegLan",
+      "RoundingMode",
+      "UnitTuple",
+      "(Set ",
+      "(Bag ",
+      "(Seq ",
+      "(Array ",
+      "(Tuple ",
+      "(_ FloatingPoint",
+      "Float"
+    )
+    if unsupported.exists(u => sort == u || sort.startsWith(u)) then throw Smt2Error(s"the sort $sort is not supported")
+    Sorts.arrow(sort).foreach((params, result) => (result :: params).foreach(checkSort))
 
   /** Whether terms of `sort` are integers after lowering: `Int` or a bit-vector
    *  sort.
@@ -260,6 +301,7 @@ final class Parser:
     case SList(SList(Atom("_") :: Atom("is") :: Atom(constructor) :: Nil) :: arg :: Nil) =>
       Pred(Term.App(declared(s"(_ is $constructor)"), List(term(arg, env))))
     case SList(Atom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
+      for a <- args if !isArithmetic(sortOf(a, env)) do throw Smt2Error(s"$op on ${sortOf(a, env)} is not supported")
       val ts = args.map(term(_, env))
       val compare: (Term, Term) => Formula = op match
         case "<=" => Le(_, _)

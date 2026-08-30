@@ -1,0 +1,7 @@
+; From cvc5: regress0/proofs/eval-rhs.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+(set-logic ALL)
+(declare-fun x () (_ BitVec 32))
+(assert (not (= ((_ extract 3 1) ((_ extract 7 1) x)) ((_ extract 4 2) x))))
+(set-info :status unsat)
+(check-sat)

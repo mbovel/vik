@@ -1,0 +1,11 @@
+; From princess: smtlib-parser/correct-eq.smt2 (BSD, LICENSES/princess.txt)
+(set-logic AUFLIA)
+(declare-fun p1 () Bool)
+(declare-fun p2 () Bool)
+(declare-fun p3 () Bool)
+
+(assert (not (= (= p1 p2 p3)
+                (and (= p1 p2) (= p2 p3)))))
+(set-info :status unsat)
+(check-sat)
+(exit)
