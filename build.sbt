@@ -152,3 +152,34 @@ smt2JS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 
 // Scala Native: the same sources again, with a `Native` suffix (clang: on the path, or `LLVM_BIN`).
+
+// The API documentation of the six modules (their JVM rows) as one site: `sbt unidoc`, in `target/unidoc`.
+lazy val root = (project in file("."))
+  .enablePlugins(ScalaUnidocPlugin)
+  .aggregate(
+    egraph.jvm(scala3Version),
+    cdclt.jvm(scala3Version),
+    sexpr.jvm(scala3Version),
+    lia.jvm(scala3Version),
+    smt.jvm(scala3Version),
+    smt2.jvm(scala3Version)
+  )
+  .settings(
+    name := "vik",
+    publish / skip := true,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+      egraph.jvm(scala3Version),
+      cdclt.jvm(scala3Version),
+      sexpr.jvm(scala3Version),
+      lia.jvm(scala3Version),
+      smt.jvm(scala3Version),
+      smt2.jvm(scala3Version)
+    ),
+    ScalaUnidoc / unidoc / target := file("target/unidoc"),
+    ScalaUnidoc / unidoc / scalacOptions ++= Seq(
+      "-project-version",
+      version.value,
+      "-source-links:github://mbovel/vik/main",
+      "-social-links:github::https://github.com/mbovel/vik"
+    )
+  )

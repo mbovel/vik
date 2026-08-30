@@ -273,6 +273,11 @@ See [bench/README.md](bench/README.md) for running and result files, and [bench/
 [smt2](bench/results/smt2/README.md) and [smt](bench/results/smt/README.md) (SMT-LIB instances and the comparison with
 z3, cvc5, princess and SMTInterpol, in process through their Java bindings and as separate processes) for the workloads and current results.
 
+### Documentation
+
+`sbt unidoc` generates the API documentation of the six modules as one Scaladoc site in `target/unidoc`
+(open `index.html`); CI builds it on every push and keeps it as the `api-docs` artifact.
+
 ### Playgrounds
 
 Build them, serve the output directory, and open <http://localhost:8000/classes/index.html>: an e-graph playground

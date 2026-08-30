@@ -26,3 +26,19 @@ jobs:
       - name: Benchmark dry run
         # The instance benchmarks on one instance per logic, the other solvers in process on one (princess and SMTInterpol need minutes per operation on some).
         run: bench/fetch-native.sh && sbt "bench/Jmh/run -f 1 -wi 0 -i 1 -e .*OtherSolversBench.* -e .*SmtBench.*; bench/Jmh/run -f 1 -wi 0 -i 1 -p file=QG-classification__qg5__iso_brn001.smt2,mathsat__FISCHER1-1-fair.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,wisas__xs_8_8.smt2 .*SmtBench.*; bench/Jmh/run -f 1 -wi 0 -i 1 -p instance=QG-classification__qg5__iso_brn001.smt2 -e .*princess.* -e .*smtinterpol.* .*OtherSolversBench.*"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: sbt/setup-sbt@v1
+      - name: API documentation (Scaladoc of the six modules, one site)
+        run: sbt unidoc
+      - uses: actions/upload-artifact@v4 # to be replaced by an upload to the documentation server
+        with:
+          name: api-docs
+          path: target/unidoc

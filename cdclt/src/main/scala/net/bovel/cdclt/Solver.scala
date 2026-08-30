@@ -3,7 +3,7 @@ package net.bovel.cdclt
 import scala.collection.mutable.ArrayBuffer
 
 /** A CDCL(T) solver over `numVars` variables and the clauses given to
- *  [[addClause]], with `theory` deciding the atoms.
+ *  [[Solver.addClause]], with `theory` deciding the atoms.
  *
  *  Unit propagation watches two literals per clause: a clause is visited only
  *  when one of its two watched literals becomes false, and then either another
