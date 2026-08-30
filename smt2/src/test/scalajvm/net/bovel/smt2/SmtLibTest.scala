@@ -20,8 +20,8 @@ class SmtLibTest extends munit.FunSuite:
     answers.map(_.map(if _ then "sat" else "unsat").getOrElse("unknown")).mkString(",")
 
   for file <- Corpus.files do
-    test(file):
-      val reason = ignored.get(file)
+    val reason = ignored.get(file)
+    test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):
       val outcome = Try {
         val script = Parser.parse(Corpus.read(file))
         val expected = script.expectedStatuses

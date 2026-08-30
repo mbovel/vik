@@ -68,6 +68,11 @@ lazy val smt2 = projectMatrix
   .jvmPlatform(scalaVersions = Seq(scala3Version)) // JVM-only sources in `src/main/scalajvm`: the corpus on disk
   .jsPlatform(scalaVersions = Seq(scala3Version))
 
+// The JVM tests of `smt2` (the corpus) fork with a fixed heap: the same memory budget on every machine.
+lazy val smt2JVM = smt2.jvm(scala3Version)
+smt2JVM / Test / fork := true
+smt2JVM / Test / javaOptions += "-Xmx2g"
+
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
 lazy val playground = project
   .in(file("playground"))
