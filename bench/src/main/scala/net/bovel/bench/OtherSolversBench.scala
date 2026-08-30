@@ -19,12 +19,13 @@ import net.bovel.smt2.{Corpus, Parser, Player, Printer, Script as VikScript}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
- *  receive the tree printed back to SMT-LIB text and parse it themselves
+ *  receive the file as it is and parse it themselves
  *  (`print` measures the printing alone), and `z3Direct` builds z3's AST from
  *  the tree through the Java API, the way a program would. z3 and cvc5 run
  *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
  *  native libraries of `fetch-native.sh`; every operation creates and closes
- *  its own context, as the other solvers do.
+ *  its own context, as the other solvers do. `z3Direct` builds the problem from VIK's tree, which for a
+ *  bit-vector instance is already lowered to integers: that column measures z3 on the lowered problem.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -90,14 +91,19 @@ class OtherSolversBench:
 
   @Setup(Level.Trial)
   def setup(): Unit =
-    script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
-    text = Printer.print(script)
+    text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
+    script = Parser.parse(text)
 
   @Benchmark
   def print(): Int = Printer.print(script).length
 
+  /** The solver on a problem it already holds, as a tool that builds the terms itself calls it. */
   @Benchmark
   def vik(): List[Boolean] = Player.play(script)
+
+  /** The same, from the text of the script: what the solvers that parse below are measured on. */
+  @Benchmark
+  def vikText(): List[Boolean] = Player.play(Parser.parse(text))
 
   /** Prints the tree, has princess parse the text into formulas, asserts them
    *  and checks.
@@ -106,7 +112,7 @@ class OtherSolversBench:
   def princess(): Boolean =
     val p = SimpleAPI.spawn
     try
-      p.extractSMTLIBAssertions(StringReader(Printer.print(script))).foreach(f => p.addAssertion(f))
+      p.extractSMTLIBAssertions(StringReader(text)).foreach(f => p.addAssertion(f))
       p.checkSat(true) == SimpleAPI.ProverStatus.Sat
     finally p.shutDown
 
@@ -134,7 +140,7 @@ class OtherSolversBench:
     val ctx = Context()
     try
       val solver = ctx.mkSolver()
-      solver.add(ctx.parseSMTLIB2String(Printer.print(script), null, null, null, null)*)
+      solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
       solver.check() == Status.SATISFIABLE
     finally ctx.close()
 
@@ -157,7 +163,7 @@ class OtherSolversBench:
     val solver = Cvc5Solver()
     try
       val parser = InputParser(solver)
-      parser.setStringInput(InputLanguage.SMT_LIB_2_6, Printer.print(script), "script")
+      parser.setStringInput(InputLanguage.SMT_LIB_2_6, text, "script")
       val symbols = parser.getSymbolManager
       var results = List.empty[Boolean]
       var command = parser.nextCommand()
@@ -180,7 +186,7 @@ class OtherSolversBench:
       recorder,
       OptionMap(DefaultLogger(), true)
     ).parseStream(
-      StringReader(Printer.print(script)),
+      StringReader(text),
       "script"
     ) // front-end options on; `parseScript` takes a file name
     recorder.results.reverse

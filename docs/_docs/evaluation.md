@@ -54,7 +54,55 @@ second each, average time per operation, one thread. Every operation is a comple
 build the problem, solve it — on a solver built for that call, which is what a verification tool does per
 query. The number after ± is a 95% confidence interval (Student's t over the six iterations).
 
-*The table of this run is being measured; the cold one below is complete.*
+| Instance | VIK | VIK, parsing | z3, API | z3, parsing | cvc5 | princess | SMTInterpol |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `QG-classification__qg5__iso_brn001` | 0.755 ± 0.104 | 1.448 ± 0.055 | 3.414 ± 0.102 | 2.806 ± 0.010 | 8.308 ± 0.476 | 59.956 ± 7.886 | 3.931 ± 0.060 |
+| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | 0.005 ± 0.001 | 0.030 ± 0.001 | 0.786 ± 0.001 | 0.915 ± 0.002 | 1.772 ± 0.184 | 1.143 ± 0.095 | 0.184 ± 0.015 |
+| `TypeSafe__z3.1184131` | 0.006 ± 0.001 | 0.034 ± 0.002 | 0.722 ± 0.001 | 0.843 ± 0.003 | 1.728 ± 0.191 | 2.273 ± 0.190 | 0.199 ± 0.006 |
+| `CAV_2009_benchmarks__20-vars__problem__001` | 2.373 ± 0.159 | 2.678 ± 0.111 | 2.466 ± 0.011 | 2.645 ± 0.034 | 27.763 ± 0.212 | 18.320 ± 0.814 | 1.009 ± 0.005 |
+| `dillig__20-4` | 10.055 ± 0.652 | 9.589 ± 0.088 | 2.623 ± 0.010 | 2.602 ± 0.016 | 31.916 ± 0.525 | 16.535 ± 0.939 | 1.669 ± 0.064 |
+| `prime-cone__prime_cone_unsat_3` | 0.053 ± 0.008 | 0.079 ± 0.010 | 2.013 ± 0.006 | 2.123 ± 0.012 | 3.008 ± 0.081 | 0.865 ± 0.051 | 0.290 ± 0.046 |
+| `convert__convert-tiff2jpg-query-1831` | 0.395 ± 0.016 | 0.692 ± 0.011 | 2.014 ± 0.017 | 1.781 ± 0.007 | 4.432 ± 0.681 | 8.510 ± 0.244 | 1.599 ± 0.044 |
+| `wisas__xs_8_8` | 64.909 ± 6.990 | 65.677 ± 8.306 | 5.959 ± 0.104 | 3.222 ± 0.011 | 9.429 ± 0.615 | 33.116 ± 5.622 | 4.170 ± 0.171 |
+| `TwoSquares__smtlib.598294` | 0.004 ± 0.000 | 0.018 ± 0.002 | 0.943 ± 0.003 | 1.059 ± 0.004 | 1.275 ± 0.122 | 1.841 ± 0.261 | 0.102 ± 0.002 |
+| `mathsat__Wisa__xs-09-05-2-4-4-5` | 58.435 ± 1.913 | 63.769 ± 4.213 | 6.539 ± 0.079 | 3.391 ± 0.009 | 10.957 ± 0.275 | 35.280 ± 4.909 | 8.446 ± 2.215 |
+| `20172804-Barrett__tests__v10__v10l20080.cvc` | 0.014 ± 0.001 | 0.056 ± 0.005 | 1.000 ± 0.007 | 1.100 ± 0.003 | 2.194 ± 0.249 | 17.546 ± 2.801 | 0.227 ± 0.007 |
+| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | 0.188 ± 0.023 | 0.307 ± 0.037 | 1.051 ± 0.008 | 1.151 ± 0.002 | 2.219 ± 0.207 | 10.955 ± 0.794 | 0.535 ± 0.007 |
+| `sage__app7__bench_8505` | 0.006 ± 0.001 | 0.013 ± 0.001 | — | 0.901 ± 0.005 | 0.927 ± 0.079 | 0.599 ± 0.078 | 0.060 ± 0.004 |
+| `bmc-bv__adpcm` | 0.001 ± 0.000 | 0.007 ± 0.000 | — | 0.749 ± 0.003 | 0.872 ± 0.069 | 0.171 ± 0.005 | 0.055 ± 0.007 |
+| `NEQ__NEQ004_size4` | 97.706 ± 5.225 | 93.936 ± 5.508 | 12.210 ± 0.132 | 11.128 ± 0.053 | 109.026 ± 0.716 | — | 126.407 ± 0.467 |
+
+Every solver receives the file as it is and parses it, except the column *z3 (built)*, where the problem is
+built through z3's API from VIK's syntax tree — the difference between the two z3 columns is what parsing
+costs. For a bit-vector instance that tree is already lowered to integers, so *z3 (built)* is not the same
+question there and the cell is left out.
+
+Two instances are not in this table. `pspace/ndist.a.20000` because the in-process bindings do not survive
+it: cvc5 answers `Unsupported internal sort: (_ BitVec 20000)` and SMTInterpol answers `sat` where its own
+binary answers `unsat` — the binaries are measured in the cold table instead. `NEQ004_size4` is in the table
+without princess, which needs minutes per operation on it.
+
+Read the two VIK columns together: the first is the solver on a problem it already holds, which is how a tool
+that builds the terms itself calls it, and the second adds the parsing of the script, which is what the
+columns of the solvers that parse include. The gap between them is the front end — tens of microseconds on
+the small instances.
+
+On the queries a verifier produces — the small ones, a millisecond or less — VIK is the fastest of the six,
+by one to two orders of magnitude: 5 µs where z3 takes 790 µs and cvc5 1.8 ms on `bug-1_ab_reg_max`, 1 µs
+against 750 µs and 870 µs on `bmc-bv/adpcm`. That is not a statement about the solving algorithms but about
+what a call costs: z3 and cvc5 pay a context and a JNI crossing per query, and their engines are built for
+much larger problems than these.
+
+Where the instance has real work in it, the ranking turns around, and by more than the factor of five the
+project aims at: `dillig/20-4` is 10 ms for VIK against 2.6 ms for z3, `wisas/xs_8_8` 65 ms against 3.2 ms,
+`NEQ004_size4` 98 ms against 11 ms. The two `wisas` instances are the honest worst case here — an arrangement
+of shared integer terms that grows with the square of their number — and they are in the table for that
+reason.
+
+The middle ground is where the design shows: `CAV_2009/20-vars` is a tie with z3 (2.4 ms against 2.5 ms),
+`prime_cone_unsat_3` and `convert-tiff2jpg` are three to five times faster than z3, and the datatype
+instances are one to two orders of magnitude faster than princess, which is the other solver written for the
+JVM.
 
 ## Cold: a process per question
 
@@ -108,6 +156,7 @@ finish in 30 seconds.
 ```sh
 # warm, in process: JMH, two forks, three plus three iterations
 sbt "bench/Jmh/run -f 2 -wi 3 -i 3 -rf json -rff warm.json -p file=<instances> -e .*print.* .*OtherSolversBench.*"
+python3 bench/warm2md.py warm.json
 
 # cold, one process per run: three repetitions, the median
 bench/cold.sh instances.txt 3 30 > cold.tsv
@@ -117,6 +166,8 @@ python3 bench/cold2md.py cold.tsv
 sbt "smt2Native/nativeLink; docsAssets"
 ```
 
-The raw data of this page:
+The raw data of this page, committed in the repository:
 [cold](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-cold.tsv),
-[warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm.json).
+[warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm.json),
+[warm, `NEQ004`](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm-neq.json),
+[warm, VIK with parsing](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm-vik.json).
