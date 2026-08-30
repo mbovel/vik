@@ -37,8 +37,8 @@ class BitVectorsTest extends munit.FunSuite:
     )
     assert(sat(s"$decls (assert (= (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)")) // an identity: sat for every x
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
-    intercept[Smt2Error](Parser.parse(s"$decls (assert (= (bvmul x y) #x01))"))
-    intercept[Smt2Error](Parser.parse(s"$decls (assert (= (bvor x y) #x01))"))
+    intercept[net.bovel.smt.Unsupported](Parser.parse(s"$decls (assert (= (bvmul x y) #x01))"))
+    intercept[net.bovel.smt.Unsupported](Parser.parse(s"$decls (assert (= (bvor x y) #x01))"))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.

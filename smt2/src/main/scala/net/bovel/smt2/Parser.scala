@@ -4,7 +4,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{Atom, SList}
-import net.bovel.smt.{Constructor, Datatype, Formula, Sorts, Term}
+import net.bovel.smt.{BitVectors, Constructor, Datatype, Formula, Lowering, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
@@ -20,7 +20,7 @@ import net.bovel.smt.{Constructor, Datatype, Formula, Sorts, Term}
  *  with `Int` in their signature are rejected: the solver does not combine the
  *  two theories yet.
  */
-final class Parser:
+final class Parser extends Lowering:
   import Formula.*
 
   private enum Value:

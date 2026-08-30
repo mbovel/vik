@@ -69,4 +69,4 @@ final case class Script(commands: List[Command]):
         case _ => ()
     out.result()
 
-case class Smt2Error(message: String) extends Exception(message)
+case class Smt2Error(message: String) extends net.bovel.smt.Unsupported(message)
