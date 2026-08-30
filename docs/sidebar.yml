@@ -1,0 +1,5 @@
+subsection:
+  - title: A tour of the solver
+    page: guide.md
+  - title: Algebraic datatypes, as rules of the e-graph
+    page: adt-plan.md

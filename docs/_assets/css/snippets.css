@@ -1,0 +1,28 @@
+/* The Run button of a snippet and the answers it prints (see js/snippets.js). */
+.snippet-run {
+  background: var(--code-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.6rem;
+}
+
+.snippet-run:hover {
+  background: var(--border-light);
+}
+
+.snippet-run:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.snippet-output {
+  background: var(--code-bg);
+  border-left: 3px solid var(--border-medium);
+  margin: -0.6rem 0 1rem;
+  padding: 0.5rem 0.8rem;
+  white-space: pre-wrap;
+}

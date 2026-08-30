@@ -5,3 +5,4 @@ target
 .venv
 bench/native/
 smtlib/.import/
+docs/_assets/js/vik/

@@ -82,6 +82,18 @@ smt2JVM / Test / javaOptions += "-Xmx2g"
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
 import org.scalajs.linker.interface.ESVersion
 
+// The solver as a WebAssembly module for the runnable snippets of the documentation (see the `site` task).
+lazy val docsPlayground = project
+  .in(file("docsPlayground"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(smt2.js(scala3Version))
+  .settings(
+    name := "docsPlayground",
+    scalaJSLinkerConfig ~= {
+      _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule)
+    }
+  )
+
 lazy val playground = project
   .in(file("playground"))
   .enablePlugins(ScalaJSPlugin)
@@ -154,6 +166,11 @@ smt2JS / scalaJSLinkerConfig ~=
 // Scala Native: the same sources again, with a `Native` suffix (clang: on the path, or `LLVM_BIN`).
 
 // The API documentation of the six modules (their JVM rows) as one site: `sbt unidoc`, in `target/unidoc`.
+lazy val docsAssets = taskKey[Unit]("The solver as a WebAssembly module for the runnable snippets of the site")
+
+// The documentation site: the solver linked for the snippets, then the pages of `docs/` and the API documentation.
+addCommandAlias("site", "docsAssets; unidoc")
+
 lazy val root = (project in file("."))
   .enablePlugins(ScalaUnidocPlugin)
   .aggregate(
@@ -176,7 +193,18 @@ lazy val root = (project in file("."))
       smt2.jvm(scala3Version)
     ),
     ScalaUnidoc / unidoc / target := file("target/unidoc"),
+    // The solver, linked to WebAssembly into `docs/_assets/js/vik/`, where the pages of the site load it from.
+    docsAssets := Def.uncached { // the linker's report has no hash for sbt's cache; the linker caches by itself
+      val linked = (docsPlayground / Compile / fullLinkJS).value.data.publicModules.head
+      val directory = (docsPlayground / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
+      val destination = file("docs") / "_assets" / "js" / "vik"
+      IO.delete(destination)
+      IO.copyDirectory(directory, destination)
+      streams.value.log.info(s"the solver (${linked.jsFileName}) is linked into $destination")
+    },
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
+      "-siteroot",
+      "docs",
       "-project-version",
       version.value,
       "-source-links:github://mbovel/vik/main",

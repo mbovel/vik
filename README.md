@@ -25,6 +25,7 @@ kept (see the [benchmarks](#benchmarks)), and several measured wins were dropped
 | `sexpr` | The S-expression lexer and parser used by `smt2`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
 | `playground` | Two browser pages (Scala.js, linked to WebAssembly): an e-graph playground and an SMT-LIB playground. |
+| `docsPlayground` | The solver as a WebAssembly module (`solve`, `lower`), for the runnable snippets of the documentation site. |
 | `bench` | The JMH benchmarks of every module and the comparison with other solvers, with results per module. |
 
 ## Usage
@@ -179,7 +180,7 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Event log and per-class atom lists for theory propagation | ✗ | 1.8× on one instance, nothing elsewhere, 85 subtle lines: removed for readability ([`6badd0f`](https://github.com/mbovel/vik/commit/6badd0f) → [`bf015d6`](https://github.com/mbovel/vik/commit/bf015d6), [measurements](bench/results/smt/2026-08-29-laraserver4-scan.md)) |
 | Cached node hashes | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-cached-hash.md) |
 | Union-tree edges as flat arrays | ✗ | [no gain](bench/results/egraph/2026-08-28-laraserver4-flat-edges.md) |
-| Rules: callbacks on added nodes and merges, derived equalities with premises as justification, contradictions, a final check | ✓ | [docs/adt-plan.md](docs/adt-plan.md); the datatype theory is such a rule set |
+| Rules: callbacks on added nodes and merges, derived equalities with premises as justification, contradictions, a final check | ✓ | [docs/_docs/adt-plan.md](docs/_docs/adt-plan.md); the datatype theory is such a rule set |
 
 ### `smt`: datatypes (`AdtRules`)
 
@@ -275,8 +276,20 @@ z3, cvc5, princess and SMTInterpol, in process through their Java bindings and a
 
 ### Documentation
 
-`sbt unidoc` generates the API documentation of the six modules as one Scaladoc site in `target/unidoc`
-(open `index.html`); CI builds it on every push and keeps it as the `api-docs` artifact.
+`sbt site` generates the documentation site in `target/unidoc`: the guide of [docs/_docs](docs/_docs) and the
+API documentation of the six modules, as one Scaladoc site. The guide's SMT-LIB snippets run in the reader's
+browser: the `docsPlayground` module is linked to WebAssembly (780 kB) into `docs/_assets/js/vik/`, and
+[docs/_assets/js/snippets.js](docs/_assets/js/snippets.js) gives every `smt2` block a Run button (the snippets
+are editable). Serve the output directory to read it — the WebAssembly module is fetched, so `file://` will not
+do:
+
+```sh
+sbt site
+python3 -m http.server --directory target/unidoc 8000
+```
+
+CI builds the site on every push, keeps it as the `docs` artifact, and uploads it to the documentation server
+(`/vik`, over FTP, with `FTP_HOST`, `FTP_USER` and `FTP_PASS` as repository secrets).
 
 ### Playgrounds
 
