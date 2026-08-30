@@ -4,5 +4,23 @@ subsection:
     page: getting-started.md
   - title: A tour of the solver
     page: guide.md
-  - title: Algebraic datatypes, as rules of the e-graph
+  - title: Theories
+    index: theories/index.md
+    subsection:
+      - page: theories/first-order-logic.md
+      - page: theories/uninterpreted-functions.md
+      - page: theories/integers.md
+      - page: theories/datatypes.md
+      - page: theories/bit-vectors.md
+      - page: theories/lambdas.md
+  - title: Components
+    index: components/index.md
+    subsection:
+      - page: components/egraph.md
+      - page: components/cdclt.md
+      - page: components/lia.md
+      - page: components/front-end.md
+  - title: Evaluation
+    page: evaluation.md
+  - title: Design notes
     page: adt-plan.md

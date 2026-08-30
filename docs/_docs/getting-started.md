@@ -1,58 +1,25 @@
 ---
-title: A tour of the solver
+title: Getting started
 extraJS:
   - js/snippets.js
 extraCSS:
   - css/snippets.css
 ---
 
-# A tour of the solver
+# Getting started
 
-Every script below runs in your browser. They are editable: change one and press **Run** again.
+## SMT-LIB scripts
 
-## Uninterpreted functions
+VIK reads [SMT-LIB 2](https://smt-lib.org) scripts and answers the `check-sat` commands, one line each:
 
-Congruence: equal arguments give equal results, and that is all the solver assumes about `f`.
-
-```smt2
-(declare-sort U 0)
-(declare-fun f (U U) U)
-(declare-const a U)
-(declare-const b U)
-(assert (= a b))
-(assert (not (= (f a b) (f b a))))
-(check-sat)
+```sh
+sbt "smt2/run problem.smt2"
 ```
 
-## Linear integer arithmetic
-
-Bounds on linear combinations, decided by a simplex over the integers with branch and bound.
+The same on a script you write here — press **Run**:
 
 ```smt2
-(declare-const x Int)
-(declare-const y Int)
-(assert (<= (+ (* 2 x) (* 3 y)) 10))
-(assert (>= (+ x y) 4))
-(assert (>= x 0))
-(assert (>= y 0))
-(check-sat)
-```
-
-Integrality matters: the same system over the rationals has a solution, over the integers it does not.
-
-```smt2
-(declare-const x Int)
-(assert (< (* 2 x) 3))
-(assert (> (* 2 x) 1))
-(check-sat)
-```
-
-## Functions over integers
-
-The two theories exchange what they know about the terms they share: here `x = y` follows from arithmetic, and
-congruence then equates the two applications.
-
-```smt2
+(set-logic QF_UFLIA)
 (declare-fun f (Int) Int)
 (declare-const x Int)
 (declare-const y Int)
@@ -62,79 +29,13 @@ congruence then equates the two applications.
 (check-sat)
 ```
 
-## Algebraic datatypes
+The front end supports what the theories below support: `declare-sort`, `declare-fun`, `declare-const`,
+`define-fun`, `declare-datatype(s)`, `assert`, `check-sat`, `check-sat-assuming`, `push`, `pop`,
+`reset-assertions`, `reset`, `set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
+not supported (reals, strings, arrays, sets, floating point) are refused rather than read as uninterpreted
+sorts, so a script is never answered on a meaning VIK does not implement.
 
-Constructors are injective and distinct, selectors and testers follow them, and no value contains itself.
-
-```smt2
-(declare-datatype List ((nil) (cons (head Int) (tail List))))
-(declare-const l List)
-(assert (= l (cons 1 (cons 2 nil))))
-(assert (= (head (tail l)) 3))
-(check-sat)
-```
-
-```smt2
-(declare-datatype List ((nil) (cons (head Int) (tail List))))
-(declare-const l List)
-(assert (= l (cons 1 l)))
-(check-sat)
-```
-
-## Lambdas
-
-Functions are values: `(-> Int Int)` is a sort, `lambda` makes a function, and applying one reduces it.
-
-```smt2
-(declare-fun f (Int) Int)
-(declare-const g (-> Int Int))
-(assert (= g (lambda ((x Int)) (+ (f x) 1))))
-(assert (not (= (g 2) (+ (f 2) 1))))
-(check-sat)
-```
-
-Two lambdas with the same body are the same function, whatever their parameters are called, and a function
-that differs from another differs on some argument (extensionality).
-
-```smt2
-(declare-fun f (Int) Int)
-(assert (not (= (lambda ((x Int)) (f x)) (lambda ((y Int)) (f y)))))
-(check-sat)
-```
-
-## Bit-vectors, without bit-blasting
-
-The arithmetic fragment of `QF_BV` is lowered to integers: additions modulo, comparisons, masks, `extract`,
-`concat`, extensions. Wide vectors cost no more than narrow ones.
-
-```smt2
-(set-logic QF_BV)
-(declare-const a (_ BitVec 64))
-(declare-const b (_ BitVec 64))
-(assert (bvult a b))
-(assert (bvult b a))
-(check-sat)
-```
-
-## Incremental use
-
-`push` and `pop` keep the work done so far; each `check-sat` answers the assertions of the levels below it.
-
-```smt2
-(declare-const x Int)
-(assert (> x 0))
-(check-sat)
-(push 1)
-(assert (< x 0))
-(check-sat)
-(pop 1)
-(check-sat)
-```
-
-## Budgets
-
-A `check-sat` answers `unknown` when it runs out of fuel — a number of solver steps, so the answer is the same
-on every machine — and `(get-info :reason-unknown)` says why.
+Two options bound the search, and are answered honestly when they stop it:
 
 ```smt2
 (set-option :rlimit 1)
@@ -146,3 +47,58 @@ on every machine — and `(get-info :reason-unknown)` says why.
 (check-sat)
 (get-info :reason-unknown)
 ```
+
+`:rlimit` is a number of solver steps — a decision or a conflict of the SAT search, a pivot, a bound
+propagation or a branch of the arithmetic — so the same script gives the same answer on every machine;
+`:timeout` is milliseconds, for interactive use. Both answer `unknown`, with `resourceout` or `timeout` as
+the reason.
+
+To run the solver as a native binary or on Node.js, see [the evaluation](evaluation.md), which measures all
+three.
+
+## The Scala API
+
+The solver is a library first. Terms and formulas are built directly, and the answers come back as values:
+
+```scala
+import net.bovel.smt.*
+import net.bovel.smt.Formula.*
+import net.bovel.smt.Term.*
+
+val solver = Solver()
+solver.declare("f", List("Int"), "Int")
+solver.declare("x", Nil, "Int")
+solver.declare("y", Nil, "Int")
+
+val (x, y) = (Const("x"), Const("y"))
+def f(t: Term) = App(Const("f"), List(t))
+
+solver.assert(x <= y)
+solver.assert(y <= x)
+solver.assert(f(x) !== f(y))
+solver.solve() // Unsat
+```
+
+`push()` and `pop()` frame the assertions that change between two questions, which is what a verifier does
+with a path condition:
+
+```scala
+solver.push()
+solver.assert(x < y)
+solver.solve() // decided with the assertions of both levels
+solver.pop()   // back to what was asserted before the push
+```
+
+`solve(fuel)` bounds the search in steps and answers `Result.Unknown(Reason.Fuel)` beyond it;
+`solve(keepGoing)` takes the decision itself, so a deadline or a cancellation is a function you write.
+
+Sorts are strings, as in SMT-LIB: `"Int"`, `"Bool"`, an uninterpreted sort you declared, a datatype you
+declared, or a function sort `"(-> Int Int)"`. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
+the companion adds `Lt`, `Ge`, `Gt`, `IntEq`, `Distinct`; the operators `===`, `!==`, `<=`, `<`, `>=`, `>`,
+`+`, `-`, `*` build terms and formulas as they read.
+
+VIK is modular, and each layer is usable without the ones above it — the
+[e-graph](components/egraph.md) for congruence closure, the [CDCL(T) solver](components/cdclt.md) for a SAT
+problem with a theory of your own, the [LIA solver](components/lia.md) for a system of integer constraints,
+the [front end](components/front-end.md) to read and print SMT-LIB. Each of those pages shows its API, and
+the [API documentation](api/index.html) has the details.
