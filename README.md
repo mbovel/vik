@@ -225,6 +225,7 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Dutertre–de Moura simplex: tableau built once, bounds as the only backtracked state, Bland's rule | ✓ | |
 | Integers only: bounds tightened by the gcd of an expression, no δ-rationals | ✓ | |
 | Branch and bound, iterative, explanations combined across branches | ✓ | |
+| Disequalities `x ≠ c`, decided at the final check by branching `x ≤ c − 1 ∨ x ≥ c + 1` | ✓ | for the equality atoms of shared terms |
 | Bound propagation, incremental over the tightened variables | ✓ | [2–4× slower on random systems, decisive on SMT-LIB instances](bench/results/lia/2026-08-29-laraserver4-propagation.md) |
 | `Long` fast path for rationals | ✓ | [1.4–1.6×](bench/results/lia/2026-08-29-laraserver4-experiments.md) |
 | Branching on the most fractional unknown | ✗ | [mixed](bench/results/lia/2026-08-29-laraserver4-experiments.md) |

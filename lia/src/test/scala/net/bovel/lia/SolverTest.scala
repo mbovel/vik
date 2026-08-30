@@ -8,10 +8,10 @@ class SolverTest extends munit.FunSuite:
   /** A bound on the value of an expression: `Σ coefficients × variables ⋈ c`,
    *  as a test-side description.
    */
-  case class Constraint(terms: List[(BigInt, Int)], isUpper: Boolean, c: BigInt):
+  case class Constraint(terms: List[(BigInt, Int)], isUpper: Boolean, c: BigInt, distinct: Boolean = false):
     def holds(assignment: Int => BigInt): Boolean =
       val v = terms.map((a, x) => a * assignment(x)).sum
-      if isUpper then v <= c else v >= c
+      if distinct then v != c else if isUpper then v <= c else v >= c
 
   /** Asserts the constraints with their index as reason, over `n` variables. */
   def solverOf(n: Int, constraints: List[Constraint]): (Solver, Result) =
@@ -22,7 +22,10 @@ class SolverTest extends munit.FunSuite:
       val x = k.terms match
         case (a, x) :: Nil if a == 1 => vars(x)
         case terms => solver.newSlack(terms.map((a, x) => (a, vars(x))))
-      val r = if k.isUpper then solver.assertUpper(x, k.c, i) else solver.assertLower(x, k.c, i)
+      val r =
+        if k.distinct then solver.assertDistinct(x, k.c, i)
+        else if k.isUpper then solver.assertUpper(x, k.c, i)
+        else solver.assertLower(x, k.c, i)
       if r != Result.Sat && result == Result.Sat then result = r
     (solver, result)
 
@@ -83,7 +86,8 @@ class SolverTest extends munit.FunSuite:
           case t => t
         ,
         rnd.nextBoolean(),
-        rnd.nextInt(2 * box + 1) - box
+        rnd.nextInt(2 * box + 1) - box,
+        rnd.nextInt(4) == 0
       )
     bounds.toList ++ others
 
@@ -132,7 +136,10 @@ class SolverTest extends munit.FunSuite:
         var result: Result = Result.Sat
         for (k, i) <- more.zipWithIndex do
           val x = solver.newSlack(k.terms)
-          val r = if k.isUpper then solver.assertUpper(x, k.c, 100 + i) else solver.assertLower(x, k.c, 100 + i)
+          val r =
+            if k.distinct then solver.assertDistinct(x, k.c, 100 + i)
+            else if k.isUpper then solver.assertUpper(x, k.c, 100 + i)
+            else solver.assertLower(x, k.c, 100 + i)
           if r != Result.Sat && result == Result.Sat then result = r
         if result == Result.Sat then result = solver.check()
         assertEquals(result.isInstanceOf[Result.Sat.type], bruteForce(n, 3, base ++ more), s"round $round")

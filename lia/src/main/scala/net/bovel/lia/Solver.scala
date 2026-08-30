@@ -16,10 +16,23 @@ object Solver:
      */
     case Unsat(reasons: Set[Int])
 
-  /** A bound on a variable: its value (an integer) and the reasons it follows
-   *  from, one for an asserted bound, their union for a derived one.
+  /** A bound on a variable: its value (an integer) and why it holds: the reason
+   *  it was asserted with, or the bounds it was derived from (`premises`, see
+   *  `propagateBounds`). The reasons of a derived bound, the union of those of
+   *  its premises, are collected only when a conflict needs them: derivations
+   *  are many, conflicts few.
    */
-  private final case class Bound(value: Rational, reasons: Set[Int])
+  private final class Bound(val value: Rational, val reason: Int, val premises: Array[Bound]):
+    def reasons: Set[Int] =
+      val literals = Set.newBuilder[Int]
+      val seen = scala.collection.mutable.HashSet.empty[Bound] // premises are shared: a graph, not a tree
+      val todo = ArrayBuffer(this)
+      while todo.nonEmpty do
+        val bound = todo.remove(todo.length - 1)
+        if seen.add(bound) then
+          if bound.premises.isEmpty then literals += bound.reason
+          else todo ++= bound.premises
+      literals.result()
 
   /** A bound replaced inside a level: the variable, the side, the old bound. */
   private final case class Undo(x: Var, isUpper: Boolean, old: Bound | Null)
@@ -27,7 +40,14 @@ object Solver:
   /** An open branch of branch and bound on `x`: its two bounds, its reason, and
    *  the explanation of its failed left side once on the right side.
    */
-  private final case class Branch(x: Var, floor: BigInt, ceil: BigInt, reason: Int, var left: Set[Int] | Null = null)
+  private final case class Branch(
+      x: Var,
+      floor: BigInt,
+      ceil: BigInt,
+      reason: Int,
+      because: Set[Int], // the reasons of the disequality the branch decides, if any: part of its explanation
+      var left: Set[Int] | Null = null
+  )
 
 /** A solver for conjunctions of bounds on integer linear expressions
  *  (quantifier-free linear integer arithmetic), after Dutertre and de Moura, "A
@@ -77,10 +97,15 @@ final class Solver:
   private val scale = ArrayBuffer.empty[BigInt]
 
   private val trail = ArrayBuffer.empty[Undo]
-  private val levels = ArrayBuffer.empty[Int]
+  private val levels = ArrayBuffer.empty[(Int, Int)] // the lengths of `trail` and `distinct` at each push
 
   /** Variables whose bounds tightened since the last bound propagation. */
   private val tightened = ArrayBuffer.empty[Var]
+
+  /** The values variables must not take, with the reasons (see
+   *  [[assertDistinct]]).
+   */
+  private val distinct = ArrayBuffer.empty[(Var, BigInt, Int)] // in the caller's units (see `scale`)
 
   /** Reasons of the branches of the current branch and bound search: negative
    *  (never a caller's), and removed from the explanations they contribute to.
@@ -144,22 +169,39 @@ final class Solver:
    *  the feasibility of the whole to [[check]].
    */
   def assertUpper(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Rational(floorDiv(c, scale(x))), Set(reason), true)
+    assertBound(x, Bound(Rational(floorDiv(c, scale(x))), reason, Array.empty), true)
 
   /** Asserts `x ≥ c` for `reason`, as [[assertUpper]]. */
   def assertLower(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Rational(-floorDiv(-c, scale(x))), Set(reason), false)
+    assertBound(x, Bound(Rational(-floorDiv(-c, scale(x))), reason, Array.empty), false)
+
+  /** Asserts `x ≠ c` (for a slack, that its combination is not `c`): a
+   *  disequality is decided by [[check]], which branches on `x ≤ c − 1` or
+   *  `x ≥ c + 1` when the assignment violates it; it fails at once only against
+   *  bounds fixing `x` to `c`.
+   */
+  def assertDistinct(x: Var, c: BigInt, reason: Int): Result =
+    if c.mod(scale(x)) != 0 then Result.Sat // a combination never takes a value its gcd does not divide
+    else
+      val v = Rational(c / scale(x))
+      val l = lower(x)
+      val u = upper(x)
+      if l != null && u != null && l.value == v && u.value == v then Result.Unsat(l.reasons ++ u.reasons + reason)
+      else
+        distinct += ((x, c, reason))
+        Result.Sat
 
   private def floorDiv(a: BigInt, b: BigInt): BigInt = (a - a.mod(b)) / b
 
-  private def assertBound(x: Var, c: Rational, reasons: Set[Int], isUpper: Boolean): Result =
+  private def assertBound(x: Var, bound: Bound, isUpper: Boolean): Result =
+    val c = bound.value
     val same = if isUpper then upper(x) else lower(x)
     val opposite = if isUpper then lower(x) else upper(x)
     if same != null && (if isUpper then same.value <= c else same.value >= c) then return Result.Sat // not tighter
     if opposite != null && (if isUpper then c < opposite.value else c > opposite.value) then
-      return Result.Unsat(reasons ++ opposite.reasons)
+      return Result.Unsat(bound.reasons ++ opposite.reasons)
     if levels.nonEmpty then trail += Undo(x, isUpper, same)
-    if isUpper then upper(x) = Bound(c, reasons) else lower(x) = Bound(c, reasons)
+    if isUpper then upper(x) = bound else lower(x) = bound
     if rows(x) == null && (if isUpper then values(x) > c else values(x) < c) then update(x, c)
     tightened += x
     Result.Sat
@@ -171,9 +213,9 @@ final class Solver:
    *  the rows mentioning a variable whose bound tightened since the last
    *  propagation are visited, the derived bounds queueing their rows in turn, a
    *  bounded number of times per variable, since a cyclic system can tighten
-   *  forever; the simplex decides the rest. The reasons of a derived bound are
-   *  those of every bound used (for a variable of the row, its own bound is
-   *  included as well: simpler, and still sound).
+   *  forever; the simplex decides the rest. The premises of a derived bound are
+   *  every bound used (for a variable of the row, its own bound is included as
+   *  well: simpler, and still sound).
    */
   private def propagateBounds(): Result = boundary:
     val visits = new Array[Int](numVars) // rows visited per basic variable, to bound the work
@@ -201,36 +243,37 @@ final class Solver:
     var high = Rational.zero
     var lowMissing = 0
     var highMissing = 0
-    var lowReasons = Set.empty[Int]
-    var highReasons = Set.empty[Int]
+    val lowPremises = ArrayBuffer.empty[Bound]
+    val highPremises = ArrayBuffer.empty[Bound]
     for (j, a) <- row do
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       if forLow == null then lowMissing += 1
       else
         low = low + a * forLow.value
-        lowReasons = lowReasons ++ forLow.reasons
+        lowPremises += forLow
       if forHigh == null then highMissing += 1
       else
         high = high + a * forHigh.value
-        highReasons = highReasons ++ forHigh.reasons
-    def derive(x: Var, c: Rational, reasons: Set[Int], isUpper: Boolean): Unit =
-      assertBound(x, Rational(if isUpper then c.floor else c.ceil), reasons, isUpper) match
+        highPremises += forHigh
+    def derive(x: Var, c: Rational, premises: Array[Bound], isUpper: Boolean): Unit =
+      assertBound(x, Bound(Rational(if isUpper then c.floor else c.ceil), -1, premises), isUpper) match
         case Result.Sat => ()
         case unsat => break(unsat)
-    if lowMissing == 0 then derive(b, low, lowReasons, false)
-    if highMissing == 0 then derive(b, high, highReasons, true)
+    if lowMissing == 0 then derive(b, low, lowPremises.toArray, false)
+    if highMissing == 0 then derive(b, high, highPremises.toArray, true)
     // a × x_j = b − (the rest of the row), bounded by a bound of b and the lowest or highest value of the rest.
     val u = upper(b)
     val l = lower(b)
+    val withUpper = if u != null then (lowPremises += u).toArray else Array.empty[Bound]
+    val withLower = if l != null then (highPremises += l).toArray else Array.empty[Bound]
     for (j, a) <- row do
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
-      if u != null && lowMissing == 0 then
-        derive(j, (u.value - low + a * forLow.nn.value) / a, u.reasons ++ lowReasons, a.signum > 0)
+      if u != null && lowMissing == 0 then derive(j, (u.value - low + a * forLow.nn.value) / a, withUpper, a.signum > 0)
       if l != null && highMissing == 0 then
-        derive(j, (l.value - high + a * forHigh.nn.value) / a, l.reasons ++ highReasons, a.signum < 0)
+        derive(j, (l.value - high + a * forHigh.nn.value) / a, withLower, a.signum < 0)
     Result.Sat
 
   /** Sets the non-basic `x` to `v`, updating the basic variables. */
@@ -281,15 +324,22 @@ final class Solver:
   def check(): Result =
     val open = ArrayBuffer.empty[Branch]
 
-    /** Decides the relaxation and splits on the first fractional unknown. */
+    /** Decides the relaxation and splits on the first fractional unknown, or
+     *  else on the first violated disequality.
+     */
     def step(): Result | Branch = checkRelaxation() match
       case Result.Sat =>
         var x = 0
         while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
-        if x == numVars then Result.Sat
-        else
+        if x < numVars then
           branches += 1
-          Branch(x, values(x).floor, values(x).ceil, -branches)
+          Branch(x, values(x).floor, values(x).ceil, -branches, Set.empty)
+        else
+          distinct.find((x, c, _) => values(x) * Rational(scale(x)) == Rational(c)) match
+            case Some((x, c, reason)) =>
+              branches += 1
+              Branch(x, c - scale(x), c + scale(x), -branches, Set(reason))
+            case None => Result.Sat
       case unsat => unsat
     var current: Result | Branch = step()
     while true do
@@ -309,7 +359,7 @@ final class Solver:
               case unsat => unsat
           else // both sides failed
             open.remove(open.length - 1)
-            current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason)
+            current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
         case branch: Branch =>
           open += branch
           push()
@@ -367,12 +417,13 @@ final class Solver:
   /** The number of open levels. */
   def level: Int = levels.length
 
-  def push(): Unit = levels += trail.length
+  def push(): Unit = levels += ((trail.length, distinct.length))
 
-  /** Removes the bounds asserted since the last [[push]]. */
+  /** Removes the bounds and disequalities asserted since the last [[push]]. */
   def pop(): Unit =
     require(levels.nonEmpty, "pop without a matching push")
-    val mark = levels.remove(levels.length - 1)
+    val (mark, distinctMark) = levels.remove(levels.length - 1)
+    distinct.takeInPlace(distinctMark)
     while trail.length > mark do
       val undo = trail.remove(trail.length - 1)
       if undo.isUpper then upper(undo.x) = undo.old else lower(undo.x) = undo.old
