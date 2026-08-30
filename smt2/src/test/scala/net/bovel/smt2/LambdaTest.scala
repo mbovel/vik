@@ -23,9 +23,15 @@ class LambdaTest extends munit.FunSuite:
     val asserts = script.commands.collect { case Command.Assert(a) => a }
     assertEquals(asserts(0), Eq(Const("g"), Lambda(List("Int"), App(f, List(Var(0), Num(1))))))
     assertEquals(asserts(1), Eq(Const("h"), Lambda(List("Int"), Lambda(List("Int"), App(f, List(Var(0), Var(1)))))))
-    assertEquals(asserts(2), IntEq(App(Const("g"), List(Num(0))), App(App(Const("h"), List(Num(1))), List(Num(2)))))
+    assertEquals(
+      asserts(2),
+      IntEq(App(Const("g"), List(Num(0))), App(Const("h"), List(Num(1), Num(2))))
+    ) // `(h 1 2)` is `((h 1) 2)`
     assertEquals(script.commands(1), Command.DeclareFun("g", List("Int"), "Int")) // a function symbol
-    assertEquals(script.commands(2), Command.DeclareFun("h", List("Int"), "(-> Int Int)"))
+    assertEquals(
+      script.commands(2),
+      Command.DeclareFun("h", List("Int", "Int"), "Int")
+    ) // `(-> Int (-> Int Int))`, flattened
     assert(Printer.print(script).contains("(lambda ((%0 Int)) (lambda ((%1 Int)) (f %1 %0)))"))
     assertEquals(Parser.parse(Printer.print(script)), script)
 
@@ -75,7 +81,7 @@ class LambdaTest extends munit.FunSuite:
         (push) (assert (not (= ((k 5) 3) 2))) (check-sat) (pop)
         (push) (assert (not (= (k 5 3) 2))) (check-sat) (pop)
         (push) (assert (= (k 5 3) (k 4 3))) (check-sat) (pop)
-        (declare-const g (-> Int Int))
+        (declare-const g (-> Int (-> Int Int)))
         (assert (= g (lambda ((x Int)) (let ((y (f x))) (lambda ((z Int)) (- y z))))))
         (push) (assert (not (= (g 3 1) (- (f 3) 1)))) (check-sat) (pop)"""),
       List(false, false, false, false)

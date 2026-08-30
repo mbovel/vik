@@ -23,12 +23,20 @@ enum Term:
   case Lambda(sorts: List[String], body: Term)
   case Var(index: Int)
 
+  /** A formula where a term is expected (an argument, a lambda body, a field):
+   *  a `Bool`-sorted term. Made by [[Term.boolean]], which keeps a term that is
+   *  already one (`Pred(t)` is `t`). The encoder gives it a class and ties its
+   *  truth to the formula's.
+   */
+  case Bool(formula: Formula)
+
   override def toString: String = this match
     case Const(name) => name
     case App(fun, args) => s"($fun ${args.mkString(" ")})"
     case Num(value) => value.toString
     case Lambda(sorts, body) => s"(λ${sorts.mkString(" ")}. $body)"
     case Var(index) => s"_$index"
+    case Bool(formula) => formula.toString
     case Linear(terms, constant) =>
       terms.map((a, t) => if a == 1 then s"$t" else s"${a}·$t").mkString(" + ") +
         (if constant.signum == 0 then "" else s" + $constant")
@@ -59,20 +67,38 @@ object Term:
    *  and no rule concludes from the equality of two lambdas to that of their
    *  bodies. And every rule preserves it: congruence, the datatype rules (`C(a) =
    *  C(b)` gives `a = b`, `sel(C(a)) = a`, ... for all `a`, `b`) and the lemmas
-   *  (valid for functions). So `unsat` is sound for the usual (extensional)
-   *  functions; what `sat` misses is extensionality: `λx. f(x) = λx. g(x)` does
-   *  not give `f(1) = g(1)`, nor `λx. f(x) = f`.
+   *  (valid for functions). Extensionality — `f ≠ g` gives some `c` with
+   *  `f(c) ≠ g(c)` — is a lemma of the encoder for the equalities of the
+   *  assertions, with fresh witnesses (`Encoder.assertExtensionality`).
    */
-  /** `fun` applied to `args`, reduced when `fun` is a lambda and the arguments
-   *  are closed.
+  /** `fun` applied to `args`, in canonical form: an application of an
+   *  application is one application (`(f a) b` is `f a b`, as in SMT-LIB), and
+   *  a lambda applied to closed arguments is reduced — to fewer arguments than
+   *  parameters, to a lambda of the remaining ones.
    */
-  def app(fun: Term, args: List[Term]): Term = fun match
-    case lambda: Lambda if lambda.sorts.length == args.length && args.forall(closed(_)) => instantiate(lambda, args)
-    case _ => App(fun, args)
+  def app(fun: Term, args: List[Term]): Term =
+    if args.isEmpty then fun
+    else
+      fun match
+        case App(f, as) => app(f, as ++ args)
+        case lambda: Lambda if args.forall(closed(_)) =>
+          val n = lambda.sorts.length
+          if args.length <= n then instantiate(lambda, args)
+          else app(instantiate(lambda, args.take(n)), args.drop(n))
+        case _ => App(fun, args)
 
+  /** A formula as a term: `Pred(t)` is `t` itself. */
+  def boolean(formula: Formula): Term = formula match
+    case Formula.Pred(t) => t
+    case _ => Bool(formula)
+
+  /** The body of `lambda` with its first parameters replaced by `args`
+   *  (closed): the whole body when there are as many arguments as parameters, a
+   *  lambda of the remaining parameters otherwise.
+   */
   def instantiate(lambda: Lambda, args: List[Term]): Term =
-    val params = lambda.sorts.length
-    require(args.length == params && args.forall(closed(_)), "closed arguments, as many as parameters")
+    val params = args.length
+    require(params <= lambda.sorts.length && args.forall(closed(_)), "closed arguments, at most as many as parameters")
     def subst(t: Term, depth: Int): Term = t match
       case Var(i) if i >= depth && i < depth + params => args(i - depth)
       case Var(i) if i >= depth + params => Var(i - params)
@@ -80,7 +106,10 @@ object Term:
       case App(f, as) => app(subst(f, depth), as.map(subst(_, depth)))
       case Linear(terms, c) => Term.linear(terms.map((a, u) => (a, subst(u, depth))), c)
       case Lambda(sorts, body) => Lambda(sorts, subst(body, depth + sorts.length))
-    subst(lambda.body, 0)
+      case Bool(formula) => boolean(formula.mapTerms(subst(_, depth)))
+    val body = subst(lambda.body, 0) // the remaining parameters become `Var(0)`, `Var(1)`, ...
+    val rest = lambda.sorts.drop(params)
+    if rest.isEmpty then body else Lambda(rest, body)
 
   /** `t` with the indices of its free variables raised by `k`: `t` moved under
    *  `k` more binders.
@@ -94,6 +123,7 @@ object Term:
         case App(f, as) => App(shift(f, k, depth), as.map(shift(_, k, depth)))
         case Linear(terms, c) => Term.linear(terms.map((a, u) => (a, shift(u, k, depth))), c)
         case Lambda(sorts, body) => Lambda(sorts, shift(body, k, depth + sorts.length))
+        case Bool(formula) => boolean(formula.mapTerms(shift(_, k, depth)))
 
   /** Whether `t` mentions no bound variable of an enclosing lambda. */
   def closed(t: Term, depth: Int = 0): Boolean = t match
@@ -102,6 +132,7 @@ object Term:
     case App(f, as) => closed(f, depth) && as.forall(closed(_, depth))
     case Linear(terms, _) => terms.forall((_, u) => closed(u, depth))
     case Lambda(sorts, body) => closed(body, depth + sorts.length)
+    case Bool(formula) => formula.terms.forall(closed(_, depth))
 
   /** The linear combination `Σ a × t + c`, normalized: nested combinations and
    *  numerals folded in, equal terms merged, zero coefficients dropped; a
@@ -146,6 +177,35 @@ enum Formula:
   private lazy val hash: Int = MurmurHash3.productHash(this)
   override def hashCode: Int = hash
 
+  /** The terms at the leaves: the sides of `Eq` and `Le`, the term of `Pred`.
+   */
+  def terms: List[Term] = this match
+    case True | False => Nil
+    case Not(arg) => arg.terms
+    case And(args) => args.flatMap(_.terms)
+    case Or(args) => args.flatMap(_.terms)
+    case Implies(lhs, rhs) => lhs.terms ++ rhs.terms
+    case Iff(lhs, rhs) => lhs.terms ++ rhs.terms
+    case Ite(cond, thn, els) => cond.terms ++ thn.terms ++ els.terms
+    case Eq(lhs, rhs) => List(lhs, rhs)
+    case Pred(term) => List(term)
+    case Le(lhs, rhs) => List(lhs, rhs)
+
+  /** The formula with `f` applied to the terms at the leaves (a `Pred` of a
+   *  Boolean term becomes its formula).
+   */
+  def mapTerms(f: Term => Term): Formula = this match
+    case True | False => this
+    case Not(arg) => Not(arg.mapTerms(f))
+    case And(args) => And(args.map(_.mapTerms(f)))
+    case Or(args) => Or(args.map(_.mapTerms(f)))
+    case Implies(lhs, rhs) => Implies(lhs.mapTerms(f), rhs.mapTerms(f))
+    case Iff(lhs, rhs) => Iff(lhs.mapTerms(f), rhs.mapTerms(f))
+    case Ite(cond, thn, els) => Ite(cond.mapTerms(f), thn.mapTerms(f), els.mapTerms(f))
+    case Eq(lhs, rhs) => Eq(f(lhs), f(rhs))
+    case Pred(term) => Formula.pred(f(term))
+    case Le(lhs, rhs) => Le(f(lhs), f(rhs))
+
   def unary_! : Formula = Not(this)
   def &&(that: Formula): Formula = And(List(this, that))
   def ||(that: Formula): Formula = Or(List(this, that))
@@ -154,6 +214,11 @@ enum Formula:
 
 object Formula:
   def Neq(lhs: Term, rhs: Term): Formula = Not(Eq(lhs, rhs))
+
+  /** `term` holds: the formula of a Boolean term, `Pred(term)` otherwise. */
+  def pred(term: Term): Formula = term match
+    case Term.Bool(formula) => formula
+    case _ => Pred(term)
 
   /** `And` of the pairwise disequalities. */
   def Distinct(terms: List[Term]): Formula =

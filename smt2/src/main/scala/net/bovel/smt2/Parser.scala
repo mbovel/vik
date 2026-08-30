@@ -4,7 +4,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{Atom, SList}
-import net.bovel.smt.{Constructor, Datatype, Formula, Term}
+import net.bovel.smt.{Constructor, Datatype, Formula, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
@@ -27,7 +27,7 @@ final class Parser:
      *  shifted when used under more).
      */
     case T(term: Term, sort: String, depth: Int)
-    case F(formula: Formula)
+    case F(formula: Formula, depth: Int)
 
     /** A parameter of an enclosing lambda: its level (the parameters of the
      *  lambdas outside it, plus its position).
@@ -37,27 +37,17 @@ final class Parser:
   /** The number of parameters of the enclosing lambdas. */
   private var depth = 0
 
-  /** The parameter and result sorts of a function sort `(-> S1 ... Sn R)`. */
-  private def arrow(sort: String): Option[(List[String], String)] =
-    if !sort.startsWith("(->") then None
-    else
-      SExprParser.parse(sort) match
-        case SList(Atom("->") :: sorts) if sorts.length >= 2 => Some((sorts.init.map(_.toString), sorts.last.toString))
-        case _ => None
+  private def arrow(sort: String): Option[(List[String], String)] = Sorts.arrow(sort)
 
   /** The sort of a function of `argSorts` to `sort`: a function symbol is a
    *  value of a function sort.
    */
-  private def functionSort(declaration: (List[String], String)): String = declaration match
-    case (Nil, sort) => sort
-    case (argSorts, sort) => s"(-> ${argSorts.mkString(" ")} $sort)"
+  private def functionSort(declaration: (List[String], String)): String = Sorts.function(declaration._1, declaration._2)
 
   /** The sort of a term of `sort` applied to `n` arguments. */
-  private def result(sort: String, n: Int): String = arrow(sort) match
-    case Some((params, res)) if n < params.length => s"(-> ${params.drop(n).mkString(" ")} $res)"
-    case Some((params, res)) if n == params.length => res
-    case Some((params, res)) => result(res, n - params.length)
-    case None => throw Smt2Error(s"$sort applied to $n arguments")
+  private def result(sort: String, n: Int): String =
+    val applied = Sorts.applied(sort, n)
+    if applied == "?" then throw Smt2Error(s"$sort applied to $n arguments") else applied
 
   /** The parameters of a lambda, `((x S) ...)`, with their sorts, and an
    *  environment binding them: parameter `i` of `n` is `Var(i)` in the body, at
@@ -199,7 +189,7 @@ final class Parser:
     case SList(Atom("concat") :: args) => BitVectors.sort(args.map(a => BitVectors.width(sortOf(a, env))).sum)
     case Atom(name) =>
       env.get(name) match
-        case Some(Value.F(_)) => "Bool"
+        case Some(Value.F(_, _)) => "Bool"
         case Some(Value.T(_, sort, _)) => sort
         case Some(Value.Bound(_, sort)) => sort
         case None => functions.get(name).map(functionSort).orElse(macros.get(name).map(_._2)).getOrElse(throw Smt2Error(
@@ -218,9 +208,10 @@ final class Parser:
     case SList(SList(Atom("_") :: Atom("is") :: Atom(_) :: Nil) :: _ :: Nil) => "Bool"
     case SList(Atom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
     case SList(Atom("let") :: SList(bindings) :: body :: Nil) => sortOf(body, bind(bindings, env))
-    case SList(Atom(name) :: _) => functions.get(
-        name
-      ).map(_._2).orElse(macros.get(name).map(_._2)).getOrElse(throw Smt2Error(s"unknown function $name"))
+    case SList(Atom(name) :: args) => // a declared function applied to some of its arguments, or more
+      functions.get(name).map(d => result(functionSort(d), args.length)).orElse(macros.get(name).map(_._2)).getOrElse(
+        throw Smt2Error(s"unknown function $name")
+      )
     case SList((fun @ SList(_)) :: args) => result(sortOf(fun, env), args.length)
     case other => throw Smt2Error(s"cannot type $other")
 
@@ -228,7 +219,7 @@ final class Parser:
     env ++ bindings.map {
       case SList(Atom(name) :: value :: Nil) =>
         val sort = sortOf(value, env)
-        name -> (if sort == "Bool" then Value.F(formula(value, env)) else Value.T(term(value, env), sort, depth))
+        name -> (if sort == "Bool" then Value.F(formula(value, env), depth) else Value.T(term(value, env), sort, depth))
       case other => throw Smt2Error(s"bad binding $other")
     }
 
@@ -237,13 +228,15 @@ final class Parser:
     case Atom("false") => False
     case Atom(name) =>
       env.get(name) match
-        case Some(Value.F(f)) => f
+        case Some(Value.F(f, d)) => f.mapTerms(Term.shift(_, depth - d))
+        case Some(Value.T(t, "Bool", d)) => Formula.pred(Term.shift(t, depth - d))
+        case Some(Value.Bound(level, "Bool")) => Formula.Pred(Term.Var(depth - 1 - level))
         case Some(Value.T(_, _, _) | Value.Bound(_, _)) => throw Smt2Error(s"$name is not Boolean")
         case None =>
           if !macros.contains(name) then Pred(declared(name))
           else
             expand(name, Nil, env) match
-              case Value.F(f) => f
+              case Value.F(f, _) => f
               case Value.T(_, _, _) => throw Smt2Error(s"$name is not Boolean")
     case SList(Atom("not") :: arg :: Nil) => Not(formula(arg, env))
     case SList(Atom("and") :: args) => And(args.map(formula(_, env)))
@@ -280,7 +273,7 @@ final class Parser:
     case SList(Atom("!") :: body :: _) => formula(body, env) // an annotated term
     case SList(Atom(name) :: args) if macros.contains(name) =>
       expand(name, args, env) match
-        case Value.F(f) => f
+        case Value.F(f, _) => f
         case Value.T(_, _, _) => throw Smt2Error(s"$name is not Boolean")
     case SList(Atom(name) :: args) => Pred(Term.App(declared(name), args.map(term(_, env))))
     case other => throw Smt2Error(s"not a formula: $other")
@@ -307,6 +300,8 @@ final class Parser:
   def define(formula: Formula): Unit = definitions += formula
 
   private def term(sexpr: SExpr, env: Map[String, Value]): Term = sexpr match
+    case Atom("true") => Term.boolean(Formula.True)
+    case Atom("false") => Term.boolean(Formula.False)
     case Atom(name) if isNumeral(name) => Term.Num(BigInt(name))
     case Atom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
     case Atom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
@@ -328,13 +323,13 @@ final class Parser:
       env.get(name) match
         case Some(Value.T(t, _, d)) => Term.shift(t, depth - d)
         case Some(Value.Bound(level, _)) => Term.Var(depth - 1 - level)
-        case Some(Value.F(_)) => throw Smt2Error(s"$name is Boolean, not a term")
+        case Some(Value.F(f, d)) => Term.boolean(f.mapTerms(Term.shift(_, depth - d)))
         case None =>
           if !macros.contains(name) then declared(name)
           else
             expand(name, Nil, env) match
               case Value.T(t, _, _) => t
-              case Value.F(_) => throw Smt2Error(s"$name is Boolean, not a term")
+              case Value.F(f, _) => Term.boolean(f)
     case SList(Atom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
       val inner = bindParameters(ps, env)
@@ -371,12 +366,16 @@ final class Parser:
       k
     case SList(Atom("let") :: SList(bindings) :: body :: Nil) => term(body, bind(bindings, env))
     case SList(Atom("!") :: body :: _) => term(body, env)
+    case SList(Atom(op) :: _)
+        if !functions.contains(op) && !macros.contains(op) && !env.contains(op) && sortOf(sexpr, env) == "Bool" =>
+      Term.boolean(formula(sexpr, env)) // a formula as a term: a connective, a comparison, an equality
+    case SList(SList(Atom("_") :: Atom("is") :: _) :: _ :: Nil) => Term.boolean(formula(sexpr, env)) // a tester
     case SList(Atom(name) :: args) if env.contains(name) =>
       apply(term(Atom(name), env), sortOf(Atom(name), env), args, env)
     case SList(Atom(name) :: args) if macros.contains(name) =>
       expand(name, args, env) match
         case Value.T(t, _, _) => t
-        case Value.F(_) => throw Smt2Error(s"$name is Boolean, not a term")
+        case Value.F(f, _) => Term.boolean(f)
     case SList(Atom(name) :: args) => apply(declared(name), functionSort(functions(name)), args, env)
     case SList((fun @ SList(_)) :: args) => apply(term(fun, env), sortOf(fun, env), args, env)
     case other => throw Smt2Error(s"not a term: $other")
@@ -404,9 +403,9 @@ final class Parser:
     val (params, sort, body) = macros(name)
     if params.length != args.length then throw Smt2Error(s"$name expects ${params.length} arguments")
     val inner = params.zip(args).foldLeft(env) { case (e, ((p, s), a)) =>
-      e + (p -> (if s == "Bool" then Value.F(formula(a, env)) else Value.T(term(a, env), s, depth)))
+      e + (p -> (if s == "Bool" then Value.F(formula(a, env), depth) else Value.T(term(a, env), s, depth)))
     }
-    if sort == "Bool" then Value.F(formula(body, inner)) else Value.T(term(body, inner), sort, depth)
+    if sort == "Bool" then Value.F(formula(body, inner), depth) else Value.T(term(body, inner), sort, depth)
 
 object Parser:
   def parse(input: String): Script = Parser().parse(input)

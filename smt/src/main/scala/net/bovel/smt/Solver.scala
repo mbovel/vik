@@ -38,13 +38,9 @@ final class Solver(simplify: Boolean = true):
   def declare(name: String, argSorts: List[String], sort: String): Unit = declarations(name) = (argSorts, sort)
 
   /** Declares a datatype: its constructors, selectors and testers become known
-   *  function symbols. Fields of sort `Int`, `Bool` or bit-vectors need an
-   *  exchange of equalities between theories, which does not exist yet.
+   *  function symbols.
    */
   def declare(datatype: Datatype): Unit =
-    for c <- datatype.constructors; (_, sort) <- c.selectors do
-      if sort == "Bool" then
-        throw UnsupportedOperationException(s"datatype ${datatype.name}: fields of sort Bool are not supported")
     datatypes += datatype
     for c <- datatype.constructors do
       declarations(c.name) = (c.selectors.map(_._2), datatype.name)
@@ -65,9 +61,11 @@ final class Solver(simplify: Boolean = true):
     val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
     for formula <- (if simplify then Simplifier.simplify(assertions, constructors) else assertions) do
       encoder.assert(formula)
-    encoder.instantiateLambdas()
+    encoder.assertExtensionality()
+    encoder.applicationLemmas()
     encoder.assertExhaustiveness()
     encoder.shareIntegers()
+    encoder.decideBooleans()
     encoder.solve() match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
@@ -83,9 +81,11 @@ final class Solver(simplify: Boolean = true):
  */
 private final class Encoder(declarations: HashMap[String, (List[String], String)], datatypes: List[Datatype]):
   private val classes = HashMap.empty[Term, EClassId]
+  private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
   private val eg = EGraph(adt.getOrElse(NoRules))
   private val trueTerm = eg.newClass() // the class of Boolean-sorted terms that hold
+  private val falseTerm = eg.newClass() // and of those that do not (see [[decideBooleans]])
 
   /** The symbol applied to a body to make a lambda of `params` parameters. */
   private val lambdaSymbols = HashMap.empty[Int, EClassId]
@@ -100,14 +100,28 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         if c.selectors.isEmpty then adt.constant(constructor)
     case _ => ()
 
-  /** The sort of a term, from the declarations; `?` when unknown, and for a
-   *  function symbol (a constant with argument sorts), which is not a value.
+  /** The constants this encoder introduces (the witnesses of extensionality),
+   *  with their sorts.
    */
-  private def sortOf(term: Term): String = term match
-    case Term.Const(name) => declarations.get(name).filter(_._1.isEmpty).map(_._2).getOrElse("?")
-    case Term.App(Term.Const(name), _) => declarations.get(name).map(_._2).getOrElse("?")
-    case Term.Num(_) | Term.Linear(_, _) => "Int"
-    case _ => "?"
+  private val introduced = HashMap.empty[String, String]
+
+  /** The sort of a term, from the declarations, a function sort for a function
+   *  symbol, a lambda or a partial application (see [[Sorts]]); `?` when
+   *  unknown.
+   */
+  private def sortOf(term: Term): String = sorts.getOrElseUpdate(
+    term,
+    term match
+      case Term.Const(name) =>
+        declarations.get(
+          name
+        ).map((args, sort) => Sorts.function(args, sort)).orElse(introduced.get(name)).getOrElse("?")
+      case Term.App(fun, args) => Sorts.applied(sortOf(fun), args.length)
+      case Term.Lambda(sorts, body) => Sorts.function(sorts, sortOf(body))
+      case Term.Num(_) | Term.Linear(_, _) => "Int"
+      case Term.Bool(_) => "Bool"
+      case Term.Var(_) => "?"
+  )
 
   private val datatypeNames = datatypes.map(_.name).toSet
 
@@ -116,7 +130,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  as a least fixpoint.
    */
   private val finite: Set[String] =
-    var known = Set.empty[String]
+    var known = Set("Bool")
     var changed = true
     while changed do
       val more = datatypes.filter(d =>
@@ -136,10 +150,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     case Term.Num(_) => ()
     case _ => intTerms += t
 
-  private def isInt(t: Term): Boolean = Term.closed(t) &&
+  private def isInt(t: Term): Boolean = // the sort first: `closed` walks the term
     (t match
       case Term.Num(_) | Term.Linear(_, _) => true
-      case _ => sortOf(t) == "Int" || intTerms(t))
+      case _ => sortOf(t) == "Int" || intTerms(t)
+    ) && Term.closed(t)
 
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
@@ -154,17 +169,18 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  terms that both theories accept, which is a model of both (Nelson and
    *  Oppen; both theories are stably infinite).
    */
-  def shareIntegers(): Unit =
+  def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty then
     val pairs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
     def pair(a: Term, b: Term): Unit = if a != b && isInt(a) && isInt(b) && !pairs((b, a)) then pairs += ((a, b))
     val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
     for (_, group) <- applications do
-      for (a, i) <- group.zipWithIndex; b <- group.drop(i + 1) do
+      val relevant = group.filter(a => isInt(a) || a.args.exists(isInt)) // the others have nothing to share
+      for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
     for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
     // A selector's applications meet the arguments of its constructor at its position (the selector rule).
-    for d <- datatypes; c <- d.constructors; ((selector, _), i) <- c.selectors.zipWithIndex do
+    for d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex if sort == "Int" do
       for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
       do
         if k.args.length > i then pair(s, k.args(i))
@@ -175,32 +191,36 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         case Term.Linear(terms, c) => liaAtoms(e.variable) = LiaTheory.Atom.Equal(slack(terms), -c)
         case difference => liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
 
-  /** Beta-reduction of the redexes the search can make, as lemmas: for every
-   *  closed application `f(args)` and closed lambda `l` other than `f`, with as
-   *  many parameters, of the sorts of the arguments when known, the clause
-   *  `f ≠ l ∨ f(args) = l(args)`, `l(args)` being the body instantiated
-   *  ([[Term.instantiate]]); repeated for the terms this makes, to a fixpoint.
-   *  It ends for well-sorted terms, whose reductions are finite (simply typed
-   *  lambda terms normalize), and is bounded anyway. Syntactic redexes are
-   *  reduced at construction ([[Term.app]]). Lambdas need nothing else:
-   *  alpha-equivalent ones are the same term (de Bruijn indices), congruence
-   *  relates those with equal bodies, and no atom is ever on an open term (see
-   *  [[Term.instantiate]]).
+  /** Applications of the functions the search may equate, as lemmas: for every
+   *  closed application `h(args)` and closed function-sorted term `q` other
+   *  than `h` that is a lambda or a partial application, of compatible sorts
+   *  when known, the clause `h ≠ q ∨ h(args) = q(args)`, `q(args)` in canonical
+   *  form ([[Term.app]]: the beta-reduced body, or the application of the
+   *  partial application's function to all the arguments); repeated for the
+   *  terms this makes, to a fixpoint. It ends for well-sorted terms, whose
+   *  reductions are finite (simply typed lambda terms normalize), and is
+   *  bounded anyway. A function symbol needs no such lemma: congruence relates
+   *  its applications. Lambdas need nothing else: alpha-equivalent ones are the
+   *  same term (de Bruijn indices), congruence relates those with equal bodies,
+   *  and no atom is ever on an open term (see [[Term.instantiate]]).
    */
-  def instantiateLambdas(): Unit =
-    val done = scala.collection.mutable.HashSet.empty[(Term.App, Term.Lambda)]
+  def applicationLemmas(): Unit = if anyFunction then
+    val done = scala.collection.mutable.HashSet.empty[(Term.App, Term)]
     val equated = ArrayBuffer.empty[(Term, Term)]
     var more = true
     while more do
       more = false
-      val lambdas = classes.keys.collect { case l: Term.Lambda if Term.closed(l) => l }.toList
-      val apps = classes.keys.collect { case a: Term.App if Term.closed(a) => a }.toList
-      for l <- lambdas; a <- apps if applicable(a, l) && done.add((a, l)) do
-        require(done.size <= 100000, "too many lambda instantiations: are the lambdas well sorted?")
+      val functions = classes.keys.collect {
+        case q @ (Term.Lambda(_, _) | Term.App(_, _)) if Sorts.arrow(sortOf(q)).isDefined && Term.closed(q) => q
+      }.toList
+      val apps =
+        if functions.isEmpty then Nil else classes.keys.collect { case a: Term.App if Term.closed(a) => a }.toList
+      for q <- functions; a <- apps if applicable(a, q) && done.add((a, q)) do
+        require(done.size <= 100000, "too many applications of lambdas: are the terms well sorted?")
         more = true
-        val instance = Term.instantiate(l, a.args)
-        equated += ((a, instance))
-        clauses += Array(lit(Formula.Eq(a.fun, l)).neg, lit(Formula.Eq(a, instance)))
+        val applied = Term.app(q, a.args)
+        equated += ((a, applied))
+        clauses += Array(lit(Formula.Eq(a.fun, q)).neg, lit(Formula.Eq(a, applied)))
     // An application equated with an integer term is one, and conversely (for the sharing).
     var changed = true
     while changed do
@@ -210,9 +230,40 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         noteInts(b)
         changed = true
 
-  private def applicable(a: Term.App, l: Term.Lambda): Boolean =
-    a.fun != l && a.args.length == l.sorts.length &&
-      a.args.zip(l.sorts).forall((arg, sort) => sortOf(arg) == "?" || sortOf(arg) == sort)
+  private def applicable(a: Term.App, q: Term): Boolean =
+    a.fun != q &&
+      (Sorts.arrow(sortOf(q)) match
+        case Some((params, _)) =>
+          a.args.length <= params.length &&
+          a.args.zip(params).forall((arg, sort) => sortOf(arg) == "?" || sortOf(arg) == sort)
+        case None => false)
+
+  /** Extensionality: for every equality atom between function-sorted terms, the
+   *  lemma `f = g ∨ f(c) ≠ g(c)` with fresh constants `c` (the witnesses of the
+   *  difference), repeated while the new equality is between functions (a
+   *  curried result). So `unsat` and `sat` follow the usual semantics of
+   *  functions on the equalities of the assertions; an equality between
+   *  functions that the search derives, such as from the lemmas of
+   *  [[applicationLemmas]], gets no witness.
+   */
+  def assertExtensionality(): Unit = if anyFunctionEquality then
+    val done = scala.collection.mutable.HashSet.empty[Formula]
+    var more = true
+    while more do
+      more = false
+      for case eq @ Formula.Eq(f, g) <- lits.keys.toList if !done(eq) do
+        done += eq
+        if !assertedEqualities(eq) then
+          Sorts.arrow(sortOf(f)).orElse(Sorts.arrow(sortOf(g))) match
+            case Some((params, _)) if Term.closed(f) && Term.closed(g) =>
+              more = true
+              val witnesses = params.map { sort =>
+                val name = s"ext!${introduced.size}"
+                introduced(name) = sort
+                Term.Const(name)
+              }
+              clauses += Array(lit(eq), lit(Formula.Eq(Term.app(f, witnesses), Term.app(g, witnesses))).neg)
+            case _ => ()
 
   /** Asserts, for every term of a datatype sort seen so far, that one of its
    *  testers holds; for a term of a finite sort, also for its selector terms,
@@ -241,21 +292,66 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private val lits = HashMap.empty[Formula, Lit]
   private val trueLit = freshVar() // a variable asserted true, for `True`
   clauses += Array(trueLit)
+  eg.disequate(trueTerm, falseTerm, trueLit.index)
 
   private def freshVar(): Lit =
     atoms += null
     liaAtoms += null
     Lit(atoms.length - 1)
 
-  def classOf(term: Term): EClassId = classes.getOrElseUpdate(term, classOfNew(term))
+  /** The Boolean-sorted terms that are arguments of applications or sides of an
+   *  equality (see [[decideBooleans]]), and their classes.
+   */
+  private val booleans = ArrayBuffer.empty[Term]
+  private val booleanClasses = scala.collection.mutable.HashSet.empty[EClassId]
+
+  private def boolean(term: Term): Unit =
+    if sortOf(term) == "Bool" && Term.closed(term) && booleanClasses.add(classOf(term)) then booleans += term
+
+  /** Whether some term is an integer, a function (a lambda or a partial
+   *  application), or an equality between functions: the passes over all the
+   *  terms of [[shareIntegers]], [[applicationLemmas]] and
+   *  [[assertExtensionality]] are skipped otherwise (many queries are small).
+   */
+  private var anyInt = false
+  private var anyFunction = false
+  private var anyFunctionEquality = false
+
+  def classOf(term: Term): EClassId = classes.getOrElseUpdate(
+    term, {
+      sortOf(term) match
+        case "Int" => anyInt = true
+        case sort if sort.startsWith("(->") =>
+          anyFunction |= term.isInstanceOf[Term.Lambda] || term.isInstanceOf[Term.App]
+        case _ => ()
+      classOfNew(term)
+    }
+  )
 
   private def classOfNew(term: Term): EClassId =
     term match
       case Term.Const(_) => eg.newClass()
-      case Term.App(fun, args) => eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
+      case Term.App(fun, args) =>
+        args.foreach(boolean)
+        eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
       case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
       case Term.Var(_) => eg.newClass() // a bound variable: a leaf shared by every lambda, never merged
       case Term.Lambda(sorts, body) => eg.add(App(lambdaSymbol(sorts.length), ArraySeq(classOf(body))))
+      case Term.Bool(_) => eg.newClass() // a leaf, tied to its formula by `Pred` (see `encode`)
+
+  /** A Boolean-sorted term that is an argument or a side of an equality is true
+   *  or false: its atom `t = true` is decided by the SAT solver, and the UF
+   *  theory merges `t` with `true` or with `false` accordingly — so that two
+   *  Boolean arguments with the same truth value are equal (congruence), and a
+   *  Boolean term's class has a truth value. The atom of a [[Term.Bool]] holds
+   *  iff its formula does. A predicate application only used as an atom needs
+   *  neither: its disequality with `true` is enough.
+   */
+  def decideBooleans(): Unit =
+    var i = 0
+    while i < booleans.length do
+      lit(Formula.Pred(booleans(i)))
+      i += 1
 
   private def atom(t: EClassId, u: EClassId): Lit =
     atoms += ((t, u))
@@ -290,8 +386,22 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       case True => trueLit
       case False => trueLit.neg
       case Not(arg) => lit(arg).neg
-      case Eq(lhs, rhs) => if lhs == rhs then trueLit else atom(classOf(lhs), classOf(rhs))
-      case Pred(term) => atom(classOf(term), trueTerm)
+      case Eq(lhs, rhs) =>
+        if lhs == rhs then trueLit
+        else
+          boolean(lhs)
+          boolean(rhs)
+          if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then anyFunctionEquality = true
+          atom(classOf(lhs), classOf(rhs))
+      case Pred(term) =>
+        val e = atom(classOf(term), trueTerm)
+        term match
+          case Term.Bool(inner) => // `t = true` iff the formula holds
+            val l = lit(inner)
+            clauses += Array(e.neg, l)
+            clauses += Array(l.neg, e)
+          case _ => ()
+        e
       case Le(lhs, rhs) =>
         noteInts(lhs)
         noteInts(rhs)
@@ -330,13 +440,22 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         clauses += Array(v, c, e.neg)
         v
 
-  def assert(formula: Formula): Unit = clauses += Array(lit(formula))
+  /** The assertions that are equality atoms: facts, which need no witness of
+   *  extensionality.
+   */
+  private val assertedEqualities = scala.collection.mutable.HashSet.empty[Formula]
+
+  def assert(formula: Formula): Unit =
+    formula match
+      case Formula.Eq(_, _) => assertedEqualities += formula
+      case _ => ()
+    clauses += Array(lit(formula))
 
   def solve(): cdclt.Solver.Result =
     val ufAtoms = atoms.toArray
     val liaAtoms = this.liaAtoms.toArray
     val theories = List(
-      Option.when(ufAtoms.exists(_ != null))(UfTheory(eg, ufAtoms)),
+      Option.when(ufAtoms.exists(_ != null))(UfTheory(eg, ufAtoms, trueTerm, falseTerm, booleanClasses)),
       Option.when(liaAtoms.exists(_ != null))(LiaTheory(liaSolver, liaAtoms))
     ).flatten
     val theory = theories match

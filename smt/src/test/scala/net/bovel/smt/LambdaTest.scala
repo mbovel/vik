@@ -27,3 +27,11 @@ class LambdaTest extends munit.FunSuite:
     assertEquals(Term.app(twice, List(increment, Num(40))), Num(42))
     assertEquals(Term.app(f, List(Num(1))), App(f, List(Num(1)))) // not a redex
     assertEquals(Term.app(increment, List(Var(0))), App(increment, List(Var(0)))) // an open argument: kept
+
+  test("Term.app flattens applications and reduces partial applications of lambdas"):
+    val f = Const("f")
+    assertEquals(Term.app(App(f, List(Num(1))), List(Num(2))), App(f, List(Num(1), Num(2))))
+    val minus = Lambda(List("Int", "Int"), Term.linear(List((BigInt(1), Var(0)), (BigInt(-1), Var(1)))))
+    assertEquals(Term.app(minus, List(Num(5))), Lambda(List("Int"), Term.linear(List((BigInt(-1), Var(0))), 5)))
+    assertEquals(Term.app(Term.app(minus, List(Num(5))), List(Num(3))), Num(2))
+    assertEquals(Term.app(minus, List(Num(5), Num(3))), Num(2))

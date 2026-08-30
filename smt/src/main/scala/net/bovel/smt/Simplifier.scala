@@ -59,6 +59,7 @@ object Simplifier:
     case Num(_) | Var(_) => ()
     case Linear(terms, _) => terms.foreach((_, u) => countConstants(u, counts))
     case Lambda(_, body) => countConstants(body, counts)
+    case Bool(formula) => countConstants(formula, counts)
 
   /** `positive`: whether `f` is in a positive position of the assertion. */
   private def simplify(f: Formula, total: HashMap[String, Int], positive: Boolean): Formula = f match
@@ -96,6 +97,7 @@ object Simplifier:
     case Num(_) | Var(_) => false
     case Linear(terms, _) => terms.exists((_, u) => mentions(u, c))
     case Lambda(_, body) => mentions(body, c)
+    case Bool(formula) => formula.terms.exists(mentions(_, c))
 
   private def substitute(f: Formula, c: String, t: Term): Formula = f match
     case True | False => f
@@ -106,7 +108,7 @@ object Simplifier:
     case Iff(a, b) => Iff(substitute(a, c, t), substitute(b, c, t))
     case Ite(a, b, d) => Ite(substitute(a, c, t), substitute(b, c, t), substitute(d, c, t))
     case Eq(l, r) => Eq(substitute(l, c, t), substitute(r, c, t))
-    case Pred(u) => Pred(substitute(u, c, t))
+    case Pred(u) => Formula.pred(substitute(u, c, t))
     case Le(l, r) => Le(substitute(l, c, t), substitute(r, c, t))
 
   private def substitute(u: Term, c: String, t: Term): Term = u match
@@ -115,3 +117,4 @@ object Simplifier:
     case Num(_) | Var(_) => u
     case Linear(terms, k) => Term.linear(terms.map((a, v) => (a, substitute(v, c, t))), k)
     case Lambda(sorts, body) => Lambda(sorts, substitute(body, c, t)) // `t` is closed: no capture
+    case Bool(formula) => Term.boolean(substitute(formula, c, t))

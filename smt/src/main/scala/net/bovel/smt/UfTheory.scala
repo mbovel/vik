@@ -10,13 +10,21 @@ import net.bovel.egraph.{EClassId, EGraph}
  *  e-classes of `eg`, or none when `atoms(v)` is `null`. Terms are added to
  *  `eg` before solving.
  *
- *  A true atom merges its sides, a false one adds a disequality, both with the
- *  literal (its index) as reason; `propagate` rebuilds the congruence closure,
- *  reports the violated disequality's explanation as a conflict, and implies
- *  every unassigned atom whose sides became equal (or disequal). Explanations
- *  come from `EGraph.explain`, whose reasons are the literals asserted.
+ *  A true atom merges its sides, a false one adds a disequality — or, for the
+ *  atom `t = true` of a Boolean-sorted term in `twoValued`, merges `t` with
+ *  `false`, so that such terms are two-valued — both with the literal (its
+ *  index) as reason; `propagate` rebuilds the congruence closure, reports the
+ *  violated disequality's explanation as a conflict, and implies every
+ *  unassigned atom whose sides became equal (or disequal). Explanations come
+ *  from `EGraph.explain`, whose reasons are the literals asserted.
  */
-final class UfTheory(eg: EGraph, atoms: Array[(EClassId, EClassId) | Null]) extends Theory:
+final class UfTheory(
+    eg: EGraph,
+    atoms: Array[(EClassId, EClassId) | Null],
+    trueClass: EClassId,
+    falseClass: EClassId,
+    twoValued: EClassId => Boolean
+) extends Theory:
   /** Atoms asserted so far, with the level marks for `pop`. */
   private val assigned = new Array[Boolean](atoms.length)
   private val assignedTrail = ArrayBuffer.empty[Var]
@@ -34,7 +42,9 @@ final class UfTheory(eg: EGraph, atoms: Array[(EClassId, EClassId) | Null]) exte
     val atom = if v < atoms.length then atoms(v) else null
     if atom != null then
       val (t, u) = atom
-      if lit.positive then eg.merge(t, u, lit.index) else eg.disequate(t, u, lit.index)
+      if lit.positive then eg.merge(t, u, lit.index)
+      else if u == trueClass && twoValued(t) then eg.merge(t, falseClass, lit.index)
+      else eg.disequate(t, u, lit.index)
       assigned(v) = true
       assignedTrail += v
 
