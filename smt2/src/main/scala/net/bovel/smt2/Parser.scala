@@ -387,8 +387,8 @@ final class Parser:
    */
   private def apply(fun: Term, sort: String, args: List[SExpr], env: Map[String, Value]): Term = arrow(sort) match
     case Some((params, res)) if args.length > params.length =>
-      apply(Term.App(fun, args.take(params.length).map(term(_, env))), res, args.drop(params.length), env)
-    case _ => Term.App(fun, args.map(term(_, env)))
+      apply(Term.app(fun, args.take(params.length).map(term(_, env))), res, args.drop(params.length), env)
+    case _ => Term.app(fun, args.map(term(_, env)))
 
   /** The conjunction of `conditions`, itself when there is only one. */
   private def chain(conditions: List[Formula]): Formula = conditions match

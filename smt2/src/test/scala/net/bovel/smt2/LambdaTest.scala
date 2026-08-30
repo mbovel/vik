@@ -29,6 +29,23 @@ class LambdaTest extends munit.FunSuite:
     assert(Printer.print(script).contains("(lambda ((%0 Int)) (lambda ((%1 Int)) (f %1 %0)))"))
     assertEquals(Parser.parse(Printer.print(script)), script)
 
+  test("syntactic redexes are reduced when parsed and when the simplifier substitutes"):
+    val script = Parser.parse("""
+      (declare-fun f (Int) Int)
+      (declare-const c Int)
+      (assert (= c ((lambda ((x Int)) (+ (f x) 1)) 3)))
+      (assert (= ((lambda ((g (-> Int Int)) (y Int)) (g (g y))) (lambda ((z Int)) (f z)) c) 7))""")
+    val asserts = script.commands.collect { case Command.Assert(a) => a }
+    val f = Const("f")
+    assertEquals(asserts(0), IntEq(Const("c"), Term.linear(List((BigInt(1), App(f, List(Num(3))))), 1)))
+    assertEquals(asserts(1), IntEq(App(f, List(App(f, List(Const("c"))))), Num(7)))
+    // `g` is local to the conjunction: the simplifier substitutes the lambda, and the redex `g(2)` reduces.
+    val simplified = net.bovel.smt.Simplifier.simplify(List(And(List(
+      Eq(Const("g"), Lambda(List("Int"), App(f, List(Var(0))))),
+      Not(IntEq(App(Const("g"), List(Num(2))), App(f, List(Num(2)))))
+    ))))
+    assertEquals(simplified, List(Not(IntEq(App(f, List(Num(2))), App(f, List(Num(2)))))))
+
   test("alpha-equivalence by congruence"):
     val prefix = """
       (declare-fun f (Int Int) Int)

@@ -111,7 +111,7 @@ object Simplifier:
 
   private def substitute(u: Term, c: String, t: Term): Term = u match
     case Const(name) => if name == c then t else u
-    case App(fun, args) => App(substitute(fun, c, t), args.map(substitute(_, c, t)))
+    case App(fun, args) => Term.app(substitute(fun, c, t), args.map(substitute(_, c, t))) // reduced if `t` is a lambda
     case Num(_) | Var(_) => u
     case Linear(terms, k) => Term.linear(terms.map((a, v) => (a, substitute(v, c, t))), k)
     case Lambda(sorts, body) => Lambda(sorts, substitute(body, c, t)) // `t` is closed: no capture

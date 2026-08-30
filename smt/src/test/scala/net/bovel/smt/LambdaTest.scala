@@ -18,3 +18,12 @@ class LambdaTest extends munit.FunSuite:
     solver.pop()
     solver.assert(IntEq(App(g, List(Num(41))), Num(42)))
     assertEquals(solver.solve(), solver.Result.Sat)
+
+  test("Term.app reduces closed redexes, to normal form"):
+    val f = Const("f")
+    val increment = Lambda(List("Int"), Term.linear(List((BigInt(1), Var(0))), 1))
+    assertEquals(Term.app(increment, List(Num(41))), Num(42))
+    val twice = Lambda(List("(-> Int Int)", "Int"), App(Var(0), List(App(Var(0), List(Var(1))))))
+    assertEquals(Term.app(twice, List(increment, Num(40))), Num(42))
+    assertEquals(Term.app(f, List(Num(1))), App(f, List(Num(1)))) // not a redex
+    assertEquals(Term.app(increment, List(Var(0))), App(increment, List(Var(0)))) // an open argument: kept

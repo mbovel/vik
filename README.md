@@ -200,7 +200,7 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 | Feature | | Notes |
 |---|---|---|
 | `(lambda ((x S) ...) body)` as terms, de Bruijn indices: alpha-equivalent lambdas are the same term, and equal lambdas are congruent | ✓ | `Term.Lambda`, `Term.Var`; function sorts `(-> S ... T)`, curried applications |
-| Beta-reduction, as lemmas `f ≠ l ∨ f(args) = l(args)` for the closed applications and lambdas, to a fixpoint | ✓ | `Encoder.instantiateLambdas`; nothing in the e-graph |
+| Beta-reduction: syntactic redexes reduced at construction (parser, simplifier substitutions), those the search makes (`f = l` decided) as lemmas `f ≠ l ∨ f(args) = l(args)`, to a fixpoint | ✓ | `Term.app`, `Encoder.instantiateLambdas`; nothing in the e-graph |
 | Soundness: no atom on a term with a bound variable, so bound variables are never equated with anything | ✓ | argument at `Term.instantiate`; tested with the finite-sort expansion |
 | Extensionality (`λx. f(x) = f`, or `λx. f(x) = λx. g(x)` giving `f(1) = g(1)`) | ✗ | `unsat` is sound for extensional functions, `sat` may miss it |
 | Formulas under lambdas (`ite`, `and`, comparisons) | ✗ | bodies are terms; an uninterpreted Boolean function application is fine |

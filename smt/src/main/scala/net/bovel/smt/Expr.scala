@@ -45,9 +45,12 @@ object Term:
    *  lambda is a node of the e-graph over the class of its body, and a bound
    *  variable `Var(i)` a leaf class shared by every lambda: two lambdas are
    *  equal when their bodies are, alpha-equivalence included, by congruence.
-   *  Beta-reduction is a lemma of the encoder: for an application `f(args)`
-   *  with closed arguments and a closed lambda `l`, `f ≠ l ∨ f(args) = l(args)`
-   *  with `l(args)` the body instantiated (no capture, no index shifting).
+   *  Beta-reduction of a redex `(λ. b)(args)` with closed arguments happens at
+   *  construction ([[app]]): in the parser, the simplifier's substitutions and
+   *  [[instantiate]] itself, so that terms are in normal form (they have one
+   *  when well sorted). A redex the search creates, `f(args)` with `f` equal to
+   *  a lambda `l`, is a lemma of the encoder: `f ≠ l ∨ f(args) = l(args)` with
+   *  `l(args)` the body instantiated (no capture, no index shifting).
    *
    *  Soundness: an equality between open terms in the e-graph holds for all
    *  values of their free variables, by induction. Nothing asserts one: the
@@ -60,6 +63,13 @@ object Term:
    *  functions; what `sat` misses is extensionality: `λx. f(x) = λx. g(x)` does
    *  not give `f(1) = g(1)`, nor `λx. f(x) = f`.
    */
+  /** `fun` applied to `args`, reduced when `fun` is a lambda and the arguments
+   *  are closed.
+   */
+  def app(fun: Term, args: List[Term]): Term = fun match
+    case lambda: Lambda if lambda.sorts.length == args.length && args.forall(closed(_)) => instantiate(lambda, args)
+    case _ => App(fun, args)
+
   def instantiate(lambda: Lambda, args: List[Term]): Term =
     val params = lambda.sorts.length
     require(args.length == params && args.forall(closed(_)), "closed arguments, as many as parameters")
@@ -67,7 +77,7 @@ object Term:
       case Var(i) if i >= depth && i < depth + params => args(i - depth)
       case Var(i) if i >= depth + params => Var(i - params)
       case Var(_) | Const(_) | Num(_) => t
-      case App(f, as) => App(subst(f, depth), as.map(subst(_, depth)))
+      case App(f, as) => app(subst(f, depth), as.map(subst(_, depth)))
       case Linear(terms, c) => Term.linear(terms.map((a, u) => (a, subst(u, depth))), c)
       case Lambda(sorts, body) => Lambda(sorts, subst(body, depth + sorts.length))
     subst(lambda.body, 0)

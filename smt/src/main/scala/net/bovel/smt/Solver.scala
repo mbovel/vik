@@ -172,22 +172,20 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       val e = lit(Formula.Eq(a, b))
       Term.linear(List((1, a), (-1, b))) match
         case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
-        case difference =>
-          val le = lit(Formula.Le(difference, Term.Num(0)))
-          val ge = lit(Formula.Le(Term.Num(0), difference))
-          clauses += Array(e.neg, le)
-          clauses += Array(e.neg, ge)
-          clauses += Array(e, le.neg, ge.neg)
+        case Term.Linear(terms, c) => liaAtoms(e.variable) = LiaTheory.Atom.Equal(slack(terms), -c)
+        case difference => liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
 
-  /** Beta-reduction as lemmas: for every closed application `f(args)` and
-   *  closed lambda `l` with as many parameters, of the sorts of the arguments
-   *  when known, the clause `f ≠ l ∨ f(args) = l(args)`, `l(args)` being the
-   *  body instantiated ([[Term.instantiate]]); repeated for the terms this
-   *  makes, to a fixpoint. It ends for well-sorted terms, whose reductions are
-   *  finite (simply typed lambda terms normalize), and is bounded anyway.
-   *  Lambdas need nothing else: alpha-equivalent ones are the same term (de
-   *  Bruijn indices), congruence relates those with equal bodies, and no atom
-   *  is ever on an open term (see [[Term.Lambda]]).
+  /** Beta-reduction of the redexes the search can make, as lemmas: for every
+   *  closed application `f(args)` and closed lambda `l` other than `f`, with as
+   *  many parameters, of the sorts of the arguments when known, the clause
+   *  `f ≠ l ∨ f(args) = l(args)`, `l(args)` being the body instantiated
+   *  ([[Term.instantiate]]); repeated for the terms this makes, to a fixpoint.
+   *  It ends for well-sorted terms, whose reductions are finite (simply typed
+   *  lambda terms normalize), and is bounded anyway. Syntactic redexes are
+   *  reduced at construction ([[Term.app]]). Lambdas need nothing else:
+   *  alpha-equivalent ones are the same term (de Bruijn indices), congruence
+   *  relates those with equal bodies, and no atom is ever on an open term (see
+   *  [[Term.instantiate]]).
    */
   def instantiateLambdas(): Unit =
     val done = scala.collection.mutable.HashSet.empty[(Term.App, Term.Lambda)]
@@ -213,7 +211,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         changed = true
 
   private def applicable(a: Term.App, l: Term.Lambda): Boolean =
-    a.args.length == l.sorts.length &&
+    a.fun != l && a.args.length == l.sorts.length &&
       a.args.zip(l.sorts).forall((arg, sort) => sortOf(arg) == "?" || sortOf(arg) == sort)
 
   /** Asserts, for every term of a datatype sort seen so far, that one of its
