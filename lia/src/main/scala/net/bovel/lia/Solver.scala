@@ -11,6 +11,9 @@ object Solver:
   enum Result:
     case Sat
 
+    /** [[Solver.check]] was told to stop (see its `keepGoing`). */
+    case Unknown
+
     /** No solution: the bounds asserted with these reasons are inconsistent by
      *  themselves.
      */
@@ -23,7 +26,7 @@ object Solver:
    *  are many, conflicts few.
    */
   private final class Bound(val value: Rational, val reason: Int, val premises: Array[Bound]):
-    def reasons: Set[Int] =
+    lazy val reasons: Set[Int] = // once per bound: a conflict may ask again and again along a long derivation
       val literals = Set.newBuilder[Int]
       val seen = scala.collection.mutable.HashSet.empty[Bound] // premises are shared: a graph, not a tree
       val todo = ArrayBuffer(this)
@@ -227,6 +230,9 @@ final class Solver:
       val owners = if rows(x) == null then columns(x).toList else x :: columns(x).toList
       for b <- owners if visits(b) < 1 do
         visits(b) += 1
+        if !keepGoing() then
+          tightened.clear()
+          break(Result.Unknown)
         propagateRow(b) match
           case Result.Sat => ()
           case unsat =>
@@ -321,6 +327,12 @@ final class Solver:
    *  wide bit-vector lowered to an integer). Branch and bound may not terminate
    *  on unbounded variables.
    */
+  /** Asked at every step — a pivot, a row propagation, a branch — whether to go
+   *  on: a budget of steps (fuel), a deadline, ... `false` makes the check
+   *  return `Unknown`.
+   */
+  var keepGoing: () => Boolean = () => true
+
   def check(): Result =
     val open = ArrayBuffer.empty[Branch]
 
@@ -347,6 +359,9 @@ final class Solver:
         case Result.Sat =>
           for _ <- open do pop() // the assignment stays valid: bounds only loosen
           return Result.Sat
+        case Result.Unknown =>
+          for _ <- open do pop()
+          return Result.Unknown
         case Result.Unsat(reasons) if open.isEmpty => return Result.Unsat(reasons)
         case Result.Unsat(reasons) =>
           val branch = open.last
@@ -360,6 +375,9 @@ final class Solver:
           else // both sides failed
             open.remove(open.length - 1)
             current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
+        case branch: Branch if !keepGoing() =>
+          for _ <- open do pop()
+          return Result.Unknown
         case branch: Branch =>
           open += branch
           push()
@@ -398,6 +416,7 @@ final class Solver:
       if n == -1 then
         val reasons = row.iterator.map((j, a) => (if a.signum > 0 == tooLow then upper(j) else lower(j)).nn.reasons)
         return Result.Unsat(reasons.foldLeft(bound.reasons)(_ ++ _))
+      if !keepGoing() then return Result.Unknown
       pivotAndUpdate(b, n, bound.value)
     throw AssertionError("unreachable")
 

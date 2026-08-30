@@ -26,6 +26,9 @@ final class Solver(val simplify: Boolean = true):
     case Sat
     case Unsat
 
+    /** The fuel of [[solve]] is spent. */
+    case Unknown
+
   private val levels = ArrayBuffer(ArrayBuffer.empty[Formula])
 
   /** The declared function symbols (argument sorts, result sort) and datatypes.
@@ -55,7 +58,19 @@ final class Solver(val simplify: Boolean = true):
 
   def assert(formula: Formula): Unit = levels.last += formula
 
-  def solve(): Result =
+  /** Decides the assertions with at most `fuel` steps — a decision or a
+   *  conflict of the SAT search, a pivot, a row propagation or a branch of the
+   *  LIA solver — `Unknown` beyond: deterministic, unlike a deadline, which
+   *  [[solve(keepGoing)]] allows.
+   */
+  def solve(fuel: Long = Long.MaxValue): Result =
+    var left = fuel
+    solve(() =>
+      left -= 1; left >= 0
+    )
+
+  /** Decides the assertions while `keepGoing` says so, asked at every step. */
+  def solve(keepGoing: () => Boolean): Result =
     val assertions = levels.flatten.toList
     val encoder = Encoder(declarations, datatypes.toList)
     val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
@@ -66,9 +81,10 @@ final class Solver(val simplify: Boolean = true):
     encoder.assertExhaustiveness()
     encoder.shareIntegers()
     encoder.decideBooleans()
-    encoder.solve() match
+    encoder.solve(keepGoing) match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
+      case cdclt.Solver.Result.Unknown => Result.Unknown
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into
@@ -451,12 +467,14 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       case _ => ()
     clauses += Array(lit(formula))
 
-  def solve(): cdclt.Solver.Result =
+  def solve(keepGoing: () => Boolean): cdclt.Solver.Result =
     val ufAtoms = atoms.toArray
     val liaAtoms = this.liaAtoms.toArray
+    val liaTheory = Option.when(liaAtoms.exists(_ != null))(LiaTheory(liaSolver, liaAtoms))
+    liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     val theories = List(
       Option.when(ufAtoms.exists(_ != null))(UfTheory(eg, ufAtoms, trueTerm, falseTerm, booleanClasses)),
-      Option.when(liaAtoms.exists(_ != null))(LiaTheory(liaSolver, liaAtoms))
+      liaTheory
     ).flatten
     val theory = theories match
       case Nil => cdclt.NoTheory
@@ -464,7 +482,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       case _ => Theories(theories, v => if ufAtoms(v) != null then theories.head else theories.last)
     val solver = cdclt.Solver(atoms.length, theory)
     for c <- clauses do solver.addClause(c)
-    solver.solve()
+    solver.solve(keepGoing)
 
 /** Several theories over disjoint sets of atoms, asserted and checked in turn,
  *  without exchange of equalities between them; `owner(v)` is the theory of the

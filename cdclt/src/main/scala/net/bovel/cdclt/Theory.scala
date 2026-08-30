@@ -41,6 +41,11 @@ object Theory:
     case Ok(implied: ArrayBuffer[Lit])
     case Conflict(reasons: ArrayBuffer[Lit])
 
+    /** The theory gave up (its time budget is over): the search stops with
+     *  `Unknown`.
+     */
+    case Unknown
+
   val ok: Result = Result.Ok(ArrayBuffer.empty)
 
 /** The theory with no atoms: [[Solver]] is then a SAT solver. */

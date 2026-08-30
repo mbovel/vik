@@ -38,6 +38,9 @@ object Solver:
     case Sat(model: Array[Boolean])
     case Unsat
 
+    /** The fuel is spent (see [[Solver.solve]]), or a theory gave up. */
+    case Unknown
+
 final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval: Int = 100):
   import Solver.Result
 
@@ -172,6 +175,9 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
         if conflict != null then return conflict
       theory.propagate() match
         case Theory.Result.Conflict(reasons) => return reasons.map(_.neg).toArray
+        case Theory.Result.Unknown =>
+          gaveUp = true
+          return null
         case Theory.Result.Ok(implied) =>
           var progress = false
           var i = 0
@@ -349,18 +355,30 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
         backtrack(0)
       true
 
-  def solve(): Result =
+  /** A theory gave up in `propagate`: the search stops. */
+  private var gaveUp = false
+
+  /** Solves; `keepGoing` is asked at every conflict and decision, and `Unknown`
+   *  follows its first `false` (a budget of steps, a deadline, ...), or a
+   *  theory giving up.
+   */
+  def solve(keepGoing: () => Boolean = () => true): Result =
     require(decisionLevel == 0, "solve is called once")
     if unsat then return Result.Unsat
     while true do
       val conflict = propagate()
+      if gaveUp then return Result.Unknown
       if conflict != null then
+        if !keepGoing() then return Result.Unknown
         if !resolve(conflict) then return Result.Unsat
       else
         val v = nextDecision()
-        if v >= 0 then decide(v)
+        if v >= 0 then
+          if !keepGoing() then return Result.Unknown
+          decide(v)
         else
           theory.finalCheck() match
+            case Theory.Result.Unknown => return Result.Unknown
             case Theory.Result.Conflict(reasons) =>
               if !resolve(reasons.map(_.neg).toArray) then return Result.Unsat
             case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>

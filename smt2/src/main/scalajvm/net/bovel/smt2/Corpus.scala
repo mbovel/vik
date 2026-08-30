@@ -6,7 +6,7 @@ import scala.jdk.CollectionConverters.*
 
 /** The SMT-LIB files of the repository's `smtlib` directory — by logic, then
  *  origin (see `smtlib/README.md`) — for the tests and the benchmarks, and
- *  `smtlib/status.tsv`, the recorded outcome of the solver on each.
+ *  `smtlib/ignore.txt`, the files the tests expect to fail.
  */
 object Corpus:
   /** The `smtlib` directory: up from this source file to the repository root.
@@ -42,15 +42,15 @@ object Corpus:
   /** The logic of a file: the first directory of its relative path. */
   def logic(relative: String): String = Path.of(relative).getName(0).toString
 
-  /** The recorded outcomes, `status.tsv`: relative path, then the solver's
-   *  answers (`sat`/`unsat` per `check-sat`, joined by `,`), or `timeout`,
-   *  `wrong` or `unsupported`, then the seconds taken.
+  /** `ignore.txt`: the files the solver is known not to answer within the
+   *  tests' budget, or to answer wrongly, with the reason; the tests expect
+   *  these to fail, and a fixed one to be removed from the list.
    */
-  def status: Map[String, (String, Double)] =
-    val file = root.resolve("status.tsv")
+  def ignored: Map[String, String] =
+    val file = root.resolve("ignore.txt")
     if !Files.exists(file) then Map.empty
     else
-      Files.readAllLines(file).asScala.toList.drop(1).filter(_.nonEmpty).map { line =>
-        val Array(path, outcome, seconds) = line.split("\t", 3)
-        path -> (outcome, seconds.toDouble)
+      Files.readAllLines(file).asScala.toList.filter(l => l.nonEmpty && !l.startsWith("#")).map { line =>
+        val Array(path, reason) = line.split("\t", 2)
+        path -> reason
       }.toMap

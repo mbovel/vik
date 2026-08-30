@@ -10,8 +10,20 @@ import net.bovel.smt.Solver
  */
 object Player:
   def play(script: Script, solver: Solver = Solver()): List[Boolean] =
-    val results = ArrayBuffer.empty[Boolean]
+    answers(script, solver).map(_.getOrElse(throw IllegalStateException("unknown without a budget")))
+
+  /** The answer of each `check-sat`: `Some(true)` for sat, `None` for unknown
+   *  (the `fuel` of each `check-sat` is spent, see `Solver.solve`).
+   */
+  def answers(script: Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[Option[Boolean]] =
+    val results = ArrayBuffer.empty[Option[Boolean]]
     var current = solver
+    def answer(): Option[Boolean] =
+      val s = current
+      s.solve(fuel) match
+        case s.Result.Sat => Some(true)
+        case s.Result.Unsat => Some(false)
+        case s.Result.Unknown => None
     val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
     def declare(command: Command): Unit = command match
       case Command.DeclareFun(name, argSorts, sort) => current.declare(name, argSorts, sort)
@@ -25,11 +37,11 @@ object Player:
         case Command.Assert(formula) => current.assert(formula)
         case Command.Push(n) => for _ <- 0 until n do current.push()
         case Command.Pop(n) => for _ <- 0 until n do current.pop()
-        case Command.CheckSat => results += (current.solve() == current.Result.Sat)
+        case Command.CheckSat => results += answer()
         case Command.CheckSatAssuming(assumptions) =>
           current.push()
           assumptions.foreach(current.assert)
-          results += (current.solve() == current.Result.Sat)
+          results += answer()
           current.pop()
         case Command.ResetAssertions =>
           current = Solver(simplify = solver.simplify)

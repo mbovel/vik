@@ -2,11 +2,13 @@
 
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
 `HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
-`(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The
-tests (`smt2/src/test/scalajvm/.../SmtLibTest.scala`) play every file and compare with `status.tsv`, the recorded
-outcome of the solver on each — the answers, or `wrong`, `timeout`, `unsupported`, `error` — so that a file the
-solver gets wrong or cannot finish stays in the corpus, visible, without breaking the build; the benchmarks
-(`bench/`) use the subset listed in their `@Param`s.
+`(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
+test `SmtLibTest` (`smt2/src/test/scalajvm`) registers one test per file it finds here: the answers must be the
+statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
+so the outcome is the same on every machine). `ignore.txt` lists the files the solver is known not to answer
+within that fuel, or to answer wrongly, with the reason: the test expects those to fail, and when one passes it
+asks for its line to be removed, so a fixed file surfaces. The benchmarks (`bench/`) use the subset listed in
+their `@Param`s.
 
 ## Origins and licenses
 
@@ -20,20 +22,16 @@ solver gets wrong or cannot finish stays in the corpus, visible, without breakin
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
-`smt2` parses are not imported; `import.py` reports what it rejected.
+`smt2` parses are not imported; the importer reports what it rejected, by error.
 
-## Tools
+## Importing
 
-- `import.py <origin> <source root> <classpath file> [files per family]` copies an origin's files in (see the
-  script for the sources' layouts); the classpath file holds the output of `sbt "print bench/runtimeClasspath"`.
-- `check.py <classpath file> [timeout] [path regex]` runs the solver on every file (one process each) and rewrites
-  `status.tsv`; run it after a change that affects answers or speed, and commit the file: the test checks that
-  every file has a line and that the recorded answers still hold (files recorded under 3 s only).
+`sbt "smt2/runMain net.bovel.smt2.smt2import <origin> <source root> [files per family]"` copies an origin's
+files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
+files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
+reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
 
-
-From the [SMT-LIB release 2025 (non-incremental benchmarks)](https://zenodo.org/records/16740866), `QF_UF.tar.zst`,
-copied to `smtlib/<logic>/smt-lib/` with the family as a prefix (`family__file.smt2`).
-One or two per family, chosen small enough for a JMH run and, where possible, one satisfiable and one unsatisfiable:
+## The SMT-LIB instances of the benchmarks
 
 | File | Family | Status | Workload |
 |---|---|---|---|

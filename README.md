@@ -255,7 +255,7 @@ sbt test      # runs the tests on the JVM and on Scala.js
 
 Other sbt 2 edges met here (thin client hangs, forked processes outliving a killed client, virtual classpath references) are collected in [sbt2-issues.md](sbt2-issues.md).
 
-The SMT-LIB files used by the tests and the benchmarks are the corpus in [smtlib/](smtlib/README.md), by logic and origin (SMT-LIB releases, the 2026 submission repository, and the regression suites of cvc5, z3 and princess, with their licenses). `smtlib/status.tsv` records what the solver does on each file — the answers, or `wrong`, `timeout`, `unsupported` — and the JVM test `SmtLibTest` replays the answered ones; `smtlib/check.py` regenerates the record after a change (a file the solver gets wrong stays in the corpus, visible in the record).
+The SMT-LIB files used by the tests and the benchmarks are the corpus in [smtlib/](smtlib/README.md), by logic and origin (SMT-LIB releases, the 2026 submission repository, and the regression suites of cvc5, z3 and princess, with their licenses). The JVM test `SmtLibTest` registers one test per file: the answers must be the file's statuses within a fuel (solver steps, so the same on every machine); `smtlib/ignore.txt` names the files known to fail, with the reason, and the test asks for a line to be removed when its file passes.
 
 ### Benchmarks
 

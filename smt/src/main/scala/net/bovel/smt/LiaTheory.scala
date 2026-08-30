@@ -51,6 +51,7 @@ final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) e
     else
       check match
         case lia.Solver.Result.Sat => Theory.ok
+        case lia.Solver.Result.Unknown => Theory.Result.Unknown
         case lia.Solver.Result.Unsat(reasons) => Theory.Result.Conflict(lits(reasons))
 
   def explain(lit: Lit): ArrayBuffer[Lit] = throw IllegalArgumentException("LiaTheory implies nothing")
