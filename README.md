@@ -241,14 +241,15 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 - A JDK (17 or later)
 - [sbt](https://www.scala-sbt.org/) 2
 - [Node.js](https://nodejs.org/) 24 or later, for the Scala.js tests (WebAssembly) and the playground
+- [LLVM](https://llvm.org/) with clang, for Scala Native: on the path, or `LLVM_BIN` set to its `bin` directory before starting sbt (an LLVM release unpacked in a user directory works; its clang may need `libtinfo5`, which the Ubuntu archive's package provides in user space with `LD_LIBRARY_PATH`)
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later), `playground` (the browser playgrounds, on the JavaScript backend) and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, on the JavaScript backend) and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects
-sbt test      # runs the tests on the JVM and on Scala.js
+sbt test      # runs the tests on the JVM, on Scala.js (WebAssembly) and on Scala Native
 ```
 
 > [!NOTE]
