@@ -8,16 +8,17 @@ import net.bovel.smt.{Constructor, Datatype, Formula, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
- *  `Int` into [[net.bovel.smt.Term]]s and Boolean terms into [[Formula]]s.
- *  Bit-vectors are lowered to integers (see [[BitVectors]]). Sorts of declared
- *  symbols decide which is which: `=` on Booleans is `Iff`, on integers two
- *  bounds; a Boolean-sorted constant or application is a `Pred`; `+`, `-` and
- *  `*` by a numeral build linear combinations, `<=`, `<`, `>=` and `>` bounds.
- *  `let` binds names to translated values; `define-fun` is a macro; `distinct`
- *  is expanded to pairwise disequalities; `ite` on terms is lowered to a fresh
- *  constant with two defining assertions placed before the assertion that uses
- *  it. Functions with `Int` in their signature are rejected: the solver does
- *  not combine the two theories yet.
+ *  `Int` into [[net.bovel.smt.Term]]s and Boolean terms into
+ *  [[net.bovel.smt.Formula]]s. Bit-vectors are lowered to integers (see
+ *  [[BitVectors]]). Sorts of declared symbols decide which is which: `=` on
+ *  Booleans is `Iff`, on integers two bounds; a Boolean-sorted constant or
+ *  application is a `Pred`; `+`, `-` and `*` by a numeral build linear
+ *  combinations, `<=`, `<`, `>=` and `>` bounds. `let` binds names to
+ *  translated values; `define-fun` is a macro; `distinct` is expanded to
+ *  pairwise disequalities; `ite` on terms is lowered to a fresh constant with
+ *  two defining assertions placed before the assertion that uses it. Functions
+ *  with `Int` in their signature are rejected: the solver does not combine the
+ *  two theories yet.
  */
 final class Parser:
   import Formula.*
