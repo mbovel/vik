@@ -240,11 +240,11 @@ Ticks are what is implemented; the rest says why not, with the commit or the mea
 
 - A JDK (17 or later)
 - [sbt](https://www.scala-sbt.org/) 2
-- [Node.js](https://nodejs.org/), for the Scala.js tests and the playground
+- [Node.js](https://nodejs.org/) 24 or later, for the Scala.js tests (WebAssembly) and the playground
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources), `playground` (the browser playgrounds) and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `smt` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later), `playground` (the browser playgrounds, on the JavaScript backend) and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects

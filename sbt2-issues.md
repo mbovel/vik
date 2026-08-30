@@ -84,3 +84,9 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 `bench/Jmh/run -f 1 -e .*A.* bench/Jmh/run -f 1 -p instance=x .*B.*` (JMH: "Found multiple arguments for
 option i"); sbt 1 ran the two commands in sequence. Workaround: one argument with `;` between the commands,
 `sbt "cmd1; cmd2"`.
+
+## The client fails to connect on a fresh CI runner (2026-08-30)
+
+Once on GitHub Actions, the first `sbt` invocation of a job died with `sbt connection file
+project/target/active.json is corrupt or unreadable: ... IncompleteParseException: exhausted input` before running
+any command: the thin client read the server's connection file while it was being written. A re-run passed.

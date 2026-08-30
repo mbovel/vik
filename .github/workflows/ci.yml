@@ -16,6 +16,9 @@ jobs:
           java-version: 17
           cache: sbt
       - uses: sbt/setup-sbt@v1
+      - uses: actions/setup-node@v4 # the Scala.js tests run on the WebAssembly backend: a recent Node.js
+        with:
+          node-version: 24
       - name: Check formatting
         run: sbt "scalafmtCheckAll; scalafmtSbtCheck"
       - name: Test (JVM and Scala.js)
