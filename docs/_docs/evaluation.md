@@ -54,9 +54,7 @@ second each, average time per operation, one thread. Every operation is a comple
 build the problem, solve it — on a solver built for that call, which is what a verification tool does per
 query. The number after ± is a 95% confidence interval (Student's t over the six iterations).
 
-WARM_TABLE
-
-WARM_COMMENT
+*The table of this run is being measured; the cold one below is complete.*
 
 ## Cold: a process per question
 
