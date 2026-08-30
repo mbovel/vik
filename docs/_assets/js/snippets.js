@@ -15,6 +15,45 @@
     return solver
   }
 
+  /** SMT-LIB for highlight.js, which the site already loads and themes: commands and sorts as keywords, `:key`
+   *  as symbols, `;` comments, numerals and bit-vector literals as numbers.
+   */
+  function language(hljs) {
+    return {
+      name: "SMT-LIB",
+      keywords: {
+        // Words are hyphenated here (`declare-const`), which the default pattern of highlight.js cuts.
+        $pattern: /[a-zA-Z][\w-]*/,
+        keyword:
+          "set-logic set-info set-option get-info get-model declare-sort declare-fun declare-const define-fun " +
+          "declare-datatype declare-datatypes assert check-sat check-sat-assuming push pop reset " +
+          "reset-assertions exit lambda let ite forall exists",
+        built_in:
+          "Bool Int Real BitVec and or not xor distinct div mod abs concat extract bvadd bvsub bvneg bvnot " +
+          "bvmul bvudiv bvurem bvshl bvlshr bvult bvule bvugt bvuge bvslt bvsle bvsgt bvsge zero_extend " +
+          "sign_extend is",
+        literal: "true false"
+      },
+      contains: [
+        hljs.COMMENT(";", "$"),
+        hljs.QUOTE_STRING_MODE,
+        { className: "symbol", begin: /:[a-zA-Z][\w-]*/ },
+        { className: "number", begin: /#[xb][0-9a-fA-F]+|\b\d+\b/ }
+      ]
+    }
+  }
+
+  /** The script, coloured; the text alone while it is edited, so the caret stays where the reader put it. */
+  function highlight(code) {
+    const hljs = window.hljs
+    if (hljs === undefined) return
+    if (hljs.getLanguage("smt2") === undefined) hljs.registerLanguage("smt2", language)
+    // The site ships highlight.js 10, whose `highlight` takes the language first; `highlightBlock` reads the
+    // class of the element instead, and is the one both 10 and 11 understand.
+    code.removeAttribute("data-highlighted")
+    hljs.highlightBlock(code)
+  }
+
   /** A code block of the site's own shape, for the answers of a run. */
   function answers() {
     const block = document.createElement("div")
@@ -32,10 +71,13 @@
     const [block, output] = answers()
     snippet.after(block)
 
-    // The lines of the site's renderer are spans, which an edit would tear apart: plain text instead.
+    // The lines of the site's renderer are spans, which an edit would tear apart: our own colours instead.
     code.textContent = code.textContent
+    highlight(code)
     code.setAttribute("contenteditable", "true")
     code.setAttribute("spellcheck", "false")
+    code.addEventListener("focus", () => (code.textContent = code.textContent))
+    code.addEventListener("blur", () => highlight(code))
 
     const button = document.createElement("button")
     button.className = "snippet-run"
