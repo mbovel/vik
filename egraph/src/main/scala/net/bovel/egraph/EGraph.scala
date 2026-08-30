@@ -141,7 +141,7 @@ object EGraph:
  *  identify `f(a)` with `f(c)` after `a = c` without a record of it).
  *
  *  Backtracking: `push` opens a level and `pop` undoes every `add`, `merge`,
- *  `disequate` and `rebuild` done since, through a trail of [[Undo]] records.
+ *  `disequate` and `rebuild` done since, through a trail of `Undo` records.
  *  Nothing is recorded outside a level, so non-backtracking use costs nothing
  *  extra.
  *

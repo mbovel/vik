@@ -4,11 +4,12 @@ import scala.collection.mutable.ArrayBuffer
 
 import net.bovel.smt.Solver
 
-/** Runs a [[Script]] on a [[Solver]]: `assert`, `push`, `pop` and `check-sat`
- *  become calls, and the responses are returned: `sat`, `unsat` or `unknown`
- *  per `check-sat`, and the `:reason-unknown` of `get-info` — `resourceout`
- *  when the fuel is spent (`:rlimit`, or `fuel` here), `timeout` when the
- *  `:timeout` (milliseconds) passed, `canceled` when the caller stopped it.
+/** Runs a [[Script]] on a [[net.bovel.smt.Solver]]: `assert`, `push`, `pop` and
+ *  `check-sat` become calls, and the responses are returned: `sat`, `unsat` or
+ *  `unknown` per `check-sat`, and the `:reason-unknown` of `get-info` —
+ *  `resourceout` when the fuel is spent (`:rlimit`, or `fuel` here), `timeout`
+ *  when the `:timeout` (milliseconds) passed, `canceled` when the caller
+ *  stopped it.
  */
 object Player:
   def play(script: Script, solver: Solver = Solver()): List[Boolean] =

@@ -16,10 +16,10 @@ import net.bovel.lia
  *  all levels (see [[Simplifier]], unless `simplify` is false) and encodes them
  *  afresh into a [[cdclt.Solver]] (Tseitin encoding, one CDCL(T) variable per
  *  distinct atom and per compound subformula) with a [[UfTheory]] over an
- *  [[EGraph]] for the equalities and a [[LiaTheory]] over a [[lia.Solver]] for
- *  the bounds. The two theories do not exchange equalities yet: a term of sort
- *  `Int` under an uninterpreted function is not supported (the SMT-LIB front
- *  end rejects such declarations).
+ *  [[net.bovel.egraph.EGraph]] for the equalities and a [[LiaTheory]] over a
+ *  [[lia.Solver]] for the bounds. The two theories do not exchange equalities
+ *  yet: a term of sort `Int` under an uninterpreted function is not supported
+ *  (the SMT-LIB front end rejects such declarations).
  */
 final class Solver(val simplify: Boolean = true):
   enum Result:

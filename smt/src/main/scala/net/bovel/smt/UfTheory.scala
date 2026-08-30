@@ -5,10 +5,10 @@ import scala.collection.mutable.ArrayBuffer
 import net.bovel.cdclt.{Lit, Theory, Var}
 import net.bovel.egraph.{EClassId, EGraph}
 
-/** Equality with uninterpreted functions over an [[EGraph]], as a theory of the
- *  CDCL(T) solver: the atom of variable `v` is `t = u` for `atoms(v) = (t, u)`,
- *  e-classes of `eg`, or none when `atoms(v)` is `null`. Terms are added to
- *  `eg` before solving.
+/** Equality with uninterpreted functions over an [[net.bovel.egraph.EGraph]],
+ *  as a theory of the CDCL(T) solver: the atom of variable `v` is `t = u` for
+ *  `atoms(v) = (t, u)`, e-classes of `eg`, or none when `atoms(v)` is `null`.
+ *  Terms are added to `eg` before solving.
  *
  *  A true atom merges its sides, a false one adds a disequality — or, for the
  *  atom `t = true` of a Boolean-sorted term in `twoValued`, merges `t` with
