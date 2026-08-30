@@ -1,4 +1,7 @@
-val scala3Version = "3.9.0"
+val scala3Version = "3.10.0-RC1"
+
+// Scala Native has no compiler plugin for 3.10 yet: its rows stay on the previous release.
+val nativeScalaVersion = "3.9.0"
 
 // In sbt 2, bare settings are common settings injected into all subprojects.
 organization := "net.bovel"
@@ -15,7 +18,7 @@ lazy val egraph = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
 lazy val cdclt = projectMatrix
@@ -26,7 +29,7 @@ lazy val cdclt = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // S-expression parser: subprojects `sexpr` (JVM) and `sexprJS`.
 lazy val sexpr = projectMatrix
@@ -37,7 +40,7 @@ lazy val sexpr = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
 lazy val lia = projectMatrix
@@ -48,7 +51,7 @@ lazy val lia = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // SMT expressions and solver over UF: subprojects `smt` (JVM) and `smtJS`.
 lazy val smt = projectMatrix
@@ -60,7 +63,7 @@ lazy val smt = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // SMT-LIB 2 scripts: subprojects `smt2` (JVM) and `smt2JS`.
 lazy val smt2 = projectMatrix
@@ -72,7 +75,7 @@ lazy val smt2 = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version)) // JVM-only sources in `src/main/scalajvm`: the corpus on disk
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
 // The JVM tests of `smt2` (the corpus) fork with a fixed heap: the same memory budget on every machine.
 lazy val smt2JVM = smt2.jvm(scala3Version)

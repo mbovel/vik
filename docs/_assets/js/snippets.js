@@ -22,8 +22,8 @@
     output.hidden = true
     snippet.after(output)
 
-    code.contentEditable = "true" // the reader can change the script before running it
-    code.spellcheck = false
+    code.setAttribute("contenteditable", "true") // the reader can change the script before running it
+    code.setAttribute("spellcheck", "false")
 
     const button = document.createElement("button")
     button.className = "snippet-run"
