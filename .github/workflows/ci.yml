@@ -56,4 +56,4 @@ jobs:
             set cmd:fail-exit yes;
             set ssl:verify-certificate no;
             open -u \"$FTP_USER\",\"$FTP_PASS\" \"$FTP_HOST\";
-            mirror --reverse --delete --parallel=4 --verbose target/unidoc /vik"
+            mirror --reverse --delete --no-perms --parallel=4 --verbose target/unidoc /vik"
