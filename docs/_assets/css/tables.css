@@ -2,19 +2,11 @@
    row in green (the `best` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
 @media (max-width: 1100px) {
-  /* Narrow screens scroll the table, not squeeze it. The table then is its own scroll container, and
-     `position: sticky` cannot stick past an overflow ancestor: these screens trade the sticky headers away. */
-  #content table { display: block; overflow-x: auto; }
-  /* The table is then the scroll container: sticky would offset the headers into it by the
-     header-height. And WebKit renders vertical writing badly inside table cells (oversized, clipped
-     bands on iOS), so narrow screens take plain horizontal headers in the scrolling pane. */
-  #content th {
-    position: static;
-    writing-mode: horizontal-tb;
-    transform: none;
-    vertical-align: bottom;
-    align-content: normal;
-  }
+  /* Narrow screens: tables stay native (iOS lays out a table made its own `display: block` scroll
+     container badly — inflated rows), the article pane scrolls horizontally instead, and the headers
+     are plain browser defaults — horizontal, unstuck: sticky cannot stick past the scrolling pane. */
+  #content { overflow-x: auto; }
+  #content th { all: revert; }
 }
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;
