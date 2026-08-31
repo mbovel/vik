@@ -111,20 +111,19 @@ class OtherSolversBench:
   @Benchmark
   def vikText(): List[Boolean] = Player.play(Parser.parse(text))
 
-  /** Prints the tree and has princess execute the text as a script —
-   *  `push`/`pop` and every `check-sat` included. Princess prints the answers;
-   *  they are captured and parsed back, as recording them costs it nothing.
+  /** Prints the tree, has princess parse the text into formulas, asserts them
+   *  and checks: one flattened problem. Princess's script executor cannot run
+   *  the incremental instances — the parser does not pop its symbol
+   *  environment, so a declaration in a sibling `push` scope is rejected as
+   *  already declared (see external-issues.md) — so its column stays out of
+   *  the incremental rows.
    */
   @Benchmark
-  def princess(): List[Boolean] =
+  def princess(): Boolean =
     val p = SimpleAPI.spawn
     try
-      val buffer = java.io.ByteArrayOutputStream()
-      Console.withOut(java.io.PrintStream(buffer)) { p.execSMTLIB(StringReader(text)) }
-      buffer.toString.linesIterator.collect {
-        case "sat" => true
-        case "unsat" => false
-      }.toList
+      p.extractSMTLIBAssertions(StringReader(text)).foreach(f => p.addAssertion(f))
+      p.checkSat(true) == SimpleAPI.ProverStatus.Sat
     finally p.shutDown
 
   /** A script wrapper recording the answers of `check-sat`. */

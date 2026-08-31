@@ -28,7 +28,7 @@ object SolverCheck:
           case "z3" => bench.z3()
           case "z3Direct" => bench.z3Direct().last
           case "cvc5" => bench.cvc5().last
-          case "princess" => bench.princess().last
+          case "princess" => bench.princess()
           case "smtinterpol" => bench.smtinterpol().last
         (name, sat)
       }

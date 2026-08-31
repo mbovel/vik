@@ -153,3 +153,13 @@ cache: `Passed: Total 0`, twice, including right after `smt2utils/clean`. The st
 regenerates with the new content, so the resource's hash should differ; the replay
 suggests the cache key does not see it. `testOnly` is not cached and runs the tests.
 Not minimized or reported yet.
+
+## princess: the script executor rejects re-declarations after pop
+
+`SimpleAPI.execSMTLIB` (and the CLI, which runs the same `SMTParser2InputAbsy`) fails on
+incremental scripts that declare a symbol, pop the scope, and declare it again in a sibling
+scope — `20190906-CLEARSY__0020__00009.smt2` of SMT-LIB incremental stops with
+`EnvironmentException: Symbol lh_1 is already declared`. The parser's `push` saves function
+definitions, datatypes and partition state and `prover.push` scopes the prover's symbols, but
+the parser's own symbol environment is not part of the saved tuple, so declarations survive
+`pop` there. Observed with the princess of 2026-08 (master); not reported yet.
