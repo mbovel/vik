@@ -6,8 +6,15 @@
      `position: sticky` cannot stick past an overflow ancestor: these screens trade the sticky headers away. */
   #content table { display: block; overflow-x: auto; }
   /* The table is then the scroll container: sticky would offset the headers into it by the
-     header-height. Static restores the plain rendering. */
-  #content th { position: static; }
+     header-height. And WebKit renders vertical writing badly inside table cells (oversized, clipped
+     bands on iOS), so narrow screens take plain horizontal headers in the scrolling pane. */
+  #content th {
+    position: static;
+    writing-mode: horizontal-tb;
+    transform: none;
+    vertical-align: bottom;
+    align-content: normal;
+  }
 }
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;
