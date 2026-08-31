@@ -27,12 +27,37 @@ Printer.print(script)       // the script as VIK plays it
 `Player.play` is the short form when unknown cannot happen. `Printer.print` shows the script after the front
 end's rewriting, which is where you see the [bit-vectors lowered](../theories/bit-vectors.md) to integers.
 
+A script can also ask why and what: after an `unsat`, `(get-unsat-core)` names the guilty
+`(assert (! … :named n))` assertions — re-asserting just those stays unsat — and after a `sat`,
+`(get-model)` prints a `define-fun` per declared constant and function, and `(get-value (t …))` evaluates
+terms under that model. In Scala the same is `solver.unsatCore`, `solver.model()`, `model.value(term)` and
+`model.holds(formula)` on a [`net.bovel.vik.Solver`](https://matt.bovel.net/vik/api/net/bovel/vik.html),
+which keeps one engine across the `check-sat`s of a script: what one check learns, the next one keeps.
+
+```smt2
+(declare-const x Int)
+(assert (! (<= x 2) :named low))
+(assert (! (<= 4 x) :named high))
+(check-sat)
+(get-unsat-core)
+```
+
+```smt2
+(declare-sort U 0)
+(declare-fun f (U) U)
+(declare-const a U)
+(assert (= (f a) a))
+(check-sat)
+(get-model)
+(get-value ((f (f a))))
+```
+
 The S-expression reader is a module of its own, used by nothing else in the parser's hot path:
 
 ```scala
 import net.bovel.sexpr.SExprParser
 
-SExprParser.parseAll("(a (b c)) (d)") // List(SList(...), SList(...))
+SExprParser.parse("(a (b c)) (d)") // List(SList(...), SList(...))
 ```
 
 ## What is in them

@@ -1,5 +1,7 @@
 index: index.md
 subsection:
+  - title: Introduction
+    page: index.md
   - title: Getting started
     page: getting-started.md
   - title: A tour of the solver

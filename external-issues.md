@@ -99,6 +99,19 @@ Once on GitHub Actions, the first `sbt` invocation of a job died with `sbt conne
 project/target/active.json is corrupt or unreadable: ... IncompleteParseException: exhausted input` before running
 any command: the thin client read the server's connection file while it was being written. A re-run passed.
 
+## Scaladoc
+
+Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.
+
+### An enum case's parameter accessor is not in its members list
+
+- **Observed** (2026-08-31): for `enum SExpr { case Atom(text: String) ... }`, the page of `Atom` shows
+  `text` only inside the signature — the members list has no entry for the public accessor `text`, so its
+  type is unclickable and it cannot carry a doc comment the reader can find. The same for every case of a
+  documented enum (`Command.Assert#formula`, ...). The parameter names in the signature are also emitted
+  with `data-unresolved-link`, so they do not link to anything.
+- **Reproduce**: any Scala 3 enum with parameterized cases; open the generated page of a case.
+
 ## SMTInterpol
 
 Version: `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-916-ga5843d8b` (Maven).
