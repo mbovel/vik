@@ -28,6 +28,10 @@ jobs:
         run: bench/fetch-native.sh && sbt "bench/Jmh/run -f 1 -wi 0 -i 1 -e .*OtherSolversBench.* -e .*SmtBench.*; bench/Jmh/run -f 1 -wi 0 -i 1 -p file=QG-classification__qg5__iso_brn001.smt2,mathsat__FISCHER1-1-fair.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,wisas__xs_8_8.smt2 .*SmtBench.*; bench/Jmh/run -f 1 -wi 0 -i 1 -p instance=QG-classification__qg5__iso_brn001.smt2 -e .*princess.* -e .*smtinterpol.* .*OtherSolversBench.*"
 
   docs:
+    # One upload at a time: a mirror interleaved with another run's would mix versions on the server.
+    concurrency:
+      group: docs-upload
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
