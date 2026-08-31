@@ -77,11 +77,12 @@ query.
 | <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2" title="20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0">20230720-blocksworl…</a> | QF_DT | ✗ | unsat | <span class="best">0.21</span> | 0.29 | 1.04 | 1.14 | 2.23 | 11.28 | 0.54 |
 | <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/sage__app7__bench_8505.smt2" title="sage__app7__bench_8505">sage__<wbr>app7__<wbr>bench_8…</a> | QF_BV | ✗ | sat | <span class="best">0.01</span> | 0.01 | — | 0.89 | 0.92 | 0.62 | — |
 | <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/bmc-bv__adpcm.smt2" title="bmc-bv__adpcm">bmc-bv__<wbr>adpcm</a> | QF_BV | ✗ | sat | <span class="best"><0.01</span> | 0.01 | — | 0.75 | 0.87 | 0.17 | — |
-| <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2" title="20190906-CLEARSY__0020__00009">20190906-CLEARSY__<wbr>0…</a> | QF_UF | ✓ | 181 checks | <span class="best">9.27</span> | 10.71 | — | — | 61.58 | — | 23.57 |
-| <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2" title="kind__MESI_i4.ec">kind__<wbr>MESI_i4.ec</a> | QF_UFLIA | ✓ | 5 checks | 649.20 | 657.82 | — | — | 101.89 | — | <span class="best">18.96</span> |
+| <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2" title="20190906-CLEARSY__0020__00009">20190906-CLEARSY__<wbr>0…</a> | QF_UF | ✓ | 181 checks | 9.36 | 10.65 | <span class="best">7.12</span> | — | 64.90 | — | 23.54 |
+| <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2" title="kind__MESI_i4.ec">kind__<wbr>MESI_i4.ec</a> | QF_UFLIA | ✓ | 5 checks | 752.02 | 737.89 | 23.88 | — | 102.69 | — | <span class="best">18.83</span> |
 | <a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2" title="NEQ__NEQ004_size4">NEQ__<wbr>NEQ004_size4</a> | QF_UF | ✗ | unsat | 113.62 | 110.13 | 11.48 | <span class="best">11.12</span> | 109.53 | — | 127.21 |
 
 The 95% confidence intervals (Student's t over the samples of a cell) average 6% of the mean; every cell is within 20% of its mean except SMTInterpol (SMT2) on `TwoSquares__smtlib.598294` (33%).
+
 
 
 
@@ -94,9 +95,11 @@ The *(SMT2)* columns — cvc5, princess and SMTInterpol included — receive the
 it themselves; the *(API)* columns receive the problem already built: *VIK (API)* solves its own tree, and
 *z3 (API)* is handed that tree through z3's Java API, so the difference between the two z3 columns is what
 parsing costs. For a bit-vector instance the tree is already lowered to integers, so *z3 (API)* is not the
-same question there and the cell is left out. The incremental instances leave three more cells out: z3's
-two columns and princess flatten the script into one problem, which on a script of many `check-sat`s is a
-different question again.
+same question there and the cell is left out. The incremental instances leave two cells out: z3's text column and princess
+flatten the script into one problem — z3's bindings execute no script, and princess's script executor
+rejects a re-declaration after `pop` (see
+[external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)) — a different question on
+a script of many `check-sat`s. *z3 (API)* replays `push`, `pop` and every `check-sat` through the API.
 
 Three instances are in the cold table only: `pspace/ndist.a.20000`, whose sort the in-process cvc5 bindings
 reject, and `car_6` and the `Certora` one, which ask seconds per operation of VIK. `NEQ004_size4` is in the table without
@@ -130,10 +133,11 @@ The middle ground is where the design shows: `CAV_2009/20-vars` is a tie with z3
 instances are one to two orders of magnitude faster than princess, which is the other solver written for the
 JVM.
 
-The incremental scripts split. On `CLEARSY__0020` — 181 easy `check-sat`s — VIK is the fastest again, 9 ms
-for the whole script against 24 ms for SMTInterpol and 62 ms for cvc5: each check is one more small query,
-and the solver now lives across all of them. On `kind/MESI_i4` the five checks are real work, and holding
-the state of the earlier ones costs more than it saves: 649 ms where SMTInterpol needs 19 ms. That price is
+The incremental scripts split. On `CLEARSY__0020` — 181 easy `check-sat`s — the z3 replay and VIK lead,
+7 ms and 9 ms for the whole script against 24 ms for SMTInterpol and 65 ms for cvc5: each check is one more
+small query, and the solver now lives across all of them. On `kind/MESI_i4` the five checks are real work,
+and holding the state of the earlier ones costs more than it saves: 752 ms where z3's replay needs 24 ms
+and SMTInterpol 19 ms. That price is
 [measured and accepted](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-incremental.md):
 the same persistence buys `car_6`'s 21 checks a 1.45× win in the cold table below.
 
