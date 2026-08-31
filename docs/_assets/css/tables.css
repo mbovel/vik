@@ -1,6 +1,6 @@
 /* The tables of the evaluation: compact, the solver headers vertical, the best cell of a row in green
    (the `best` spans of cold2md.py and warm2md.py). */
-#content table { font-size: 14px; }
+#content table { font-size: 14px; display: block; overflow-x: auto; } /* narrow screens scroll, not squeeze */
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;
   transform: rotate(180deg);
@@ -10,5 +10,9 @@
   padding: 0.4em 0.2em;
 }
 #content td[align="right"] { white-space: nowrap; }
-#content td code { word-break: normal; } /* instance names wrap at the <wbr> after each __, and only there */
+#content td:first-child a { /* instance names: a floor on the column, wrapping only at the <wbr> after __ */
+  display: inline-block;
+  min-width: 10em;
+  word-break: normal;
+}
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }

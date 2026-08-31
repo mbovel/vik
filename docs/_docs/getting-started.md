@@ -3,6 +3,7 @@ title: Getting started
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

@@ -3,6 +3,7 @@ title: The e-graph
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

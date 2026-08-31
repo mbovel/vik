@@ -3,6 +3,7 @@ title: The front end
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

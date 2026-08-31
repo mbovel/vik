@@ -3,6 +3,7 @@ title: Integer arithmetic
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

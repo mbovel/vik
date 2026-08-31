@@ -1,5 +1,7 @@
 ---
 title: Components
+extraCSS:
+  - css/site.css
 ---
 
 # Components

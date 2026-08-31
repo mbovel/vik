@@ -3,6 +3,7 @@ title: A tour of the solver
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

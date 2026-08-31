@@ -3,6 +3,7 @@ title: VIK
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

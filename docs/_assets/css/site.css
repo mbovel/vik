@@ -1,0 +1,9 @@
+/* The documentation pages. Headings step down the theme's own scale — Scaladoc gives h1 and h2 the same
+   h500 class, so the sizes of its h700/h500/h300 (styles/theme/bundle.css) are restated here, bold. The
+   "In this article" starts at the sections, like the Scala reference: the page title is the single
+   top-level entry, so it is hidden and its section list flattened. */
+#content h1 { font-size: 40px; line-height: 40px; font-weight: 700; }
+#content h2 { font-size: 28px; line-height: 32px; font-weight: 700; }
+#content h3 { font-size: 20px; line-height: 24px; font-weight: 700; }
+#toc .toc-list > li > a { display: none; }
+#toc .toc-list > li > ul { padding-left: 0; }

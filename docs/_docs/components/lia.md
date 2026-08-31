@@ -3,6 +3,7 @@ title: The LIA solver
 extraJS:
   - js/snippets.js
 extraCSS:
+  - css/site.css
   - css/snippets.css
 ---
 

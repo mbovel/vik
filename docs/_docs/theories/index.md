@@ -1,5 +1,7 @@
 ---
 title: Theories
+extraCSS:
+  - css/site.css
 ---
 
 # Theories
