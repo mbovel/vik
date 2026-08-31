@@ -55,6 +55,9 @@ object Simplifier:
     case Le(l, r) =>
       countConstants(l, counts)
       countConstants(r, counts)
+    case Less(l, r) =>
+      countConstants(l, counts)
+      countConstants(r, counts)
 
   private def countConstants(t: Term, counts: HashMap[String, Int]): Unit = t match
     case Const(name) => counts(name) = counts.getOrElse(name, 0) + 1
@@ -79,7 +82,7 @@ object Simplifier:
       defined: HashMap[String, Term]
   ): Formula =
     f match
-      case True | False | Eq(_, _) | Pred(_) | Le(_, _) => f
+      case True | False | Eq(_, _) | Pred(_) | Le(_, _) | Less(_, _) => f
       case Not(a) => Not(simplify(a, total, false, defined))
       case Or(as) => Or(as.map(simplify(_, total, positive, defined)))
       case Implies(a, b) => Implies(simplify(a, total, false, defined), simplify(b, total, positive, defined))
@@ -132,6 +135,7 @@ object Simplifier:
     case Eq(l, r) => Eq(substitute(l, c, t), substitute(r, c, t))
     case Pred(u) => Formula.pred(substitute(u, c, t))
     case Le(l, r) => Le(substitute(l, c, t), substitute(r, c, t))
+    case Less(l, r) => Less(substitute(l, c, t), substitute(r, c, t))
 
   private def substitute(u: Term, c: String, t: Term): Term = u match
     case Const(name) => if name == c then t else u

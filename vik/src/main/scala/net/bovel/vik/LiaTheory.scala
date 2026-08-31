@@ -56,8 +56,9 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
       assignedTrail += v
     if atom != null && conflict == null then
       val result = atom match
-        case LiaTheory.Atom.Bound(x, c) =>
-          if lit.positive then solver.assertUpper(x, c, lit.index) else solver.assertLower(x, c + 1, lit.index)
+        case LiaTheory.Atom.Bound(x, c, strict) =>
+          if lit.positive then solver.assertUpper(x, c, strict, lit.index)
+          else solver.assertLower(x, c, !strict, lit.index) // not (x ≤ c) is x > c; not (x < c) is x ≥ c
         case LiaTheory.Atom.Equal(x, c) =>
           if !lit.positive then solver.assertDistinct(x, c, lit.index)
           else
@@ -87,8 +88,8 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
         // Only the bounds: implying an equality of the arrangement was measured to be far worse (see the
         // results of 2026-08-31), because it merges classes that the search then has to take apart again.
         val decided = atom match
-          case LiaTheory.Atom.Bound(x, c) => solver.decidesUpper(x, c)
-          case LiaTheory.Atom.Equal(_, _) => None
+          case LiaTheory.Atom.Bound(x, c, false) => solver.decidesUpper(x, c)
+          case _ => None
         decided match
           case Some((holds, reasons)) =>
             reasonsOf(v) = reasons
@@ -123,5 +124,5 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
 
 object LiaTheory:
   enum Atom:
-    case Bound(x: lia.Var, c: BigInt)
+    case Bound(x: lia.Var, c: BigInt, strict: Boolean = false)
     case Equal(x: lia.Var, c: BigInt)

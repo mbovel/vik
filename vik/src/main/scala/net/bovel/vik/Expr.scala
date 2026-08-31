@@ -188,6 +188,11 @@ enum Formula:
    */
   case Le(lhs: Term, rhs: Term)
 
+  /** `lhs < rhs`, strictly: the atom of the reals — an integer strict
+   *  comparison becomes [[Formula.Lt]]'s inclusive rewrite instead.
+   */
+  case Less(lhs: Term, rhs: Term)
+
   /** Computed once, as for terms. */
   private lazy val hash: Int = MurmurHash3.productHash(this)
   override def hashCode: Int = hash
@@ -205,6 +210,7 @@ enum Formula:
     case Eq(lhs, rhs) => List(lhs, rhs)
     case Pred(term) => List(term)
     case Le(lhs, rhs) => List(lhs, rhs)
+    case Less(lhs, rhs) => List(lhs, rhs)
 
   /** The formula with `f` applied to the terms at the leaves (a `Pred` of a
    *  Boolean term becomes its formula).
@@ -220,6 +226,7 @@ enum Formula:
     case Eq(lhs, rhs) => Eq(f(lhs), f(rhs))
     case Pred(term) => Formula.pred(f(term))
     case Le(lhs, rhs) => Le(f(lhs), f(rhs))
+    case Less(lhs, rhs) => Less(f(lhs), f(rhs))
 
   def unary_! : Formula = Not(this)
   def &&(that: Formula): Formula = And(List(this, that))

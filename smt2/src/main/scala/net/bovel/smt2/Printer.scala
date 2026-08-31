@@ -56,6 +56,7 @@ object Printer:
     case Formula.Eq(lhs, rhs) => s"(= ${print(lhs)} ${print(rhs)})"
     case Formula.Pred(term) => print(term)
     case Formula.Le(lhs, rhs) => s"(<= ${print(lhs)} ${print(rhs)})"
+    case Formula.Less(lhs, rhs) => s"(< ${print(lhs)} ${print(rhs)})"
 
   def print(term: Term): String = term match
     case Term.Const(name) => name

@@ -1,5 +1,7 @@
 package net.bovel.vik
 
+import net.bovel.lia
+
 /** A model of a `Sat` answer, taken from the engines before the solver unwound:
  *  values for the declared constants, and a finite graph per declared function
  *  — the applications the problem mentions, and a default.
@@ -20,7 +22,9 @@ final case class Model(
   def value(term: Term): Term = term match
     case Term.Num(_) => term
     case Term.Linear(terms, c) =>
-      Term.Num(terms.map((a, t) => a * number(value(t))).sum + c)
+      Model.rationalTerm(terms.foldLeft(lia.Rational(c)) { case (sum, (a, t)) =>
+        sum + lia.Rational(a) * rational(value(t))
+      })
     case Term.Const(name) =>
       functions.get(name) match
         case Some(f) if f.parameters.isEmpty => f.default
@@ -44,18 +48,25 @@ final case class Model(
     case Formula.Iff(a, b) => holds(a) == holds(b)
     case Formula.Ite(c, t, e) => if holds(c) then holds(t) else holds(e)
     case Formula.Eq(l, r) => value(l) == value(r)
-    case Formula.Le(l, r) => number(value(l)) <= number(value(r))
+    case Formula.Le(l, r) => rational(value(l)) <= rational(value(r))
+    case Formula.Less(l, r) => rational(value(l)) < rational(value(r))
     case Formula.Pred(t) =>
       value(t) match
         case Term.Bool(Formula.True) => true
         case Term.Bool(Formula.False) => false
         case other => other == Term.Bool(Formula.True)
 
-  private def number(t: Term): BigInt = t match
-    case Term.Num(v) => v
-    case _ => 0 // an unconstrained integer: the model chose 0
+  private def rational(t: Term): lia.Rational = t match
+    case Term.Num(v) => lia.Rational(v)
+    case Term.App(Term.Const("/"), List(p, q)) => rational(p) / rational(q)
+    case _ => lia.Rational(BigInt(0)) // an unconstrained number: the model chose 0
 
 object Model:
+  /** A rational as a term: a numeral, or `(/ num den)`. */
+  def rationalTerm(r: lia.Rational): Term =
+    if r.isInteger then Term.Num(r.num)
+    else Term.App(Term.Const("/"), List(Term.Num(r.num), Term.Num(r.den)))
+
   /** A declared function in a model: its parameter sorts, result sort, the rows
    *  of its graph (argument values to result value) and the value everywhere
    *  else.

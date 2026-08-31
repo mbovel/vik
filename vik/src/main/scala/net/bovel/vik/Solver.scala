@@ -241,7 +241,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         ).map((args, sort) => Sorts.function(args, sort)).orElse(introduced.get(name)).getOrElse("?")
       case Term.App(fun, args) => Sorts.applied(sortOf(fun), args.length)
       case Term.Lambda(sorts, body) => Sorts.function(sorts, sortOf(body))
-      case Term.Num(_) | Term.Linear(_, _) => "Int"
+      case Term.Num(_) => "Int"
+      case Term.Linear(terms, _) => if terms.exists((_, t) => sortOf(t) == "Real") then "Real" else "Int"
       case Term.Bool(_) => "Bool"
       case Term.Var(_) => "?"
   )
@@ -276,7 +277,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private def isInt(t: Term): Boolean = // the sort first: `closed` walks the term
     (t match
       case Term.Num(_) | Term.Linear(_, _) => true
-      case _ => sortOf(t) == "Int" || intTerms(t)
+      case _ => sortOf(t) == "Int" || sortOf(t) == "Real" || intTerms(t)
     ) && Term.closed(t)
 
   /** Theory combination: an `Int` term gets an e-class only when it occurs
@@ -470,7 +471,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   def classOf(term: Term): EClassId = classes.getOrElseUpdate(
     term, {
       sortOf(term) match
-        case "Int" => anyInt = true
+        case "Int" | "Real" => anyInt = true
         case sort if sort.startsWith("(->") =>
           anyFunction |= term.isInstanceOf[Term.Lambda] || term.isInstanceOf[Term.App]
         case _ => ()
@@ -508,10 +509,21 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     liaAtoms += null
     Lit(atoms.length - 1)
 
-  private def bound(x: lia.Var, c: BigInt): Lit =
+  private def bound(x: lia.Var, c: BigInt, strict: Boolean): Lit =
     atoms += null
-    liaAtoms += LiaTheory.Atom.Bound(x, c)
+    liaAtoms += LiaTheory.Atom.Bound(x, c, strict)
     Lit(atoms.length - 1)
+
+  /** `lhs − rhs ≤ 0` (`< 0` when strict), as a bound on the combination
+   *  `Σ a × t` (`+ c`) or on a lone term.
+   */
+  private def comparison(lhs: Term, rhs: Term, strict: Boolean): Lit =
+    noteInts(lhs)
+    noteInts(rhs)
+    Term.linear(List((1, lhs), (-1, rhs))) match
+      case Term.Num(v) => if if strict then v.signum < 0 else v.signum <= 0 then trueLit else trueLit.neg
+      case Term.Linear(terms, c) => bound(slack(terms), -c, strict)
+      case term => bound(intVar(term), 0, strict)
 
   /** The LIA variable of an atomic `Int` term. An application is a node of the
    *  e-graph as well, so that congruence relates it to other applications (a
@@ -521,11 +533,14 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     term match
       case Term.App(_, _) => classOf(term)
       case _ => ()
-    intVars.getOrElseUpdate(term, liaSolver.newVar())
+    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = sortOf(term) != "Real"))
 
   /** The LIA variable standing for a linear combination of `Int` terms. */
   private def slack(terms: List[(BigInt, Term)]): lia.Var =
-    slacks.getOrElseUpdate(terms, liaSolver.newSlack(terms.map((a, t) => (a, intVar(t)))))
+    slacks.getOrElseUpdate(
+      terms,
+      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortOf(t) == "Real"))
+    )
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
   private def lit(formula: Formula): Lit = lits.getOrElseUpdate(formula, encode(formula))
@@ -554,14 +569,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             clauses += Array(l.neg, e)
           case _ => ()
         e
-      case Le(lhs, rhs) =>
-        noteInts(lhs)
-        noteInts(rhs)
-        // `lhs − rhs ≤ 0`, as a bound on the combination `Σ a × t` (`+ c ≤ 0`) or on a lone term.
-        Term.linear(List((1, lhs), (-1, rhs))) match
-          case Term.Num(v) => if v.signum <= 0 then trueLit else trueLit.neg
-          case Term.Linear(terms, c) => bound(slack(terms), -c)
-          case term => bound(intVar(term), 0)
+      case Le(lhs, rhs) => comparison(lhs, rhs, strict = false)
+      case Less(lhs, rhs) => comparison(lhs, rhs, strict = true)
       case Implies(lhs, rhs) => lit(Or(List(Not(lhs), rhs)))
       case And(args) =>
         val v = freshVar()
@@ -684,7 +693,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private def takeModel(): Model =
     val elements = HashMap.empty[(String, EClassId), Term] // sort and class to element
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
-    for (t, x) <- intVars do classes.get(t).foreach(c => classValues(eg.find(c)) = liaSolver.value(x))
+    val realClassValues = HashMap.empty[EClassId, lia.Rational]
+    for (t, x) <- intVars do
+      classes.get(t).foreach { c =>
+        if sortOf(t) == "Real" then realClassValues(eg.find(c)) = liaSolver.realValue(x)
+        else classValues(eg.find(c)) = liaSolver.value(x)
+      }
     def elementOf(sort: String, cls: EClassId): Term =
       val root = eg.find(cls)
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$sort!${elements.count(_._1._1 == sort)}"))
@@ -705,11 +719,13 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         case None =>
           sort match
             case "Int" => Term.Num(classValues.getOrElse(eg.find(cls), BigInt(0)))
+            case "Real" => Model.rationalTerm(realClassValues.getOrElse(eg.find(cls), lia.Rational.zero))
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             case _ => elementOf(sort, cls)
     def valueOfTerm(t: Term, sort: String): Term =
       sort match
         case "Int" => intVars.get(t).map(x => Term.Num(liaSolver.value(x))).getOrElse(Term.Num(0))
+        case "Real" => intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x))).getOrElse(Term.Num(0))
         case _ =>
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)

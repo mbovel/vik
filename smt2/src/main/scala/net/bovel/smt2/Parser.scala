@@ -186,7 +186,6 @@ private final class Parser extends Lowering:
    */
   private def checkSort(sort: String): Unit =
     val unsupported = List(
-      "Real",
       "String",
       "RegLan",
       "RoundingMode",
@@ -205,7 +204,8 @@ private final class Parser extends Lowering:
   /** Whether terms of `sort` are integers after lowering: `Int` or a bit-vector
    *  sort.
    */
-  private def isArithmetic(sort: String): Boolean = sort == "Int" || BitVectors.width(sort) >= 0
+  private def isArithmetic(sort: String): Boolean =
+    sort == "Int" || sort == "Real" || BitVectors.width(sort) >= 0
 
   /** Declares datatypes: their constructors, selectors and testers become
    *  function symbols (a constructor `C` of datatype `D` with selectors
@@ -237,9 +237,22 @@ private final class Parser extends Lowering:
 
   private def isNumeral(name: String): Boolean = name.nonEmpty && name.forall(_.isDigit)
 
+  private def isDecimal(name: String): Boolean =
+    val i = name.indexOf('.')
+    i > 0 && i < name.length - 1 && name.take(i).forall(_.isDigit) && name.drop(i + 1).forall(_.isDigit)
+
+  /** The value of an integral decimal (`2.0`); other rationals are not
+   *  supported.
+   */
+  private def decimalValue(name: String): BigInt =
+    val i = name.indexOf('.')
+    if name.drop(i + 1).exists(_ != '0') then throw Smt2Error(s"the decimal $name is not an integer")
+    BigInt(name.take(i))
+
   private def sortOf(sexpr: SExpr, env: Map[String, Value]): String = sexpr match
     case SAtom("true" | "false") => "Bool"
     case SAtom(name) if isNumeral(name) => "Int"
+    case SAtom(name) if isDecimal(name) => "Real"
     case SAtom(name) if name.startsWith("#b") => BitVectors.sort(name.length - 2)
     case SAtom(name) if name.startsWith("#x") => BitVectors.sort(4 * (name.length - 2))
     case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
@@ -260,7 +273,7 @@ private final class Parser extends Lowering:
             s"unknown symbol $name"
           ))
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
-    case SList(SAtom("+" | "-" | "*") :: _) => "Int"
+    case SList(SAtom("+" | "-" | "*") :: args) => if args.exists(a => sortOf(a, env) == "Real") then "Real" else "Int"
     case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
       val inner = bindParameters(ps, env)
@@ -326,11 +339,12 @@ private final class Parser extends Lowering:
     case SList(SAtom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
       for a <- args if !isArithmetic(sortOf(a, env)) do throw Smt2Error(s"$op on ${sortOf(a, env)} is not supported")
       val ts = args.map(term(_, env))
+      val real = args.exists(a => sortOf(a, env) == "Real") // any side: numerals alone say Int
       val compare: (Term, Term) => Formula = op match
         case "<=" => Le(_, _)
-        case "<" => Lt(_, _)
+        case "<" => if real then Less(_, _) else Lt(_, _)
         case ">=" => Ge(_, _)
-        case _ => Gt(_, _)
+        case _ => if real then (lhs, rhs) => Less(rhs, lhs) else Gt(_, _)
       chain(ts.zip(ts.tail).map(compare(_, _)))
     case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       Ite(formula(cond, env), formula(thn, env), formula(els, env))
@@ -368,6 +382,7 @@ private final class Parser extends Lowering:
     case SAtom("true") => Term.boolean(Formula.True)
     case SAtom("false") => Term.boolean(Formula.False)
     case SAtom(name) if isNumeral(name) => Term.Num(BigInt(name))
+    case SAtom(name) if isDecimal(name) => Term.Num(decimalValue(name))
     case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
     case SAtom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
     case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
@@ -423,7 +438,11 @@ private final class Parser extends Lowering:
       val name = s"ite!$fresh"
       val k = Term.Const(name)
       val sort = sortOf(thn, env)
-      introduced += ((name, if isArithmetic(sort) then "Int" else sort)) // declared as it is printed: lowered
+      introduced +=
+        ((
+          name,
+          if sort == "Real" then "Real" else if isArithmetic(sort) then "Int" else sort
+        )) // declared as it is printed: lowered
       functions(name) = (Nil, sort)
       val c = formula(cond, env)
       definitions += Implies(c, equal(sort, k, term(thn, env)))

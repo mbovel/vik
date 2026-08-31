@@ -33,8 +33,9 @@ The same on a script you write here — press the play button in its corner:
 The front end supports what the theories below support: `declare-sort`, `declare-fun`, `declare-const`,
 `define-fun`, `declare-datatype(s)`, `assert`, `check-sat`, `check-sat-assuming`, `push`, `pop`,
 `reset-assertions`, `reset`, `set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
-not supported (reals, strings, arrays, sets, floating point) are refused rather than read as uninterpreted
-sorts, so a script is never answered on a meaning VIK does not implement.
+not supported (strings, arrays, sets, floating point) are refused rather than read as uninterpreted
+sorts, so a script is never answered on a meaning VIK does not implement. `Real` arithmetic reads
+integral literals only: a fractional decimal or a quotient like `(/ 1 2)` is refused the same way.
 
 Two options bound the search, and are answered honestly when they stop it:
 
