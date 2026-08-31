@@ -23,12 +23,20 @@ class SmtLibTest extends munit.FunSuite:
     val reason = ignored.get(file)
     test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):
       val outcome = Try {
-        val script = Parser.parse(Corpus.read(file))
+        val text = Corpus.read(file)
+        val script = Parser.parse(text)
         val expected = script.expectedStatuses
         val got = Player.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
         val agrees = got.length == expected.length &&
           got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
-        (agrees, s"expected ${show(expected)}, got ${show(got)}")
+        // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
+        val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
+        val responses =
+          if expects.isEmpty || reason.isDefined ||
+            !List("(get-value", "(get-model", "(get-unsat-core").exists(text.contains)
+          then expects
+          else Player.run(script, fuel = fuel)
+        (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")
       }
       reason match
         case None => assert(outcome.get._1, outcome.get._2)
