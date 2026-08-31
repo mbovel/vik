@@ -56,6 +56,10 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
   and runs nothing, because task results are cached by content; `clean` does not reset that cache. Reading a green
   `Total 0` as "tests ran" is an easy mistake, and CI logs show it too.
 - **Workaround**: `sbt "project/testOnly *"` forces a run. Documented in the README; surprising rather than wrong.
+- **Also** (2026-08-31): the cache keys on the classpath and the sources, not on data a test reads from disk, so
+  a run after a change to the corpus alone could in principle be replayed. Not observed here in the end — what
+  looked like a stale replay was this summary's `Total` excluding the ignored tests — but the corpus is stamped
+  into a managed test resource anyway, so the classpath changes with it and the question does not arise.
 
 ### 6. `target/` holds symlinks into the user's cache
 
