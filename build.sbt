@@ -162,6 +162,7 @@ lazy val bench = project
   .in(file("bench"))
   .enablePlugins(JmhPlugin)
   .dependsOn(
+    smt2utils,
     egraph.jvm(scala3Version),
     cdclt.jvm(scala3Version),
     lia.jvm(scala3Version),
