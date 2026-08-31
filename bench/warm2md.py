@@ -24,8 +24,9 @@ def corpus(base):
     text = path.read_text(errors="replace")
     logic = m.group(1) if (m := re.search(r"\(set-logic ([A-Z_]+)\)", text)) else str(path.parts[1])
     incremental = "✓" if text.count("(check-sat") > 1 or "(push" in text else "✗"
-    statuses = re.findall(r":status (?:sat|unsat)", text)
-    status = f"{len(statuses)} checks" if len(statuses) > 1 else (statuses + [""])[0].removeprefix(":status ")
+    checks = text.count("(check-sat")
+    m = re.search(r":status (sat|unsat)", text)
+    status = f"{checks} checks" if checks > 1 else m.group(1) if m else "unknown"
     return path, logic, incremental, status
 
 
@@ -67,8 +68,9 @@ for instance, solvers in by.items():
             text = fmt(mean)
             cells.append(f'<span class="best">{text}</span>' if mean == best else text)
     path, logic, incremental, status = corpus(instance + ".smt2")
-    label = instance.replace("__", "__<wbr>")  # long names may wrap there, and only there
-    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}"><code>{label}</code></a>' if path else f"<code>{label}</code>"
+    short = instance if len(instance) <= 30 else instance[:29] + "…"  # the link's title carries the full name
+    label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
+    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
     print(f"| {name} | {logic} | {incremental} | {status} | " + " | ".join(cells) + " |")
 
 average = 100 * statistics.mean(p for p, _, _ in intervals)

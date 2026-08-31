@@ -4,7 +4,9 @@
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the median of the repetitions in seconds, the best of the row highlighted
 (`<span class="best">`, styled by the site's `tables.css`); `timeout` when the solver did not finish, and the
-answer in bold when it disagrees with the file's status. Run from the repository root, where `smtlib/` is.
+answer in bold when it disagrees with the file's status. `--blank solver:instance,...` leaves out the cells
+where the measurement would not mean what the column says (see the evaluation page). Run from the repository
+root, where `smtlib/` is.
 """
 import collections, csv, pathlib, re, sys
 
@@ -25,12 +27,25 @@ def fmt(x):
     return "<0.01" if 0 < x < 0.005 else f"{x:.2f}"
 
 
-rows = list(csv.DictReader(open(sys.argv[1]), delimiter="\t"))
-solvers = sys.argv[2].split(",") if len(sys.argv) > 2 else [
+arguments = sys.argv[1:]
+blank = set()
+if "--blank" in arguments:
+    i = arguments.index("--blank")
+    blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
+    arguments = arguments[:i] + arguments[i + 2:]
+
+rows = list(csv.DictReader(open(arguments[0]), delimiter="\t"))
+solvers = arguments[1].split(",") if len(arguments) > 1 else [
     "vik-jvm", "vik-native", "vik-node", "z3", "cvc5", "princess", "smtinterpol"
 ]
 names = {"vik-jvm": "VIK (JVM)", "vik-native": "VIK (native)", "vik-node": "VIK (Node)", "z3": "z3",
          "cvc5": "cvc5", "princess": "princess", "smtinterpol": "SMTInterpol"}
+def agrees(answer, expected):
+    """Answer sequences match the statuses; a check whose status is unknown accepts either answer."""
+    a, e = answer.split(","), expected.split(",")
+    return len(a) == len(e) and all(x == y or y == "unknown" for x, y in zip(a, e))
+
+
 by = collections.defaultdict(dict)
 status = {}
 for r in rows:
@@ -40,15 +55,17 @@ for r in rows:
 print("| Instance | Theory | Incremental | Status | " + " | ".join(names[s] for s in solvers) + " |")
 print("|---|---|---|---|" + "---:|" * len(solvers))
 for f, answers in by.items():
-    best = min((median for answer, median in answers.values() if answer == status[f]), default=None)
+    best = min((median for answer, median in answers.values() if agrees(answer, status[f])), default=None)
     cells = []
     for s in solvers:
         answer, median = answers.get(s, ("missing", 0.0))
-        if answer == "timeout":
+        if (s, f[:-5]) in blank:
+            cells.append("—")
+        elif answer == "timeout":
             cells.append("timeout")
         elif answer == "error":
             cells.append("—")
-        elif answer == status[f]:
+        elif agrees(answer, status[f]):
             text = fmt(median)
             cells.append(f'<span class="best">{text}</span>' if median == best else text)
         elif "," in answer or "," in status[f]:
@@ -56,8 +73,10 @@ for f, answers in by.items():
         else:
             cells.append(f"**{answer}** {fmt(median)}")
     path, logic, incremental = corpus(f)
-    label = f[:-5].replace("__", "__<wbr>")  # long names may wrap there, and only there
-    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}"><code>{label}</code></a>' if path else f"<code>{label}</code>"
+    instance = f[:-5]
+    short = instance if len(instance) <= 30 else instance[:29] + "…"  # the link's title carries the full name
+    label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
+    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
     checks = status[f].count(",") + 1
     shown = status[f] if checks == 1 else f"{checks} checks"
     print(f"| {name} | {logic} | {incremental} | {shown} | " + " | ".join(cells) + " |")

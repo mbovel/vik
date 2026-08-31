@@ -14,3 +14,7 @@ smtlib/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2
 smtlib/QF_BV/smt-lib/sage__app7__bench_8505.smt2
 smtlib/QF_BV/smt-lib/bmc-bv__adpcm.smt2
 smtlib/QF_BV/smt-lib/pspace__ndist.a.20000.smt2
+smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2
+smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2
+smtlib/QF_UFLIA/smt-lib-incremental/kind__car_6_e2_893.ec.smt2
+smtlib/QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2

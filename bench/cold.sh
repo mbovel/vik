@@ -17,13 +17,16 @@ NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.smt2.smt2" -type f 
 MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
-seconds() { # the wall-clock time of one run, and the answer; `timeout` when it does not finish
-  local start end out status
+seconds() { # the wall-clock time of one run, and the answers (comma-separated for an incremental script);
+  # `timeout` when it does not finish, `error` when it stops without answering
+  local start end raw code out
   start=$(date +%s.%N)
-  out=$(timeout "$TIMEOUT" "$@" 2>/dev/null | grep -E '^(sat|unsat|unknown)$' | head -1)
-  status=$?
+  raw=$(timeout "$TIMEOUT" "$@" 2>/dev/null)
+  code=$?
   end=$(date +%s.%N)
-  printf "%s\t%.3f" "${out:-timeout}" "$(echo "$end - $start" | bc)"
+  out=$(grep -E '^(sat|unsat|unknown)$' <<< "$raw" | paste -sd, -)
+  if [ -z "$out" ]; then if [ "$code" = 124 ]; then out=timeout; else out=error; fi; fi
+  printf "%s\t%.3f" "$out" "$(echo "$end - $start" | bc)"
 }
 
 measure() { # name, command...: repeats the run and reports the median, the minimum and the maximum
@@ -41,14 +44,15 @@ measure() { # name, command...: repeats the run and reports the median, the mini
 printf "file\texpected\tsolver\tanswer\tmedian\tmin\tmax\n"
 while read -r f; do
   [ -z "$f" ] && continue
-  expected=$(grep -m1 -o ':status [a-z]*' "$f" | cut -d' ' -f2)
+  expected=$(grep -o ':status [a-z]*' "$f" | cut -d' ' -f2 | paste -sd, -)
+  inc=$(grep -q "(push" "$f" && echo --incremental)
   base=$(basename "$f")
   {
     measure vik-jvm java -cp "$CP" net.bovel.smt2.smt2 "$f"
     [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
-    measure cvc5 cvc5 "$f"
+    measure cvc5 cvc5 $inc "$f"
     measure princess java -cp "$CP" ap.CmdlMain "$f"
     measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
   } | while read -r line; do printf "%s\t%s\t%s\n" "$base" "$expected" "$line"; done

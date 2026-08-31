@@ -24,8 +24,10 @@ import net.bovel.smt2.{Corpus, Parser, Player, Printer, Script as VikScript}
  *  the tree through the Java API, the way a program would. z3 and cvc5 run
  *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
  *  native libraries of `fetch-native.sh`; every operation creates and closes
- *  its own context, as the other solvers do. `z3Direct` builds the problem from VIK's tree, which for a
- *  bit-vector instance is already lowered to integers: that column measures z3 on the lowered problem.
+ *  its own context, as the other solvers do. `z3Direct` replays a
+ *  [[Z3Program]]: only z3 API calls in the operation, compiled from the
+ *  instance up front — for a bit-vector instance the front end lowers to
+ *  integers while parsing, so that column measures z3 on the lowered problem.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -76,6 +78,8 @@ class OtherSolversBench:
       "20230720-blocksworld__from_5_4_17_to_12_6_8_bmc_2.smt2",
       "TwoSquares__smtlib.598294.smt2",
       "TwoSquares__smtlib.602033.smt2",
+      "20190906-CLEARSY__0020__00009.smt2",
+      "kind__MESI_i4.ec.smt2",
       "wisas__xs_5_5.smt2",
       "wisas__xs_8_8.smt2",
       "wisas__xs_20_20.smt2",
@@ -88,11 +92,13 @@ class OtherSolversBench:
 
   private var script: VikScript = uninitialized
   private var text: String = uninitialized
+  private var z3Program: Z3Program = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
     script = Parser.parse(text)
+    z3Program = Z3Program.compile(script)
 
   @Benchmark
   def print(): Int = Printer.print(script).length
@@ -144,14 +150,16 @@ class OtherSolversBench:
       solver.check() == Status.SATISFIABLE
     finally ctx.close()
 
-  /** Builds z3's AST from the tree through the Java API and checks it. */
+  /** Replays the instance's [[Z3Program]] — declarations and terms through
+   *  z3's Java API, nothing else — and checks it.
+   */
   @Benchmark
   def z3Direct(): Boolean =
     Natives.z3
     val ctx = Context()
     try
       val solver = ctx.mkSolver()
-      solver.add(Z3Encoder(ctx).assertions(script)*)
+      solver.add(z3Program.run(ctx)*)
       solver.check() == Status.SATISFIABLE
     finally ctx.close()
 
@@ -162,6 +170,7 @@ class OtherSolversBench:
   def cvc5(): List[Boolean] =
     val solver = Cvc5Solver()
     try
+      if text.contains("(push") then solver.setOption("incremental", "true") // scripts that push need the option
       val parser = InputParser(solver)
       parser.setStringInput(InputLanguage.SMT_LIB_2_6, text, "script")
       val symbols = parser.getSymbolManager
