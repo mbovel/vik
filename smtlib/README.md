@@ -26,7 +26,7 @@ Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and
 
 ## Importing
 
-`sbt "smt2/runMain net.bovel.smt2.smt2import <origin> <source root> [files per family]"` copies an origin's
+`sbt "smt2utils/runMain net.bovel.smt2.smt2import <origin> <source root> [files per family]"` copies an origin's
 files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
 files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
 reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.

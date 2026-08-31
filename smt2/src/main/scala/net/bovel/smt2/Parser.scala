@@ -20,7 +20,10 @@ import net.bovel.vik.{BitVectors, Constructor, Datatype, Formula, Lowering, Sort
  *  with `Int` in their signature are rejected: the solver does not combine the
  *  two theories yet.
  */
-final class Parser extends Lowering:
+/** One parse: the class carries the declarations, macros and sorts the commands
+ *  build up, so [[Parser.parse]] makes a fresh one per input.
+ */
+private final class Parser extends Lowering:
   import Formula.*
 
   private enum Value:
