@@ -13,7 +13,7 @@ from scipy.stats import t
 
 order = ["vik", "vikText", "z3Direct", "z3", "cvc5", "princess", "smtinterpol"]
 names = {"vik": "VIK (API)", "vikText": "VIK (SMT2)", "z3Direct": "z3 (API)", "z3": "z3 (SMT2)",
-         "cvc5": "cvc5 (SMT2)", "princess": "princess (SMT2)", "smtinterpol": "SMTInterpol (SMT2)"}
+         "cvc5": "cvc5 (SMT2)", "princess": "princess (API)", "smtinterpol": "SMTInterpol (API)"}
 
 
 def corpus(base):
@@ -52,8 +52,13 @@ for path in arguments:
         ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0
         by[instance][solver] = (mean, ci)
 
-print("| Instance | Theory | Incremental | Status | " + " | ".join(names[s] for s in order) + " |")
-print("|---|---|---|---|" + "---:|" * len(order))
+# A real HTML table in a scrolling wrapper: narrow screens scroll the wrapper (a table made its own
+# scroll container renders badly on iOS), wide screens keep the sticky vertical headers.
+print('<div class="table-scroll">')
+print("<table>")
+print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "Incremental", "Status"])
+      + "".join(f"<th>{names[s]}</th>" for s in order) + "</tr></thead>")
+print("<tbody>")
 intervals = []  # (ci / mean, solver, instance) of every cell shown
 for instance, solvers in by.items():
     shown = {s: solvers[s] for s in order if s in solvers and (s, instance) not in blank}
@@ -71,7 +76,12 @@ for instance, solvers in by.items():
     short = instance if len(instance) <= 20 else instance[:19] + "…"  # the link's title carries the full name
     label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
     name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
-    print(f"| {name} | {logic} | {incremental} | {status} | " + " | ".join(cells) + " |")
+    print(f"<tr><td>{name}</td><td>{logic}</td><td>{incremental}</td><td>{status}</td>"
+          + "".join(f'<td align="right">{c}</td>' for c in cells) + "</tr>")
+
+print("</tbody>")
+print("</table>")
+print("</div>")
 
 average = 100 * statistics.mean(p for p, _, _ in intervals)
 widest = sorted((x for x in intervals if 100 * x[0] >= 20), reverse=True)

@@ -2,11 +2,12 @@
    row in green (the `best` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
 @media (max-width: 1100px) {
-  /* Narrow screens: tables stay native (iOS lays out a table made its own `display: block` scroll
-     container badly — inflated rows), the article pane scrolls horizontally instead, and the headers
-     are plain browser defaults — horizontal, unstuck: sticky cannot stick past the scrolling pane. */
-  #content { overflow-x: auto; }
-  #content th { all: revert; }
+  /* Narrow screens scroll each generated table's wrapper; the table stays native (iOS inflates the
+     rows of a table made its own scroll container, and scrolling the article pane moved the prose
+     too). The headers keep their vertical writing and only come unstuck: sticky cannot stick past
+     the scrolling wrapper. */
+  .table-scroll { overflow-x: auto; }
+  #content th { position: static; }
 }
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;

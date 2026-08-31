@@ -52,8 +52,11 @@ for r in rows:
     by[r["file"]][r["solver"]] = (r["answer"], float(r["median"]))
     status[r["file"]] = r["expected"]
 
-print("| Instance | Theory | Incremental | Status | " + " | ".join(names[s] for s in solvers) + " |")
-print("|---|---|---|---|" + "---:|" * len(solvers))
+print('<div class="table-scroll">')
+print("<table>")
+print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "Incremental", "Status"])
+      + "".join(f"<th>{names[s]}</th>" for s in solvers) + "</tr></thead>")
+print("<tbody>")
 for f, answers in by.items():
     best = min((median for answer, median in answers.values() if agrees(answer, status[f])), default=None)
     cells = []
@@ -69,9 +72,9 @@ for f, answers in by.items():
             text = fmt(median)
             cells.append(f'<span class="best">{text}</span>' if median == best else text)
         elif "," in answer or "," in status[f]:
-            cells.append(f"**wrong** {fmt(median)}")
+            cells.append(f"<strong>wrong</strong> {fmt(median)}")
         else:
-            cells.append(f"**{answer}** {fmt(median)}")
+            cells.append(f"<strong>{answer}</strong> {fmt(median)}")
     path, logic, incremental = corpus(f)
     instance = f[:-5]
     short = instance if len(instance) <= 20 else instance[:19] + "…"  # the link's title carries the full name
@@ -79,4 +82,9 @@ for f, answers in by.items():
     name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
     checks = status[f].count(",") + 1
     shown = status[f] if checks == 1 else f"{checks} checks"
-    print(f"| {name} | {logic} | {incremental} | {shown} | " + " | ".join(cells) + " |")
+    print(f"<tr><td>{name}</td><td>{logic}</td><td>{incremental}</td><td>{shown}</td>"
+          + "".join(f'<td align="right">{c}</td>' for c in cells) + "</tr>")
+
+print("</tbody>")
+print("</table>")
+print('</div>')
