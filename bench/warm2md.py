@@ -1,16 +1,43 @@
 #!/usr/bin/env python3
 """A markdown table from a JMH run of OtherSolversBench: warm2md.py results.json [more.json ...] [--blank solver:instance,...]
 
-One row per instance, one column per solver, the mean of the samples in milliseconds with its 95% confidence
-interval (Student's t over the iterations of every fork). `--blank` leaves out the cells of a solver on an
-instance where the measurement would not mean what the column says (see the evaluation page).
+One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
+status — and one column per solver: the mean over the samples in milliseconds, the best of the row
+highlighted (`<span class="best">`, styled by the site's `tables.css`). A note after the table summarizes the
+95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--blank` leaves out
+the cells of a solver on an instance where the measurement would not mean what the column says (see the
+evaluation page). Run from the repository root, where `smtlib/` is.
 """
-import collections, json, statistics, sys
+import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
 order = ["vik", "vikText", "z3Direct", "z3", "cvc5", "princess", "smtinterpol"]
-names = {"vik": "VIK", "vikText": "VIK, parsing", "z3Direct": "z3, API", "z3": "z3, parsing", "cvc5": "cvc5",
-         "princess": "princess", "smtinterpol": "SMTInterpol"}
+names = {"vik": "VIK<br>(API)", "vikText": "VIK<br>(SMT2)", "z3Direct": "z3<br>(API)", "z3": "z3<br>(SMT2)",
+         "cvc5": "cvc5<br>(SMT2)", "princess": "princess<br>(SMT2)", "smtinterpol": "SMTInterpol<br>(SMT2)"}
+plain = {s: n.replace("<br>", " ") for s, n in names.items()}
+
+
+def corpus(base):
+    """The corpus file of an instance, and what the table says about it: logic, incremental, status."""
+    path = next(iter(pathlib.Path("smtlib").glob(f"*/*/{base}")), None)
+    if path is None:
+        return None, "?", "", ""
+    text = path.read_text(errors="replace")
+    logic = m.group(1) if (m := re.search(r"\(set-logic ([A-Z_]+)\)", text)) else str(path.parts[1])
+    incremental = "✓" if text.count("(check-sat") > 1 or "(push" in text else "✗"
+    status = m.group(1) if (m := re.search(r":status (sat|unsat)", text)) else ""
+    return path, logic, incremental, status
+
+
+def sig2(x):
+    """Two significant digits, as a plain decimal: the runs are not more precise than that."""
+    import math
+    if x == 0:
+        return "0"
+    exponent = math.floor(math.log10(abs(x)))
+    return f"{round(x, -(exponent - 1)):.{max(0, 1 - exponent)}f}"
+
+
 arguments = sys.argv[1:]
 blank = set()
 if "--blank" in arguments:
@@ -28,16 +55,33 @@ for path in arguments:
         ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0
         by[instance][solver] = (mean, ci)
 
-print("| Instance | " + " | ".join(names[s] for s in order) + " |")
-print("|---|" + "---:|" * len(order))
+print("| Instance | Theory | Incremental | Status | " + " | ".join(names[s] for s in order) + " |")
+print("|---|---|---|---|" + "---:|" * len(order))
+intervals = []  # (ci / mean, solver, instance) of every cell shown
 for instance, solvers in by.items():
+    shown = {s: solvers[s] for s in order if s in solvers and (s, instance) not in blank}
+    best = min((mean for mean, _ in shown.values()), default=None)
     cells = []
     for s in order:
-        if (s, instance) in blank:
+        if s not in shown:
             cells.append("—")
-        elif s in solvers:
-            mean, ci = solvers[s]
-            cells.append(f"{mean:.3f} ± {ci:.3f}" if mean < 1000 else f"{mean:.0f} ± {ci:.0f}")
         else:
-            cells.append("—")
-    print(f"| `{instance}` | " + " | ".join(cells) + " |")
+            mean, ci = shown[s]
+            intervals.append((ci / mean, s, instance))
+            text = sig2(mean)
+            cells.append(f'<span class="best">{text}</span>' if mean == best else text)
+    path, logic, incremental, status = corpus(instance + ".smt2")
+    name = f"[`{instance}`](https://github.com/mbovel/vik/blob/main/{path})" if path else f"`{instance}`"
+    print(f"| {name} | {logic} | {incremental} | {status} | " + " | ".join(cells) + " |")
+
+average = 100 * statistics.mean(p for p, _, _ in intervals)
+widest = sorted((x for x in intervals if 100 * x[0] >= 20), reverse=True)
+print()
+if widest:
+    named = ", ".join(f"{plain[s]} on `{i}` ({100 * p:.0f}%)" for p, s, i in widest)
+    print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"
+          f" the mean; every cell is within 20% of its mean except {named}.")
+else:
+    p, s, i = max(intervals)
+    print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"
+          f" the mean, at most {100 * p:.0f}% ({plain[s]} on `{i}`).")

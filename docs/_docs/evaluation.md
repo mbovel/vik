@@ -1,5 +1,7 @@
 ---
 title: Evaluation
+extraCSS:
+  - css/tables.css
 ---
 
 # Evaluation
@@ -52,39 +54,42 @@ and the two tables were taken within the same hour.
 The measurement is JMH in the same JVM: two forks, three warm-up and three measurement iterations of one
 second each, average time per operation, one thread. Every operation is a complete answer — parse the script,
 build the problem, solve it — on a solver built for that call, which is what a verification tool does per
-query. The number after ± is a 95% confidence interval (Student's t over the six iterations).
+query. Times are milliseconds; the best cell of each row is green.
 
-| Instance | VIK | VIK, parsing | z3, API | z3, parsing | cvc5 | princess | SMTInterpol |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `QG-classification__qg5__iso_brn001` | 0.731 ± 0.078 | 1.478 ± 0.114 | 3.428 ± 0.110 | 2.799 ± 0.007 | 8.423 ± 0.513 | 59.754 ± 8.163 | 4.089 ± 0.178 |
-| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | 0.005 ± 0.001 | 0.030 ± 0.001 | 0.788 ± 0.003 | 0.915 ± 0.002 | 1.780 ± 0.201 | 1.158 ± 0.111 | 0.182 ± 0.003 |
-| `TypeSafe__z3.1184131` | 0.006 ± 0.001 | 0.034 ± 0.002 | 0.726 ± 0.004 | 0.842 ± 0.002 | 1.736 ± 0.195 | 2.194 ± 0.161 | 0.197 ± 0.002 |
-| `CAV_2009_benchmarks__20-vars__problem__001` | 2.485 ± 0.084 | 2.743 ± 0.224 | 2.459 ± 0.008 | 2.625 ± 0.010 | 27.975 ± 0.297 | 17.757 ± 0.592 | 1.100 ± 0.067 |
-| `dillig__20-4` | 9.487 ± 0.312 | 9.663 ± 0.079 | 2.623 ± 0.010 | 2.584 ± 0.008 | 32.038 ± 0.383 | 16.704 ± 0.664 | 1.658 ± 0.051 |
-| `prime-cone__prime_cone_unsat_3` | 0.051 ± 0.003 | 0.079 ± 0.009 | 2.031 ± 0.006 | 2.125 ± 0.006 | 3.009 ± 0.043 | 0.853 ± 0.054 | 0.263 ± 0.009 |
-| `convert__convert-tiff2jpg-query-1831` | 0.392 ± 0.021 | 0.673 ± 0.007 | 2.032 ± 0.017 | 1.782 ± 0.012 | 4.423 ± 0.669 | 8.537 ± 0.297 | 1.623 ± 0.026 |
-| `wisas__xs_8_8` | 27.691 ± 0.897 | 32.877 ± 6.489 | 5.912 ± 0.113 | 3.222 ± 0.010 | 9.433 ± 0.663 | 33.295 ± 6.081 | 4.057 ± 0.036 |
-| `TwoSquares__smtlib.598294` | 0.005 ± 0.001 | 0.018 ± 0.002 | 0.947 ± 0.001 | 1.055 ± 0.002 | 1.277 ± 0.134 | 1.897 ± 0.281 | 0.105 ± 0.011 |
-| `mathsat__Wisa__xs-09-05-2-4-4-5` | 31.974 ± 0.671 | 32.144 ± 0.683 | 6.570 ± 0.086 | 3.415 ± 0.035 | 11.014 ± 0.385 | 35.920 ± 4.854 | 7.897 ± 1.385 |
-| `20172804-Barrett__tests__v10__v10l20080.cvc` | 0.014 ± 0.002 | 0.052 ± 0.001 | 1.005 ± 0.009 | 1.101 ± 0.003 | 2.201 ± 0.257 | 17.583 ± 3.461 | 0.236 ± 0.004 |
-| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | 0.190 ± 0.020 | 0.299 ± 0.027 | 1.043 ± 0.009 | 1.149 ± 0.005 | 2.226 ± 0.210 | 11.371 ± 1.000 | 0.570 ± 0.018 |
-| `sage__app7__bench_8505` | 0.006 ± 0.001 | 0.013 ± 0.001 | — | 0.893 ± 0.004 | 0.934 ± 0.077 | 0.601 ± 0.094 | 0.060 ± 0.002 |
-| `bmc-bv__adpcm` | 0.001 ± 0.000 | 0.007 ± 0.001 | — | 0.752 ± 0.002 | 0.873 ± 0.069 | 0.165 ± 0.004 | 0.057 ± 0.002 |
-| `NEQ__NEQ004_size4` | 97.984 ± 4.604 | 93.617 ± 7.299 | 12.173 ± 0.091 | 11.154 ± 0.017 | 109.385 ± 0.465 | — | 126.903 ± 0.476 |
+| Instance | Theory | Incremental | Status | VIK<br>(API) | VIK<br>(SMT2) | z3<br>(API) | z3<br>(SMT2) | cvc5<br>(SMT2) | princess<br>(SMT2) | SMTInterpol<br>(SMT2) |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| [`QG-classification__qg5__iso_brn001`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2) | QF_UF | ✗ | sat | <span class="best">0.73</span> | 1.5 | 3.4 | 2.8 | 8.4 | 60 | 4.1 |
+| [`2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2) | QF_UF | ✗ | sat | <span class="best">0.0047</span> | 0.030 | 0.79 | 0.91 | 1.8 | 1.2 | 0.18 |
+| [`TypeSafe__z3.1184131`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/TypeSafe__z3.1184131.smt2) | QF_UF | ✗ | unsat | <span class="best">0.0059</span> | 0.034 | 0.73 | 0.84 | 1.7 | 2.2 | 0.20 |
+| [`CAV_2009_benchmarks__20-vars__problem__001`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/CAV_2009_benchmarks__20-vars__problem__001.smt2) | QF_LIA | ✗ | sat | 2.5 | 2.7 | 2.5 | 2.6 | 28 | 18 | <span class="best">1.1</span> |
+| [`dillig__20-4`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/dillig__20-4.smt2) | QF_LIA | ✗ | sat | 9.5 | 9.7 | 2.6 | 2.6 | 32 | 17 | <span class="best">1.7</span> |
+| [`prime-cone__prime_cone_unsat_3`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/prime-cone__prime_cone_unsat_3.smt2) | QF_LIA | ✗ | unsat | <span class="best">0.051</span> | 0.079 | 2.0 | 2.1 | 3.0 | 0.85 | 0.26 |
+| [`convert__convert-tiff2jpg-query-1831`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/convert__convert-tiff2jpg-query-1831.smt2) | QF_LIA | ✗ | unsat | <span class="best">0.39</span> | 0.67 | 2.0 | 1.8 | 4.4 | 8.5 | 1.6 |
+| [`wisas__xs_8_8`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/wisas__xs_8_8.smt2) | QF_UFLIA | ✗ | sat | 28 | 33 | 5.9 | <span class="best">3.2</span> | 9.4 | 33 | 4.1 |
+| [`TwoSquares__smtlib.598294`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/TwoSquares__smtlib.598294.smt2) | QF_UFLIA | ✗ | sat | <span class="best">0.0047</span> | 0.018 | 0.95 | 1.1 | 1.3 | 1.9 | 0.11 |
+| [`mathsat__Wisa__xs-09-05-2-4-4-5`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/mathsat__Wisa__xs-09-05-2-4-4-5.smt2) | QF_UFLIA | ✗ | sat | 32 | 32 | 6.6 | <span class="best">3.4</span> | 11 | 36 | 7.9 |
+| [`20172804-Barrett__tests__v10__v10l20080.cvc`](https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2) | QF_DT | ✗ | sat | <span class="best">0.014</span> | 0.052 | 1.0 | 1.1 | 2.2 | 18 | 0.24 |
+| [`20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0`](https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2) | QF_DT | ✗ | unsat | <span class="best">0.19</span> | 0.30 | 1.0 | 1.1 | 2.2 | 11 | 0.57 |
+| [`sage__app7__bench_8505`](https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/sage__app7__bench_8505.smt2) | QF_BV | ✗ | sat | <span class="best">0.0059</span> | 0.013 | — | 0.89 | 0.93 | 0.60 | 0.060 |
+| [`bmc-bv__adpcm`](https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/bmc-bv__adpcm.smt2) | QF_BV | ✗ | sat | <span class="best">0.00099</span> | 0.0073 | — | 0.75 | 0.87 | 0.16 | 0.057 |
+| [`NEQ__NEQ004_size4`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2) | QF_UF | ✗ | unsat | 98 | 94 | 12 | <span class="best">11</span> | 110 | — | 130 |
 
-Every solver receives the file as it is and parses it, except the column *z3, API*, where the problem is
-built through z3's API from VIK's syntax tree — the difference between the two z3 columns is what parsing
-costs. For a bit-vector instance that tree is already lowered to integers, so *z3, API* is not the same
-question there and the cell is left out.
+The 95% confidence intervals (Student's t over the samples of a cell) average 6% of the mean; every cell is within 20% of its mean except VIK (API) on `TwoSquares__smtlib.598294` (29%).
+
+The *(SMT2)* columns — cvc5, princess and SMTInterpol included — receive the text of the script and parse
+it themselves; the *(API)* columns receive the problem already built: *VIK (API)* solves its own tree, and
+*z3 (API)* is handed that tree through z3's Java API, so the difference between the two z3 columns is what
+parsing costs. For a bit-vector instance the tree is already lowered to integers, so *z3 (API)* is not the
+same question there and the cell is left out.
 
 Two instances are not in this table. `pspace/ndist.a.20000` because the in-process bindings do not survive
 it: cvc5 answers `Unsupported internal sort: (_ BitVec 20000)` and SMTInterpol answers `sat` where its own
 binary answers `unsat` — the binaries are measured in the cold table instead. `NEQ004_size4` is in the table
 without princess, which needs minutes per operation on it.
 
-Read the two VIK columns together: the first is the solver on a problem it already holds, which is how a tool
-that builds the terms itself calls it, and the second adds the parsing of the script, which is what the
-columns of the solvers that parse include. The gap between them is the front end — tens of microseconds on
+Read the two VIK columns together: *VIK (API)* is the solver on a problem it already holds, which is how a
+tool that builds the terms itself calls it, and *VIK (SMT2)* adds the parsing of the script, which is what
+the other *(SMT2)* columns include. The gap between them is the front end — tens of microseconds on
 the small instances.
 
 On the queries a verifier produces — the small ones, a millisecond or less — VIK is the fastest of the six,
@@ -109,27 +114,27 @@ JVM.
 ## Cold: a process per question
 
 The measurement is the one a competition makes: a new process for every instance, the wall-clock time of the
-whole answer, three repetitions, the median reported (a scheduling hiccup then decides nothing), with a limit
-of 30 seconds. This is where start-up appears, and it is what a tool pays when it shells out to a solver.
+whole answer, three repetitions, the median reported in seconds (a scheduling hiccup then decides nothing),
+with a limit of 30 seconds; the best correct answer of each row is green. This is where start-up appears, and it is what a tool pays when it shells out to a solver.
 
-| Instance | Status | VIK (JVM) | VIK (native) | VIK (Node) | z3 | cvc5 | princess | SMTInterpol |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `NEQ__NEQ004_size4` | unsat | 0.632 | 1.251 | 0.458 | 0.020 | 0.036 | timeout | 0.369 |
-| `QG-classification__qg5__iso_brn001` | sat | 0.304 | 0.052 | 0.088 | 0.016 | 0.011 | 0.891 | 0.151 |
-| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | sat | 0.202 | 0.009 | 0.058 | 0.014 | 0.007 | 0.504 | 0.095 |
-| `TypeSafe__z3.1184131` | unsat | 0.226 | 0.008 | 0.059 | 0.015 | 0.008 | 0.492 | 0.106 |
-| `CAV_2009_benchmarks__20-vars__problem__001` | sat | 0.290 | 0.030 | 0.083 | 0.018 | 0.029 | 0.565 | 0.127 |
-| `dillig__20-4` | sat | 0.320 | 0.071 | 0.113 | 0.018 | 0.032 | 0.590 | 0.138 |
-| `prime-cone__prime_cone_unsat_3` | unsat | 0.240 | 0.009 | 0.070 | 0.017 | 0.008 | 0.492 | 0.111 |
-| `convert__convert-tiff2jpg-query-1831` | unsat | 0.295 | 0.024 | 0.078 | 0.016 | 0.008 | 0.552 | 0.131 |
-| `wisas__xs_8_8` | sat | 0.520 | 0.275 | 0.207 | 0.025 | 0.013 | 0.880 | 0.181 |
-| `TwoSquares__smtlib.598294` | sat | 0.249 | 0.008 | 0.062 | 0.022 | 0.006 | 0.584 | 0.109 |
-| `mathsat__Wisa__xs-09-05-2-4-4-5` | sat | 0.545 | 0.315 | 0.212 | 0.024 | 0.015 | 0.890 | 0.198 |
-| `20172804-Barrett__tests__v10__v10l20080.cvc` | sat | 0.243 | 0.009 | 0.061 | 0.022 | 0.008 | 0.788 | 0.109 |
-| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | unsat | 0.288 | 0.014 | 0.068 | 0.022 | 0.007 | 0.659 | 0.120 |
-| `sage__app7__bench_8505` | sat | 0.217 | 0.007 | 0.058 | 0.015 | 0.006 | 0.523 | 0.086 |
-| `bmc-bv__adpcm` | sat | 0.206 | 0.007 | 0.056 | 0.015 | 0.006 | 0.455 | 0.099 |
-| `pspace__ndist.a.20000` | unsat | 0.256 | 0.016 | 0.072 | timeout | 0.007 | 0.580 | **sat** 0.086 |
+| Instance | Theory | Incremental | Status | VIK<br>(JVM) | VIK<br>(native) | VIK<br>(Node) | z3 | cvc5 | princess | SMTInterpol |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| [`NEQ__NEQ004_size4`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2) | QF_UF | ✗ | unsat | 0.63 | 1.3 | 0.46 | <span class="best">0.020</span> | 0.036 | timeout | 0.37 |
+| [`QG-classification__qg5__iso_brn001`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2) | QF_UF | ✗ | sat | 0.30 | 0.052 | 0.088 | 0.016 | <span class="best">0.011</span> | 0.89 | 0.15 |
+| [`2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2) | QF_UF | ✗ | sat | 0.20 | 0.009 | 0.058 | 0.014 | <span class="best">0.007</span> | 0.50 | 0.095 |
+| [`TypeSafe__z3.1184131`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/TypeSafe__z3.1184131.smt2) | QF_UF | ✗ | unsat | 0.23 | <span class="best">0.008</span> | 0.059 | 0.015 | <span class="best">0.008</span> | 0.49 | 0.11 |
+| [`CAV_2009_benchmarks__20-vars__problem__001`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/CAV_2009_benchmarks__20-vars__problem__001.smt2) | QF_LIA | ✗ | sat | 0.29 | 0.030 | 0.083 | <span class="best">0.018</span> | 0.029 | 0.56 | 0.13 |
+| [`dillig__20-4`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/dillig__20-4.smt2) | QF_LIA | ✗ | sat | 0.32 | 0.071 | 0.11 | <span class="best">0.018</span> | 0.032 | 0.59 | 0.14 |
+| [`prime-cone__prime_cone_unsat_3`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/prime-cone__prime_cone_unsat_3.smt2) | QF_LIA | ✗ | unsat | 0.24 | 0.009 | 0.070 | 0.017 | <span class="best">0.008</span> | 0.49 | 0.11 |
+| [`convert__convert-tiff2jpg-query-1831`](https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/convert__convert-tiff2jpg-query-1831.smt2) | QF_LIA | ✗ | unsat | 0.29 | 0.024 | 0.078 | 0.016 | <span class="best">0.008</span> | 0.55 | 0.13 |
+| [`wisas__xs_8_8`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/wisas__xs_8_8.smt2) | QF_UFLIA | ✗ | sat | 0.52 | 0.28 | 0.21 | 0.025 | <span class="best">0.013</span> | 0.88 | 0.18 |
+| [`TwoSquares__smtlib.598294`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/TwoSquares__smtlib.598294.smt2) | QF_UFLIA | ✗ | sat | 0.25 | 0.008 | 0.062 | 0.022 | <span class="best">0.006</span> | 0.58 | 0.11 |
+| [`mathsat__Wisa__xs-09-05-2-4-4-5`](https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib/mathsat__Wisa__xs-09-05-2-4-4-5.smt2) | QF_UFLIA | ✗ | sat | 0.55 | 0.32 | 0.21 | 0.024 | <span class="best">0.015</span> | 0.89 | 0.20 |
+| [`20172804-Barrett__tests__v10__v10l20080.cvc`](https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2) | QF_DT | ✗ | sat | 0.24 | 0.009 | 0.061 | 0.022 | <span class="best">0.008</span> | 0.79 | 0.11 |
+| [`20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0`](https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2) | QF_DT | ✗ | unsat | 0.29 | 0.014 | 0.068 | 0.022 | <span class="best">0.007</span> | 0.66 | 0.12 |
+| [`sage__app7__bench_8505`](https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/sage__app7__bench_8505.smt2) | QF_BV | ✗ | sat | 0.22 | 0.007 | 0.058 | 0.015 | <span class="best">0.006</span> | 0.52 | 0.086 |
+| [`bmc-bv__adpcm`](https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/bmc-bv__adpcm.smt2) | QF_BV | ✗ | sat | 0.21 | 0.007 | 0.056 | 0.015 | <span class="best">0.006</span> | 0.46 | 0.099 |
+| [`pspace__ndist.a.20000`](https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib/pspace__ndist.a.20000.smt2) | QF_BV | ✗ | unsat | 0.26 | 0.016 | 0.072 | timeout | <span class="best">0.007</span> | 0.58 | **sat** 0.086 |
 
 The floors say most of it: about 200 ms for a JVM process (the JVM's own start-up), about 56 ms for Node with
 the WebAssembly module, and about 7 ms for the native binary — the same order as z3 (14–25 ms) and cvc5
