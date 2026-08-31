@@ -25,7 +25,7 @@ object Solver:
    *  its premises, are collected only when a conflict needs them: derivations
    *  are many, conflicts few.
    */
-  private final class Bound(val value: Rational, val reason: Int, val premises: Array[Bound]):
+  private final class Bound(val value: Delta, val reason: Int, val premises: Array[Bound]):
     lazy val reasons: Set[Int] = // once per bound: a conflict may ask again and again along a long derivation
       val literals = Set.newBuilder[Int]
       val seen = scala.collection.mutable.HashSet.empty[Bound] // premises are shared: a graph, not a tree
@@ -49,7 +49,8 @@ object Solver:
       ceil: BigInt,
       reason: Int,
       because: Set[Int], // the reasons of the disequality the branch decides, if any: part of its explanation
-      var left: Set[Int] | Null = null
+      var left: Set[Int] | Null = null,
+      strict: Boolean = false // a real disequality splits into strict sides
   )
 
 /** A solver for conjunctions of bounds on integer linear expressions
@@ -84,6 +85,13 @@ final class Solver:
   private val upper = ArrayBuffer.empty[Bound | Null]
   private val values = ArrayBuffer.empty[Rational]
 
+  /** The infinitesimal parts of the assignment, touched only when a real
+   *  variable exists ([[anyReal]]): a pure-integer problem pays for exactly one
+   *  rational per variable.
+   */
+  private val valuesD = ArrayBuffer.empty[Rational]
+  private var anyReal = false
+
   /** The row of each basic variable (`null` for a non-basic one): the
    *  coefficients of the non-basic variables whose combination it equals.
    */
@@ -98,6 +106,13 @@ final class Solver:
    */
   private val isSlack = ArrayBuffer.empty[Boolean]
   private val scale = ArrayBuffer.empty[BigInt]
+
+  /** Whether the variable is integer-valued: branch and bound and the integer
+   *  tightenings apply to it; a real variable is decided by the relaxation.
+   */
+  private val isInt = ArrayBuffer.empty[Boolean]
+
+  def isInteger(x: Var): Boolean = isInt(x)
 
   private val trail = ArrayBuffer.empty[Undo]
   private val levels = ArrayBuffer.empty[(Int, Int)] // the lengths of `trail` and `distinct` at each push
@@ -117,26 +132,31 @@ final class Solver:
 
   def numVars: Int = values.length
 
-  /** A new integer variable, unbounded, non-basic, valued 0. */
-  def newVar(): Var =
+  /** A new variable, unbounded, non-basic, valued 0; integer unless said
+   *  otherwise.
+   */
+  def newVar(integer: Boolean = true): Var =
     lower += null
     upper += null
     values += Rational.zero
+    valuesD += Rational.zero
     rows += null
     columns += HashSet.empty
     isSlack += false
     scale += 1
+    isInt += integer
+    if !integer then anyReal = true
     values.length - 1
 
   /** A new variable standing for `Σ coefficient × variable` over `terms`
    *  (non-empty, integer coefficients, non-zero): basic, with the expression
    *  substituted by the rows of the basic variables it mentions.
    */
-  def newSlack(terms: Iterable[(BigInt, Var)]): Var =
+  def newSlack(terms: Iterable[(BigInt, Var)], integer: Boolean = true): Var =
     require(terms.nonEmpty, "empty expression")
     require(terms.forall((a, _) => a.signum != 0), "zero coefficient")
-    val g = terms.map((a, _) => a.abs).reduce(_ gcd _)
-    val s = newVar()
+    val g = if integer then terms.map((a, _) => a.abs).reduce(_ gcd _) else BigInt(1)
+    val s = newVar(integer)
     isSlack(s) = true
     scale(s) = g
     val row = HashMap.empty[Var, Rational]
@@ -145,7 +165,8 @@ final class Solver:
       val r = rows(x)
       if r == null then add(s, row, x, c) else for (y, b) <- r do add(s, row, y, c * b)
     rows(s) = row
-    values(s) = row.iterator.map((x, c) => c * values(x)).foldLeft(Rational.zero)(_ + _)
+    values(s) = row.iterator.map((x, c) => values(x) * c).foldLeft(Rational.zero)(_ + _)
+    if anyReal then valuesD(s) = row.iterator.map((x, c) => valuesD(x) * c).foldLeft(Rational.zero)(_ + _)
     s
 
   /** Adds `c × x` to the row of `owner`, keeping `columns` up to date. */
@@ -167,16 +188,59 @@ final class Solver:
    */
   def value(x: Var): BigInt = (values(x) * Rational(scale(x))).floor
 
+  /** The value of a real variable, the infinitesimal resolved: after a `Sat`
+   *  [[check]], a concrete positive δ small enough for every bound exists, and
+   *  this is the value at it.
+   */
+  def realValue(x: Var): Rational = values(x) + (if anyReal then valuesD(x) else Rational.zero) * delta0()
+
+  /** A δ that satisfies every asserted bound strictly enough: for each bound
+   *  whose infinitesimal part demands room, the rational gap divided by the
+   *  infinitesimal gap bounds δ from above; 1 works when nothing does.
+   */
+  private def delta0(): Rational =
+    var best = Rational.one
+    var x = 0
+    while x < numVars do
+      val vr = values(x)
+      val vd = if anyReal then valuesD(x) else Rational.zero
+      val l = lower(x)
+      val u = upper(x)
+      if l != null && l.value.d > vd && l.value.r < vr then
+        val candidate = (vr - l.value.r) / (l.value.d - vd)
+        if candidate < best then best = candidate
+      if u != null && u.value.d < vd && u.value.r > vr then
+        val candidate = (u.value.r - vr) / (vd - u.value.d)
+        if candidate < best then best = candidate
+      x += 1
+    best
+
   /** Asserts `x ≤ c` for `reason` (on the expression `x` stands for): `Unsat`
    *  if it contradicts the lower bound of `x`, `Sat` otherwise, which leaves
    *  the feasibility of the whole to [[check]].
    */
-  def assertUpper(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Bound(Rational(floorDiv(c, scale(x))), reason, Array.empty), true)
+  def assertUpper(x: Var, c: BigInt, reason: Int): Result = assertUpper(x, c, false, reason)
+
+  /** Asserts `x ≤ c`, or `x < c` when `strict` — which for an integer variable
+   *  is `x ≤ c − 1`, and for a real one an inclusive bound at `c − δ`.
+   */
+  def assertUpper(x: Var, c: BigInt, strict: Boolean, reason: Int): Result =
+    val value =
+      if isInt(x) then Delta(Rational(floorDiv(if strict then c - 1 else c, scale(x))))
+      else if strict then Delta.strictUpper(Rational(c))
+      else Delta(Rational(c))
+    assertBound(x, Bound(value, reason, Array.empty), true)
 
   /** Asserts `x ≥ c` for `reason`, as [[assertUpper]]. */
-  def assertLower(x: Var, c: BigInt, reason: Int): Result =
-    assertBound(x, Bound(Rational(-floorDiv(-c, scale(x))), reason, Array.empty), false)
+  def assertLower(x: Var, c: BigInt, reason: Int): Result = assertLower(x, c, false, reason)
+
+  /** Asserts `x ≥ c`, or `x > c` when `strict`, as [[assertUpper]]. */
+  def assertLower(x: Var, c: BigInt, strict: Boolean, reason: Int): Result =
+    val value =
+      if isInt(x) then Delta(Rational(-floorDiv(-(if strict then c + 1 else c), scale(x))))
+      else if strict then Delta.strictLower(Rational(c))
+      else Delta(Rational(c))
+    assertBound(x, Bound(value, reason, Array.empty), false)
 
   /** Asserts `x ≠ c` (for a slack, that its combination is not `c`): a
    *  disequality is decided by [[check]], which branches on `x ≤ c − 1` or
@@ -184,9 +248,10 @@ final class Solver:
    *  bounds fixing `x` to `c`.
    */
   def assertDistinct(x: Var, c: BigInt, reason: Int): Result =
-    if c.mod(scale(x)) != 0 then Result.Sat // a combination never takes a value its gcd does not divide
+    if isInt(x) && c.mod(scale(x)) != 0 then
+      Result.Sat // a combination never takes a value its gcd does not divide
     else
-      val v = Rational(c / scale(x))
+      val v = Delta(Rational(c / (if isInt(x) then scale(x) else BigInt(1))))
       val l = lower(x)
       val u = upper(x)
       if l != null && u != null && l.value == v && u.value == v then Result.Unsat(l.reasons ++ u.reasons + reason)
@@ -202,7 +267,7 @@ final class Solver:
    *  propagation of a bound atom (see `smt.LiaTheory`).
    */
   def decidesUpper(x: Var, c: BigInt): Option[(Boolean, Set[Int])] =
-    val value = Rational(floorDiv(c, scale(x)))
+    val value = Delta(Rational(floorDiv(c, scale(x))))
     val u = upper(x)
     val l = lower(x)
     if u != null && u.value <= value then Some((true, u.reasons))
@@ -218,7 +283,7 @@ final class Solver:
       return Result.Unsat(bound.reasons ++ opposite.reasons)
     if levels.nonEmpty then trail += Undo(x, isUpper, same)
     if isUpper then upper(x) = bound else lower(x) = bound
-    if rows(x) == null && (if isUpper then values(x) > c else values(x) < c) then update(x, c)
+    if rows(x) == null && (if isUpper then compareValue(x, c) > 0 else compareValue(x, c) < 0) then update(x, c)
     tightened += x
     Result.Sat
 
@@ -258,8 +323,8 @@ final class Solver:
   private def propagateRow(b: Var): Result = boundary:
     val row = rows(b).nn
     // The lowest and highest values of the row given the bounds, when every variable has the bound needed.
-    var low = Rational.zero
-    var high = Rational.zero
+    var low = Delta.zero
+    var high = Delta.zero
     var lowMissing = 0
     var highMissing = 0
     val lowPremises = ArrayBuffer.empty[Bound]
@@ -269,14 +334,15 @@ final class Solver:
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       if forLow == null then lowMissing += 1
       else
-        low = low + a * forLow.value
+        low = low + forLow.value * a
         lowPremises += forLow
       if forHigh == null then highMissing += 1
       else
-        high = high + a * forHigh.value
+        high = high + forHigh.value * a
         highPremises += forHigh
-    def derive(x: Var, c: Rational, premises: Array[Bound], isUpper: Boolean): Unit =
-      assertBound(x, Bound(Rational(if isUpper then c.floor else c.ceil), -1, premises), isUpper) match
+    def derive(x: Var, c: Delta, premises: Array[Bound], isUpper: Boolean): Unit =
+      val rounded = if isInt(x) then Delta(Rational(if isUpper then c.floor else c.ceil)) else c
+      assertBound(x, Bound(rounded, -1, premises), isUpper) match
         case Result.Sat => ()
         case unsat => break(unsat)
     if lowMissing == 0 then derive(b, low, lowPremises.toArray, false)
@@ -290,25 +356,39 @@ final class Solver:
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
-      if u != null && lowMissing == 0 then derive(j, (u.value - low + a * forLow.nn.value) / a, withUpper, a.signum > 0)
+      if u != null && lowMissing == 0 then
+        derive(j, (u.value - low + forLow.nn.value * a) / a, withUpper, a.signum > 0)
       if l != null && highMissing == 0 then
-        derive(j, (l.value - high + a * forHigh.nn.value) / a, withLower, a.signum < 0)
+        derive(j, (l.value - high + forHigh.nn.value * a) / a, withLower, a.signum < 0)
     Result.Sat
 
   /** Sets the non-basic `x` to `v`, updating the basic variables. */
-  private def update(x: Var, v: Rational): Unit =
-    val delta = v - values(x)
-    for b <- columns(x) do values(b) = values(b) + rows(b).nn(x) * delta
-    values(x) = v
+  private def update(x: Var, v: Delta): Unit =
+    val moved = v.r - values(x)
+    val movedD = if anyReal then v.d - valuesD(x) else Rational.zero
+    for b <- columns(x) do
+      val a = rows(b).nn(x)
+      values(b) = values(b) + moved * a
+      if anyReal then valuesD(b) = valuesD(b) + movedD * a
+    values(x) = v.r
+    if anyReal then valuesD(x) = v.d
 
   /** Sets the basic `b` to `v` by moving the non-basic `n` of its row, then
    *  makes `n` basic in its place (`PivotAndUpdate` in the paper).
    */
-  private def pivotAndUpdate(b: Var, n: Var, v: Rational): Unit =
-    val theta = (v - values(b)) / rows(b).nn(n)
-    values(b) = v
+  private def pivotAndUpdate(b: Var, n: Var, v: Delta): Unit =
+    val a = rows(b).nn(n)
+    val theta = (v.r - values(b)) / a
+    val thetaD = if anyReal then (v.d - valuesD(b)) / a else Rational.zero
+    values(b) = v.r
     values(n) = values(n) + theta
-    for k <- columns(n) if k != b do values(k) = values(k) + rows(k).nn(n) * theta
+    if anyReal then
+      valuesD(b) = v.d
+      valuesD(n) = valuesD(n) + thetaD
+    for k <- columns(n) if k != b do
+      val c = rows(k).nn(n)
+      values(k) = values(k) + theta * c
+      if anyReal then valuesD(k) = valuesD(k) + thetaD * c
     pivot(b, n)
 
   /** Swaps the basic `b` and the non-basic `n` of its row: solves the row for
@@ -355,15 +435,20 @@ final class Solver:
     def step(): Result | Branch = checkRelaxation() match
       case Result.Sat =>
         var x = 0
-        while x < numVars && (isSlack(x) || values(x).isInteger) do x += 1
+        while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
         if x < numVars then
           branches += 1
-          Branch(x, values(x).floor, values(x).ceil, -branches, Set.empty)
+          val v = deltaValue(x)
+          Branch(x, v.floor, v.ceil, -branches, Set.empty)
         else
-          distinct.find((x, c, _) => values(x) * Rational(scale(x)) == Rational(c)) match
+          distinct.find((x, c, _) =>
+            values(x) * Rational(if isInt(x) then scale(x) else BigInt(1)) == Rational(c)
+              && (!anyReal || valuesD(x).isZero)
+          ) match
             case Some((x, c, reason)) =>
               branches += 1
-              Branch(x, c - scale(x), c + scale(x), -branches, Set(reason))
+              if isInt(x) then Branch(x, c - scale(x), c + scale(x), -branches, Set(reason))
+              else Branch(x, c, c, -branches, Set(reason), strict = true)
             case None => Result.Sat
       case unsat => unsat
     var current: Result | Branch = step()
@@ -382,7 +467,7 @@ final class Solver:
           if branch.left == null then // the left side failed: try the right one
             branch.left = reasons
             push()
-            current = assertLower(branch.x, branch.ceil, branch.reason) match
+            current = assertLower(branch.x, branch.ceil, branch.strict, branch.reason) match
               case Result.Sat => step()
               case unsat => unsat
           else // both sides failed
@@ -394,7 +479,7 @@ final class Solver:
         case branch: Branch =>
           open += branch
           push()
-          current = assertUpper(branch.x, branch.floor, branch.reason) match
+          current = assertUpper(branch.x, branch.floor, branch.strict, branch.reason) match
             case Result.Sat => step()
             case unsat => unsat
     throw AssertionError("unreachable")
@@ -419,7 +504,7 @@ final class Solver:
       val row = rows(b).nn
       val l = lower(b)
       val u = upper(b)
-      val tooLow = l != null && values(b) < l.value
+      val tooLow = l != null && compareValue(b, l.value) < 0
       val bound = if tooLow then l.nn else u.nn
       // To raise `b`, raise a non-basic variable with a positive coefficient or lower one with a negative coefficient (the converse to lower `b`).
       var n = -1
@@ -433,18 +518,26 @@ final class Solver:
       pivotAndUpdate(b, n, bound.value)
     throw AssertionError("unreachable")
 
+  /** Compares the value of `x` (rational and infinitesimal parts) to `c`. */
+  private def compareValue(x: Var, c: Delta): Int =
+    val first = values(x).compare(c.r)
+    if first != 0 || !anyReal then first else valuesD(x).compare(c.d)
+
+  private def deltaValue(x: Var): Delta =
+    Delta(values(x), if anyReal then valuesD(x) else Rational.zero)
+
   private def violates(x: Var): Boolean =
     val l = lower(x)
     val u = upper(x)
-    (l != null && values(x) < l.value) || (u != null && values(x) > u.value)
+    (l != null && compareValue(x, l.value) < 0) || (u != null && compareValue(x, u.value) > 0)
 
   private def canRaise(x: Var): Boolean =
     val u = upper(x)
-    u == null || values(x) < u.value
+    u == null || compareValue(x, u.value) < 0
 
   private def canLower(x: Var): Boolean =
     val l = lower(x)
-    l == null || values(x) > l.value
+    l == null || compareValue(x, l.value) > 0
 
   /** The number of open levels. */
   def level: Int = levels.length
