@@ -56,25 +56,25 @@ query. The number after ± is a 95% confidence interval (Student's t over the si
 
 | Instance | VIK | VIK, parsing | z3, API | z3, parsing | cvc5 | princess | SMTInterpol |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `QG-classification__qg5__iso_brn001` | 0.755 ± 0.104 | 1.448 ± 0.055 | 3.414 ± 0.102 | 2.806 ± 0.010 | 8.308 ± 0.476 | 59.956 ± 7.886 | 3.931 ± 0.060 |
-| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | 0.005 ± 0.001 | 0.030 ± 0.001 | 0.786 ± 0.001 | 0.915 ± 0.002 | 1.772 ± 0.184 | 1.143 ± 0.095 | 0.184 ± 0.015 |
-| `TypeSafe__z3.1184131` | 0.006 ± 0.001 | 0.034 ± 0.002 | 0.722 ± 0.001 | 0.843 ± 0.003 | 1.728 ± 0.191 | 2.273 ± 0.190 | 0.199 ± 0.006 |
-| `CAV_2009_benchmarks__20-vars__problem__001` | 2.373 ± 0.159 | 2.678 ± 0.111 | 2.466 ± 0.011 | 2.645 ± 0.034 | 27.763 ± 0.212 | 18.320 ± 0.814 | 1.009 ± 0.005 |
-| `dillig__20-4` | 10.055 ± 0.652 | 9.589 ± 0.088 | 2.623 ± 0.010 | 2.602 ± 0.016 | 31.916 ± 0.525 | 16.535 ± 0.939 | 1.669 ± 0.064 |
-| `prime-cone__prime_cone_unsat_3` | 0.053 ± 0.008 | 0.079 ± 0.010 | 2.013 ± 0.006 | 2.123 ± 0.012 | 3.008 ± 0.081 | 0.865 ± 0.051 | 0.290 ± 0.046 |
-| `convert__convert-tiff2jpg-query-1831` | 0.395 ± 0.016 | 0.692 ± 0.011 | 2.014 ± 0.017 | 1.781 ± 0.007 | 4.432 ± 0.681 | 8.510 ± 0.244 | 1.599 ± 0.044 |
-| `wisas__xs_8_8` | 64.909 ± 6.990 | 65.677 ± 8.306 | 5.959 ± 0.104 | 3.222 ± 0.011 | 9.429 ± 0.615 | 33.116 ± 5.622 | 4.170 ± 0.171 |
-| `TwoSquares__smtlib.598294` | 0.004 ± 0.000 | 0.018 ± 0.002 | 0.943 ± 0.003 | 1.059 ± 0.004 | 1.275 ± 0.122 | 1.841 ± 0.261 | 0.102 ± 0.002 |
-| `mathsat__Wisa__xs-09-05-2-4-4-5` | 58.435 ± 1.913 | 63.769 ± 4.213 | 6.539 ± 0.079 | 3.391 ± 0.009 | 10.957 ± 0.275 | 35.280 ± 4.909 | 8.446 ± 2.215 |
-| `20172804-Barrett__tests__v10__v10l20080.cvc` | 0.014 ± 0.001 | 0.056 ± 0.005 | 1.000 ± 0.007 | 1.100 ± 0.003 | 2.194 ± 0.249 | 17.546 ± 2.801 | 0.227 ± 0.007 |
-| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | 0.188 ± 0.023 | 0.307 ± 0.037 | 1.051 ± 0.008 | 1.151 ± 0.002 | 2.219 ± 0.207 | 10.955 ± 0.794 | 0.535 ± 0.007 |
-| `sage__app7__bench_8505` | 0.006 ± 0.001 | 0.013 ± 0.001 | — | 0.901 ± 0.005 | 0.927 ± 0.079 | 0.599 ± 0.078 | 0.060 ± 0.004 |
-| `bmc-bv__adpcm` | 0.001 ± 0.000 | 0.007 ± 0.000 | — | 0.749 ± 0.003 | 0.872 ± 0.069 | 0.171 ± 0.005 | 0.055 ± 0.007 |
-| `NEQ__NEQ004_size4` | 97.706 ± 5.225 | 93.936 ± 5.508 | 12.210 ± 0.132 | 11.128 ± 0.053 | 109.026 ± 0.716 | — | 126.407 ± 0.467 |
+| `QG-classification__qg5__iso_brn001` | 0.731 ± 0.078 | 1.478 ± 0.114 | 3.428 ± 0.110 | 2.799 ± 0.007 | 8.423 ± 0.513 | 59.754 ± 8.163 | 4.089 ± 0.178 |
+| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | 0.005 ± 0.001 | 0.030 ± 0.001 | 0.788 ± 0.003 | 0.915 ± 0.002 | 1.780 ± 0.201 | 1.158 ± 0.111 | 0.182 ± 0.003 |
+| `TypeSafe__z3.1184131` | 0.006 ± 0.001 | 0.034 ± 0.002 | 0.726 ± 0.004 | 0.842 ± 0.002 | 1.736 ± 0.195 | 2.194 ± 0.161 | 0.197 ± 0.002 |
+| `CAV_2009_benchmarks__20-vars__problem__001` | 2.485 ± 0.084 | 2.743 ± 0.224 | 2.459 ± 0.008 | 2.625 ± 0.010 | 27.975 ± 0.297 | 17.757 ± 0.592 | 1.100 ± 0.067 |
+| `dillig__20-4` | 9.487 ± 0.312 | 9.663 ± 0.079 | 2.623 ± 0.010 | 2.584 ± 0.008 | 32.038 ± 0.383 | 16.704 ± 0.664 | 1.658 ± 0.051 |
+| `prime-cone__prime_cone_unsat_3` | 0.051 ± 0.003 | 0.079 ± 0.009 | 2.031 ± 0.006 | 2.125 ± 0.006 | 3.009 ± 0.043 | 0.853 ± 0.054 | 0.263 ± 0.009 |
+| `convert__convert-tiff2jpg-query-1831` | 0.392 ± 0.021 | 0.673 ± 0.007 | 2.032 ± 0.017 | 1.782 ± 0.012 | 4.423 ± 0.669 | 8.537 ± 0.297 | 1.623 ± 0.026 |
+| `wisas__xs_8_8` | 27.691 ± 0.897 | 32.877 ± 6.489 | 5.912 ± 0.113 | 3.222 ± 0.010 | 9.433 ± 0.663 | 33.295 ± 6.081 | 4.057 ± 0.036 |
+| `TwoSquares__smtlib.598294` | 0.005 ± 0.001 | 0.018 ± 0.002 | 0.947 ± 0.001 | 1.055 ± 0.002 | 1.277 ± 0.134 | 1.897 ± 0.281 | 0.105 ± 0.011 |
+| `mathsat__Wisa__xs-09-05-2-4-4-5` | 31.974 ± 0.671 | 32.144 ± 0.683 | 6.570 ± 0.086 | 3.415 ± 0.035 | 11.014 ± 0.385 | 35.920 ± 4.854 | 7.897 ± 1.385 |
+| `20172804-Barrett__tests__v10__v10l20080.cvc` | 0.014 ± 0.002 | 0.052 ± 0.001 | 1.005 ± 0.009 | 1.101 ± 0.003 | 2.201 ± 0.257 | 17.583 ± 3.461 | 0.236 ± 0.004 |
+| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | 0.190 ± 0.020 | 0.299 ± 0.027 | 1.043 ± 0.009 | 1.149 ± 0.005 | 2.226 ± 0.210 | 11.371 ± 1.000 | 0.570 ± 0.018 |
+| `sage__app7__bench_8505` | 0.006 ± 0.001 | 0.013 ± 0.001 | — | 0.893 ± 0.004 | 0.934 ± 0.077 | 0.601 ± 0.094 | 0.060 ± 0.002 |
+| `bmc-bv__adpcm` | 0.001 ± 0.000 | 0.007 ± 0.001 | — | 0.752 ± 0.002 | 0.873 ± 0.069 | 0.165 ± 0.004 | 0.057 ± 0.002 |
+| `NEQ__NEQ004_size4` | 97.984 ± 4.604 | 93.617 ± 7.299 | 12.173 ± 0.091 | 11.154 ± 0.017 | 109.385 ± 0.465 | — | 126.903 ± 0.476 |
 
-Every solver receives the file as it is and parses it, except the column *z3 (built)*, where the problem is
+Every solver receives the file as it is and parses it, except the column *z3, API*, where the problem is
 built through z3's API from VIK's syntax tree — the difference between the two z3 columns is what parsing
-costs. For a bit-vector instance that tree is already lowered to integers, so *z3 (built)* is not the same
+costs. For a bit-vector instance that tree is already lowered to integers, so *z3, API* is not the same
 question there and the cell is left out.
 
 Two instances are not in this table. `pspace/ndist.a.20000` because the in-process bindings do not survive
@@ -94,12 +94,14 @@ what a call costs: z3 and cvc5 pay a context and a JNI crossing per query, and t
 much larger problems than these.
 
 Where the instance has real work in it, the ranking turns around, and by more than the factor of five the
-project aims at: `dillig/20-4` is 10 ms for VIK against 2.6 ms for z3, `wisas/xs_8_8` 65 ms against 3.2 ms,
+project aims at: `dillig/20-4` is 9.5 ms for VIK against 2.6 ms for z3, `wisas/xs_8_8` 28 ms against 3.2 ms,
 `NEQ004_size4` 98 ms against 11 ms. The two `wisas` instances are the honest worst case here — an arrangement
 of shared integer terms that grows with the square of their number — and they are in the table for that
-reason.
+reason; they are also where the arithmetic's [propagation of the bounds it already
+knows](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-bound-propagation.md)
+earns its keep (without it they measured half again slower).
 
-The middle ground is where the design shows: `CAV_2009/20-vars` is a tie with z3 (2.4 ms against 2.5 ms),
+The middle ground is where the design shows: `CAV_2009/20-vars` is a tie with z3 (2.5 ms for both),
 `prime_cone_unsat_3` and `convert-tiff2jpg` are three to five times faster than z3, and the datatype
 instances are one to two orders of magnitude faster than princess, which is the other solver written for the
 JVM.
@@ -112,27 +114,27 @@ of 30 seconds. This is where start-up appears, and it is what a tool pays when i
 
 | Instance | Status | VIK (JVM) | VIK (native) | VIK (Node) | z3 | cvc5 | princess | SMTInterpol |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| `NEQ__NEQ004_size4` | unsat | 0.613 | 1.247 | 0.451 | 0.020 | 0.035 | timeout | 0.374 |
-| `QG-classification__qg5__iso_brn001` | sat | 0.307 | 0.052 | 0.102 | 0.016 | 0.011 | 0.884 | 0.146 |
-| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | sat | 0.199 | 0.008 | 0.062 | 0.015 | 0.006 | 0.492 | 0.095 |
-| `TypeSafe__z3.1184131` | unsat | 0.226 | 0.008 | 0.064 | 0.014 | 0.006 | 0.501 | 0.106 |
-| `CAV_2009_benchmarks__20-vars__problem__001` | sat | 0.289 | 0.030 | 0.089 | 0.018 | 0.029 | 0.573 | 0.129 |
-| `dillig__20-4` | sat | 0.323 | 0.070 | 0.111 | 0.017 | 0.032 | 0.581 | 0.136 |
-| `prime-cone__prime_cone_unsat_3` | unsat | 0.234 | 0.009 | 0.064 | 0.017 | 0.008 | 0.483 | 0.107 |
-| `convert__convert-tiff2jpg-query-1831` | unsat | 0.285 | 0.024 | 0.078 | 0.016 | 0.008 | 0.552 | 0.133 |
-| `wisas__xs_8_8` | sat | 0.611 | 0.604 | 0.293 | 0.024 | 0.013 | 0.859 | 0.178 |
-| `TwoSquares__smtlib.598294` | sat | 0.244 | 0.007 | 0.068 | 0.022 | 0.007 | 0.557 | 0.098 |
-| `mathsat__Wisa__xs-09-05-2-4-4-5` | sat | 0.606 | 0.551 | 0.283 | 0.024 | 0.014 | 0.912 | 0.198 |
-| `20172804-Barrett__tests__v10__v10l20080.cvc` | sat | 0.244 | 0.009 | 0.061 | 0.022 | 0.007 | 0.772 | 0.108 |
-| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | unsat | 0.274 | 0.014 | 0.073 | 0.021 | 0.008 | 0.662 | 0.118 |
-| `sage__app7__bench_8505` | sat | 0.215 | 0.008 | 0.064 | 0.015 | 0.007 | 0.507 | 0.095 |
-| `bmc-bv__adpcm` | sat | 0.206 | 0.007 | 0.055 | 0.013 | 0.005 | 0.444 | 0.096 |
-| `pspace__ndist.a.20000` | unsat | 0.253 | 0.016 | 0.071 | timeout | 0.007 | 0.584 | **sat** 0.085 |
+| `NEQ__NEQ004_size4` | unsat | 0.632 | 1.251 | 0.458 | 0.020 | 0.036 | timeout | 0.369 |
+| `QG-classification__qg5__iso_brn001` | sat | 0.304 | 0.052 | 0.088 | 0.016 | 0.011 | 0.891 | 0.151 |
+| `2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max` | sat | 0.202 | 0.009 | 0.058 | 0.014 | 0.007 | 0.504 | 0.095 |
+| `TypeSafe__z3.1184131` | unsat | 0.226 | 0.008 | 0.059 | 0.015 | 0.008 | 0.492 | 0.106 |
+| `CAV_2009_benchmarks__20-vars__problem__001` | sat | 0.290 | 0.030 | 0.083 | 0.018 | 0.029 | 0.565 | 0.127 |
+| `dillig__20-4` | sat | 0.320 | 0.071 | 0.113 | 0.018 | 0.032 | 0.590 | 0.138 |
+| `prime-cone__prime_cone_unsat_3` | unsat | 0.240 | 0.009 | 0.070 | 0.017 | 0.008 | 0.492 | 0.111 |
+| `convert__convert-tiff2jpg-query-1831` | unsat | 0.295 | 0.024 | 0.078 | 0.016 | 0.008 | 0.552 | 0.131 |
+| `wisas__xs_8_8` | sat | 0.520 | 0.275 | 0.207 | 0.025 | 0.013 | 0.880 | 0.181 |
+| `TwoSquares__smtlib.598294` | sat | 0.249 | 0.008 | 0.062 | 0.022 | 0.006 | 0.584 | 0.109 |
+| `mathsat__Wisa__xs-09-05-2-4-4-5` | sat | 0.545 | 0.315 | 0.212 | 0.024 | 0.015 | 0.890 | 0.198 |
+| `20172804-Barrett__tests__v10__v10l20080.cvc` | sat | 0.243 | 0.009 | 0.061 | 0.022 | 0.008 | 0.788 | 0.109 |
+| `20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0` | unsat | 0.288 | 0.014 | 0.068 | 0.022 | 0.007 | 0.659 | 0.120 |
+| `sage__app7__bench_8505` | sat | 0.217 | 0.007 | 0.058 | 0.015 | 0.006 | 0.523 | 0.086 |
+| `bmc-bv__adpcm` | sat | 0.206 | 0.007 | 0.056 | 0.015 | 0.006 | 0.455 | 0.099 |
+| `pspace__ndist.a.20000` | unsat | 0.256 | 0.016 | 0.072 | timeout | 0.007 | 0.580 | **sat** 0.086 |
 
-The floors say most of it: about 190 ms for a JVM process (the JVM's own start-up), about 55 ms for Node with
-the WebAssembly module, and about 7 ms for the native binary — the same order as z3 (13–22 ms) and cvc5
-(5–35 ms), which are C++ binaries. On the instances that need real work the ranking changes: the JVM's
-just-in-time compiler pays off (`NEQ004`: 0.61 s against 1.25 s native), while the native binary and Node
+The floors say most of it: about 200 ms for a JVM process (the JVM's own start-up), about 56 ms for Node with
+the WebAssembly module, and about 7 ms for the native binary — the same order as z3 (14–25 ms) and cvc5
+(6–36 ms), which are C++ binaries. On the instances that need real work the ranking changes: the JVM's
+just-in-time compiler pays off (`NEQ004`: 0.63 s against 1.25 s native), while the native binary and Node
 never warm up.
 
 `pspace/ndist.a.20000` is the instance where the fragment matters more than the engine: 20 000-bit vectors,
@@ -169,5 +171,4 @@ sbt "smt2Native/nativeLink; docsAssets"
 The raw data of this page, committed in the repository:
 [cold](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-cold.tsv),
 [warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm.json),
-[warm, `NEQ004`](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm-neq.json),
-[warm, VIK with parsing](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm-vik.json).
+[warm, `NEQ004`](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-warm-neq.json).
