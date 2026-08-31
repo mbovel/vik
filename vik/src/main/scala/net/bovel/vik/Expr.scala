@@ -126,6 +126,21 @@ object Term:
         case Bool(formula) => boolean(formula.mapTerms(shift(_, k, depth)))
 
   /** Whether `t` mentions no bound variable of an enclosing lambda. */
+  /** The names of the constants of a term, `fun` positions included. */
+  def constants(term: Term): Set[String] =
+    val out = scala.collection.mutable.HashSet.empty[String]
+    def walk(t: Term): Unit = t match
+      case Const(name) => out += name
+      case App(fun, args) =>
+        walk(fun)
+        args.foreach(walk)
+      case Num(_) | Var(_) => ()
+      case Linear(terms, _) => terms.foreach((_, u) => walk(u))
+      case Lambda(_, body) => walk(body)
+      case Bool(formula) => formula.terms.foreach(walk)
+    walk(term)
+    out.toSet
+
   def closed(t: Term, depth: Int = 0): Boolean = t match
     case Var(i) => i < depth
     case Const(_) | Num(_) => true

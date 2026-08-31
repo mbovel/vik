@@ -20,27 +20,41 @@ import net.bovel.egraph.{EClassId, EGraph}
  */
 final class UfTheory(
     eg: EGraph,
-    atoms: Array[(EClassId, EClassId) | Null],
+    atoms: ArrayBuffer[(EClassId, EClassId) | Null],
     trueClass: EClassId,
     falseClass: EClassId,
     twoValued: EClassId => Boolean
 ) extends Theory:
-  /** Atoms asserted so far, with the level marks for `pop`. */
-  private val assigned = new Array[Boolean](atoms.length)
+  /** Atoms asserted so far, with the level marks for `pop`; `atoms` may grow
+   *  between solves, so these grow with it.
+   */
+  private val assigned = ArrayBuffer.empty[Boolean]
   private val assignedTrail = ArrayBuffer.empty[Var]
   private val marks = ArrayBuffer.empty[Int]
 
   /** For each atom implied false, the disequality that implied it: its side in
    *  `t`'s class, its side in `u`'s class, and its reason.
    */
-  private val impliedBy = new Array[(EClassId, EClassId, Int) | Null](atoms.length)
+  private val impliedBy = ArrayBuffer.empty[(EClassId, EClassId, Int) | Null]
+
+  private def grown(): Unit =
+    while assigned.length < atoms.length do
+      assigned += false
+      impliedBy += null
 
   private def lits(reasons: ArrayBuffer[Int]): ArrayBuffer[Lit] = reasons.map(Lit.fromIndex)
 
+  /** Whether anything reached the e-graph since the last scan of the atoms: a
+   *  decision that concerns no atom costs nothing.
+   */
+  private var touched = true
+
   def assertLit(lit: Lit): Unit =
+    grown()
     val v = lit.variable
     val atom = if v < atoms.length then atoms(v) else null
     if atom != null then
+      touched = true
       val (t, u) = atom
       if lit.positive then eg.merge(t, u, lit.index)
       else if u == trueClass && twoValued(t) then eg.merge(t, falseClass, lit.index)
@@ -49,10 +63,13 @@ final class UfTheory(
       assignedTrail += v
 
   def propagate(): Theory.Result =
+    grown()
+    if !touched then return Theory.ok
     eg.rebuild()
     eg.conflict match
       case Some(reasons) => Theory.Result.Conflict(lits(reasons))
       case None =>
+        touched = false
         val implied = ArrayBuffer.empty[Lit]
         var v = 0
         while v < atoms.length do
@@ -88,6 +105,7 @@ final class UfTheory(
     marks += assignedTrail.length
 
   def pop(): Unit =
+    touched = true // undone merges: atoms may need re-implying
     eg.pop()
     val mark = marks.remove(marks.length - 1)
     while assignedTrail.length > mark do assigned(assignedTrail.remove(assignedTrail.length - 1)) = false

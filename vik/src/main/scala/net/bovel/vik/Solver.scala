@@ -41,6 +41,24 @@ final class Solver(val simplify: Boolean = true):
 
   private val levels = ArrayBuffer(ArrayBuffer.empty[Formula])
 
+  /** The persistent encoder, built at the first [[solve]] — so that the first
+   *  batch is simplified as a whole — and kept across `check-sat`s: terms,
+   *  clauses and everything the search learned survive. A formula asserted at a
+   *  level above the first is guarded by the level's selector literal, and
+   *  [[pop]] retires the selector; [[solve]] assumes the open ones.
+   */
+  private var encoder: Encoder | Null = null
+  private val selectors = ArrayBuffer.empty[Lit]
+
+  /** The constants the first batch's simplification eliminated, and whether the
+   *  encoder must be rebuilt (a new assertion mentions one — the elimination
+   *  was only sound without such a mention — or a datatype arrived after
+   *  encoding began). The rebuild re-encodes [[levels]] and drops what was
+   *  learned.
+   */
+  private var eliminated: Set[String] = Set.empty
+  private var dirty = false
+
   /** The declared function symbols (argument sorts, result sort) and datatypes.
    *  Declarations are optional for uninterpreted functions and integers, and
    *  needed for datatypes: they tell which terms are of a datatype sort.
@@ -54,19 +72,32 @@ final class Solver(val simplify: Boolean = true):
    *  function symbols.
    */
   def declare(datatype: Datatype): Unit =
+    if encoder != null then dirty = true // its rules and exhaustiveness need an encoder that knows it
     datatypes += datatype
     for c <- datatype.constructors do
       declarations(c.name) = (c.selectors.map(_._2), datatype.name)
       declarations(c.tester) = (List(datatype.name), "Bool")
       for (selector, sort) <- c.selectors do declarations(selector) = (List(datatype.name), sort)
 
-  def push(): Unit = levels += ArrayBuffer.empty
+  def push(): Unit =
+    levels += ArrayBuffer.empty
+    val e = encoder
+    if e != null && !dirty then selectors += e.newSelector()
 
   def pop(): Unit =
     require(levels.length > 1, "pop without a matching push")
     levels.remove(levels.length - 1)
+    val e = encoder
+    if e != null && !dirty && selectors.length >= levels.length then
+      e.retire(selectors.remove(selectors.length - 1))
 
-  def assert(formula: Formula): Unit = levels.last += formula
+  def assert(formula: Formula): Unit =
+    levels.last += formula
+    val e = encoder
+    if e != null && !dirty then
+      if eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated)) then
+        dirty = true // the elimination assumed the constant stayed local: start over
+      else e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
 
   /** Decides the assertions with at most `fuel` steps — a decision or a
    *  conflict of the SAT search, a pivot, a row propagation or a branch of the
@@ -83,17 +114,31 @@ final class Solver(val simplify: Boolean = true):
 
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
-    val assertions = levels.flatten.toList
-    val encoder = Encoder(declarations, datatypes.toList)
-    val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
-    for formula <- (if simplify then Simplifier.simplify(assertions, constructors) else assertions) do
-      encoder.assert(formula)
-    encoder.assertExtensionality()
-    encoder.applicationLemmas()
-    encoder.assertExhaustiveness()
-    encoder.shareIntegers()
-    encoder.decideBooleans()
-    encoder.solve(keepGoing) match
+    if encoder == null || dirty then
+      val e = Encoder(declarations, datatypes.toList)
+      encoder = e
+      dirty = false
+      selectors.clear()
+      val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
+      if levels.length == 1 && simplify then
+        // One level: the batch is the whole set, so the global simplification is sound to keep.
+        val (simplified, gone) = Simplifier.simplify(levels.head.toList, constructors)
+        eliminated = gone
+        for formula <- simplified do e.assert(formula, null)
+      else
+        eliminated = Set.empty
+        for (level, i) <- levels.zipWithIndex do
+          val selector = if i == 0 then null
+          else
+            selectors += e.newSelector(); selectors.last
+          for formula <- level do e.assert(formula, selector)
+    val e = encoder.nn
+    e.assertExtensionality()
+    e.applicationLemmas()
+    e.assertExhaustiveness()
+    e.shareIntegers()
+    e.decideBooleans()
+    e.solve(selectors, keepGoing) match
       case cdclt.Solver.Result.Sat(_) => Result.Sat
       case cdclt.Solver.Result.Unsat => Result.Unsat
       case cdclt.Solver.Result.Unknown => Result.Unknown(Reason.Stopped)
@@ -111,6 +156,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private val classes = HashMap.empty[Term, EClassId]
   private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
+
   private val eg = EGraph(adt.getOrElse(NoRules))
   private val trueTerm = eg.newClass() // the class of Boolean-sorted terms that hold
   private val falseTerm = eg.newClass() // and of those that do not (see [[decideBooleans]])
@@ -197,9 +243,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  terms that both theories accept, which is a model of both (Nelson and
    *  Oppen; both theories are stably infinite).
    */
+  private val sharedPairs = scala.collection.mutable.HashSet.empty[(Term, Term)]
+
   def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty then
-    val pairs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
-    def pair(a: Term, b: Term): Unit = if a != b && isInt(a) && isInt(b) && !pairs((b, a)) then pairs += ((a, b))
+    val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
+    def pair(a: Term, b: Term): Unit =
+      if a != b && isInt(a) && isInt(b) && !sharedPairs((b, a)) && sharedPairs.add((a, b)) then pairs += ((a, b))
     val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
     for (_, group) <- applications do
       val relevant = group.filter(a => isInt(a) || a.args.exists(isInt)) // the others have nothing to share
@@ -216,8 +265,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       val e = lit(Formula.Eq(a, b))
       Term.linear(List((1, a), (-1, b))) match
         case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
-        case Term.Linear(terms, c) => liaAtoms(e.variable) = LiaTheory.Atom.Equal(slack(terms), -c)
-        case difference => liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
+        case Term.Linear(terms, c) =>
+          liaAtoms(e.variable) = LiaTheory.Atom.Equal(slack(terms), -c)
+          anySharedAtom = true
+        case difference =>
+          liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
+          anySharedAtom = true
 
   /** Applications of the functions the search may equate, as lemmas: for every
    *  closed application `h(args)` and closed function-sorted term `q` other
@@ -232,9 +285,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  same term (de Bruijn indices), congruence relates those with equal bodies,
    *  and no atom is ever on an open term (see [[Term.instantiate]]).
    */
+  private val applicationsDone = scala.collection.mutable.HashSet.empty[(Term.App, Term)]
+  private val equatedApplications = ArrayBuffer.empty[(Term, Term)]
+
   def applicationLemmas(): Unit = if anyFunction then
-    val done = scala.collection.mutable.HashSet.empty[(Term.App, Term)]
-    val equated = ArrayBuffer.empty[(Term, Term)]
+    val done = applicationsDone // across solves: the encoder persists, a lemma is emitted once
+    val equated = equatedApplications
     var more = true
     while more do
       more = false
@@ -274,8 +330,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  functions that the search derives, such as from the lemmas of
    *  [[applicationLemmas]], gets no witness.
    */
+  private val extensionalityDone = scala.collection.mutable.HashSet.empty[Formula]
+
   def assertExtensionality(): Unit = if anyFunctionEquality then
-    val done = scala.collection.mutable.HashSet.empty[Formula]
+    val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
     while more do
       more = false
@@ -297,15 +355,20 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  testers holds; for a term of a finite sort, also for its selector terms,
    *  recursively (see the class documentation).
    */
+  private val exhaustivenessSeen = scala.collection.mutable.HashSet.empty[Term]
+
   def assertExhaustiveness(): Unit =
     if datatypes.nonEmpty then
-      val seen = scala.collection.mutable.HashSet.empty[Term]
+      val seen = exhaustivenessSeen // across solves: one tester disjunction per term
       val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t)) && Term.closed(t)))
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
         if seen.add(t) then
           val datatype = datatypes.find(_.name == sortOf(t)).get
-          assert(Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))))
+          assert(
+            Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
+            null
+          )
           if finite(datatype.name) then
             for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort) do
               todo += Term.App(Term.Const(selector), List(t))
@@ -473,36 +536,70 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    */
   private val assertedEqualities = scala.collection.mutable.HashSet.empty[Formula]
 
-  def assert(formula: Formula): Unit =
+  /** Asserts `formula`, guarded by the selector literal `under` when it is not
+   *  null: the clause holds only while the selector does — a script level's
+   *  assertion (see [[Solver.push]]).
+   */
+  def assert(formula: Formula, under: Lit | Null): Unit =
     formula match
       case Formula.Eq(_, _) => assertedEqualities += formula
       case _ => ()
-    clauses += Array(lit(formula))
+    val l = lit(formula)
+    clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
 
-  def solve(keepGoing: () => Boolean): cdclt.Solver.Result =
-    val ufAtoms = atoms.toArray
-    val liaAtoms = this.liaAtoms.toArray
-    val liaTheory = Option.when(liaAtoms.exists(_ != null))(LiaTheory(liaSolver, liaAtoms))
+  /** A fresh selector literal for a script level. */
+  def newSelector(): Lit = freshVar()
+
+  /** Retires a popped level's selector: false for good, its clauses inert. */
+  def retire(selector: Lit): Unit = clauses += Array(selector.neg)
+
+  /** The theories and the SAT solver, alive across [[solve]]s: everything
+   *  learned stays. Both theories are always attached — their atom buffers grow
+   *  as terms arrive, possibly only after the first solve.
+   */
+  /** Whether some variable is an atom of both theories (a shared equality):
+   *  only then does the combination need to remember impliers.
+   */
+  private var anySharedAtom = false
+
+  private val theories = List(UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses), LiaTheory(liaSolver, liaAtoms))
+  private val sat = cdclt.Solver(
+    0,
+    Theories(
+      theories,
+      v => if atoms(v) != null then theories.head else theories.last,
+      v => atoms(v) != null && liaAtoms(v) != null, // only a shared equality needs its implier remembered
+      () => anySharedAtom
+    )
+  )
+  private var clauseCursor = 0
+  private var satVars = 0 // variables handed to `sat` so far; `atoms` is the source of truth
+
+  def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    val theories = List(
-      Option.when(ufAtoms.exists(_ != null))(UfTheory(eg, ufAtoms, trueTerm, falseTerm, booleanClasses)),
-      liaTheory
-    ).flatten
-    val theory = theories match
-      case Nil => cdclt.NoTheory
-      case single :: Nil => single
-      case _ => Theories(theories, v => if ufAtoms(v) != null then theories.head else theories.last)
-    val solver = cdclt.Solver(atoms.length, theory)
-    for c <- clauses do solver.addClause(c)
-    solver.solve(keepGoing)
+    while satVars < atoms.length do
+      sat.newVar()
+      satVars += 1
+    while clauseCursor < clauses.length do
+      sat.addClause(clauses(clauseCursor))
+      clauseCursor += 1
+    val result = sat.solve(assumptions.toArray, keepGoing)
+    sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
+    result
 
 /** Several theories over disjoint sets of atoms, asserted and checked in turn,
  *  without exchange of equalities between them; `owner(v)` is the theory of the
  *  atom of variable `v`, for explanations.
  */
-private final class Theories(theories: List[Theory], owner: cdclt.Var => Theory) extends Theory:
+private final class Theories(
+    theories: List[Theory],
+    owner: cdclt.Var => Theory,
+    shared: cdclt.Var => Boolean,
+    anyShared: () => Boolean
+) extends Theory:
   /** The theory that implied a literal: the atom of a shared equality belongs
-   *  to both, and only the one that implied it can explain it.
+   *  to both, and only the one that implied it can explain it. Only shared
+   *  atoms are remembered; every other atom's owner is its implier.
    */
   private val implier = HashMap.empty[cdclt.Var, Theory]
 
@@ -514,11 +611,14 @@ private final class Theories(theories: List[Theory], owner: cdclt.Var => Theory)
   def pop(): Unit = theories.foreach(_.pop())
 
   private def combine(check: Theory => Theory.Result): Theory.Result = boundary:
-    val implied = ArrayBuffer.empty[Lit]
-    for theory <- theories do
+    val results = theories.map(theory =>
       check(theory) match
-        case Theory.Result.Ok(lits) =>
-          for l <- lits do implier(l.variable) = theory
-          implied ++= lits
-        case conflict => break(conflict)
-    Theory.Result.Ok(implied)
+        case Theory.Result.Ok(lits) => (theory, lits)
+        case other => break(other)
+    )
+    if anyShared() then
+      for (theory, lits) <- results; l <- lits if shared(l.variable) do implier(l.variable) = theory
+    results.filter(_._2.nonEmpty) match
+      case Nil => Theory.ok
+      case (_, lits) :: Nil => Theory.Result.Ok(lits) // one theory spoke: its buffer passes through
+      case several => Theory.Result.Ok(several.foldLeft(ArrayBuffer.empty[Lit])(_ ++= _._2))

@@ -19,26 +19,39 @@ import net.bovel.lia
  *  those bounds as its explanation — which is what keeps the arrangement of the
  *  shared terms of a combination out of the decisions.
  */
-final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) extends Theory:
+final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Null]) extends Theory:
   /** A conflict found while asserting, reported by the next `propagate`. */
   private var conflict: ArrayBuffer[Lit] | Null = null
 
   /** Atoms asserted so far, with the level marks for `pop`; an implied atom is
    *  asserted by the solver in turn, so this is also what `propagate` skips.
+   *  `atoms` may grow between solves, so these grow with it.
    */
-  private val assigned = new Array[Boolean](atoms.length)
+  private val assigned = ArrayBuffer.empty[Boolean]
   private val assignedTrail = ArrayBuffer.empty[Int]
   private val marks = ArrayBuffer.empty[Int]
 
   /** For each atom implied, the reasons of the bounds that implied it. */
-  private val reasonsOf = new Array[Set[Int] | Null](atoms.length)
+  private val reasonsOf = ArrayBuffer.empty[Set[Int] | Null]
+
+  private def grown(): Unit =
+    while assigned.length < atoms.length do
+      assigned += false
+      reasonsOf += null
 
   private def lits(reasons: Set[Int]): ArrayBuffer[Lit] = ArrayBuffer.from(reasons.map(Lit.fromIndex))
 
+  /** Whether any bound moved since the last check: a decision that concerns no
+   *  atom costs nothing.
+   */
+  private var touched = true
+
   def assertLit(lit: Lit): Unit =
+    grown()
     val v = lit.variable
     val atom = if v < atoms.length then atoms(v) else null
     if atom != null then
+      touched = true
       assigned(v) = true
       assignedTrail += v
     if atom != null && conflict == null then
@@ -55,12 +68,17 @@ final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) e
         case lia.Solver.Result.Unsat(reasons) => conflict = lits(reasons)
         case lia.Solver.Result.Sat => ()
 
-  def propagate(): Theory.Result = report(solver.checkRelaxation())
+  def propagate(): Theory.Result =
+    if !touched && conflict == null then Theory.ok
+    else
+      touched = false
+      report(solver.checkRelaxation())
 
   override def finalCheck(): Theory.Result = report(solver.check())
 
   /** The atoms the bounds decide, and not yet assigned. */
   private def implied(): ArrayBuffer[Lit] =
+    grown()
     val out = ArrayBuffer.empty[Lit]
     var v = 0
     while v < atoms.length do
@@ -97,6 +115,7 @@ final class LiaTheory(solver: lia.Solver, atoms: Array[LiaTheory.Atom | Null]) e
     solver.push()
 
   def pop(): Unit =
+    touched = true // undone bounds: atoms may need re-implying
     conflict = null
     val mark = marks.remove(marks.length - 1)
     while assignedTrail.length > mark do assigned(assignedTrail.remove(assignedTrail.length - 1)) = false

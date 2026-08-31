@@ -100,17 +100,17 @@ class SolverTest extends munit.FunSuite:
     val y = Const("y")
     val z = Const("z")
     val diamond = ((a === y) && (y === b)) || ((a === z) && (z === b))
-    assertEquals(Simplifier.simplify(List(diamond)), List((a === b) || (a === b)))
+    assertEquals(Simplifier.simplify(List(diamond))._1, List((a === b) || (a === b)))
     // Not when the constant escapes the conjunction (`a !== c` and `b !== c` pin `a` and `b`).
     val pinned = List(a !== c, b !== c)
     assertEquals(
-      Simplifier.simplify(((a === y) && (y === b)) :: (y !== c) :: pinned),
+      Simplifier.simplify(((a === y) && (y === b)) :: (y !== c) :: pinned)._1,
       ((a === y) && (y === b)) :: (y !== c) :: pinned
     )
     // `y = f(y)` cannot define `y`, but `y = b` can: `y` is local and becomes `b`.
-    assertEquals(Simplifier.simplify(((y === fa(y)) && (y === b)) :: pinned), (b === fa(b)) :: pinned)
+    assertEquals(Simplifier.simplify(((y === fa(y)) && (y === b)) :: pinned)._1, (b === fa(b)) :: pinned)
     // A conjunction reduced to nothing is dropped.
-    assertEquals(Simplifier.simplify(List(And(List(y === a)))), Nil)
+    assertEquals(Simplifier.simplify(List(And(List(y === a))))._1, Nil)
 
   test("simplifier: random EUF formulas keep their satisfiability"):
     val rnd = scala.util.Random(13)
@@ -130,7 +130,7 @@ class SolverTest extends munit.FunSuite:
     var simplifiedSomething = 0
     for _ <- 0 until 300 do
       val formulas = List.fill(1 + rnd.nextInt(3))(formula(3))
-      if Simplifier.simplify(formulas) != formulas then simplifiedSomething += 1
+      if Simplifier.simplify(formulas)._1 != formulas then simplifiedSomething += 1
       val plain = Solver(simplify = false)
       val simplified = Solver()
       for f <- formulas do

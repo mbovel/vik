@@ -156,6 +156,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def decisionLevel: Int = trailLim.length
 
+  /** Unwinds the search to level 0, the theories included: called between
+   *  solves, so that what is added next lands in the persistent state, never on
+   *  the trail.
+   */
+  def unwind(): Unit = backtrack(0)
+
   /** Adds a clause; only before the search. */
   def addClause(lits: Lit*): Unit = addClause(lits.toArray)
 
