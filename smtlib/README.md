@@ -1,7 +1,7 @@
 # The corpus of SMT-LIB files
 
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
-`HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
+`QF_LRA`, `QF_UFLRA`, `HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `SmtLibTest` (`smt2/src/test/scalajvm`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
@@ -99,6 +99,32 @@ uninterpreted functions over integers, the theory combination:
 | `mathsat__Hash__hash_uns_04_18.smt2` | mathsat/Hash | unsat | hash-table invariants |
 | `mathsat__Hash__hash_sat_09_08.smt2`, `mathsat__EufLaArithmetic__hard__hard13.smt2` | mathsat | sat, unsat | VIK exceeds 60 s (comparison only) |
 | `20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFLIA.smt2` | 20230314-Jaroslav-Bendik-Certora | unknown (z3: sat) | smart-contract verification conditions (comparison only) |
+
+QF_LRA, from `QF_LRA.tar.zst` of the same release, linear real arithmetic — strict bounds through
+δ-rationals, disequalities branched strictly:
+
+| Family | Files | Statuses | Workload |
+|---|---|---|---|
+| keymaera | 3 | unsat | verification conditions of KeYmaera (Platzer, Quesel, Rümmer 2009) |
+| atan, asin, cbrt, sqrt, log | 10, 2, 3, 1, 2 | mostly unsat | interval-arithmetic chunks bounding elementary functions (Jovanović, de Moura 2012) |
+| windowreal, tgc, sc, gasburner, carpark, pursuit | 3 each, 1 | mixed | SAL model checking (Dutertre, Rushby et al.) |
+| polypaver | 3 | unsat | PolyPaver numerical verification |
+| DTP-Scheduling | 3 | sat | disjunctive temporal planning (TLP-GP) |
+| 2017-Heizmann-UltimateInvariantSynthesis, Ultimate, SV-COMP, CooperatingT2 | 3, 3, 1, 2 | unknown, sat | Ultimate LassoRanker termination templates |
+| miplib, blending, TM, tropical-matrix, robotics | 3, 3, 2, 2, 1 | sat, unknown | MIP relaxations, blending planning, temporal metric planning, tropical matrices |
+
+The seventeen heaviest — most of miplib and blending, TM, tropical-matrix, the Heizmann and
+CooperatingT2 templates, two Ultimate phase templates — are in `ignore.txt`: minutes of big-rational
+simplex, or not answered within them.
+
+QF_UFLRA, from `QF_UFLRA.tar.zst` of the same release, uninterpreted functions over reals:
+
+| File | Family | Status | Workload |
+|---|---|---|---|
+| `cpachecker-induction-svcomp14__*` (3) | cpachecker-induction | unsat | CPAchecker k-induction on SV-COMP C programs |
+| `cpachecker-bmc-svcomp14__*` (3) | cpachecker-bmc | sat | the same, bounded model checking |
+| `FFT__smtlib.620524.smt2`, `FFT__smtlib.626159.smt2`, `FFT__smtlib.626179.smt2` | FFT | sat, unsat, unsat | FFT implementation verification |
+| `RandomCoupled__*` (3), `RandomDecoupled__*` (3) | MathSAT random | sat, one unsat | random coupled and decoupled UF+LRA systems |
 
 Licenses, as stated in the files: 2018-Goel-hwbench [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
 20170829-Rodin and 20190906-CLEARSY [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); the other

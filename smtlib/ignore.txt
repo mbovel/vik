@@ -59,7 +59,6 @@ QF_LRA/smt-lib/miplib__pp08a-7350.smt2	beyond the search today (minutes of simpl
 QF_LRA/smt-lib/miplib__pp08a-9000.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/miplib__pp08a-10000.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/blending__13.smt2	beyond the search today (minutes of simplex, or not answered within them)
-QF_LRA/smt-lib/blending__17.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/blending__24.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___overflow1.i_3_8_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___count_by_k.i_3_3_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
@@ -71,3 +70,5 @@ QF_LRA/smt-lib/CooperatingT2__heidy7-simple.t2.c_Iteration2_Lasso_4-pieceTemplat
 QF_LRA/smt-lib/CooperatingT2__agafp.t2.c_Iteration1_Lasso_4-pieceTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/tropical-matrix__constraint-199552.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/tropical-matrix__constraint-223827.smt2	beyond the search today (minutes of simplex, or not answered within them)
+QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Loop_5-phaseTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
+QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Lasso_6-phaseTemplate.smt2	beyond the search today (the fuel, two million steps, runs out)
