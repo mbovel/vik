@@ -19,12 +19,15 @@ import net.bovel.vik.{Datatype, Formula, Term}
 final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCount: Int, sortCount: Int):
   import Z3Program.Op
 
-  /** Replays the program in `ctx` and returns the asserted formulas. */
-  def run(ctx: Context): Array[BoolExpr] =
+  /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
+   *  `pop` and `check-sat` in script order — and returns the answers.
+   */
+  def check(ctx: Context): List[Boolean] =
+    val solver = ctx.mkSolver()
     val slots = new Array[Expr[?]](slotCount)
     val decls = new Array[FuncDecl[?]](declCount)
     val sorts = new Array[Sort](sortCount)
-    val asserted = ArrayBuffer.empty[BoolExpr]
+    val answers = ArrayBuffer.empty[Boolean]
     def bool(slot: Int): BoolExpr = slots(slot).asInstanceOf[BoolExpr]
     def args(slots0: Array[Int]): Array[Expr[?]] = slots0.map(slots)
     for op <- instructions do
@@ -32,6 +35,7 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
         case Op.UninterpretedSort(id, name) => sorts(id) = ctx.mkUninterpretedSort(name)
         case Op.BoolSort(id) => sorts(id) = ctx.getBoolSort
         case Op.IntSort(id) => sorts(id) = ctx.getIntSort
+        case Op.RealSort(id) => sorts(id) = ctx.getRealSort
         case Op.DeclareFun(id, name, argSorts, result) =>
           decls(id) = ctx.mkFuncDecl(name, argSorts.map(sorts), sorts(result))
         case Op.DeclareDatatypes(datatypes, sortIds, declIds) =>
@@ -74,14 +78,23 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
             slots(l).asInstanceOf[Expr[com.microsoft.z3.ArithSort]],
             slots(r).asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
           )
-        case Op.Assert(slot) => asserted += bool(slot)
-    asserted.toArray
+        case Op.MkLt(dst, l, r) =>
+          slots(dst) = ctx.mkLt(
+            slots(l).asInstanceOf[Expr[com.microsoft.z3.ArithSort]],
+            slots(r).asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
+          )
+        case Op.Assert(slot) => solver.add(bool(slot))
+        case Op.Push(levels) => for _ <- 1 to levels do solver.push()
+        case Op.Pop(levels) => solver.pop(levels)
+        case Op.Check => answers += (solver.check() == com.microsoft.z3.Status.SATISFIABLE)
+    answers.toList
 
 object Z3Program:
   enum Op:
     case UninterpretedSort(id: Int, name: String)
     case BoolSort(id: Int)
     case IntSort(id: Int)
+    case RealSort(id: Int)
     case DeclareFun(id: Int, name: String, argSorts: Array[Int], result: Int)
     case DeclareDatatypes(datatypes: List[Datatype], sortIds: Map[String, Int], declIds: Map[String, Int])
     case MkConst(dst: Int, decl: Int)
@@ -99,7 +112,11 @@ object Z3Program:
     case MkIte(dst: Int, c: Int, t: Int, e: Int)
     case MkEq(dst: Int, l: Int, r: Int)
     case MkLe(dst: Int, l: Int, r: Int)
+    case MkLt(dst: Int, l: Int, r: Int)
     case Assert(slot: Int)
+    case Push(levels: Int)
+    case Pop(levels: Int)
+    case Check
 
   /** Compiles the script: the only walk of VIK's tree, done before measuring.
    */
@@ -118,6 +135,7 @@ object Z3Program:
         name match
           case "Bool" => out += Op.BoolSort(id)
           case "Int" => out += Op.IntSort(id)
+          case "Real" => out += Op.RealSort(id)
           case _ => out += Op.UninterpretedSort(id, name)
         id
       }
@@ -170,6 +188,7 @@ object Z3Program:
               case Formula.Ite(c, t, e) => out += Op.MkIte(dst, formula(c), formula(t), formula(e))
               case Formula.Eq(l, r) => out += Op.MkEq(dst, term(l), term(r))
               case Formula.Le(l, r) => out += Op.MkLe(dst, term(l), term(r))
+              case Formula.Less(l, r) => out += Op.MkLt(dst, term(l), term(r))
               case Formula.Pred(_) => throw IllegalStateException("handled above")
             dst
       }
@@ -190,5 +209,8 @@ object Z3Program:
           ), members)
         case Command.Assert(f) => out += Op.Assert(formula(f))
         case Command.AssertNamed(_, f) => out += Op.Assert(formula(f)) // the name changes nothing z3 sees
-        case _ => ()
+        case Command.Push(levels) => out += Op.Push(levels)
+        case Command.Pop(levels) => out += Op.Pop(levels)
+        case Command.CheckSat => out += Op.Check
+        case _ => () // check-sat-assuming, get-*, set-*: not part of what z3 is measured on
     Z3Program(out.toArray, slotCount, declIds.size, sortIds.size)

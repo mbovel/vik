@@ -111,15 +111,20 @@ class OtherSolversBench:
   @Benchmark
   def vikText(): List[Boolean] = Player.play(Parser.parse(text))
 
-  /** Prints the tree, has princess parse the text into formulas, asserts them
-   *  and checks.
+  /** Prints the tree and has princess execute the text as a script —
+   *  `push`/`pop` and every `check-sat` included. Princess prints the answers;
+   *  they are captured and parsed back, as recording them costs it nothing.
    */
   @Benchmark
-  def princess(): Boolean =
+  def princess(): List[Boolean] =
     val p = SimpleAPI.spawn
     try
-      p.extractSMTLIBAssertions(StringReader(text)).foreach(f => p.addAssertion(f))
-      p.checkSat(true) == SimpleAPI.ProverStatus.Sat
+      val buffer = java.io.ByteArrayOutputStream()
+      Console.withOut(java.io.PrintStream(buffer)) { p.execSMTLIB(StringReader(text)) }
+      buffer.toString.linesIterator.collect {
+        case "sat" => true
+        case "unsat" => false
+      }.toList
     finally p.shutDown
 
   /** A script wrapper recording the answers of `check-sat`. */
@@ -150,17 +155,14 @@ class OtherSolversBench:
       solver.check() == Status.SATISFIABLE
     finally ctx.close()
 
-  /** Replays the instance's [[Z3Program]] — declarations and terms through
-   *  z3's Java API, nothing else — and checks it.
+  /** Replays the instance's [[Z3Program]] — declarations, terms, asserts,
+   *  `push`/`pop` and every `check-sat` through z3's Java API, nothing else.
    */
   @Benchmark
-  def z3Direct(): Boolean =
+  def z3Direct(): List[Boolean] =
     Natives.z3
     val ctx = Context()
-    try
-      val solver = ctx.mkSolver()
-      solver.add(z3Program.run(ctx)*)
-      solver.check() == Status.SATISFIABLE
+    try z3Program.check(ctx)
     finally ctx.close()
 
   /** Prints the tree and has cvc5 run the text as a script through its parser,

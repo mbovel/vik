@@ -17,12 +17,12 @@ import net.bovel.smt2.{Corpus, Parser}
     val program = Z3Program.compile(script)
     val ctx = Context()
     try
-      val solver = ctx.mkSolver()
-      solver.add(program.run(ctx)*)
-      val answer = solver.check() == Status.SATISFIABLE
-      val expected = script.expectedStatus
-      val ok = expected.forall(_ == answer)
+      val answers = program.check(ctx)
+      val expected = script.expectedStatuses
+      val ok = answers.length == expected.length
+        && answers.zip(expected).forall((a, e) => e.forall(_ == a))
       if !ok then failures += 1
-      println(s"$file: ${if answer then "sat" else "unsat"}${if ok then "" else s" EXPECTED ${expected}"}")
+      val shown = answers.map(a => if a then "sat" else "unsat").mkString(" ")
+      println(s"$file: $shown${if ok then "" else s" EXPECTED $expected"}")
     finally ctx.close()
   if failures > 0 then sys.exit(1)
