@@ -10,9 +10,9 @@
   padding: 0.4em 0.2em;
 }
 #content td[align="right"] { white-space: nowrap; }
-#content td:first-child a { /* instance names: a floor on the column, wrapping only at the <wbr> after __ */
+#content td:first-child a { /* instance names: a fixed narrow column */
   display: inline-block;
-  min-width: 10em;
-  word-break: normal;
+  width: 8em;
+  word-break: break-all;
 }
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }

@@ -74,7 +74,7 @@ for f, answers in by.items():
             cells.append(f"**{answer}** {fmt(median)}")
     path, logic, incremental = corpus(f)
     instance = f[:-5]
-    short = instance if len(instance) <= 30 else instance[:29] + "…"  # the link's title carries the full name
+    short = instance if len(instance) <= 25 else instance[:24] + "…"  # the link's title carries the full name
     label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
     name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
     checks = status[f].count(",") + 1
