@@ -7,7 +7,7 @@ extraCSS:
   - css/snippets.css
 ---
 
-# VIK
+# Introduction
 
 An SMT solver in Scala 3, small enough to read: equality with uninterpreted functions, linear integer
 arithmetic, algebraic datatypes, lambdas, and the arithmetic fragment of bit-vectors, under 5000 lines of
