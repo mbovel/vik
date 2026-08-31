@@ -56,7 +56,7 @@ final class Solver(val simplify: Boolean = true):
    *  encoding began). The rebuild re-encodes [[levels]] and drops what was
    *  learned.
    */
-  private var eliminated: Set[String] = Set.empty
+  private var eliminated: Map[String, Term] = Map.empty
   private var dirty = false
 
   /** The declared function symbols (argument sorts, result sort) and datatypes.
@@ -97,6 +97,20 @@ final class Solver(val simplify: Boolean = true):
   private val named = ArrayBuffer.empty[(String, Formula)]
   private var lastCore: List[String] = Nil
 
+  /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
+   *  values for the constants, a finite graph per declared function (see
+   *  [[Model]]).
+   */
+  def model(): Option[Model] =
+    val e = encoder
+    if e == null then None
+    else
+      Option(e.lastModel).map { m =>
+        // The constants the simplification defined away get their definitions' values: the
+        // definitions mention only constants the model already has.
+        m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
+      }
+
   /** The named assertions among the causes of the last [[solve]]'s `Unsat`:
    *  re-asserting just these (with the unnamed assertions) stays `Unsat`. Empty
    *  when the unnamed assertions alone are already `Unsat`.
@@ -115,7 +129,7 @@ final class Solver(val simplify: Boolean = true):
     levels.last += formula
     val e = encoder
     if e != null && !dirty then
-      if eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated)) then
+      if eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated.contains)) then
         dirty = true // the elimination assumed the constant stayed local: start over
       else e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
 
@@ -146,7 +160,7 @@ final class Solver(val simplify: Boolean = true):
         eliminated = gone
         for formula <- simplified do e.assert(formula, null)
       else
-        eliminated = Set.empty
+        eliminated = Map.empty
         for (level, i) <- levels.zipWithIndex do
           val selector = if i == 0 then null
           else
@@ -633,6 +647,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private var clauseCursor = 0
   private var satVars = 0 // variables handed to `sat` so far; `atoms` is the source of truth
 
+  /** The model of the last `Sat`, taken while the engines still held the answer
+   *  (the unwind below discards it).
+   */
+  var lastModel: Model | Null = null
+
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     while satVars < atoms.length do
@@ -641,9 +660,64 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     while clauseCursor < clauses.length do
       sat.addClause(clauses(clauseCursor))
       clauseCursor += 1
+    lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
+    result match
+      case cdclt.Solver.Result.Sat(_) => lastModel = takeModel()
+      case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
+
+  /** Builds the [[Model]] from the live engines: the value of every declared
+   *  constant, and the graph of every declared first-order function from the
+   *  applications the problem mentions. Uninterpreted sorts get an abstract
+   *  element per e-class; a datatype class becomes its constructor term.
+   */
+  private def takeModel(): Model =
+    val elements = HashMap.empty[(String, EClassId), Term] // sort and class to element
+    val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
+    for (t, x) <- intVars do classes.get(t).foreach(c => classValues(eg.find(c)) = liaSolver.value(x))
+    def elementOf(sort: String, cls: EClassId): Term =
+      val root = eg.find(cls)
+      elements.getOrElseUpdate((sort, root), Term.Const(s"@$sort!${elements.count(_._1._1 == sort)}"))
+    def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
+      datatypes.find(_.name == sort) match
+        case Some(datatype) =>
+          val node = adt.map(_.node(eg, cls)).orNull
+          if node == null || seen(eg.find(cls)) then elementOf(sort, cls)
+          else
+            val constructor = datatype.constructors.find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
+            constructor match
+              case Some(c) =>
+                val args = node.args.toList.zip(c.selectors).map((a, s) =>
+                  valueOfClass(a, s._2, seen + eg.find(cls))
+                )
+                if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
+              case None => elementOf(sort, cls)
+        case None =>
+          sort match
+            case "Int" => Term.Num(classValues.getOrElse(eg.find(cls), BigInt(0)))
+            case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
+            case _ => elementOf(sort, cls)
+    def valueOfTerm(t: Term, sort: String): Term =
+      sort match
+        case "Int" => intVars.get(t).map(x => Term.Num(liaSolver.value(x))).getOrElse(Term.Num(0))
+        case _ =>
+          classes.get(t) match
+            case Some(cls) => valueOfClass(cls, sort, Set.empty)
+            case None => if sort == "Bool" then Term.boolean(Formula.False) else elementOf(sort, eg.newClass())
+    val constants = Map.newBuilder[String, Term]
+    val functions = Map.newBuilder[String, Model.Function]
+    for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
+      if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
+      else
+        val rows = classes.keys.collect {
+          case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
+            (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
+        }.toList
+        val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
+        functions += name -> Model.Function(argSorts, sort, rows, default)
+    Model(constants.result(), functions.result())
 
 /** Several theories over disjoint sets of atoms, asserted and checked in turn,
  *  without exchange of equalities between them; `owner(v)` is the theory of the

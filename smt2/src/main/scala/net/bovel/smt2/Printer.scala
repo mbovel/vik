@@ -36,6 +36,7 @@ object Printer:
     case Command.Push(n) => s"(push $n)"
     case Command.Pop(n) => s"(pop $n)"
     case Command.GetModel => "(get-model)"
+    case Command.GetValue(items) => items.map(_._1).mkString("(get-value (", " ", "))")
     case Command.Exit => "(exit)"
     case Command.SetOption(key, value) => s"(set-option $key $value)"
     case Command.GetInfo(key) => s"(get-info $key)"

@@ -59,6 +59,9 @@ final class AdtRules extends Rules:
 
   private def nodeOf(eg: EGraph, cls: EClassId): Node | Null = nodes.getOrElse(eg.find(cls), null)
 
+  /** The constructor node of a class, for the models. */
+  def node(eg: EGraph, cls: EClassId): Node | Null = nodeOf(eg, cls)
+
   private def set(rep: EClassId, node: Node): Unit =
     if marks.nonEmpty then trail += ((rep, nodes.getOrElse(rep, null)))
     nodes(rep) = node

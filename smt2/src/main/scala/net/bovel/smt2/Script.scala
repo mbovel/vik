@@ -1,7 +1,7 @@
 package net.bovel.smt2
 
 import net.bovel.sexpr.SExpr
-import net.bovel.vik.{Datatype, Formula}
+import net.bovel.vik.{Datatype, Formula, Term}
 
 /** A command of an SMT-LIB 2 script, restricted to what the supported logics
  *  need.
@@ -35,6 +35,9 @@ enum Command:
   /** `reset`: everything goes. */
   case Reset
   case GetModel
+
+  /** `get-value`: each item as written (for the echo) and as translated. */
+  case GetValue(items: List[(String, Formula | Term)])
   case GetUnsatCore
   case Exit
 

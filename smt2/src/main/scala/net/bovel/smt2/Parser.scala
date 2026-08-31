@@ -145,6 +145,13 @@ final class Parser extends Lowering:
     case SList(Atom("pop") :: Atom(n) :: Nil) => List(Command.Pop(n.toInt))
     case SList(Atom("pop") :: Nil) => List(Command.Pop(1))
     case SList(Atom("get-model") :: Nil) => List(Command.GetModel)
+    case SList(Atom("get-value") :: SList(items) :: Nil) =>
+      // An item outside the fragment (another theory's term) leaves the whole command unanswered, as before.
+      try
+        List(Command.GetValue(items.map(s =>
+          s.toString -> (if sortOf(s, Map.empty) == "Bool" then formula(s, Map.empty) else term(s, Map.empty))
+        )))
+      catch case _: Smt2Error => List(Command.Other(sexpr))
     case SList(Atom("set-option") :: Atom(key) :: value :: Nil) => List(Command.SetOption(key, value.toString))
     case SList(Atom("get-info") :: Atom(key) :: Nil) => List(Command.GetInfo(key))
     case SList(Atom("exit") :: Nil) => List(Command.Exit)

@@ -25,14 +25,13 @@ object Simplifier:
    *  elimination is sound only while no other assertion mentions the constant,
    *  so a caller that keeps the result and later learns of one must start over.
    */
-  def simplify(assertions: List[Formula], interpreted: Set[String] = Set.empty): (List[Formula], Set[String]) =
+  def simplify(assertions: List[Formula], interpreted: Set[String] = Set.empty): (List[Formula], Map[String, Term]) =
     val total = HashMap.empty[String, Int]
     for f <- assertions do countConstants(f, total)
     for name <- interpreted do total(name) = Int.MaxValue // never local to a conjunction
-    val out = assertions.map(f => simplify(f, total, true)).filter(_ != True)
-    val left = HashMap.empty[String, Int]
-    for f <- out do countConstants(f, left)
-    (out, total.keySet.filterNot(left.contains).toSet -- interpreted)
+    val defined = HashMap.empty[String, Term]
+    val out = assertions.map(f => simplify(f, total, true, defined)).filter(_ != True)
+    (out, defined.toMap)
 
   private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match
     case True | False => ()
@@ -67,35 +66,52 @@ object Simplifier:
     case Lambda(_, body) => countConstants(body, counts)
     case Bool(formula) => countConstants(formula, counts)
 
-  /** `positive`: whether `f` is in a positive position of the assertion. */
-  private def simplify(f: Formula, total: HashMap[String, Int], positive: Boolean): Formula = f match
-    case True | False | Eq(_, _) | Pred(_) | Le(_, _) => f
-    case Not(a) => Not(simplify(a, total, false))
-    case Or(as) => Or(as.map(simplify(_, total, positive)))
-    case Implies(a, b) => Implies(simplify(a, total, false), simplify(b, total, positive))
-    case Iff(a, b) => Iff(simplify(a, total, false), simplify(b, total, false))
-    case Ite(c, t, e) => Ite(simplify(c, total, false), simplify(t, total, positive), simplify(e, total, positive))
-    case And(as) if !positive => And(as.map(simplify(_, total, false)))
-    case And(as) =>
-      var conjuncts = as.map(simplify(_, total, true))
-      // Eliminate the constants local to this conjunction, one equality at a time.
-      var changed = true
-      while changed do
-        changed = false
-        val local = HashMap.empty[String, Int]
-        conjuncts.foreach(countConstants(_, local))
-        conjuncts.zipWithIndex.collectFirst {
-          case (Eq(Const(c), t), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
-          case (Eq(t, Const(c)), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
-        } match
-          case Some((c, t, i)) =>
-            conjuncts = conjuncts.zipWithIndex.collect { case (g, j) if j != i => substitute(g, c, t) }
-            changed = true
-          case None => ()
-      conjuncts match
-        case Nil => True
-        case single :: Nil => single
-        case _ => And(conjuncts)
+  /** `positive`: whether `f` is in a positive position of the assertion;
+   *  `defined` collects each eliminated constant with the term that replaced it
+   *  — the terms mention only surviving constants, since earlier substitutions
+   *  already went through them — so a model can value the constants the solver
+   *  never saw.
+   */
+  private def simplify(
+      f: Formula,
+      total: HashMap[String, Int],
+      positive: Boolean,
+      defined: HashMap[String, Term]
+  ): Formula =
+    f match
+      case True | False | Eq(_, _) | Pred(_) | Le(_, _) => f
+      case Not(a) => Not(simplify(a, total, false, defined))
+      case Or(as) => Or(as.map(simplify(_, total, positive, defined)))
+      case Implies(a, b) => Implies(simplify(a, total, false, defined), simplify(b, total, positive, defined))
+      case Iff(a, b) => Iff(simplify(a, total, false, defined), simplify(b, total, false, defined))
+      case Ite(c, t, e) => Ite(
+          simplify(c, total, false, defined),
+          simplify(t, total, positive, defined),
+          simplify(e, total, positive, defined)
+        )
+      case And(as) if !positive => And(as.map(simplify(_, total, false, defined)))
+      case And(as) =>
+        var conjuncts = as.map(simplify(_, total, true, defined))
+        // Eliminate the constants local to this conjunction, one equality at a time.
+        var changed = true
+        while changed do
+          changed = false
+          val local = HashMap.empty[String, Int]
+          conjuncts.foreach(countConstants(_, local))
+          conjuncts.zipWithIndex.collectFirst {
+            case (Eq(Const(c), t), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
+            case (Eq(t, Const(c)), i) if local.getOrElse(c, 0) == total(c) && !mentions(t, c) => (c, t, i)
+          } match
+            case Some((c, t, i)) =>
+              defined(c) = t
+              for (name, d) <- defined.toList if name != c do defined(name) = substitute(d, c, t)
+              conjuncts = conjuncts.zipWithIndex.collect { case (g, j) if j != i => substitute(g, c, t) }
+              changed = true
+            case None => ()
+        conjuncts match
+          case Nil => True
+          case single :: Nil => single
+          case _ => And(conjuncts)
 
   private def mentions(t: Term, c: String): Boolean = t match
     case Const(name) => name == c

@@ -2,7 +2,7 @@ package net.bovel.smt2
 
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.vik.Solver
+import net.bovel.vik.{Formula, Model, Solver, Term}
 
 /** Runs a [[Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`, `pop` and
  *  `check-sat` become calls, and the responses are returned: `sat`, `unsat` or
@@ -12,6 +12,29 @@ import net.bovel.vik.Solver
  *  stopped it.
  */
 object Player:
+  private def valueText(m: Model, item: Formula | Term): String = item match
+    case f: Formula => if m.holds(f) then "true" else "false"
+    case t: Term => Printer.print(m.value(t))
+
+  /** The model as SMT-LIB text: a define-fun per declared constant and per
+   *  declared function (an ite chain over its graph); the interpreted symbols
+   *  of the datatypes stay out.
+   */
+  private def modelText(m: Model, sorts: Map[String, String], interpreted: Set[String]): String =
+    val constants = m.constants.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map((n, v) =>
+      s"(define-fun $n () ${sorts.getOrElse(n, "?")} ${Printer.print(v)})"
+    )
+    val functions = m.functions.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map { (n, f) =>
+      val params = f.parameters.zipWithIndex.map((s, i) => s"(x!$i $s)").mkString(" ")
+      val body = f.rows.foldRight(Printer.print(f.default)) { case ((args, r), els) =>
+        val cond = args.zipWithIndex.map((a, i) => s"(= x!$i ${Printer.print(a)})") match
+          case single :: Nil => single
+          case cs => cs.mkString("(and ", " ", ")")
+        s"(ite $cond ${Printer.print(r)} $els)"
+      }
+      s"(define-fun $n ($params) ${f.result} $body)"
+    }
+    (constants ++ functions).mkString("(", " ", ")")
   def play(script: Script, solver: Solver = Solver()): List[Boolean] =
     answers(script, solver).map(_.getOrElse(throw IllegalStateException("unknown without a budget")))
 
@@ -51,9 +74,18 @@ object Player:
           case s.Result.Unsat => "unsat"
           case s.Result.Unknown(_) => "unknown")
     val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
+    val sorts = scala.collection.mutable.HashMap.empty[String, String] // declared constants, for get-model
+    val interpreted = scala.collection.mutable.HashSet.empty[String] // datatype members: not printed
     def declare(command: Command): Unit = command match
-      case Command.DeclareFun(name, argSorts, sort) => current.declare(name, argSorts, sort)
-      case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.declare)
+      case Command.DeclareFun(name, argSorts, sort) =>
+        current.declare(name, argSorts, sort)
+        if argSorts.isEmpty then sorts(name) = sort
+      case Command.DeclareDatatypes(datatypes) =>
+        datatypes.foreach(current.declare)
+        for d <- datatypes; c <- d.constructors do
+          interpreted += c.name
+          interpreted += c.tester
+          interpreted ++= c.selectors.map(_._1)
       case _ => ()
     for command <- script.commands do
       command match
@@ -63,6 +95,16 @@ object Player:
         case Command.Assert(formula) => current.assert(formula)
         case Command.AssertNamed(name, formula) => current.assert(formula, name)
         case Command.GetUnsatCore => responses += current.unsatCore.mkString("(", " ", ")")
+        case Command.GetValue(items) =>
+          responses +=
+            (current.model() match
+              case Some(m) => items.map((src, it) => s"($src ${valueText(m, it)})").mkString("(", " ", ")")
+              case None => "(error \"no model\")")
+        case Command.GetModel =>
+          responses +=
+            (current.model() match
+              case Some(m) => modelText(m, sorts.toMap, interpreted.toSet)
+              case None => "(error \"no model\")")
         case Command.Push(n) => for _ <- 0 until n do current.push()
         case Command.Pop(n) => for _ <- 0 until n do current.pop()
         case Command.CheckSat => answer()
