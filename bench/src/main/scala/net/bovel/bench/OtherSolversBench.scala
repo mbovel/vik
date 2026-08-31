@@ -1,20 +1,15 @@
 package net.bovel.bench
 
-import java.io.StringReader
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
-import ap.api.SimpleAPI
 import com.microsoft.z3.{Context, Status}
 import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
-import de.uni_freiburg.informatik.ultimate.logic.{FunctionSymbol, Script, Term, WrapperScript}
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
-import de.uni_freiburg.informatik.ultimate.smtinterpol.option.OptionMap
-import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.{ParseEnvironment, SMTInterpol}
 import net.bovel.smt2.{Corpus, Parser, Player, Printer, Script as VikScript}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
@@ -93,12 +88,16 @@ class OtherSolversBench:
   private var script: VikScript = uninitialized
   private var text: String = uninitialized
   private var z3Program: Z3Program = uninitialized
+  private var princessProgram: PrincessProgram = uninitialized
+  private var smtInterpolProgram: SmtInterpolProgram = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
     script = Parser.parse(text)
     z3Program = Z3Program.compile(script)
+    princessProgram = PrincessProgram.compile(script)
+    smtInterpolProgram = SmtInterpolProgram.compile(script)
 
   @Benchmark
   def print(): Int = Printer.print(script).length
@@ -111,35 +110,12 @@ class OtherSolversBench:
   @Benchmark
   def vikText(): List[Boolean] = Player.play(Parser.parse(text))
 
-  /** Prints the tree, has princess parse the text into formulas, asserts them
-   *  and checks: one flattened problem. Princess's script executor cannot run
-   *  the incremental instances — the parser does not pop its symbol
-   *  environment, so a declaration in a sibling `push` scope is rejected as
-   *  already declared (see external-issues.md) — so its column stays out of
-   *  the incremental rows.
+  /** Replays the instance's [[PrincessProgram]] — declarations, terms,
+   *  asserts, `push`/`pop` and every `check-sat` through princess's API,
+   *  nothing else.
    */
   @Benchmark
-  def princess(): Boolean =
-    val p = SimpleAPI.spawn
-    try
-      p.extractSMTLIBAssertions(StringReader(text)).foreach(f => p.addAssertion(f))
-      p.checkSat(true) == SimpleAPI.ProverStatus.Sat
-    finally p.shutDown
-
-  /** A script wrapper recording the answers of `check-sat`. */
-  private class Recorder(solver: Script) extends WrapperScript(solver):
-    var results: List[Boolean] = Nil
-    // Delegations missing from WrapperScript for these two newer Script methods.
-    override def getFunctionSymbol(name: String | Null): FunctionSymbol | Null = solver.getFunctionSymbol(name)
-    override def getInterpolants(
-        partition: Array[Term | Null] | Null,
-        startOfSubtree: Array[Int] | Null,
-        proofTree: Term | Null
-    ): Array[Term | Null] | Null = solver.getInterpolants(partition, startOfSubtree, proofTree)
-    override def checkSat(): Script.LBool =
-      val result = super.checkSat()
-      results ::= (result == Script.LBool.SAT)
-      result
+  def princess(): List[Boolean] = princessProgram.check()
 
   /** Prints the tree and has z3 parse it (declarations included); the parsed
    *  assertions go to a fresh solver.
@@ -184,19 +160,9 @@ class OtherSolversBench:
       results.reverse
     finally solver.deletePointer()
 
-  /** Prints the tree and has SMTInterpol run the text as a script, recording
-   *  the check-sat answers.
+  /** Replays the instance's [[SmtInterpolProgram]] — declarations, terms,
+   *  asserts, `push`/`pop` and every `check-sat` through the `Script`
+   *  interface Ultimate embeds, nothing else.
    */
   @Benchmark
-  def smtinterpol(): List[Boolean] =
-    val solver = SMTInterpol(DefaultLogger())
-    solver.setOption(":verbosity", 2)
-    val recorder = Recorder(solver)
-    ParseEnvironment(
-      recorder,
-      OptionMap(DefaultLogger(), true)
-    ).parseStream(
-      StringReader(text),
-      "script"
-    ) // front-end options on; `parseScript` takes a file name
-    recorder.results.reverse
+  def smtinterpol(): List[Boolean] = smtInterpolProgram.check()
