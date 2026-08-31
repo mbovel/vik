@@ -79,11 +79,14 @@ object Import:
                 "--fmf",
                 "--full-saturate"
               )
-              val expected = "(?m)^; EXPECT: (.*)$".r.findAllMatchIn(text).map(_.group(1).nn.trim).toList
+              val expected =
+                "(?m)^; EXPECT: (.*)$".r.findAllMatchIn(text).map(_.group(1).nn.trim).toList.filter(answers)
               if "(?m)^; (EXIT: [1-9]|EXPECT-ERROR|REQUIRES:)".r.findFirstIn(text).isDefined then None
               else if options.exists(o => o.startsWith("-") && !harmless.exists(o.startsWith)) then
                 None // the answers may depend on it
-              else if expected.isEmpty || !expected.forall(answers) then None
+              else if expected.isEmpty || !expected.exists(answers) then None
+              else if !expected.forall(answers) && !text.contains("get-value") && !text.contains("get-model")
+              then None // a non-answer expectation with no value query: options or errors we do not model
               else
                 Some(Candidate(
                   rel,
@@ -93,8 +96,9 @@ object Import:
                 ))
             case "z3test" =>
               val out = path.resolveSibling(path.getFileName.nn.toString.dropRight(5) + ".expected.out")
-              Option.when(Files.exists(out))(Files.readAllLines(out).asScala.map(_.trim).filter(_.nonEmpty).toList)
-                .filter(e => e.nonEmpty && e.forall(answers))
+              Option.when(Files.exists(out))(
+                Files.readAllLines(out).asScala.map(_.trim).filter(_.nonEmpty).toList.filter(answers)
+              ).filter(_.nonEmpty)
                 .map(e => Candidate(rel, text, Some(e), "regressions"))
             case "princess" =>
               val log = path.resolveSibling("Answers")

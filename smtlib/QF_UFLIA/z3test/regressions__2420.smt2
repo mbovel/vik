@@ -1,0 +1,6 @@
+; From z3test: 2420.smt2 (MIT, LICENSES/z3test.txt)
+(declare-fun q (Int) Int)
+(set-info :status sat)
+(check-sat)
+(get-model)
+(get-value (q))

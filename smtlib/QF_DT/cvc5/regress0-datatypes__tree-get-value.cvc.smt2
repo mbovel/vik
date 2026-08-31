@@ -1,0 +1,12 @@
+; From cvc5: regress0/datatypes/tree-get-value.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+; EXPECT: (((left x) leaf))
+(set-logic ALL)
+(set-option :incremental false)
+(set-option :produce-models true)
+(declare-datatypes ((tree 0)) (((node (left tree) (right tree)) (leaf))))
+(declare-fun x () tree)
+(assert ((_ is leaf) (left x)))
+(set-info :status sat)
+(check-sat)
+(get-value ( (left x) ))

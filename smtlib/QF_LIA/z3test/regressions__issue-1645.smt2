@@ -1,0 +1,18 @@
+; From z3test: issue-1645.smt2 (MIT, LICENSES/z3test.txt)
+; Copyright (c) Levent Erkok
+; https://github.com/Z3Prover/z3/issues/1645
+(declare-fun x () Int)
+(declare-fun y () Int)
+(declare-fun z () Int)
+(assert (< x z))
+(assert (< y z))
+(assert (< z 5))
+(assert (distinct x y))
+(maximize x)
+(maximize y)
+(set-info :status sat)
+(check-sat)
+(get-objectives)
+(get-value (x))
+(get-value (y))
+(get-value (z))

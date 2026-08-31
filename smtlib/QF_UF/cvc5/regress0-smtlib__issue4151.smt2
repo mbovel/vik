@@ -1,0 +1,16 @@
+; From cvc5: regress0/smtlib/issue4151.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: sat
+; EXPECT: unsat
+; EXPECT: (
+; EXPECT: )
+(set-logic ALL)
+(set-option :incremental true)
+(set-option :produce-unsat-assumptions true)
+(set-option :produce-unsat-cores true)
+(set-info :status sat)
+(check-sat)
+(reset-assertions)
+(assert false)
+(set-info :status unsat)
+(check-sat)
+(get-unsat-core)
