@@ -12,7 +12,7 @@
 #content td[align="right"] { white-space: nowrap; }
 #content td:first-child a { /* instance names: a fixed narrow column */
   display: inline-block;
-  width: 8em;
+  width: 6em;
   word-break: break-all;
 }
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }
