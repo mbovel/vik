@@ -1,5 +1,5 @@
 ---
-title: VIK
+title: Introduction
 extraJS:
   - js/snippets.js
 extraCSS:
