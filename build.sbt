@@ -78,16 +78,24 @@ lazy val smt2 = projectMatrix
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
-// The JVM tests of `smt2` (the corpus) fork with a fixed heap: the same memory budget on every machine.
 lazy val smt2JVM = smt2.jvm(scala3Version)
-smt2JVM / Test / fork := true
-smt2JVM / Test / javaOptions += "-Xmx2g"
+
+// The corpus on disk and its importer, and the tests that play it (JVM only): forked with a fixed
+// heap, the same memory budget on every machine.
+lazy val smt2utils = (project in file("smt2utils"))
+  .dependsOn(smt2JVM, smt2JVM % "test->test")
+  .settings(
+    name := "smt2utils",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    Test / fork := true,
+    Test / javaOptions += "-Xmx2g"
+  )
 
 // The corpus and the documentation pages are data the JVM tests read from disk. The test cache is keyed on
 // the classpath, not on them (external-issues.md), so their stamp becomes a managed resource: a changed file
 // changes the classpath, and the cache lets the tests run.
 lazy val corpusStamp = taskKey[Seq[File]]("The corpus and docs listing, as a test resource (cache input)")
-smt2JVM / Test / corpusStamp := Def.uncached {
+smt2utils / Test / corpusStamp := Def.uncached {
   import scala.jdk.CollectionConverters.*
   val listing = new StringBuilder
   Seq("smtlib", "docs/_docs").foreach { root =>
@@ -100,11 +108,11 @@ smt2JVM / Test / corpusStamp := Def.uncached {
       }
     } finally stream.close()
   }
-  val out = (smt2JVM / Test / resourceManaged).value / "corpus-stamp.tsv"
+  val out = (smt2utils / Test / resourceManaged).value / "corpus-stamp.tsv"
   IO.write(out, listing.toString)
   Seq(out)
 }
-smt2JVM / Test / resourceGenerators += (smt2JVM / Test / corpusStamp).taskValue
+smt2utils / Test / resourceGenerators += (smt2utils / Test / corpusStamp).taskValue
 
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
 import org.scalajs.linker.interface.ESVersion

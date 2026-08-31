@@ -3,7 +3,7 @@ package net.bovel.smt2
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
-import net.bovel.sexpr.SExpr.{Atom, SList}
+import net.bovel.sexpr.SExpr.{SAtom, SList}
 import net.bovel.vik.{BitVectors, Constructor, Datatype, Formula, Lowering, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
@@ -55,7 +55,7 @@ final class Parser extends Lowering:
    *  level `depth + n - 1 - i`.
    */
   private def parameters(params: List[SExpr]): List[(String, String)] = params.map {
-    case SList(Atom(p) :: sort :: Nil) =>
+    case SList(SAtom(p) :: sort :: Nil) =>
       checkSort(sort.toString)
       (p, sort.toString)
     case other => throw Smt2Error(s"bad parameter $other")
@@ -80,25 +80,26 @@ final class Parser extends Lowering:
    */
   private val introduced = ArrayBuffer.empty[(String, String)]
 
-  def parse(input: String): Script = Script(SExprParser.parseAll(input).flatMap(command))
+  def parse(input: String): Script = Script(SExprParser.parse(input).flatMap(command))
 
   private def command(sexpr: SExpr): List[Command] = sexpr match
     // Bit-vectors are lowered to integers, so the script that comes out is in the corresponding integer logic.
-    case SList(Atom("set-logic") :: Atom(logic) :: Nil) => List(Command.SetLogic(logic.replace("BV", "LIA")))
-    case SList(Atom("set-info") :: Atom(key) :: value :: Nil) => List(Command.SetInfo(key, value.toString))
-    case SList(Atom("declare-sort") :: Atom(name) :: Atom(arity) :: Nil) => List(Command.DeclareSort(name, arity.toInt))
-    case SList(Atom("declare-sort") :: Atom(name) :: Nil) => List(Command.DeclareSort(name, 0))
-    case SList(Atom("declare-fun") :: Atom(name) :: SList(args) :: sort :: Nil) =>
+    case SList(SAtom("set-logic") :: SAtom(logic) :: Nil) => List(Command.SetLogic(logic.replace("BV", "LIA")))
+    case SList(SAtom("set-info") :: SAtom(key) :: value :: Nil) => List(Command.SetInfo(key, value.toString))
+    case SList(SAtom("declare-sort") :: SAtom(name) :: SAtom(arity) :: Nil) =>
+      List(Command.DeclareSort(name, arity.toInt))
+    case SList(SAtom("declare-sort") :: SAtom(name) :: Nil) => List(Command.DeclareSort(name, 0))
+    case SList(SAtom("declare-fun") :: SAtom(name) :: SList(args) :: sort :: Nil) =>
       declare(name, args.map(_.toString), sort.toString)
-    case SList(Atom("declare-const") :: Atom(name) :: sort :: Nil) =>
+    case SList(SAtom("declare-const") :: SAtom(name) :: sort :: Nil) =>
       arrow(sort.toString) match // a constant of a function sort is a function symbol
         case Some((argSorts, result)) => declare(name, argSorts, result)
         case None => declare(name, Nil, sort.toString)
-    case SList(Atom("declare-datatype") :: Atom(name) :: SList(constructors) :: Nil) =>
+    case SList(SAtom("declare-datatype") :: SAtom(name) :: SList(constructors) :: Nil) =>
       List(declareDatatypes(List((name, constructors))))
-    case SList(Atom("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil) =>
+    case SList(SAtom("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil) =>
       val sorts = names.map {
-        case SList(Atom(name) :: Atom("0") :: Nil) => name
+        case SList(SAtom(name) :: SAtom("0") :: Nil) => name
         case other => throw Smt2Error(s"unsupported datatype declaration $other (parametric?)")
       }
       if sorts.length != declarations.length then
@@ -107,55 +108,55 @@ final class Parser extends Lowering:
         case SList(constructors) => constructors
         case other => throw Smt2Error(s"bad constructor list $other")
       })))
-    case SList(Atom("define-fun") :: Atom(name) :: SList(params) :: sort :: body :: Nil) =>
+    case SList(SAtom("define-fun") :: SAtom(name) :: SList(params) :: sort :: body :: Nil) =>
       val ps = params.map {
-        case SList(Atom(p) :: s :: Nil) => (p, s.toString)
+        case SList(SAtom(p) :: s :: Nil) => (p, s.toString)
         case other => throw Smt2Error(s"bad parameter $other")
       }
       macros(name) = (ps, sort.toString, body)
       List(Command.DefineFun(name, ps, sort.toString, body))
-    case SList(Atom("assert") :: SList(Atom("!") :: body :: attributes) :: Nil)
-        if attributes.sliding(2).exists { case Seq(Atom(":named"), _) => true; case _ => false } =>
+    case SList(SAtom("assert") :: SList(SAtom("!") :: body :: attributes) :: Nil)
+        if attributes.sliding(2).exists { case Seq(SAtom(":named"), _) => true; case _ => false } =>
       introduced.clear()
       definitions.clear()
-      val name = attributes.sliding(2).collectFirst { case Seq(Atom(":named"), Atom(n)) => n }.get
+      val name = attributes.sliding(2).collectFirst { case Seq(SAtom(":named"), SAtom(n)) => n }.get
       val f = formula(body, Map.empty)
       introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
         definitions.toList.map(Command.Assert(_)) :+ Command.AssertNamed(name, f)
-    case SList(Atom("assert") :: body :: Nil) =>
+    case SList(SAtom("assert") :: body :: Nil) =>
       introduced.clear()
       definitions.clear()
       val f = formula(body, Map.empty)
       introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
         definitions.toList.map(Command.Assert(_)) :+ Command.Assert(f)
-    case SList(Atom("check-sat") :: Nil) => List(Command.CheckSat)
-    case SList(Atom("check-sat-using") :: _) => List(Command.CheckSat) // z3's, with a tactic: ignored
-    case SList(Atom("check-sat-assuming") :: SList(assumptions) :: Nil) => checkSatAssuming(assumptions)
-    case SList(Atom("check-sat") :: assumptions) => checkSatAssuming(assumptions) // z3's shorthand
-    case SList(Atom("reset-assertions") :: Nil) => List(Command.ResetAssertions)
-    case SList(Atom("reset") :: Nil) =>
+    case SList(SAtom("check-sat") :: Nil) => List(Command.CheckSat)
+    case SList(SAtom("check-sat-using") :: _) => List(Command.CheckSat) // z3's, with a tactic: ignored
+    case SList(SAtom("check-sat-assuming") :: SList(assumptions) :: Nil) => checkSatAssuming(assumptions)
+    case SList(SAtom("check-sat") :: assumptions) => checkSatAssuming(assumptions) // z3's shorthand
+    case SList(SAtom("reset-assertions") :: Nil) => List(Command.ResetAssertions)
+    case SList(SAtom("reset") :: Nil) =>
       functions.clear()
       macros.clear()
       List(Command.Reset)
-    case SList(Atom("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)
-    case SList(Atom(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
+    case SList(SAtom("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)
+    case SList(SAtom(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
       throw Smt2Error(s"$name is not supported")
-    case SList(Atom("push") :: Atom(n) :: Nil) => List(Command.Push(n.toInt))
-    case SList(Atom("push") :: Nil) => List(Command.Push(1))
-    case SList(Atom("pop") :: Atom(n) :: Nil) => List(Command.Pop(n.toInt))
-    case SList(Atom("pop") :: Nil) => List(Command.Pop(1))
-    case SList(Atom("get-model") :: Nil) => List(Command.GetModel)
-    case SList(Atom("get-value") :: SList(items) :: Nil) =>
+    case SList(SAtom("push") :: SAtom(n) :: Nil) => List(Command.Push(n.toInt))
+    case SList(SAtom("push") :: Nil) => List(Command.Push(1))
+    case SList(SAtom("pop") :: SAtom(n) :: Nil) => List(Command.Pop(n.toInt))
+    case SList(SAtom("pop") :: Nil) => List(Command.Pop(1))
+    case SList(SAtom("get-model") :: Nil) => List(Command.GetModel)
+    case SList(SAtom("get-value") :: SList(items) :: Nil) =>
       // An item outside the fragment (another theory's term) leaves the whole command unanswered, as before.
       try
         List(Command.GetValue(items.map(s =>
           s.toString -> (if sortOf(s, Map.empty) == "Bool" then formula(s, Map.empty) else term(s, Map.empty))
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))
-    case SList(Atom("set-option") :: Atom(key) :: value :: Nil) => List(Command.SetOption(key, value.toString))
-    case SList(Atom("get-info") :: Atom(key) :: Nil) => List(Command.GetInfo(key))
-    case SList(Atom("exit") :: Nil) => List(Command.Exit)
-    case SList(Atom(_) :: _) => List(Command.Other(sexpr))
+    case SList(SAtom("set-option") :: SAtom(key) :: value :: Nil) => List(Command.SetOption(key, value.toString))
+    case SList(SAtom("get-info") :: SAtom(key) :: Nil) => List(Command.GetInfo(key))
+    case SList(SAtom("exit") :: Nil) => List(Command.Exit)
+    case SList(SAtom(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
 
   private def checkSatAssuming(assumptions: List[SExpr]): List[Command] =
@@ -213,11 +214,11 @@ final class Parser extends Lowering:
       Datatype(
         name,
         constructors.map {
-          case SList(Atom(constructor) :: selectors) =>
+          case SList(SAtom(constructor) :: selectors) =>
             Constructor(
               constructor,
               selectors.map {
-                case SList(Atom(selector) :: sort :: Nil) => (selector, sort.toString)
+                case SList(SAtom(selector) :: sort :: Nil) => (selector, sort.toString)
                 case other => throw Smt2Error(s"bad selector $other")
               }
             )
@@ -234,20 +235,20 @@ final class Parser extends Lowering:
   private def isNumeral(name: String): Boolean = name.nonEmpty && name.forall(_.isDigit)
 
   private def sortOf(sexpr: SExpr, env: Map[String, Value]): String = sexpr match
-    case Atom("true" | "false") => "Bool"
-    case Atom(name) if isNumeral(name) => "Int"
-    case Atom(name) if name.startsWith("#b") => BitVectors.sort(name.length - 2)
-    case Atom(name) if name.startsWith("#x") => BitVectors.sort(4 * (name.length - 2))
-    case SList(Atom("_") :: Atom(literal) :: Atom(width) :: Nil) if literal.startsWith("bv") =>
+    case SAtom("true" | "false") => "Bool"
+    case SAtom(name) if isNumeral(name) => "Int"
+    case SAtom(name) if name.startsWith("#b") => BitVectors.sort(name.length - 2)
+    case SAtom(name) if name.startsWith("#x") => BitVectors.sort(4 * (name.length - 2))
+    case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
       BitVectors.sort(width.toInt)
-    case SList(Atom(BitVectors.Arithmetic(_)) :: a :: _) => sortOf(a, env)
-    case SList(Atom(BitVectors.Comparison(_)) :: _) => "Bool"
-    case SList(SList(Atom("_") :: Atom("extract") :: Atom(i) :: Atom(j) :: Nil) :: _ :: Nil) =>
+    case SList(SAtom(BitVectors.Arithmetic(_)) :: a :: _) => sortOf(a, env)
+    case SList(SAtom(BitVectors.Comparison(_)) :: _) => "Bool"
+    case SList(SList(SAtom("_") :: SAtom("extract") :: SAtom(i) :: SAtom(j) :: Nil) :: _ :: Nil) =>
       BitVectors.sort(i.toInt - j.toInt + 1)
-    case SList(SList(Atom("_") :: Atom("zero_extend" | "sign_extend") :: Atom(k) :: Nil) :: a :: Nil) =>
+    case SList(SList(SAtom("_") :: SAtom("zero_extend" | "sign_extend") :: SAtom(k) :: Nil) :: a :: Nil) =>
       BitVectors.sort(BitVectors.width(sortOf(a, env)) + k.toInt)
-    case SList(Atom("concat") :: args) => BitVectors.sort(args.map(a => BitVectors.width(sortOf(a, env))).sum)
-    case Atom(name) =>
+    case SList(SAtom("concat") :: args) => BitVectors.sort(args.map(a => BitVectors.width(sortOf(a, env))).sum)
+    case SAtom(name) =>
       env.get(name) match
         case Some(Value.F(_, _)) => "Bool"
         case Some(Value.T(_, sort, _)) => sort
@@ -255,20 +256,20 @@ final class Parser extends Lowering:
         case None => functions.get(name).map(functionSort).orElse(macros.get(name).map(_._2)).getOrElse(throw Smt2Error(
             s"unknown symbol $name"
           ))
-    case SList(Atom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
-    case SList(Atom("+" | "-" | "*") :: _) => "Int"
-    case SList(Atom("lambda") :: SList(params) :: body :: Nil) =>
+    case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
+    case SList(SAtom("+" | "-" | "*") :: _) => "Int"
+    case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
       val inner = bindParameters(ps, env)
       depth += ps.length
       val res = try sortOf(body, inner)
       finally depth -= ps.length
       s"(-> ${ps.map(_._2).mkString(" ")} $res)"
-    case SList(Atom(name) :: args) if env.contains(name) => result(sortOf(Atom(name), env), args.length)
-    case SList(SList(Atom("_") :: Atom("is") :: Atom(_) :: Nil) :: _ :: Nil) => "Bool"
-    case SList(Atom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
-    case SList(Atom("let") :: SList(bindings) :: body :: Nil) => sortOf(body, bind(bindings, env))
-    case SList(Atom(name) :: args) => // a declared function applied to some of its arguments, or more
+    case SList(SAtom(name) :: args) if env.contains(name) => result(sortOf(SAtom(name), env), args.length)
+    case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(_) :: Nil) :: _ :: Nil) => "Bool"
+    case SList(SAtom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
+    case SList(SAtom("let") :: SList(bindings) :: body :: Nil) => sortOf(body, bind(bindings, env))
+    case SList(SAtom(name) :: args) => // a declared function applied to some of its arguments, or more
       functions.get(name).map(d => result(functionSort(d), args.length)).orElse(macros.get(name).map(_._2)).getOrElse(
         throw Smt2Error(s"unknown function $name")
       )
@@ -277,16 +278,16 @@ final class Parser extends Lowering:
 
   private def bind(bindings: List[SExpr], env: Map[String, Value]): Map[String, Value] =
     env ++ bindings.map {
-      case SList(Atom(name) :: value :: Nil) =>
+      case SList(SAtom(name) :: value :: Nil) =>
         val sort = sortOf(value, env)
         name -> (if sort == "Bool" then Value.F(formula(value, env), depth) else Value.T(term(value, env), sort, depth))
       case other => throw Smt2Error(s"bad binding $other")
     }
 
   private def formula(sexpr: SExpr, env: Map[String, Value]): Formula = sexpr match
-    case Atom("true") => True
-    case Atom("false") => False
-    case Atom(name) =>
+    case SAtom("true") => True
+    case SAtom("false") => False
+    case SAtom(name) =>
       env.get(name) match
         case Some(Value.F(f, d)) => f.mapTerms(Term.shift(_, depth - d))
         case Some(Value.T(t, "Bool", d)) => Formula.pred(Term.shift(t, depth - d))
@@ -298,12 +299,12 @@ final class Parser extends Lowering:
             expand(name, Nil, env) match
               case Value.F(f, _) => f
               case Value.T(_, _, _) => throw Smt2Error(s"$name is not Boolean")
-    case SList(Atom("not") :: arg :: Nil) => Not(formula(arg, env))
-    case SList(Atom("and") :: args) => And(args.map(formula(_, env)))
-    case SList(Atom("or") :: args) => Or(args.map(formula(_, env)))
-    case SList(Atom("=>") :: args) => args.map(formula(_, env)).reduceRight(Implies(_, _))
-    case SList(Atom("xor") :: lhs :: rhs :: Nil) => Not(Iff(formula(lhs, env), formula(rhs, env)))
-    case SList(Atom("=") :: args) =>
+    case SList(SAtom("not") :: arg :: Nil) => Not(formula(arg, env))
+    case SList(SAtom("and") :: args) => And(args.map(formula(_, env)))
+    case SList(SAtom("or") :: args) => Or(args.map(formula(_, env)))
+    case SList(SAtom("=>") :: args) => args.map(formula(_, env)).reduceRight(Implies(_, _))
+    case SList(SAtom("xor") :: lhs :: rhs :: Nil) => Not(Iff(formula(lhs, env), formula(rhs, env)))
+    case SList(SAtom("=") :: args) =>
       sortOf(args.head, env) match
         case "Bool" =>
           val fs = args.map(formula(_, env))
@@ -311,15 +312,15 @@ final class Parser extends Lowering:
         case sort =>
           val ts = args.map(term(_, env))
           chain(ts.zip(ts.tail).map(equal(sort, _, _)))
-    case SList(Atom("distinct") :: args) =>
+    case SList(SAtom("distinct") :: args) =>
       val ts = args.map(term(_, env))
       if isArithmetic(sortOf(args.head, env)) then IntDistinct(ts) else Distinct(ts)
-    case SList(Atom(BitVectors.Comparison(op)) :: a :: b :: Nil) =>
+    case SList(SAtom(BitVectors.Comparison(op)) :: a :: b :: Nil) =>
       val width = BitVectors.width(sortOf(a, env))
       BitVectors.compare(op, term(a, env), term(b, env), width, this)
-    case SList(SList(Atom("_") :: Atom("is") :: Atom(constructor) :: Nil) :: arg :: Nil) =>
+    case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(constructor) :: Nil) :: arg :: Nil) =>
       Pred(Term.App(declared(s"(_ is $constructor)"), List(term(arg, env))))
-    case SList(Atom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
+    case SList(SAtom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
       for a <- args if !isArithmetic(sortOf(a, env)) do throw Smt2Error(s"$op on ${sortOf(a, env)} is not supported")
       val ts = args.map(term(_, env))
       val compare: (Term, Term) => Formula = op match
@@ -328,15 +329,15 @@ final class Parser extends Lowering:
         case ">=" => Ge(_, _)
         case _ => Gt(_, _)
       chain(ts.zip(ts.tail).map(compare(_, _)))
-    case SList(Atom("ite") :: cond :: thn :: els :: Nil) =>
+    case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       Ite(formula(cond, env), formula(thn, env), formula(els, env))
-    case SList(Atom("let") :: SList(bindings) :: body :: Nil) => formula(body, bind(bindings, env))
-    case SList(Atom("!") :: body :: _) => formula(body, env) // an annotated term
-    case SList(Atom(name) :: args) if macros.contains(name) =>
+    case SList(SAtom("let") :: SList(bindings) :: body :: Nil) => formula(body, bind(bindings, env))
+    case SList(SAtom("!") :: body :: _) => formula(body, env) // an annotated term
+    case SList(SAtom(name) :: args) if macros.contains(name) =>
       expand(name, args, env) match
         case Value.F(f, _) => f
         case Value.T(_, _, _) => throw Smt2Error(s"$name is not Boolean")
-    case SList(Atom(name) :: args) => Pred(Term.App(declared(name), args.map(term(_, env))))
+    case SList(SAtom(name) :: args) => Pred(Term.App(declared(name), args.map(term(_, env))))
     case other => throw Smt2Error(s"not a formula: $other")
 
   /** Equality of two terms of `sort`. */
@@ -361,26 +362,26 @@ final class Parser extends Lowering:
   def define(formula: Formula): Unit = definitions += formula
 
   private def term(sexpr: SExpr, env: Map[String, Value]): Term = sexpr match
-    case Atom("true") => Term.boolean(Formula.True)
-    case Atom("false") => Term.boolean(Formula.False)
-    case Atom(name) if isNumeral(name) => Term.Num(BigInt(name))
-    case Atom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
-    case Atom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
-    case SList(Atom("_") :: Atom(literal) :: Atom(width) :: Nil) if literal.startsWith("bv") =>
+    case SAtom("true") => Term.boolean(Formula.True)
+    case SAtom("false") => Term.boolean(Formula.False)
+    case SAtom(name) if isNumeral(name) => Term.Num(BigInt(name))
+    case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
+    case SAtom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
+    case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
       Term.Num(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)))
-    case SList(Atom(BitVectors.Arithmetic(op)) :: args) =>
+    case SList(SAtom(BitVectors.Arithmetic(op)) :: args) =>
       val width = BitVectors.width(sortOf(args.head, env))
       BitVectors.arithmetic(op, args.map(term(_, env)), width, this)
-    case SList(SList(Atom("_") :: Atom("extract") :: Atom(i) :: Atom(j) :: Nil) :: a :: Nil) =>
+    case SList(SList(SAtom("_") :: SAtom("extract") :: SAtom(i) :: SAtom(j) :: Nil) :: a :: Nil) =>
       BitVectors.extract(i.toInt, j.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
-    case SList(SList(Atom("_") :: Atom("zero_extend") :: Atom(_) :: Nil) :: a :: Nil) => term(a, env)
-    case SList(SList(Atom("_") :: Atom("sign_extend") :: Atom(k) :: Nil) :: a :: Nil) =>
+    case SList(SList(SAtom("_") :: SAtom("zero_extend") :: SAtom(_) :: Nil) :: a :: Nil) => term(a, env)
+    case SList(SList(SAtom("_") :: SAtom("sign_extend") :: SAtom(k) :: Nil) :: a :: Nil) =>
       BitVectors.signExtend(k.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
-    case SList(Atom("concat") :: args) =>
+    case SList(SAtom("concat") :: args) =>
       args.map(a => (term(a, env), BitVectors.width(sortOf(a, env)))).reduceLeft { case ((hi, wh), (lo, wl)) =>
         (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
       }._1
-    case Atom(name) =>
+    case SAtom(name) =>
       env.get(name) match
         case Some(Value.T(t, _, d)) => Term.shift(t, depth - d)
         case Some(Value.Bound(level, _)) => Term.Var(depth - 1 - level)
@@ -391,17 +392,17 @@ final class Parser extends Lowering:
             expand(name, Nil, env) match
               case Value.T(t, _, _) => t
               case Value.F(f, _) => Term.boolean(f)
-    case SList(Atom("lambda") :: SList(params) :: body :: Nil) =>
+    case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
       val inner = bindParameters(ps, env)
       depth += ps.length
       try Term.Lambda(ps.map(_._2), term(body, inner))
       finally depth -= ps.length
-    case SList(Atom("-") :: arg :: Nil) => Term.linear(List((-1, term(arg, env))))
-    case SList(Atom("-") :: first :: rest) =>
+    case SList(SAtom("-") :: arg :: Nil) => Term.linear(List((-1, term(arg, env))))
+    case SList(SAtom("-") :: first :: rest) =>
       Term.linear((BigInt(1), term(first, env)) :: rest.map(a => (BigInt(-1), term(a, env))))
-    case SList(Atom("+") :: args) => Term.linear(args.map(a => (BigInt(1), term(a, env))))
-    case SList(Atom("*") :: args) =>
+    case SList(SAtom("+") :: args) => Term.linear(args.map(a => (BigInt(1), term(a, env))))
+    case SList(SAtom("*") :: args) =>
       // Linear: all factors but at most one are numerals.
       val (numerals, others) = args.map(term(_, env)).partitionMap {
         case Term.Num(v) => Left(v)
@@ -412,7 +413,7 @@ final class Parser extends Lowering:
         case Nil => Term.Num(k)
         case t :: Nil => Term.linear(List((k, t)))
         case _ => throw Smt2Error(s"non-linear multiplication: $sexpr")
-    case SList(Atom("ite") :: cond :: thn :: els :: Nil) =>
+    case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the current assertion.
       if depth > 0 then throw Smt2Error("ite under a lambda is not supported")
       fresh += 1
@@ -425,19 +426,19 @@ final class Parser extends Lowering:
       definitions += Implies(c, equal(sort, k, term(thn, env)))
       definitions += Implies(Not(c), equal(sort, k, term(els, env)))
       k
-    case SList(Atom("let") :: SList(bindings) :: body :: Nil) => term(body, bind(bindings, env))
-    case SList(Atom("!") :: body :: _) => term(body, env)
-    case SList(Atom(op) :: _)
+    case SList(SAtom("let") :: SList(bindings) :: body :: Nil) => term(body, bind(bindings, env))
+    case SList(SAtom("!") :: body :: _) => term(body, env)
+    case SList(SAtom(op) :: _)
         if !functions.contains(op) && !macros.contains(op) && !env.contains(op) && sortOf(sexpr, env) == "Bool" =>
       Term.boolean(formula(sexpr, env)) // a formula as a term: a connective, a comparison, an equality
-    case SList(SList(Atom("_") :: Atom("is") :: _) :: _ :: Nil) => Term.boolean(formula(sexpr, env)) // a tester
-    case SList(Atom(name) :: args) if env.contains(name) =>
-      apply(term(Atom(name), env), sortOf(Atom(name), env), args, env)
-    case SList(Atom(name) :: args) if macros.contains(name) =>
+    case SList(SList(SAtom("_") :: SAtom("is") :: _) :: _ :: Nil) => Term.boolean(formula(sexpr, env)) // a tester
+    case SList(SAtom(name) :: args) if env.contains(name) =>
+      apply(term(SAtom(name), env), sortOf(SAtom(name), env), args, env)
+    case SList(SAtom(name) :: args) if macros.contains(name) =>
       expand(name, args, env) match
         case Value.T(t, _, _) => t
         case Value.F(f, _) => Term.boolean(f)
-    case SList(Atom(name) :: args) => apply(declared(name), functionSort(functions(name)), args, env)
+    case SList(SAtom(name) :: args) => apply(declared(name), functionSort(functions(name)), args, env)
     case SList((fun @ SList(_)) :: args) => apply(term(fun, env), sortOf(fun, env), args, env)
     case other => throw Smt2Error(s"not a term: $other")
 

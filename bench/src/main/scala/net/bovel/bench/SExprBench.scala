@@ -38,4 +38,4 @@ class SExprBench:
     text = (0 until n).map(i => (if i % 10 == 0 then "; a comment\n" else "") + expr(3)).mkString("\n")
 
   @Benchmark
-  def parse(): Int = SExprParser.parseAll(text).length
+  def parse(): Int = SExprParser.parse(text).length
