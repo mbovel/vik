@@ -1,14 +1,6 @@
 /* The tables of the evaluation: compact, the solver headers vertical and sticky, the best cell of a
    row in green (the `best` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
-@media (max-width: 1100px) {
-  /* Narrow screens scroll each generated table's wrapper; the table stays native (iOS inflates the
-     rows of a table made its own scroll container, and scrolling the article pane moved the prose
-     too). The headers keep their vertical writing and only come unstuck: sticky cannot stick past
-     the scrolling wrapper. */
-  .table-scroll { overflow-x: auto; }
-  #content th { position: static; }
-}
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;
   transform: rotate(180deg);
@@ -29,3 +21,12 @@
   word-break: break-all;
 }
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }
+
+@media (max-width: 1100px) {
+  /* Narrow screens scroll each generated table's wrapper; the table stays native (iOS inflates the
+     rows of a table made its own scroll container, and scrolling the article pane moved the prose
+     too). The headers keep their vertical writing and only come unstuck: sticky cannot stick past
+     the scrolling wrapper. */
+  .table-scroll { overflow-x: auto; }
+  #content th { position: static; }
+}
