@@ -71,6 +71,7 @@ object Import:
               val harmless = List(
                 "--incremental",
                 "--produce-models",
+                "--produce-unsat-cores",
                 "--lang",
                 "-q",
                 "--no-",
@@ -85,7 +86,7 @@ object Import:
               else if options.exists(o => o.startsWith("-") && !harmless.exists(o.startsWith)) then
                 None // the answers may depend on it
               else if expected.isEmpty || !expected.exists(answers) then None
-              else if !expected.forall(answers) && !text.contains("get-value") && !text.contains("get-model")
+              else if !expected.forall(answers) && !text.contains("get-value") && !text.contains("get-model") && !text.contains("get-unsat-core")
               then None // a non-answer expectation with no value query: options or errors we do not model
               else
                 Some(Candidate(
