@@ -6,7 +6,7 @@
 
 | Benchmark | Workload | Exercises |
 |---|---|---|
-| `parse` | a generated QF_UF script with `n` (1000 or 10000) assertions over one sort, three functions and fifty constants, using `let`, `ite`, `distinct`, `=>`, `or`, `not` and `=` | the S-expression lexer, then the sort-directed translation into `smt` terms and formulas (`let` bindings, `ite` lowering, `distinct` expansion) |
+| `parse` | a generated QF_UF script with `n` (1000 or 10000) assertions over one sort, three functions and fifty constants, using `let`, `ite`, `distinct`, `=>`, `or`, `not` and `=` | the S-expression lexer, then the sort-directed translation into `vik` terms and formulas (`let` bindings, `ite` lowering, `distinct` expansion) |
 
 ## Running
 

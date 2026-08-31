@@ -3,7 +3,7 @@ package net.bovel.bench
 import scala.collection.mutable.HashMap
 
 import com.microsoft.z3.{BoolExpr, Constructor, Context, DatatypeSort, Expr, FuncDecl, IntExpr, Sort}
-import net.bovel.smt.{Formula, Term}
+import net.bovel.vik.{Formula, Term}
 import net.bovel.smt2.{Command, Script}
 
 /** Translates a parsed [[Script]] straight into z3's AST through its Java API,

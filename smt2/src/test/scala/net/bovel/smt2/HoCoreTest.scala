@@ -1,8 +1,8 @@
 package net.bovel.smt2
 
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term
-import net.bovel.smt.Term.*
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term
+import net.bovel.vik.Term.*
 
 /** Higher-order core (SMT-LIB 2.7): curried applications, extensionality of
  *  functions, and `Bool` as a sort — formulas as arguments, `ite` branches,

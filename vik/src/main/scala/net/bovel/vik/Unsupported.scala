@@ -1,4 +1,4 @@
-package net.bovel.smt
+package net.bovel.vik
 
 /** Something the solver does not decide: an operation outside a fragment (a
  *  bit-vector multiplication of two unknowns, see [[BitVectors]]), a sort of a

@@ -1,4 +1,4 @@
-package net.bovel.smt
+package net.bovel.vik
 
 /** Sorts are strings, as written in SMT-LIB; a function sort is
  *  `(-> S1 ... Sn R)`, and `(-> S1 (-> S2 R))` is the same as `(-> S1 S2 R)`.

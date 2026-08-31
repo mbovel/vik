@@ -6,10 +6,10 @@ import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.smt.* // the formula and term operators
-import net.bovel.smt.{Formula, Solver, Term}
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term.*
+import net.bovel.vik.* // the formula and term operators
+import net.bovel.vik.{Formula, Solver, Term}
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term.*
 
 /** Uninterpreted functions over integers (the combination of the e-graph and
  *  the LIA solver): ten random formula sets of `n` formulas over `n` integer

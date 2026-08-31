@@ -2,9 +2,9 @@ package net.bovel.smt2
 
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.smt.Solver
+import net.bovel.vik.Solver
 
-/** Runs a [[Script]] on a [[net.bovel.smt.Solver]]: `assert`, `push`, `pop` and
+/** Runs a [[Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`, `pop` and
  *  `check-sat` become calls, and the responses are returned: `sat`, `unsat` or
  *  `unknown` per `check-sat`, and the `:reason-unknown` of `get-info` —
  *  `resourceout` when the fuel is spent (`:rlimit`, or `fuel` here), `timeout`

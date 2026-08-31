@@ -4,12 +4,12 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{Atom, SList}
-import net.bovel.smt.{BitVectors, Constructor, Datatype, Formula, Lowering, Sorts, Term}
+import net.bovel.vik.{BitVectors, Constructor, Datatype, Formula, Lowering, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
- *  `Int` into [[net.bovel.smt.Term]]s and Boolean terms into
- *  [[net.bovel.smt.Formula]]s. Bit-vectors are lowered to integers (see
+ *  `Int` into [[net.bovel.vik.Term]]s and Boolean terms into
+ *  [[net.bovel.vik.Formula]]s. Bit-vectors are lowered to integers (see
  *  [[BitVectors]]). Sorts of declared symbols decide which is which: `=` on
  *  Booleans is `Iff`, on integers two bounds; a Boolean-sorted constant or
  *  application is a `Pred`; `+`, `-` and `*` by a numeral build linear

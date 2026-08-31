@@ -48,7 +48,7 @@ bit-blasting solver ([evaluation](../evaluation.md)).
 Every bit-vector term becomes an integer with its range asserted, and every operation becomes its arithmetic
 image, with an overflow count where the modulus needs one: `bvadd a b` is `a + b - 2ⁿ·k` with `k` a fresh
 constant in `{0, 1}`, `extract` is a division and a remainder by powers of two, `concat` a weighted sum, the
-signed comparisons are unsigned ones on the value shifted by the sign bit. The lowering is part of the solver (`net.bovel.smt.BitVectors`), which the front end drives as it reads a
+signed comparisons are unsigned ones on the value shifted by the sign bit. The lowering is part of the solver (`net.bovel.vik.BitVectors`), which the front end drives as it reads a
 script — it declares the constants the lowering asks for and asserts their definitions (`Lowering`): the
 `set-logic` is rewritten, so the script that VIK plays is a `QF_LIA` script, which `(get-info)`-style
 inspection or the [playground](https://github.com/mbovel/vik) will show you.

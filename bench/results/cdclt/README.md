@@ -1,6 +1,6 @@
 # CDCL(T) solver benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.cdclt.Solver`, in [CdcltBench.scala](../../src/main/scala/net/bovel/bench/CdcltBench.scala). Pure SAT for now (no theory); theory workloads come with the `smt` module.
+[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.cdclt.Solver`, in [CdcltBench.scala](../../src/main/scala/net/bovel/bench/CdcltBench.scala). Pure SAT for now (no theory); theory workloads come with the `vik` module.
 
 ## Workloads
 

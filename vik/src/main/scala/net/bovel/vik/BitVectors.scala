@@ -1,9 +1,9 @@
-package net.bovel.smt
+package net.bovel.vik
 
-import net.bovel.smt.* // the arithmetic extension methods on terms
-import net.bovel.smt.{Formula, Term}
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term.*
+import net.bovel.vik.* // the arithmetic extension methods on terms
+import net.bovel.vik.{Formula, Term}
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term.*
 
 /** The lowering of the arithmetic fragment of bit-vectors to integers, for the
  *  the front end: an `n`-bit term is an `Int` term in `[0, 2^n)`, and each

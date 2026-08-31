@@ -61,9 +61,9 @@ three.
 The solver is a library first. Terms and formulas are built directly, and the answers come back as values:
 
 ```scala
-import net.bovel.smt.*
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term.*
+import net.bovel.vik.*
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term.*
 
 val solver = Solver()
 solver.declare("f", List("Int"), "Int")

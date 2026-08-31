@@ -1,6 +1,6 @@
 # SMT benchmarks
 
-End-to-end benchmarks of the SMT solver (`smt2` parser, `smt` solver, `cdclt`, `egraph`, `lia`) on QF_UF, QF_LIA, QF_BV and QF_DT instances of the
+End-to-end benchmarks of the SMT solver (`smt2` parser, `vik` solver, `cdclt`, `egraph`, `lia`) on QF_UF, QF_LIA, QF_BV and QF_DT instances of the
 [SMT-LIB](https://smt-lib.org) benchmark library, and a comparison with other solvers.
 
 ## Instances
@@ -11,7 +11,7 @@ play the whole corpus. The table of families, statuses and licenses is in the co
 
 ## Integer and lambda workloads (`UfliaBench`, `LambdaBench`)
 
-Random instances built with the `smt` API:
+Random instances built with the `vik` API:
 
 | Benchmark | Workload | Exercises |
 |---|---|---|

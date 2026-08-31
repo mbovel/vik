@@ -1,4 +1,4 @@
-package net.bovel.smt
+package net.bovel.vik
 
 /** An algebraic datatype declaration: constructors with their selectors (name
  *  and sort). A constructor is applied as a function symbol (`App(Const(name),

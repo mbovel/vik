@@ -2,7 +2,7 @@ package net.bovel.docs
 
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-import net.bovel.smt.Solver
+import net.bovel.vik.Solver
 import net.bovel.smt2.{Parser, Player, Printer}
 
 /** The solver as a WebAssembly module for the documentation pages: the

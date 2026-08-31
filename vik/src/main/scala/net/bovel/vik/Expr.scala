@@ -1,4 +1,4 @@
-package net.bovel.smt
+package net.bovel.vik
 
 import scala.util.hashing.MurmurHash3
 

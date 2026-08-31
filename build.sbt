@@ -53,12 +53,12 @@ lazy val lia = projectMatrix
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
-// SMT expressions and solver over UF: subprojects `smt` (JVM) and `smtJS`.
-lazy val smt = projectMatrix
-  .in(file("smt"))
+// Terms, formulas and the solver over the theories: subprojects `vik` (JVM), `vikJS` and `vikNative`.
+lazy val vik = projectMatrix
+  .in(file("vik"))
   .dependsOn(cdclt, egraph, lia)
   .settings(
-    name := "smt",
+    name := "vik",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version))
@@ -68,7 +68,7 @@ lazy val smt = projectMatrix
 // SMT-LIB 2 scripts: subprojects `smt2` (JVM) and `smt2JS`.
 lazy val smt2 = projectMatrix
   .in(file("smt2"))
-  .dependsOn(sexpr, smt)
+  .dependsOn(sexpr, vik)
   .settings(
     name := "smt2",
     Compile / mainClass := Some("net.bovel.smt2.smt2"), // the command line, also as a native binary
@@ -135,7 +135,7 @@ lazy val bench = project
     cdclt.jvm(scala3Version),
     lia.jvm(scala3Version),
     sexpr.jvm(scala3Version),
-    smt.jvm(scala3Version),
+    vik.jvm(scala3Version),
     smt2.jvm(scala3Version)
   )
   .settings(
@@ -163,7 +163,7 @@ lazy val egraphJS = egraph.js(scala3Version)
 lazy val cdcltJS = cdclt.js(scala3Version)
 lazy val sexprJS = sexpr.js(scala3Version)
 lazy val liaJS = lia.js(scala3Version)
-lazy val smtJS = smt.js(scala3Version)
+lazy val vikJS = vik.js(scala3Version)
 lazy val smt2JS = smt2.js(scala3Version)
 egraphJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
@@ -173,7 +173,7 @@ sexprJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 liaJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-smtJS / scalaJSLinkerConfig ~=
+vikJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 smt2JS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
@@ -193,18 +193,18 @@ lazy val root = (project in file("."))
     cdclt.jvm(scala3Version),
     sexpr.jvm(scala3Version),
     lia.jvm(scala3Version),
-    smt.jvm(scala3Version),
+    vik.jvm(scala3Version),
     smt2.jvm(scala3Version)
   )
   .settings(
-    name := "vik",
+    name := "vik-root", // the aggregate; the solver module is `vik`
     publish / skip := true,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
       egraph.jvm(scala3Version),
       cdclt.jvm(scala3Version),
       sexpr.jvm(scala3Version),
       lia.jvm(scala3Version),
-      smt.jvm(scala3Version),
+      vik.jvm(scala3Version),
       smt2.jvm(scala3Version)
     ),
     ScalaUnidoc / unidoc / target := file("target/unidoc"),
@@ -224,6 +224,8 @@ lazy val root = (project in file("."))
       )
     },
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
+      "-project",
+      "VIK",
       "-siteroot",
       "docs",
       "-Yapi-subdirectory", // the guide at the root of the site, the API documentation under `api/`

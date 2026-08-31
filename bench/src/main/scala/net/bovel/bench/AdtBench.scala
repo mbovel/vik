@@ -6,10 +6,10 @@ import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.smt.* // the formula and term operators
-import net.bovel.smt.{Constructor, Datatype, Formula, Solver, Term}
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term.*
+import net.bovel.vik.* // the formula and term operators
+import net.bovel.vik.{Constructor, Datatype, Formula, Solver, Term}
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term.*
 
 /** Datatypes: random formulas over the finite datatypes `Color` (three
  *  constants) and `Pair` (two colors) with `n` pair constants, a mix of

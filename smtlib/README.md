@@ -106,7 +106,7 @@ families, including all the QF_LIA, QF_BV and QF_UFLIA ones, state a `:source` o
 
 ## Datatype workloads (`AdtBench`)
 
-Random instances built directly with the `smt` API (no SMT-LIB file), sizes `n` = 10 and 30:
+Random instances built directly with the `vik` API (no SMT-LIB file), sizes `n` = 10 and 30:
 
 | Benchmark | Workload | Exercises |
 |---|---|---|

@@ -94,7 +94,7 @@ folding can use as well.
 
 1. `Justification.Rule` and `explain` for it; `Rules`/`NoRules` with `normalize` and `merged`; `rebuild` calling
    them; tests with a toy rule (idempotence `f(f(x)) = f(x)`).
-2. Datatype declarations reaching the e-graph: `smt`'s encoder registers constructors, selectors and testers with an
+2. Datatype declarations reaching the e-graph: `vik`'s encoder registers constructors, selectors and testers with an
    `AdtRules` instance built from the `Datatype` declarations (`smt2` already produces them).
 3. Injectivity, distinctness and selectors; the differential test against brute force over small finite datatypes.
 4. Testers with lemmas (`Theory.Result.Ok` gains lemma clauses; the CDCL(T) solver adds them) and exhaustiveness.

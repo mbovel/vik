@@ -1,6 +1,6 @@
 package net.bovel.smt2
 
-import net.bovel.smt.{Formula, Term}
+import net.bovel.vik.{Formula, Term}
 
 /** Prints scripts, formulas and terms back to SMT-LIB 2 text (one command per
  *  line), e.g. to hand a parsed script to another solver.

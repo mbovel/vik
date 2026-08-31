@@ -1,7 +1,7 @@
-package net.bovel.smt
+package net.bovel.vik
 
-import net.bovel.smt.Formula.*
-import net.bovel.smt.Term.*
+import net.bovel.vik.Formula.*
+import net.bovel.vik.Term.*
 
 /** Lambdas through the API: a function symbol equal to a lambda, applied. */
 class LambdaTest extends munit.FunSuite:

@@ -1,4 +1,4 @@
-package net.bovel.smt
+package net.bovel.vik
 
 /** Where a lowering puts what it needs: the fresh constants of an encoding
  *  (`bv`, the overflow counts, the quotients and remainders of a division) and

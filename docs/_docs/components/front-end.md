@@ -9,7 +9,7 @@ extraCSS:
 # The front end
 
 Two modules read and write SMT-LIB: `net.bovel.sexpr`, a reader for S-expressions, and `net.bovel.smt2`, the
-parser, printer and player of scripts. Between them and the theories sits `net.bovel.smt`, which holds terms,
+parser, printer and player of scripts. Between them and the theories sits `net.bovel.vik`, which holds terms,
 formulas, the simplifier and the solver that plugs the parts together.
 
 ## Using them
@@ -39,7 +39,7 @@ SExprParser.parseAll("(a (b c)) (d)") // List(SList(...), SList(...))
 | Module | What it does |
 |---|---|
 | `sexpr` | Reads S-expressions from a string: atoms, lists, `\|quoted symbols\|`, `;` comments, string literals. One pass, no tokens materialised. |
-| `smt` | `Term` and `Formula`, the normal form of linear combinations, the lowering of bit-vectors to integers, the simplifier (local constant elimination, polarity-aware), the encoder (Tseitin, atoms, the theory combination, the lemmas of datatypes and lambdas) and `Solver`. |
+| `vik` | `Term` and `Formula`, the normal form of linear combinations, the lowering of bit-vectors to integers, the simplifier (local constant elimination, polarity-aware), the encoder (Tseitin, atoms, the theory combination, the lemmas of datatypes and lambdas) and `Solver`. |
 | `smt2` | The commands, the parser (sorts, datatypes, `let`, macros through `define-fun`, `ite` naming, and the bit-vector syntax, which it hands to the solver's lowering), the printer, and the player that runs a script on a solver. |
 
 The corpus of SMT-LIB files that the tests play is in
