@@ -41,22 +41,25 @@ object Solver:
     /** The fuel is spent (see [[Solver.solve]]), or a theory gave up. */
     case Unknown
 
-final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval: Int = 100):
+final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int = 100):
   import Solver.Result
 
   private val Decision = -1
   private val FromTheory = -2
 
+  /** The variables so far: `numVars`, plus one per [[newVar]]. */
+  private var varCount = numVars
+
   /** Value of each literal: 1 true, -1 false, 0 unassigned. */
-  private val value = new Array[Byte](2 * numVars)
+  private var value = new Array[Byte](2 * numVars)
 
   /** Decision level of each assigned variable. */
-  private val level = new Array[Int](numVars)
+  private var level = new Array[Int](numVars)
 
   /** Why each assigned variable has its value: the index of the clause that
    *  propagated it, `Decision`, or `FromTheory` (explained lazily).
    */
-  private val reason = new Array[Int](numVars)
+  private var reason = new Array[Int](numVars)
 
   /** The assigned literals in order. */
   private val trail = ArrayBuffer.empty[Lit]
@@ -72,7 +75,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
   private val clauses = ArrayBuffer.empty[Array[Lit]]
 
   /** Indices of the clauses watching each literal (their literal 0 or 1). */
-  private val watches = Array.fill(2 * numVars)(ArrayBuffer.empty[Int])
+  private val watches = ArrayBuffer.fill(2 * numVars)(ArrayBuffer.empty[Int])
 
   /** A conflict at level 0 (an empty clause, or a unit contradicting another).
    */
@@ -85,17 +88,43 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
    *  position from which the next decision searches, can be reset when a
    *  variable before it becomes unassigned.
    */
-  private val vmtfPrev = Array.tabulate(numVars)(v => v - 1)
-  private val vmtfNext = Array.tabulate(numVars)(v => if v + 1 < numVars then v + 1 else -1)
-  private val vmtfStamp = new Array[Long](numVars)
+  private var vmtfPrev = Array.tabulate(numVars)(v => v - 1)
+  private var vmtfNext = Array.tabulate(numVars)(v => if v + 1 < numVars then v + 1 else -1)
+  private var vmtfStamp = new Array[Long](numVars)
   private var vmtfHead = if numVars > 0 then 0 else -1
+  private var vmtfTail = numVars - 1
   private var vmtfSearch = vmtfHead
   private var vmtfTime = 0L
 
   /** The value each variable had when last unassigned (phase saving), false at
    *  first.
    */
-  private val phase = new Array[Boolean](numVars)
+  private var phase = new Array[Boolean](numVars)
+
+  /** Adds a variable — unassigned, false phase, last in the decision order —
+   *  and returns it. Solving between two [[newVar]]s is fine: the arrays grow,
+   *  the trail is untouched.
+   */
+  def newVar(): Var =
+    val v = varCount
+    varCount += 1
+    if 2 * varCount > value.length then
+      val n = math.max(4, 2 * value.length)
+      value = java.util.Arrays.copyOf(value, n)
+      level = java.util.Arrays.copyOf(level, n / 2)
+      reason = java.util.Arrays.copyOf(reason, n / 2)
+      phase = java.util.Arrays.copyOf(phase, n / 2)
+      vmtfPrev = java.util.Arrays.copyOf(vmtfPrev, n / 2)
+      vmtfNext = java.util.Arrays.copyOf(vmtfNext, n / 2)
+      vmtfStamp = java.util.Arrays.copyOf(vmtfStamp, n / 2)
+    watches += ArrayBuffer.empty
+    watches += ArrayBuffer.empty
+    vmtfPrev(v) = vmtfTail
+    vmtfNext(v) = -1
+    if vmtfTail >= 0 then vmtfNext(vmtfTail) = v else vmtfHead = v
+    vmtfTail = v
+    if vmtfSearch < 0 then vmtfSearch = v
+    v
 
   /** Conflicts so far, and the count at which to restart next (Luby sequence
    *  times 100).
@@ -131,7 +160,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
   def addClause(lits: Lit*): Unit = addClause(lits.toArray)
 
   def addClause(lits: Array[Lit]): Unit =
-    require(decisionLevel == 0, "clauses are added before solving")
+    backtrack(0) // a clause added between two solves leaves the previous model
     val c = lits.distinct
     if c.exists(l => c.contains(l.neg)) then return // a tautology
     // Literals false at level 0 are false for good: move the others first, and treat the clause accordingly.
@@ -250,7 +279,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
    *  to backjump to.
    */
   private def analyze(conflict: Array[Lit]): (Array[Lit], Int) =
-    val seen = new Array[Boolean](numVars)
+    val seen = new Array[Boolean](varCount)
     val learned = ArrayBuffer[Lit](Lit(0)) // slot for the literal of the current level
     var counter = 0 // seen variables of the current level not yet resolved away
     var clause = conflict
@@ -299,7 +328,7 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
       val prev = vmtfPrev(v)
       val next = vmtfNext(v)
       vmtfNext(prev) = next
-      if next >= 0 then vmtfPrev(next) = prev
+      if next >= 0 then vmtfPrev(next) = prev else vmtfTail = prev
       // Link in front.
       vmtfPrev(v) = -1
       vmtfNext(v) = vmtfHead
@@ -360,10 +389,19 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
 
   /** Solves; `keepGoing` is asked at every conflict and decision, and `Unknown`
    *  follows its first `false` (a budget of steps, a deadline, ...), or a
-   *  theory giving up.
+   *  theory giving up. Solving again is allowed: the trail unwinds first, the
+   *  learned clauses stay.
    */
-  def solve(keepGoing: () => Boolean = () => true): Result =
-    require(decisionLevel == 0, "solve is called once")
+  def solve(keepGoing: () => Boolean = () => true): Result = solve(Array.empty[Lit], keepGoing)
+
+  /** Solves with `assumptions` decided first, in order — `Unsat` then means
+   *  unsatisfiable together with them (the clauses alone may be satisfiable). A
+   *  restart or a backjump undoes assumptions like decisions; they are
+   *  re-decided on the way down.
+   */
+  def solve(assumptions: Array[Lit], keepGoing: () => Boolean): Result =
+    backtrack(0)
+    gaveUp = false
     if unsat then return Result.Unsat
     while true do
       val conflict = propagate()
@@ -371,6 +409,18 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
       if conflict != null then
         if !keepGoing() then return Result.Unknown
         if !resolve(conflict) then return Result.Unsat
+      else if decisionLevel < assumptions.length then
+        val a = assumptions(decisionLevel)
+        if value(a.index) < 0 then return Result.Unsat // false under the assumptions before it
+        else if value(a.index) > 0 then
+          trailLim += trail.length // already implied: an empty level keeps the level-to-assumption count
+          theory.push()
+        else
+          if !keepGoing() then return Result.Unknown
+          decisions += 1
+          trailLim += trail.length
+          theory.push()
+          enqueue(a, Decision)
       else
         val v = nextDecision()
         if v >= 0 then
@@ -386,5 +436,5 @@ final class Solver(val numVars: Int, theory: Theory = NoTheory, restartInterval:
             case Theory.Result.Ok(implied) =>
               implied.find(l => value(l.index) < 0) match
                 case Some(l) => if !resolve(theoryClause(l)) then return Result.Unsat
-                case None => return Result.Sat(Array.tabulate(numVars)(v => value(Lit(v).index) > 0))
+                case None => return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
     Result.Unsat
