@@ -45,3 +45,12 @@ file: 116, 173, 88, 288, 595 ms).
 The single-shot path also changed shape: the whole-set simplification now runs only when the first
 `check-sat` sees one level (its constant elimination is only sound while nothing else mentions the
 constant, so a later mention rebuilds the encoder), and both theories are always attached.
+
+## Follow-up, same day: the witness cascade
+
+CI caught what the 30-second test cap had hidden: with the encoder persistent, the extensionality pass
+walked every equality atom ever created — the ones the application lemmas manufacture included — so a
+lemma's equality got witnesses, witnesses spawned applications, applications spawned lemmas, and each
+`check-sat` re-fed the cascade of the ones before it. `HoCoreTest` had crept to 27.6 s; restricting the
+pass to the equalities of encoded formulas (what its documentation already promised) brought it to
+0.24 s. The table above, re-probed after the fix, moved within noise.

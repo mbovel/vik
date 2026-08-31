@@ -304,7 +304,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         more = true
         val applied = Term.app(q, a.args)
         equated += ((a, applied))
+        recordFunctionEqualities = false // a derived equality gets no witness (see assertExtensionality)
         clauses += Array(lit(Formula.Eq(a.fun, q)).neg, lit(Formula.Eq(a, applied)))
+        recordFunctionEqualities = true
     // An application equated with an integer term is one, and conversely (for the sharing).
     var changed = true
     while changed do
@@ -332,12 +334,20 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    */
   private val extensionalityDone = scala.collection.mutable.HashSet.empty[Formula]
 
+  /** The function equalities that may need a witness: the ones of encoded
+   *  formulas — never the ones the application lemmas manufacture, whose
+   *  cascade (a lemma's equality begets witnesses beget applications beget
+   *  lemmas) is exactly what the doc below rules out.
+   */
+  private val functionEqualities = ArrayBuffer.empty[Formula]
+  private var recordFunctionEqualities = true
+
   def assertExtensionality(): Unit = if anyFunctionEquality then
     val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
     while more do
       more = false
-      for case eq @ Formula.Eq(f, g) <- lits.keys.toList if !done(eq) do
+      for case eq @ Formula.Eq(f, g) <- functionEqualities.toList if !done(eq) do
         done += eq
         if !assertedEqualities(eq) then
           Sorts.arrow(sortOf(f)).orElse(Sorts.arrow(sortOf(g))) match
@@ -482,7 +492,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         else
           boolean(lhs)
           boolean(rhs)
-          if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then anyFunctionEquality = true
+          if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then
+            anyFunctionEquality = true
+            if recordFunctionEqualities then functionEqualities += formula
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
         val e = atom(classOf(term), trueTerm)
