@@ -12,9 +12,8 @@ import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
 order = ["vik", "vikText", "z3Direct", "z3", "cvc5", "princess", "smtinterpol"]
-names = {"vik": "VIK<br>(API)", "vikText": "VIK<br>(SMT2)", "z3Direct": "z3<br>(API)", "z3": "z3<br>(SMT2)",
-         "cvc5": "cvc5<br>(SMT2)", "princess": "princess<br>(SMT2)", "smtinterpol": "SMTInterpol<br>(SMT2)"}
-plain = {s: n.replace("<br>", " ") for s, n in names.items()}
+names = {"vik": "VIK (API)", "vikText": "VIK (SMT2)", "z3Direct": "z3 (API)", "z3": "z3 (SMT2)",
+         "cvc5": "cvc5 (SMT2)", "princess": "princess (SMT2)", "smtinterpol": "SMTInterpol (SMT2)"}
 
 
 def corpus(base):
@@ -25,17 +24,14 @@ def corpus(base):
     text = path.read_text(errors="replace")
     logic = m.group(1) if (m := re.search(r"\(set-logic ([A-Z_]+)\)", text)) else str(path.parts[1])
     incremental = "✓" if text.count("(check-sat") > 1 or "(push" in text else "✗"
-    status = m.group(1) if (m := re.search(r":status (sat|unsat)", text)) else ""
+    statuses = re.findall(r":status (?:sat|unsat)", text)
+    status = f"{len(statuses)} checks" if len(statuses) > 1 else (statuses + [""])[0].removeprefix(":status ")
     return path, logic, incremental, status
 
 
-def sig2(x):
-    """Two significant digits, as a plain decimal: the runs are not more precise than that."""
-    import math
-    if x == 0:
-        return "0"
-    exponent = math.floor(math.log10(abs(x)))
-    return f"{round(x, -(exponent - 1)):.{max(0, 1 - exponent)}f}"
+def fmt(x):
+    """Two decimals; below half a hundredth the cell says <0.01 rather than a misleading 0.00."""
+    return "<0.01" if 0 < x < 0.005 else f"{x:.2f}"
 
 
 arguments = sys.argv[1:]
@@ -68,20 +64,21 @@ for instance, solvers in by.items():
         else:
             mean, ci = shown[s]
             intervals.append((ci / mean, s, instance))
-            text = sig2(mean)
+            text = fmt(mean)
             cells.append(f'<span class="best">{text}</span>' if mean == best else text)
     path, logic, incremental, status = corpus(instance + ".smt2")
-    name = f"[`{instance}`](https://github.com/mbovel/vik/blob/main/{path})" if path else f"`{instance}`"
+    label = instance.replace("__", "__<wbr>")  # long names may wrap there, and only there
+    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}"><code>{label}</code></a>' if path else f"<code>{label}</code>"
     print(f"| {name} | {logic} | {incremental} | {status} | " + " | ".join(cells) + " |")
 
 average = 100 * statistics.mean(p for p, _, _ in intervals)
 widest = sorted((x for x in intervals if 100 * x[0] >= 20), reverse=True)
 print()
 if widest:
-    named = ", ".join(f"{plain[s]} on `{i}` ({100 * p:.0f}%)" for p, s, i in widest)
+    named = ", ".join(f"{names[s]} on `{i}` ({100 * p:.0f}%)" for p, s, i in widest)
     print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"
           f" the mean; every cell is within 20% of its mean except {named}.")
 else:
     p, s, i = max(intervals)
     print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"
-          f" the mean, at most {100 * p:.0f}% ({plain[s]} on `{i}`).")
+          f" the mean, at most {100 * p:.0f}% ({names[s]} on `{i}`).")

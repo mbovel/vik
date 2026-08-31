@@ -20,20 +20,16 @@ def corpus(base):
     return path, logic, incremental
 
 
-def sig2(x):
-    """Two significant digits, as a plain decimal (three decimals at most: the input has no more)."""
-    import math
-    if x == 0:
-        return "0"
-    exponent = math.floor(math.log10(abs(x)))
-    return f"{round(x, min(3, -(exponent - 1))):.{min(3, max(0, 1 - exponent))}f}"
+def fmt(x):
+    """Two decimals; below half a hundredth the cell says <0.01 rather than a misleading 0.00."""
+    return "<0.01" if 0 < x < 0.005 else f"{x:.2f}"
 
 
 rows = list(csv.DictReader(open(sys.argv[1]), delimiter="\t"))
 solvers = sys.argv[2].split(",") if len(sys.argv) > 2 else [
     "vik-jvm", "vik-native", "vik-node", "z3", "cvc5", "princess", "smtinterpol"
 ]
-names = {"vik-jvm": "VIK<br>(JVM)", "vik-native": "VIK<br>(native)", "vik-node": "VIK<br>(Node)", "z3": "z3",
+names = {"vik-jvm": "VIK (JVM)", "vik-native": "VIK (native)", "vik-node": "VIK (Node)", "z3": "z3",
          "cvc5": "cvc5", "princess": "princess", "smtinterpol": "SMTInterpol"}
 by = collections.defaultdict(dict)
 status = {}
@@ -50,13 +46,18 @@ for f, answers in by.items():
         answer, median = answers.get(s, ("missing", 0.0))
         if answer == "timeout":
             cells.append("timeout")
-        elif answer not in ("sat", "unsat"):
-            cells.append(f"**{answer}**")
-        elif answer != status[f]:
-            cells.append(f"**{answer}** {sig2(median)}")
-        else:
-            text = sig2(median)
+        elif answer == "error":
+            cells.append("—")
+        elif answer == status[f]:
+            text = fmt(median)
             cells.append(f'<span class="best">{text}</span>' if median == best else text)
+        elif "," in answer or "," in status[f]:
+            cells.append(f"**wrong** {fmt(median)}")
+        else:
+            cells.append(f"**{answer}** {fmt(median)}")
     path, logic, incremental = corpus(f)
-    name = f"[`{f[:-5]}`](https://github.com/mbovel/vik/blob/main/{path})" if path else f"`{f[:-5]}`"
-    print(f"| {name} | {logic} | {incremental} | {status[f]} | " + " | ".join(cells) + " |")
+    label = f[:-5].replace("__", "__<wbr>")  # long names may wrap there, and only there
+    name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}"><code>{label}</code></a>' if path else f"<code>{label}</code>"
+    checks = status[f].count(",") + 1
+    shown = status[f] if checks == 1 else f"{checks} checks"
+    print(f"| {name} | {logic} | {incremental} | {shown} | " + " | ".join(cells) + " |")

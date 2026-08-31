@@ -1,5 +1,14 @@
-/* The tables of the evaluation: compact, headers centered on top, and the best cell of a row in green
+/* The tables of the evaluation: compact, the solver headers vertical, the best cell of a row in green
    (the `best` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
 #content th { vertical-align: top; text-align: center; }
+#content th[align="right"] { /* the solver columns: read bottom-up */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  vertical-align: bottom;
+  text-align: left;
+  padding: 0.4em 0.2em;
+}
+#content td[align="right"] { white-space: nowrap; }
+#content td code { word-break: normal; } /* instance names wrap at the <wbr> after each __, and only there */
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }
