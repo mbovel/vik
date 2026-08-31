@@ -43,7 +43,7 @@ object Import:
   def classify(text: String): String =
     val logic = "\\(set-logic ([A-Za-z_]+)\\)".r.findFirstMatchIn(text).map(_.group(1).nn).getOrElse("ALL")
     logic match
-      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" => logic
+      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" => logic
       case "QF_UFDT" | "QF_UFDTLIA" | "QF_DTLIA" => "QF_DT"
       case "QF_UFBV" | "BV" => "QF_BV"
       case _ if logic.startsWith("HO_") || text.contains("(lambda ") || text.contains("(-> ") => "HO"

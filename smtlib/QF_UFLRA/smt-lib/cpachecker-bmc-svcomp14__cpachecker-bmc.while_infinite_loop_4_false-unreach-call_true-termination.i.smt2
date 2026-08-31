@@ -1,0 +1,38 @@
+; From smt-lib: cpachecker-bmc-svcomp14/cpachecker-bmc.while_infinite_loop_4_false-unreach-call_true-termination.i.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+(set-info :smt-lib-version 2.6)
+(set-logic QF_UFLRA)
+(set-info :source |CPAchecker with bounded model checking on SV-COMP14 program using MathSAT5, submitted by Philipp Wendler, http://cpachecker.sosy-lab.org|)
+(set-info :category "industrial")
+(set-info :status sat)
+
+
+(declare-fun x@3 () Real)
+(declare-fun x@2 () Real)
+(declare-fun |__VERIFIER_assert::cond@2| () Real)
+(declare-fun __BASE_ADDRESS_OF__ (Real) Real)
+(declare-fun __ADDRESS_OF_x () Real)
+(define-fun _7 () Real 0)
+(define-fun _8 () Real __ADDRESS_OF_x)
+(define-fun _9 () Real (__BASE_ADDRESS_OF__ _8))
+(define-fun _10 () Bool (= _8 _9))
+(define-fun _11 () Real x@2)
+(define-fun _12 () Bool (= _11 _7))
+(define-fun _13 () Bool (and _10 _12))
+(define-fun _14 () Real 1)
+(define-fun _15 () Real x@3)
+(define-fun _16 () Bool (= _15 _14))
+(define-fun _17 () Bool (and _13 _16))
+(define-fun _18 () Bool (= _15 _7))
+(define-fun _19 () Real (ite _18 _14 _7))
+(define-fun _20 () Real |__VERIFIER_assert::cond@2|)
+(define-fun _21 () Bool (= _19 _20))
+(define-fun _22 () Bool (and _17 _21))
+(define-fun _23 () Bool (= _20 _7))
+(define-fun _25 () Bool (and _22 _23))
+
+
+
+(assert _25)
+(check-sat)
+
+(exit)

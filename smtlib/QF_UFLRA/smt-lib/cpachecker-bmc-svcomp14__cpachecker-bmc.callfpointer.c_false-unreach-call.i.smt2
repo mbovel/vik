@@ -1,0 +1,37 @@
+; From smt-lib: cpachecker-bmc-svcomp14/cpachecker-bmc.callfpointer.c_false-unreach-call.i.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+(set-info :smt-lib-version 2.6)
+(set-logic QF_UFLRA)
+(set-info :source |CPAchecker with bounded model checking on SV-COMP14 program using MathSAT5, submitted by Philipp Wendler, http://cpachecker.sosy-lab.org|)
+(set-info :category "industrial")
+(set-info :status sat)
+
+
+(declare-fun __ADDRESS_OF_h () Real)
+(declare-fun |f::g@2| () Real)
+(declare-fun h@1 () Real)
+(declare-fun |*void_(signed_int)@1| (Real) Real)
+(declare-fun |h::i@2| () Real)
+(define-fun _7 () Real 0)
+(define-fun _8 () Real __ADDRESS_OF_h)
+(define-fun _9 () Real (|*void_(signed_int)@1| _8))
+(define-fun _10 () Real h@1)
+(define-fun _11 () Bool (= _9 _10))
+(define-fun _12 () Bool (<= _8 _7))
+(define-fun _13 () Bool (not _12))
+(define-fun _14 () Real |f::g@2|)
+(define-fun _15 () Bool (= _8 _14))
+(define-fun _16 () Bool (and _11 _13))
+(define-fun _17 () Bool (and _15 _16))
+(define-fun _18 () Real 1)
+(define-fun _20 () Bool (and _15 _17))
+(define-fun _21 () Real |h::i@2|)
+(define-fun _22 () Bool (= _21 _18))
+(define-fun _23 () Bool (and _20 _22))
+(define-fun _25 () Bool (and _22 _23))
+
+
+
+(assert _25)
+(check-sat)
+
+(exit)
