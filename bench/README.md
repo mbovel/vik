@@ -13,6 +13,24 @@ are kept per module:
 | `smt2` | `Smt2Bench` | [results/smt2](results/smt2/README.md) |
 | `vik` (SMT-LIB instances; princess, SMTInterpol, z3 and cvc5 in process; datatypes) | `SmtBench`, `OtherSolversBench`, `AdtBench`, `SolverCheck` | [results/smt](results/smt/README.md) |
 
+## The evaluation page
+
+[evaluate.sh](evaluate.sh) reproduces the two tables of
+[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place — the instance
+groups, the per-solver measurement budgets and the deliberately blank cells all live in that one script:
+
+```sh
+bench/evaluate.sh all     # everything below, in order
+bench/evaluate.sh warm    # the in-process JMH table   (~2 h: princess needs 96 s per MESI operation)
+bench/evaluate.sh cold    # the process-per-question table (~20 min; z3 and cvc5 on the PATH)
+bench/evaluate.sh regen   # only regenerate the page from the newest dated results (seconds)
+```
+
+It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`, the cold binaries) and
+fails with the command to run. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`
+always reads the newest set, so committed results are the reference and a fresh machine reproduces the
+trends, not the exact milliseconds.
+
 ## Running
 
 From the repository root:
