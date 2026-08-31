@@ -101,21 +101,21 @@ uninterpreted functions over integers, the theory combination:
 | `20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFLIA.smt2` | 20230314-Jaroslav-Bendik-Certora | unknown (z3: sat) | smart-contract verification conditions (comparison only) |
 
 QF_LRA, from `QF_LRA.tar.zst` of the same release, linear real arithmetic — strict bounds through
-δ-rationals, disequalities branched strictly:
+δ-rationals, disequalities branched strictly, rational literals as introduced constants —
+157 files from 34 families, 97 sat, 54 unsat, 6 unknown:
 
-| Family | Files | Statuses | Workload |
-|---|---|---|---|
-| keymaera | 3 | unsat | verification conditions of KeYmaera (Platzer, Quesel, Rümmer 2009) |
-| atan, asin, cbrt, sqrt, log | 10, 2, 3, 1, 2 | mostly unsat | interval-arithmetic chunks bounding elementary functions (Jovanović, de Moura 2012) |
-| windowreal, tgc, sc, gasburner, carpark, pursuit | 3 each, 1 | mixed | SAL model checking (Dutertre, Rushby et al.) |
-| polypaver | 3 | unsat | PolyPaver numerical verification |
-| DTP-Scheduling | 3 | sat | disjunctive temporal planning (TLP-GP) |
-| 2017-Heizmann-UltimateInvariantSynthesis, Ultimate, SV-COMP, CooperatingT2 | 3, 3, 1, 2 | unknown, sat | Ultimate LassoRanker termination templates |
-| miplib, blending, TM, tropical-matrix, robotics | 3, 3, 2, 2, 1 | sat, unknown | MIP relaxations, blending planning, temporal metric planning, tropical matrices |
+- interval-arithmetic chunks bounding elementary functions and circuits (Jovanović, de Moura 2012):
+  `atan`, `asin`, `cbrt`, `sqrt`, `log`, `Chua`, `CMOS`, `Arthan`, `bottom-plate-mixer`, `polypaver`;
+- SAL model checking (Dutertre, Rushby et al.): `windowreal`, `tgc`, `sc`, `gasburner`, `carpark`, `pursuit`;
+- Ultimate LassoRanker termination templates: `2017-Heizmann-UltimateInvariantSynthesis`, `Ultimate`,
+  `SV-COMP`, `CooperatingT2`;
+- planning: `DTP-Scheduling` (disjunctive temporal), `TM` (temporal metric);
+- KeYmaera verification conditions (`keymaera`), MIP relaxations (`miplib`), blending (`blending`),
+  tropical matrices (`tropical-matrix`), robotics (`robotics`).
 
-The seventeen heaviest — most of miplib and blending, TM, tropical-matrix, the Heizmann and
-CooperatingT2 templates, two Ultimate phase templates — are in `ignore.txt`: minutes of big-rational
-simplex, or not answered within them.
+The 18 heaviest — most of `miplib` and `blending`, `TM`, `tropical-matrix`, the Heizmann and
+CooperatingT2 templates, the Braverman phase templates — are in `ignore.txt`: the fuel of two million
+steps runs out, in minutes of big-rational simplex.
 
 QF_UFLRA, from `QF_UFLRA.tar.zst` of the same release, uninterpreted functions over reals:
 

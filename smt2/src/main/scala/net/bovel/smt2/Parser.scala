@@ -257,6 +257,17 @@ private final class Parser extends Lowering:
    */
   private val rationalValues = scala.collection.mutable.HashMap.empty[Term, (BigInt, BigInt)]
 
+  /** The rational value of a term when it is a literal: a numeral, a rational
+   *  constant, or an integer multiple of one — `(- 0.1)` parses to the latter.
+   */
+  private def literalValue(t: Term): Option[(BigInt, BigInt)] = t match
+    case Term.Num(v) => Some((v, BigInt(1)))
+    case _ if rationalValues.contains(t) => Some(rationalValues(t))
+    case Term.Linear(List((a, u)), c) if c.signum == 0 && rationalValues.contains(u) =>
+      val (p, q) = rationalValues(u)
+      Some((a * p, q))
+    case _ => None
+
   /** The term standing for the rational `p / q`: a numeral when integral, else
    *  a fresh `Real` constant `k` defined by `q k = p` before the current
    *  assertion — the mechanism of the bit-vector lowering, so every consumer
@@ -480,10 +491,8 @@ private final class Parser extends Lowering:
     case SList(SAtom("+") :: args) => Term.linear(args.map(a => (BigInt(1), term(a, env))))
     case SList(SAtom("*") :: args) =>
       // Linear: all factors but at most one are literals, rationals included.
-      val (literals, others) = args.map(term(_, env)).partitionMap {
-        case Term.Num(v) => Left((v, BigInt(1)))
-        case t if rationalValues.contains(t) => Left(rationalValues(t))
-        case t => Right(t)
+      val (literals, others) = args.map(term(_, env)).partitionMap { t =>
+        literalValue(t).toLeft(t)
       }
       val (p, q) = literals.foldLeft((BigInt(1), BigInt(1))) { case ((p, q), (a, b)) => (p * a, q * b) }
       others match
@@ -492,15 +501,11 @@ private final class Parser extends Lowering:
         case _ => throw Smt2Error(s"non-linear multiplication: $sexpr")
     case SList(SAtom("/") :: a :: b :: Nil) =>
       // Real division by a rational literal, `(/ 1 3)` and `(/ x 2)` alike; the rest is nonlinear.
-      val divisor = term(b, env) match
-        case Term.Num(v) => (v, BigInt(1))
-        case t => rationalValues.getOrElse(t, throw Smt2Error(s"nonlinear division: $sexpr"))
-      term(a, env) match
-        case Term.Num(v) => rationalConst(v * divisor._2, divisor._1)
-        case t if rationalValues.contains(t) =>
-          val (p, q) = rationalValues(t)
-          rationalConst(p * divisor._2, q * divisor._1)
-        case t => rationalProduct(divisor._2, divisor._1, t)
+      val divisor = literalValue(term(b, env)).getOrElse(throw Smt2Error(s"nonlinear division: $sexpr"))
+      val numerator = term(a, env)
+      literalValue(numerator) match
+        case Some((p, q)) => rationalConst(p * divisor._2, q * divisor._1)
+        case None => rationalProduct(divisor._2, divisor._1, numerator)
     case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the current assertion.
       if depth > 0 then throw Smt2Error("ite under a lambda is not supported")
