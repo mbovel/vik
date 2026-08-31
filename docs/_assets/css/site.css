@@ -5,7 +5,7 @@
 #content h1 { font-size: 48px; line-height: 52px; }
 #content h2 { font-size: 32px; line-height: 36px; }
 #content h3 { font-size: 24px; line-height: 28px; }
-#toc .toc-list { padding-left: 0; } /* flush at the margin, as the newer Scaladoc renders it */
-#toc .toc-list ul { padding-left: 1.5em; } /* one step per level below */
-#toc .toc-list > li > a { display: none; } /* this Scaladoc still emits the page title as the single top node */
-#toc .toc-list > li > ul { padding-left: 0; }
+#toc ul.toc-list { padding-left: 0; } /* flush at the margin, as the newer Scaladoc renders it */
+#toc ul.toc-list ul { padding-left: 1.5em; } /* one step per level below */
+#toc ul.toc-list > li > a { display: none; } /* this Scaladoc still emits the page title as the single top node */
+#toc ul.toc-list > li > ul { padding-left: 0; }
