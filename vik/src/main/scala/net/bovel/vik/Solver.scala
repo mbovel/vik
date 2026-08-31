@@ -97,6 +97,12 @@ final class Solver(val simplify: Boolean = true):
   private val named = ArrayBuffer.empty[(String, Formula)]
   private var lastCore: List[String] = Nil
 
+  /** Whether a `Sat` takes its model (see [[model]]): taking one walks the
+   *  declarations and the classes, which a caller that never asks should not
+   *  pay for — the SMT-LIB player turns this on only when the script asks.
+   */
+  var produceModels: Boolean = true
+
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
    *  [[Model]]).
@@ -167,6 +173,7 @@ final class Solver(val simplify: Boolean = true):
             selectors += e.newSelector(); selectors.last
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
+    e.produceModels = produceModels
     val activations = named.toList.map((name, formula) => (name, e.activate(formula)))
     e.assertExtensionality()
     e.applicationLemmas()
@@ -651,6 +658,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  (the unwind below discards it).
    */
   var lastModel: Model | Null = null
+  var produceModels: Boolean = true
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
@@ -663,7 +671,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
     result match
-      case cdclt.Solver.Result.Sat(_) => lastModel = takeModel()
+      case cdclt.Solver.Result.Sat(_) => if produceModels then lastModel = takeModel()
       case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result

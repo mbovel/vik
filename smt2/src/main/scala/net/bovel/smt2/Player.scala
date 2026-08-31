@@ -51,7 +51,14 @@ object Player:
   /** The responses of the script, in order. */
   def run(script: Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[String] =
     val responses = ArrayBuffer.empty[String]
+    // Models cost a walk per sat: taken only when the script asks for them.
+    val wantsModels = script.commands.exists {
+      case Command.GetModel | Command.GetValue(_) => true
+      case Command.SetOption(":produce-models", "true") => true
+      case _ => false
+    }
     var current = solver
+    current.produceModels = wantsModels
     var rlimit = fuel
     var timeout = Option.empty[Long] // milliseconds
     var reason = Option.empty[String]
@@ -115,9 +122,11 @@ object Player:
           current.pop()
         case Command.ResetAssertions =>
           current = Solver(simplify = solver.simplify)
+          current.produceModels = wantsModels
           declarations.foreach(declare)
         case Command.Reset =>
           current = Solver(simplify = solver.simplify)
+          current.produceModels = wantsModels
           declarations.clear()
         case Command.SetOption(":rlimit", value) => rlimit = value.toLong
         case Command.SetOption(":timeout", value) => timeout = Some(value.toLong)
