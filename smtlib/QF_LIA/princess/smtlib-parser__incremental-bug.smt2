@@ -1,4 +1,12 @@
 ; From princess: smtlib-parser/incremental-bug.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: sat
+; EXPECT: sat
+; EXPECT: (((or (not (<= 0 (+ c13 (- 1)))) (<= 0 (+ c5 (- 1)))) true))
+; EXPECT: sat
+; EXPECT: (((or (not (<= 0 (+ c13 (- 1)))) (<= 0 (+ c5 (- 1)))) true))
+; EXPECT: sat
+; EXPECT: (((or (not (<= 0 (+ c13 (- 1)))) (<= 0 (+ c5 (- 1)))) true))
+; EXPECT: ((define-fun R0 () Int 0) (define-fun R1 () Int 0) (define-fun R2 () Int 0) (define-fun R3 () Int 0) (define-fun c10 () Int 0) (define-fun c11 () Int 0) (define-fun c12 () Int 1) (define-fun c13 () Int 1) (define-fun c14 () Int 0) (define-fun c15 () Int 0) (define-fun c16 () Int 0) (define-fun c17 () Int 0) (define-fun c18 () Int 4) (define-fun c19 () Int 2) (define-fun c20 () Int 4) (define-fun c4 () Int 0) (define-fun c5 () Int 1) (define-fun c6 () Int 0) (define-fun c7 () Int 0) (define-fun c8 () Int 1) (define-fun c9 () Int 0))
 (reset)
 (set-logic AUFLIA)
 (declare-fun R0 () Int)

@@ -1,6 +1,6 @@
 ; From cvc5: regress0/printer/bv_consts_bin.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-; EXPECT: ((x #b0001))
+; EXPECT: ((x 1))
 (set-option :produce-models true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 4))

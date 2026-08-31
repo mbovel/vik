@@ -1,6 +1,7 @@
 ; From z3test: sat_smt_ufbv_predicate_model_validation.smt2 (MIT, LICENSES/z3test.txt)
 ; Regression: sat.smt engine on a QF_UFBV predicate must produce a valid model.
 ; Transferred from src/test/simplifier.cpp (test_sat_smt_ufbv_predicate_model_validation).
+; EXPECT: sat
 (set-logic QF_UFBV)
 (set-option :sat.smt true)
 (set-option :model_validate true)

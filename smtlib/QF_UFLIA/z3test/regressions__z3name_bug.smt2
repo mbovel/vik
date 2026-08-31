@@ -1,4 +1,6 @@
 ; From z3test: z3name_bug.smt2 (MIT, LICENSES/z3test.txt)
+; EXPECT: sat
+; EXPECT: ((define-fun ite!1 () Int 10) (define-fun p ((x!0 Int)) Bool (ite (= x!0 0) true (ite (= x!0 10) true true))))
 
 ; Copyright (c) 2015 Microsoft Corporation
 

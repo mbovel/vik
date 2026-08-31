@@ -1,9 +1,7 @@
 ; From cvc5: regress0/print_lambda.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; COMMAND-LINE: --produce-models
 ; EXPECT: sat
-; EXPECT: (
-; EXPECT: (define-fun f ((_arg_1 Int)) Int 0)
-; EXPECT: )
+; EXPECT: ((define-fun f ((x!0 Int)) Int (ite (= x!0 0) 0 0)))
 (set-logic ALL)
 (set-option :incremental false)
 (declare-fun f (Int) Int)

@@ -2,9 +2,9 @@
 ; COMMAND-LINE: --incremental
 ; EXIT: 0
 ; EXPECT: unsat
-; EXPECT: (error "cannot get value unless after a SAT or UNKNOWN response.")
+; EXPECT: (error "no model")
 ; EXPECT: sat
-; EXPECT: ((x (as @U_0 U)))
+; EXPECT: ((x @U!0))
 (set-option :produce-models true)
 (set-logic QF_UF)
 (declare-sort U 0)

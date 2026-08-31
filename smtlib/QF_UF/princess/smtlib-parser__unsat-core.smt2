@@ -1,5 +1,7 @@
 ; From princess: smtlib-parser/unsat-core.smt2 (BSD, LICENSES/princess.txt)
 ; Getting unsatisfiable cores
+; EXPECT: unsat
+; EXPECT: (QR RS NQS)
 (set-option :produce-unsat-cores true)
 (set-logic QF_UF)
 (declare-const p Bool) (declare-const q Bool) (declare-const r Bool)

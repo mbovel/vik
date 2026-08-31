@@ -1,4 +1,12 @@
 ; From princess: adt/datatype3c.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: sat
+; EXPECT: sat
+; EXPECT: (((data (head (children x))) 0))
+; EXPECT: unsat
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((y2 42))
+; EXPECT: unsat
 
 (declare-datatypes ((Tree 0) (TreeList 0)) (
    ((node (data Int) (children TreeList)))

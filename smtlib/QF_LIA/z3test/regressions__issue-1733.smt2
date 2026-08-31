@@ -1,4 +1,6 @@
 ; From z3test: issue-1733.smt2 (MIT, LICENSES/z3test.txt)
+; EXPECT: sat
+; EXPECT: ((s26 0))
 (set-logic ALL)
 (define-fun s2 () Int 50)
 (define-fun s4 () Int 24)

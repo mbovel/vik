@@ -1,6 +1,10 @@
 ; From z3test: issue-1645.smt2 (MIT, LICENSES/z3test.txt)
 ; Copyright (c) Levent Erkok
 ; https://github.com/Z3Prover/z3/issues/1645
+; EXPECT: sat
+; EXPECT: ((x 1))
+; EXPECT: ((y 0))
+; EXPECT: ((z 2))
 (declare-fun x () Int)
 (declare-fun y () Int)
 (declare-fun z () Int)

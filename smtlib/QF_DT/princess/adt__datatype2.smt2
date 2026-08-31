@@ -1,4 +1,10 @@
 ; From princess: adt/datatype2.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: unsat
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((y 2) (y2 1))
+; EXPECT: sat
+; EXPECT: unsat
 
 (declare-datatype List ( (nil) (cons (head Int) (tail List)) ))
 

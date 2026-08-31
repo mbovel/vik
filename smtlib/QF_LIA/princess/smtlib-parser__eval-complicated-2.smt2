@@ -1,4 +1,8 @@
 ; From princess: smtlib-parser/eval-complicated-2.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: sat
+; EXPECT: ((x 0) (y 0) ((+ x y 1) 1))
+; EXPECT: sat
+; EXPECT: ((x 1) (y 0) ((+ x y 1) 2))
 (set-logic QF_LIA)
 (declare-fun x () Int)
 (declare-fun y () Int)

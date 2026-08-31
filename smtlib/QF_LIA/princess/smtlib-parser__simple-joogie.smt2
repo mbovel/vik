@@ -1,4 +1,7 @@
 ; From princess: smtlib-parser/simple-joogie.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: sat
+; EXPECT: ((Block3538_bwd true))
+; EXPECT: unsat
 (reset)
 (set-logic AUFLIA)
 (declare-fun Block3538_fwd () Bool)

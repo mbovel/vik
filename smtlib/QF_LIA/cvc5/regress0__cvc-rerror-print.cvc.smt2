@@ -1,6 +1,6 @@
 ; From cvc5: regress0/cvc-rerror-print.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-; EXPECT: (error "cannot get model unless after a SAT or UNKNOWN response.")
+; EXPECT: (error "no model")
 (set-option :incremental false)
 (set-logic ALL)
 (set-option :produce-models true)

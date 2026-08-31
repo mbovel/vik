@@ -1,4 +1,6 @@
 ; From z3test: core.smt2 (MIT, LICENSES/z3test.txt)
+; EXPECT: unsat
+; EXPECT: (a)
 
 ; Copyright (c) 2015 Microsoft Corporation
 

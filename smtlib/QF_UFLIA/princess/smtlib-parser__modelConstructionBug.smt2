@@ -1,4 +1,29 @@
 ; From princess: smtlib-parser/modelConstructionBug.smt2 (BSD, LICENSES/princess.txt)
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((PRED0 true))
+; EXPECT: unsat
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((PRED1 true))
+; EXPECT: unsat
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((PRED1 false))
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((PRED0 true))
+; EXPECT: unsat
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: ((PRED1 true))
+; EXPECT: ((PRED3 true))
+; EXPECT: ((PRED4 true))
+; EXPECT: ((PRED5 false))
+; EXPECT: sat
+; EXPECT: ((PRED1 true))
+; EXPECT: ((PRED3 true))
+; EXPECT: ((PRED4 true))
 
 ; Previously, the last get-value command of the script would lead
 ; to an exception

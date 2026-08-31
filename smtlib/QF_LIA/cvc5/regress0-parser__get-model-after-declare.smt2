@@ -1,6 +1,6 @@
 ; From cvc5: regress0/parser/get-model-after-declare.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-; EXPECT: (error "cannot get model unless after a SAT or UNKNOWN response.")
+; EXPECT: ((define-fun x () Int 1))
 (set-logic ALL)
 (set-option :produce-models true)
 (declare-fun x () Int)

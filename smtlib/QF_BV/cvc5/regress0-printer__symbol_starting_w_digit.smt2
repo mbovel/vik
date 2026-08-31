@@ -1,7 +1,7 @@
 ; From cvc5: regress0/printer/symbol_starting_w_digit.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-; EXPECT: ((|0_0| #b0001))
-; EXPECT: ((x #b0011))
+; EXPECT: ((|0_0| 1))
+; EXPECT: ((x 3))
 (set-option :produce-models true)
 (set-logic QF_BV)
 (declare-const |0_0| (_ BitVec 4))

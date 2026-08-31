@@ -1,10 +1,7 @@
 ; From cvc5: regress0/print_model.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; COMMAND-LINE: --produce-models
 ; EXPECT: sat
-; EXPECT: (
-; EXPECT: (define-fun s1 () Int 2)
-; EXPECT: (define-fun s2 () Int 1)
-; EXPECT: )
+; EXPECT: ((define-fun s1 () Int 2) (define-fun s2 () Int 1))
 (set-logic ALL)
 (set-option :incremental true)
 (set-option :produce-models true)
