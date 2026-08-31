@@ -40,11 +40,10 @@ restart at every conflict.
 | First-UIP learning and backjumping | ✓ | trail invariants after CreuSAT |
 | VMTF decisions, phase saving, Luby restarts | ✓ | [measured](https://github.com/mbovel/vik/blob/main/bench/results/cdclt/2026-08-28-laraserver4-restarts.md) (pigeonhole gets slower) |
 | Theory interface: assert, propagate, explain lazily, push/pop, final check; backjump to a conflict's level | ✓ | [`7b748a8`](https://github.com/mbovel/vik/commit/7b748a8) |
-| Assumptions, variables that grow, repeated solves | ✓ | decided first, in order, MiniSat's scheme; what the [persistent solver](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-incremental.md) and the unsat cores to come stand on |
+| Assumptions, variables that grow, repeated solves | ✓ | decided first, in order, MiniSat's scheme; what the [persistent solver](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-incremental.md) and the unsat cores stand on |
 | Learned clause minimization | ✗ | [within noise, 0.75× on pigeonhole](https://github.com/mbovel/vik/blob/main/bench/results/cdclt/2026-08-29-laraserver4-minimization.md) |
 | Clause deletion | ✗ | would only help the hard tail (`SEQ009`); not worth the bookkeeping yet |
 | VSIDS | ✗ | VMTF instead, as CaDiCaL and CreuSAT |
-| Assumptions and unsat cores | ✗ | not yet |
 | A budget: `solve(keepGoing)` asked at every decision, conflict, pivot, propagation and branch; `Unknown` when it says stop | ✓ | `smt.Solver.solve(fuel)`: deterministic steps, `Unknown(Fuel)`; a deadline is a `keepGoing` with a clock, `Unknown(Stopped)` |
 
 Results: [cdclt benchmarks](https://github.com/mbovel/vik/tree/main/bench/results/cdclt).

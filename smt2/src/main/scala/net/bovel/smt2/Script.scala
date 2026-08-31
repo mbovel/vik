@@ -14,6 +14,11 @@ enum Command:
   case DeclareDatatypes(datatypes: List[Datatype])
   case DefineFun(name: String, params: List[(String, String)], sort: String, body: SExpr)
   case Assert(formula: Formula)
+
+  /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can
+   *  name.
+   */
+  case AssertNamed(name: String, formula: Formula)
   case CheckSat
 
   /** `check-sat-assuming`: `check-sat` with the assumptions asserted in a level
@@ -30,6 +35,7 @@ enum Command:
   /** `reset`: everything goes. */
   case Reset
   case GetModel
+  case GetUnsatCore
   case Exit
 
   /** `set-option`: `:rlimit` (the fuel of each `check-sat`) and `:timeout`

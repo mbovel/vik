@@ -189,5 +189,6 @@ object Z3Program:
             d.constructors.flatMap(c => c.selectors.map((_, s) => s -> sortIds(s)))
           ), members)
         case Command.Assert(f) => out += Op.Assert(formula(f))
+        case Command.AssertNamed(_, f) => out += Op.Assert(formula(f)) // the name changes nothing z3 sees
         case _ => ()
     Z3Program(out.toArray, slotCount, declIds.size, sortIds.size)

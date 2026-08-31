@@ -61,6 +61,8 @@ object Player:
           declarations += command
           declare(command)
         case Command.Assert(formula) => current.assert(formula)
+        case Command.AssertNamed(name, formula) => current.assert(formula, name)
+        case Command.GetUnsatCore => responses += current.unsatCore.mkString("(", " ", ")")
         case Command.Push(n) => for _ <- 0 until n do current.push()
         case Command.Pop(n) => for _ <- 0 until n do current.pop()
         case Command.CheckSat => answer()

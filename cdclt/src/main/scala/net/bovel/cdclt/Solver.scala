@@ -393,6 +393,34 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** A theory gave up in `propagate`: the search stops. */
   private var gaveUp = false
 
+  /** The assumptions of the last [[solve]] that made it `Unsat`: the ones in
+   *  the implication cone of the first assumption found false — re-solving with
+   *  just these stays `Unsat`. Empty when the clauses alone are `Unsat`, with
+   *  or without the assumptions.
+   */
+  def unsatCore: Array[Lit] = lastCore
+
+  private var lastCore: Array[Lit] = Array.empty
+
+  /** MiniSat's analyzeFinal: `failed` is false under the assumptions before it,
+   *  so the assumptions among the reasons of its negation, transitively, are a
+   *  core.
+   */
+  private def analyzeCore(failed: Lit): Array[Lit] =
+    val seen = new Array[Boolean](varCount)
+    val core = ArrayBuffer(failed)
+    seen(failed.variable) = true
+    var index = trail.length - 1
+    while index >= 0 do
+      val p = trail(index)
+      index -= 1
+      if seen(p.variable) && level(p.variable) > 0 then
+        reason(p.variable) match
+          case Decision => core += p // an assumption: decisions above it are not seen
+          case FromTheory => for l <- theoryClause(p).drop(1) do seen(l.variable) = true
+          case clause => for l <- clauses(clause).drop(1) do seen(l.variable) = true
+    core.toArray
+
   /** Solves; `keepGoing` is asked at every conflict and decision, and `Unknown`
    *  follows its first `false` (a budget of steps, a deadline, ...), or a
    *  theory giving up. Solving again is allowed: the trail unwinds first, the
@@ -408,6 +436,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   def solve(assumptions: Array[Lit], keepGoing: () => Boolean): Result =
     backtrack(0)
     gaveUp = false
+    lastCore = Array.empty
     if unsat then return Result.Unsat
     while true do
       val conflict = propagate()
@@ -417,7 +446,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
         if !resolve(conflict) then return Result.Unsat
       else if decisionLevel < assumptions.length then
         val a = assumptions(decisionLevel)
-        if value(a.index) < 0 then return Result.Unsat // false under the assumptions before it
+        if value(a.index) < 0 then
+          lastCore = analyzeCore(a)
+          return Result.Unsat // false under the assumptions before it
         else if value(a.index) > 0 then
           trailLim += trail.length // already implied: an empty level keeps the level-to-assumption count
           theory.push()

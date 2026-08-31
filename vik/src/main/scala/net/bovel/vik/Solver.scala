@@ -91,6 +91,26 @@ final class Solver(val simplify: Boolean = true):
     if e != null && !dirty && selectors.length >= levels.length then
       e.retire(selectors.remove(selectors.length - 1))
 
+  /** The named assertions (SMT-LIB `:named`): each one's activation literal,
+   *  assumed at every solve, and the names of the last `Unsat`'s core.
+   */
+  private val named = ArrayBuffer.empty[(String, Formula)]
+  private var lastCore: List[String] = Nil
+
+  /** The named assertions among the causes of the last [[solve]]'s `Unsat`:
+   *  re-asserting just these (with the unnamed assertions) stays `Unsat`. Empty
+   *  when the unnamed assertions alone are already `Unsat`.
+   */
+  def unsatCore: List[String] = lastCore
+
+  /** Asserts `formula` under `name` (`(! formula :named name)`): it takes part
+   *  in [[unsatCore]].
+   */
+  def assert(formula: Formula, name: String): Unit =
+    named += ((name, formula))
+    if encoder != null && !dirty then dirty = true // rebuilt: the activation literals are per encoder
+    ()
+
   def assert(formula: Formula): Unit =
     levels.last += formula
     val e = encoder
@@ -133,14 +153,22 @@ final class Solver(val simplify: Boolean = true):
             selectors += e.newSelector(); selectors.last
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
+    val activations = named.toList.map((name, formula) => (name, e.activate(formula)))
     e.assertExtensionality()
     e.applicationLemmas()
     e.assertExhaustiveness()
     e.shareIntegers()
     e.decideBooleans()
-    e.solve(selectors, keepGoing) match
-      case cdclt.Solver.Result.Sat(_) => Result.Sat
-      case cdclt.Solver.Result.Unsat => Result.Unsat
+    val assumed = ArrayBuffer.from(selectors)
+    assumed ++= activations.map(_._2)
+    e.solve(assumed, keepGoing) match
+      case cdclt.Solver.Result.Sat(_) =>
+        lastCore = Nil
+        Result.Sat
+      case cdclt.Solver.Result.Unsat =>
+        val core = e.core().toSet
+        lastCore = activations.collect { case (name, a) if core(a) => name }
+        Result.Unsat
       case cdclt.Solver.Result.Unknown => Result.Unknown(Reason.Stopped)
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
@@ -561,6 +589,24 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   /** A fresh selector literal for a script level. */
   def newSelector(): Lit = freshVar()
+
+  /** The activation literal of a named assertion: the formula holds while the
+   *  literal does, and the literal is assumed at every solve, so an `Unsat`
+   *  core can name it (see [[core]]).
+   */
+  private val activations = HashMap.empty[Formula, Lit]
+
+  def activate(formula: Formula): Lit =
+    activations.getOrElseUpdate(
+      formula, {
+        val a = freshVar()
+        clauses += Array(a.neg, lit(formula))
+        a
+      }
+    )
+
+  /** The failed assumptions of the last `Unsat`, for [[Solver.unsatCore]]. */
+  def core(): Array[Lit] = sat.unsatCore
 
   /** Retires a popped level's selector: false for good, its clauses inert. */
   def retire(selector: Lit): Unit = clauses += Array(selector.neg)

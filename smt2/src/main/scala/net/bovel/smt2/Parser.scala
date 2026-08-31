@@ -114,6 +114,14 @@ final class Parser extends Lowering:
       }
       macros(name) = (ps, sort.toString, body)
       List(Command.DefineFun(name, ps, sort.toString, body))
+    case SList(Atom("assert") :: SList(Atom("!") :: body :: attributes) :: Nil)
+        if attributes.sliding(2).exists { case Seq(Atom(":named"), _) => true; case _ => false } =>
+      introduced.clear()
+      definitions.clear()
+      val name = attributes.sliding(2).collectFirst { case Seq(Atom(":named"), Atom(n)) => n }.get
+      val f = formula(body, Map.empty)
+      introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
+        definitions.toList.map(Command.Assert(_)) :+ Command.AssertNamed(name, f)
     case SList(Atom("assert") :: body :: Nil) =>
       introduced.clear()
       definitions.clear()
@@ -129,7 +137,8 @@ final class Parser extends Lowering:
       functions.clear()
       macros.clear()
       List(Command.Reset)
-    case SList(Atom(name @ ("block-model" | "block-model-values" | "get-unsat-core" | "get-unsat-assumptions")) :: _) =>
+    case SList(Atom("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)
+    case SList(Atom(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
       throw Smt2Error(s"$name is not supported")
     case SList(Atom("push") :: Atom(n) :: Nil) => List(Command.Push(n.toInt))
     case SList(Atom("push") :: Nil) => List(Command.Push(1))

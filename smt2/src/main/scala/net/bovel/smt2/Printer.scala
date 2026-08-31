@@ -28,6 +28,7 @@ object Printer:
     case Command.DefineFun(name, params, sort, body) =>
       s"(define-fun $name (${params.map((p, s) => s"($p $s)").mkString(" ")}) $sort $body)"
     case Command.Assert(formula) => s"(assert ${print(formula)})"
+    case Command.AssertNamed(name, formula) => s"(assert (! ${print(formula)} :named $name))"
     case Command.CheckSat => "(check-sat)"
     case Command.CheckSatAssuming(assumptions) => assumptions.map(print).mkString("(check-sat-assuming (", " ", "))")
     case Command.ResetAssertions => "(reset-assertions)"
