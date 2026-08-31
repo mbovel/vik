@@ -15,7 +15,7 @@ LIA theory (bound propagation with one row visit per propagation, branch and bou
 | `calypto__problem-005675.cvc.2.smt2` | sat | 0.31 s | 0.02 s | 0.01 s | 1.62 s | 0.35 s |
 | `convert__convert-tiff2jpg-query-1831.smt2` | unsat | 0.28 s | 0.02 s | 0.01 s | 0.55 s | 0.14 s |
 | `cut_lemmas__10-vars__cut_lemma_01_001.smt2` | unsat | 0.22 s | 0.02 s | 0.01 s | 0.48 s | 0.11 s |
-| `cut_lemmas__20-vars__cut_lemma_01_001.smt2` | unsat | 5.15 s | timeout | timeout | **wrong** 7.17 s | 15.55 s |
+| `cut_lemmas__20-vars__cut_lemma_01_001.smt2` | unsat | 5.15 s | timeout | timeout | unknown 7.17 s | 15.55 s |
 | `dillig__20-4.smt2` | sat | 0.31 s | 0.02 s | 0.03 s | 0.59 s | 0.13 s |
 | `fft__Sz64_1160.smt2` | sat | 0.70 s | 0.03 s | 0.02 s | 1.64 s | 0.18 s |
 | `mathsat__FISCHER1-1-fair.smt2` | sat | 0.27 s | 0.02 s | 0.01 s | 0.61 s | 0.12 s |
@@ -27,6 +27,7 @@ LIA theory (bound propagation with one row visit per propagation, branch and bou
 
 - VIK answers 13 of the 14 within 60 s, 10 of them in 0.2–0.6 s (JVM start-up included), `fft` and `nec-smt` in
   0.7 and 1.4 s (17 s and a timeout before bound propagation), `cut_lemmas/20` in 5 s. `wisa1` is out of reach.
-- On `cut_lemmas/20` z3 and cvc5 time out and princess answers `sat` for an instance whose `:status` is `unsat`
-  (VIK and SMTInterpol agree with the status); the family is designed to need cuts or search.
+- On `cut_lemmas/20` z3 and cvc5 time out and princess gives up in 7 s (`unknown`, after printing "Stack
+  overflow, giving up", see [external-issues.md](../../../external-issues.md)); VIK and SMTInterpol answer
+  `unsat`, with the status; the family is designed to need cuts or search.
 - z3 and cvc5 take 0.01–0.05 s elsewhere; princess 0.5–1.6 s; SMTInterpol 0.1–0.9 s.

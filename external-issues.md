@@ -125,10 +125,3 @@ Version: `io.github.uuverifiers:princess:2026-05-20` (Maven, for3Use2_13).
   smtlib/QF_LIA/smt-lib/cut_lemmas__20-vars__cut_lemma_01_001.smt2` prints `Stack overflow, giving up` and
   answers `unknown` after a few seconds; the file's status is `unsat`, and z3, cvc5 and VIK answer it.
   Default JVM stack size; a larger `-Xss` was not tried.
-
-### Minutes per query on `NEQ004_size4`
-
-- **Observed** (2026-08-30, warm JMH; reproduced 2026-08-31): no answer within 30 s on
-  `smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2`, where the other measured solvers answer warm in 11 ms to
-  127 ms. A performance cliff rather than a wrong answer; the warm table of the evaluation reports that
-  instance without princess.
