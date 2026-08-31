@@ -68,7 +68,7 @@ sbt test      # runs the tests on the JVM, on Scala.js (WebAssembly) and on Scal
 > [!NOTE]
 > sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
 
-Other sbt 2 edges met here (thin client hangs, forked processes outliving a killed client, virtual classpath references) are collected in [sbt2-issues.md](sbt2-issues.md).
+Sharp edges met in other tools — sbt 2 (thin client hangs, forked processes outliving a killed client, virtual classpath references) and the solvers the benchmarks compare against — are collected in [external-issues.md](external-issues.md).
 
 The SMT-LIB files used by the tests and the benchmarks are the corpus in [smtlib/](smtlib/README.md), by logic and origin (SMT-LIB releases, the 2026 submission repository, and the regression suites of cvc5, z3 and princess, with their licenses). The JVM test `SmtLibTest` registers one test per file: the answers must be the file's statuses within a fuel (solver steps, so the same on every machine); `smtlib/ignore.txt` names the files known to fail, with the reason, and the test asks for a line to be removed when its file passes.
 

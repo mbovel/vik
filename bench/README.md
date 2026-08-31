@@ -30,7 +30,7 @@ bench/compare.sh 60 > bench/results/smt/compare.tsv                   # SMT-LIB 
 Configuration (annotations in the benchmark classes): 3 forks, 5 warmup and 5 measurement iterations of 1 s each,
 average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line
 for a closer call. Every run gets a `timeout`: an sbt client can block on an unresponsive server (see
-[sbt2-issues.md](../sbt2-issues.md)).
+[external-issues.md](../external-issues.md)).
 
 `jmh2md.py` prints a Markdown table with a 95% confidence interval computed from the raw per-iteration samples of all
 forks (JMH's own `Error` column is a 99.9% interval). Its only dependency, `scipy`, is listed in
