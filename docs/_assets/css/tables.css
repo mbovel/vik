@@ -5,7 +5,8 @@
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   vertical-align: bottom;
-  text-align: left;
+  text-align: left; /* the inline axis: start at the bottom */
+  align-content: center; /* the block axis, horizontal here: center the label over its column */
   padding: 0.4em 0.2em;
 }
 #content td[align="right"] { white-space: nowrap; }
