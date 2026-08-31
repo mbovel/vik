@@ -5,6 +5,9 @@
   /* Narrow screens scroll the table, not squeeze it. The table then is its own scroll container, and
      `position: sticky` cannot stick past an overflow ancestor: these screens trade the sticky headers away. */
   #content table { display: block; overflow-x: auto; }
+  /* The table is then the scroll container: sticky would offset the headers into it by the
+     header-height. Static restores the plain rendering. */
+  #content th { position: static; }
 }
 #content th { /* every header: vertical, read bottom-up */
   writing-mode: vertical-rl;
