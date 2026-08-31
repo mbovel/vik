@@ -241,13 +241,70 @@ private final class Parser extends Lowering:
     val i = name.indexOf('.')
     i > 0 && i < name.length - 1 && name.take(i).forall(_.isDigit) && name.drop(i + 1).forall(_.isDigit)
 
-  /** The value of an integral decimal (`2.0`); other rationals are not
-   *  supported.
+  /** The term of a decimal literal: a numeral when integral, else a rational
+   *  constant (see [[rationalConst]]).
    */
-  private def decimalValue(name: String): BigInt =
+  private def decimalTerm(name: String): Term =
     val i = name.indexOf('.')
-    if name.drop(i + 1).exists(_ != '0') then throw Smt2Error(s"the decimal $name is not an integer")
-    BigInt(name.take(i))
+    val fraction = name.drop(i + 1)
+    val q = BigInt(10).pow(fraction.length)
+    rationalConst(BigInt(name.take(i)) * q + BigInt(fraction), q)
+
+  private val rationals = scala.collection.mutable.HashMap.empty[(BigInt, BigInt), Term]
+
+  /** The value `p / q` of every term made by [[rationalConst]], for the literal
+   *  folding of products and divisions.
+   */
+  private val rationalValues = scala.collection.mutable.HashMap.empty[Term, (BigInt, BigInt)]
+
+  /** The term standing for the rational `p / q`: a numeral when integral, else
+   *  a fresh `Real` constant `k` defined by `q k = p` before the current
+   *  assertion — the mechanism of the bit-vector lowering, so every consumer
+   *  (the solver, the models, the z3 replay) sees only integers.
+   */
+  private def rationalConst(p0: BigInt, q0: BigInt): Term =
+    require(q0.signum != 0, "division by zero")
+    val g = p0.gcd(q0) * q0.signum
+    val (p, q) = (p0 / g, q0 / g)
+    if q == BigInt(1) then Term.Num(p)
+    else
+      rationals.getOrElseUpdate(
+        (p, q), {
+          if depth > 0 then throw Smt2Error("a rational literal under a lambda is not supported")
+          fresh += 1
+          val name = s"rat!$fresh"
+          introduced += ((name, "Real"))
+          functions(name) = (Nil, "Real")
+          val k = Term.Const(name)
+          definitions += IntEq(Term.linear(List((q, k))), Term.Num(p))
+          rationalValues(k) = (p, q)
+          k
+        }
+      )
+
+  /** The term standing for `(p / q) × t`: `t` scaled by an integer when `q`
+   *  divides `p`, else a fresh `Real` constant `k` defined by `q k = p t`.
+   */
+  private def rationalProduct(p0: BigInt, q0: BigInt, t: Term): Term =
+    require(q0.signum != 0, "division by zero")
+    val g = p0.gcd(q0) * q0.signum
+    val (p, q) = (p0 / g, q0 / g)
+    if q == BigInt(1) then Term.linear(List((p, t)))
+    else
+      rationalProducts.getOrElseUpdate(
+        (p, q, t), {
+          if depth > 0 then throw Smt2Error("a rational coefficient under a lambda is not supported")
+          fresh += 1
+          val name = s"rat!$fresh"
+          introduced += ((name, "Real"))
+          functions(name) = (Nil, "Real")
+          val k = Term.Const(name)
+          definitions += IntEq(Term.linear(List((q, k))), Term.linear(List((p, t))))
+          k
+        }
+      )
+
+  private val rationalProducts = scala.collection.mutable.HashMap.empty[(BigInt, BigInt, Term), Term]
 
   private def sortOf(sexpr: SExpr, env: Map[String, Value]): String = sexpr match
     case SAtom("true" | "false") => "Bool"
@@ -273,6 +330,7 @@ private final class Parser extends Lowering:
             s"unknown symbol $name"
           ))
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
+    case SList(SAtom("/") :: _) => "Real"
     case SList(SAtom("+" | "-" | "*") :: args) => if args.exists(a => sortOf(a, env) == "Real") then "Real" else "Int"
     case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
@@ -382,7 +440,7 @@ private final class Parser extends Lowering:
     case SAtom("true") => Term.boolean(Formula.True)
     case SAtom("false") => Term.boolean(Formula.False)
     case SAtom(name) if isNumeral(name) => Term.Num(BigInt(name))
-    case SAtom(name) if isDecimal(name) => Term.Num(decimalValue(name))
+    case SAtom(name) if isDecimal(name) => decimalTerm(name)
     case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
     case SAtom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
     case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
@@ -421,16 +479,28 @@ private final class Parser extends Lowering:
       Term.linear((BigInt(1), term(first, env)) :: rest.map(a => (BigInt(-1), term(a, env))))
     case SList(SAtom("+") :: args) => Term.linear(args.map(a => (BigInt(1), term(a, env))))
     case SList(SAtom("*") :: args) =>
-      // Linear: all factors but at most one are numerals.
-      val (numerals, others) = args.map(term(_, env)).partitionMap {
-        case Term.Num(v) => Left(v)
+      // Linear: all factors but at most one are literals, rationals included.
+      val (literals, others) = args.map(term(_, env)).partitionMap {
+        case Term.Num(v) => Left((v, BigInt(1)))
+        case t if rationalValues.contains(t) => Left(rationalValues(t))
         case t => Right(t)
       }
-      val k = numerals.product
+      val (p, q) = literals.foldLeft((BigInt(1), BigInt(1))) { case ((p, q), (a, b)) => (p * a, q * b) }
       others match
-        case Nil => Term.Num(k)
-        case t :: Nil => Term.linear(List((k, t)))
+        case Nil => rationalConst(p, q)
+        case t :: Nil => rationalProduct(p, q, t)
         case _ => throw Smt2Error(s"non-linear multiplication: $sexpr")
+    case SList(SAtom("/") :: a :: b :: Nil) =>
+      // Real division by a rational literal, `(/ 1 3)` and `(/ x 2)` alike; the rest is nonlinear.
+      val divisor = term(b, env) match
+        case Term.Num(v) => (v, BigInt(1))
+        case t => rationalValues.getOrElse(t, throw Smt2Error(s"nonlinear division: $sexpr"))
+      term(a, env) match
+        case Term.Num(v) => rationalConst(v * divisor._2, divisor._1)
+        case t if rationalValues.contains(t) =>
+          val (p, q) = rationalValues(t)
+          rationalConst(p * divisor._2, q * divisor._1)
+        case t => rationalProduct(divisor._2, divisor._1, t)
     case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the current assertion.
       if depth > 0 then throw Smt2Error("ite under a lambda is not supported")
