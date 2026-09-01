@@ -62,7 +62,7 @@ class ReadmeExamplesTest extends munit.FunSuite:
     sat.addClause(Lit(1, false), Lit(2, false))
     val model = sat.solve() match
       case Sat.Result.Sat(model) => model.toList
-      case Sat.Result.Unsat => Nil
+      case Sat.Result.Unsat | Sat.Result.Unknown => Nil
     assertEquals(model.length, 3)
     assert((model(0) || model(1)) && (!model(0) || model(2)) && (!model(1) || !model(2)))
 

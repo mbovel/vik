@@ -65,6 +65,7 @@ class LiaSolverTest extends munit.FunSuite:
     case Iff(a, b) => eval(a, values) == eval(b, values)
     case Ite(c, t, e) => if eval(c, values) then eval(t, values) else eval(e, values)
     case Le(l, r) => eval(l, values) <= eval(r, values)
+    case Less(l, r) => eval(l, values) < eval(r, values)
     case Eq(_, _) | Pred(_) => throw IllegalArgumentException("not arithmetic")
 
   def eval(t: Term, values: Map[Term, BigInt]): BigInt = t match

@@ -112,6 +112,7 @@ class SolverTest extends munit.FunSuite:
           assert(expected, s"round $round: sat but brute force finds no solution: $k")
           assert(k.forall(_.holds(solver.value)), s"round $round: model violates a constraint")
           sat += 1
+        case Result.Unknown => fail(s"round $round: the solver gave up")
         case Result.Unsat(reasons) =>
           assert(!expected, s"round $round: unsat but brute force finds a solution: $k")
           assert(reasons.forall(r => r >= 0 && r < k.length), s"round $round: reasons $reasons")

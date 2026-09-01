@@ -67,7 +67,8 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
               case unsat => unsat
       result match
         case lia.Solver.Result.Unsat(reasons) => conflict = lits(reasons)
-        case lia.Solver.Result.Sat => ()
+        // Asserting a bound never runs the search, so it cannot be told to stop: Unknown is unreachable.
+        case lia.Solver.Result.Sat | lia.Solver.Result.Unknown => ()
 
   def propagate(): Theory.Result =
     if !touched && conflict == null then Theory.ok

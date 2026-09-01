@@ -10,6 +10,7 @@ class SolverTest extends munit.FunSuite:
     s.solve() match
       case Solver.Result.Sat(model) => Some(model)
       case Solver.Result.Unsat => None
+      case Solver.Result.Unknown => fail("the solver gave up")
 
   def satisfies(model: Array[Boolean], clauses: Seq[Seq[Lit]]): Boolean =
     clauses.forall(_.exists(l => model(l.variable) == l.positive))
@@ -117,6 +118,7 @@ class SolverTest extends munit.FunSuite:
       val result = solver.solve() match
         case Solver.Result.Sat(model) => Some(model)
         case Solver.Result.Unsat => None
+        case Solver.Result.Unknown => fail("the solver gave up")
       assertEquals(result.isDefined, bruteForce(n, clauses, ok), s"n=$n clauses=$clauses groups=$groups")
 
   test("random problems with a theory agree with brute force"):
