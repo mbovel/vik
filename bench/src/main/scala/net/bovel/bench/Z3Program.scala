@@ -30,6 +30,16 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
     val answers = ArrayBuffer.empty[Boolean]
     def bool(slot: Int): BoolExpr = slots(slot).asInstanceOf[BoolExpr]
     def args(slots0: Array[Int]): Array[Expr[?]] = slots0.map(slots)
+    // Real arithmetic: an integer numeral or coefficient in a real position is coerced, so the same
+    // slot serves integer and real uses (the tree's literals are shared).
+    def real(e: Expr[?]): Boolean = e.getSort == ctx.getRealSort
+    def arith(e: Expr[?]): Expr[com.microsoft.z3.ArithSort] = e.asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
+    def lift(e: Expr[?]): Expr[com.microsoft.z3.ArithSort] =
+      if real(e) then arith(e)
+      else ctx.mkInt2Real(e.asInstanceOf[com.microsoft.z3.IntExpr]).asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
+    def pair(l: Int, r: Int): (Expr[com.microsoft.z3.ArithSort], Expr[com.microsoft.z3.ArithSort]) =
+      val (a, b) = (slots(l), slots(r))
+      if real(a) || real(b) then (lift(a), lift(b)) else (arith(a), arith(b))
     for op <- instructions do
       op match
         case Op.UninterpretedSort(id, name) => sorts(id) = ctx.mkUninterpretedSort(name)
@@ -61,9 +71,13 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
         case Op.MkApp(dst, decl, as) => slots(dst) = ctx.mkApp(decls(decl), args(as)*)
         case Op.MkNum(dst, value) => slots(dst) = ctx.mkInt(value)
         case Op.MkMul(dst, coefficient, a) =>
-          slots(dst) = ctx.mkMul(ctx.mkInt(coefficient), slots(a).asInstanceOf[Expr[com.microsoft.z3.ArithSort]])
+          val arg = slots(a)
+          val c: Expr[com.microsoft.z3.ArithSort] =
+            if real(arg) then arith(ctx.mkReal(coefficient)) else arith(ctx.mkInt(coefficient))
+          slots(dst) = ctx.mkMul(c, arith(arg))
         case Op.MkAdd(dst, as) =>
-          slots(dst) = ctx.mkAdd(args(as).map(_.asInstanceOf[Expr[com.microsoft.z3.ArithSort]])*)
+          val xs = args(as)
+          slots(dst) = if xs.exists(real) then ctx.mkAdd(xs.map(lift)*) else ctx.mkAdd(xs.map(arith)*)
         case Op.MkTrue(dst) => slots(dst) = ctx.mkTrue()
         case Op.MkFalse(dst) => slots(dst) = ctx.mkFalse()
         case Op.MkNot(dst, a) => slots(dst) = ctx.mkNot(bool(a))
@@ -72,17 +86,16 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
         case Op.MkImplies(dst, a, b) => slots(dst) = ctx.mkImplies(bool(a), bool(b))
         case Op.MkIff(dst, a, b) => slots(dst) = ctx.mkIff(bool(a), bool(b))
         case Op.MkIte(dst, c, t, e) => slots(dst) = ctx.mkITE(bool(c), bool(t), bool(e))
-        case Op.MkEq(dst, l, r) => slots(dst) = ctx.mkEq(slots(l), slots(r))
+        case Op.MkEq(dst, l, r) =>
+          slots(dst) =
+            if real(slots(l)) || real(slots(r)) then { val (a, b) = pair(l, r); ctx.mkEq(a, b) }
+            else ctx.mkEq(slots(l), slots(r))
         case Op.MkLe(dst, l, r) =>
-          slots(dst) = ctx.mkLe(
-            slots(l).asInstanceOf[Expr[com.microsoft.z3.ArithSort]],
-            slots(r).asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
-          )
+          val (a, b) = pair(l, r)
+          slots(dst) = ctx.mkLe(a, b)
         case Op.MkLt(dst, l, r) =>
-          slots(dst) = ctx.mkLt(
-            slots(l).asInstanceOf[Expr[com.microsoft.z3.ArithSort]],
-            slots(r).asInstanceOf[Expr[com.microsoft.z3.ArithSort]]
-          )
+          val (a, b) = pair(l, r)
+          slots(dst) = ctx.mkLt(a, b)
         case Op.Assert(slot) => solver.add(bool(slot))
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)

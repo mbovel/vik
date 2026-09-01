@@ -78,6 +78,14 @@ class OtherSolversBench:
       "lustre__two_counters.bmc_k100.smt2",
       "lustre__ex3.bmc_k100.smt2",
       "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2",
+      "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
+      "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
+      "check__array_incompleteness1.smt2",
+      "regress0__define-fun-model.smt2",
+      "regressions__3775.smt2",
+      "keymaera__division_dijkstra-node701.smt2",
+      "Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2",
+      "RandomDecoupled__pb_real_30_60_45_28.smt2",
       "wisas__xs_5_5.smt2",
       "wisas__xs_8_8.smt2",
       "wisas__xs_20_20.smt2",
@@ -98,9 +106,11 @@ class OtherSolversBench:
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
     script = Parser.parse(text)
-    z3Program = Z3Program.compile(script)
-    princessProgram = PrincessProgram.compile(script)
-    smtInterpolProgram = SmtInterpolProgram.compile(script)
+    // A program a replay cannot encode (lambdas, say) stays null; its benchmark is simply not selected
+    // for such instances — the setup must not fail the others.
+    z3Program = try Z3Program.compile(script) catch case _: Exception => null
+    princessProgram = try PrincessProgram.compile(script) catch case _: Exception => null
+    smtInterpolProgram = try SmtInterpolProgram.compile(script) catch case _: Exception => null
 
   @Benchmark
   def print(): Int = Printer.print(script).length

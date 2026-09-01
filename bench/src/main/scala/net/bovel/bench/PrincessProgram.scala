@@ -6,6 +6,7 @@ import ap.api.SimpleAPI
 import ap.basetypes.IdealInt
 import ap.parser.{IAtom, IExpression, IFormula, IFormulaITE, IFunApp, IFunction, ITerm, ITermITE}
 import ap.theories.ADT
+import ap.theories.rationals.Rationals
 import ap.types.Sort
 import net.bovel.smt2.{Command, Script}
 import net.bovel.vik.{Datatype, Formula, Term}
@@ -32,10 +33,14 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
       val adts = new Array[ADT](sortCount) // by the sort id of the first datatype of a group
       val answers = ArrayBuffer.empty[Boolean]
       def term(i: Int): ITerm = slots(i).asInstanceOf[ITerm]
+      def rat(x: Int): ITerm = // an integer-sorted slot (a shared literal) lifted into the rationals
+        val t = term(x)
+        if Sort.sortOf(t) == Rationals.dom then t else Rationals.int2ring(t)
       def formula(i: Int): IFormula = slots(i).asInstanceOf[IFormula]
       for op <- instructions do
         op match
           case Op.IntSort(id) => sorts(id) = Sort.Integer
+          case Op.RealSort(id) => sorts(id) = Rationals.dom
           case Op.BoolSort(id) => sorts(id) = Sort.MultipleValueBool // a Bool argument is a term here
           case Op.UninterpretedSort(id, name) => sorts(id) = Sort.createInfUninterpretedSort(name)
           case Op.DeclareAdts(datatypes, sortIds, ctorKeys, selectorKeys, testerKeys) =>
@@ -71,6 +76,12 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
             var sum: ITerm = i(IdealInt(constant.bigInteger))
             for (c, a) <- coefficients.zip(args) do sum = sum + (term(a) * IdealInt(c.bigInteger))
             slots(dst) = sum
+          case Op.MkLinearR(dst, coefficients, args, constant) =>
+            // Rational arithmetic through the Rationals theory; integer slots are lifted where used.
+            var sum: ITerm = Rationals.int2ring(i(IdealInt(constant.bigInteger)))
+            for (c, a) <- coefficients.zip(args) do
+              sum = Rationals.plus(sum, Rationals.times(IdealInt(c.bigInteger), rat(a)))
+            slots(dst) = sum
           case Op.MkBoolArg(dst, f) => slots(dst) = ITermITE(formula(f), i(0), i(1)) // 0 is princess's true
           case Op.MkTrue(dst) => slots(dst) = i(true)
           case Op.MkFalse(dst) => slots(dst) = i(false)
@@ -81,8 +92,11 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
           case Op.MkIff(dst, a, b) => slots(dst) = formula(a) <=> formula(b)
           case Op.MkIte(dst, c, t, e) => slots(dst) = IFormulaITE(formula(c), formula(t), formula(e))
           case Op.MkEq(dst, l, r) => slots(dst) = term(l) === term(r)
+          case Op.MkEqR(dst, l, r) => slots(dst) = rat(l) === rat(r)
           case Op.MkLe(dst, l, r) => slots(dst) = term(l) <= term(r)
+          case Op.MkLeR(dst, l, r) => slots(dst) = Rationals.leq(rat(l), rat(r))
           case Op.MkLt(dst, l, r) => slots(dst) = term(l) < term(r)
+          case Op.MkLtR(dst, l, r) => slots(dst) = Rationals.lt(rat(l), rat(r))
           case Op.Assert(slot) => p.addAssertion(formula(slot))
           case Op.Push(levels) => for _ <- 1 to levels do p.push()
           case Op.Pop(levels) => for _ <- 1 to levels do p.pop()
@@ -93,6 +107,7 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
 object PrincessProgram:
   enum Op:
     case IntSort(id: Int)
+    case RealSort(id: Int)
     case BoolSort(id: Int)
     case UninterpretedSort(id: Int, name: String)
     case DeclareAdts(
@@ -110,6 +125,7 @@ object PrincessProgram:
     case MkIs(dst: Int, adtSortId: Int, ctor: Int, arg: Int)
     case MkNum(dst: Int, value: BigInt)
     case MkLinear(dst: Int, coefficients: Array[BigInt], args: Array[Int], constant: BigInt)
+    case MkLinearR(dst: Int, coefficients: Array[BigInt], args: Array[Int], constant: BigInt)
     case MkBoolArg(dst: Int, formula: Int)
     case MkTrue(dst: Int)
     case MkFalse(dst: Int)
@@ -120,8 +136,11 @@ object PrincessProgram:
     case MkIff(dst: Int, a: Int, b: Int)
     case MkIte(dst: Int, c: Int, t: Int, e: Int)
     case MkEq(dst: Int, l: Int, r: Int)
+    case MkEqR(dst: Int, l: Int, r: Int)
     case MkLe(dst: Int, l: Int, r: Int)
+    case MkLeR(dst: Int, l: Int, r: Int)
     case MkLt(dst: Int, l: Int, r: Int)
+    case MkLtR(dst: Int, l: Int, r: Int)
     case Assert(slot: Int)
     case Push(levels: Int)
     case Pop(levels: Int)
@@ -133,6 +152,12 @@ object PrincessProgram:
     val sortIds = HashMap.empty[String, Int]
     val declIds = HashMap.empty[String, Int]
     val slots = HashMap.empty[Formula | Term, Int]
+    val resultSorts = HashMap.empty[String, String] // declared name to result sort, for realTerm
+    def realTerm(t: Term): Boolean = t match
+      case Term.Const(name) => resultSorts.get(name).contains("Real")
+      case Term.App(Term.Const(name), _) => resultSorts.get(name).contains("Real")
+      case Term.Linear(terms, _) => terms.exists((_, u) => realTerm(u))
+      case _ => false
     val boolResult = HashMap.empty[String, Boolean] // functions whose result is Bool: relations
     val testers = HashMap.empty[String, (Int, Int)] // "(_ is C)" to (adt group sort id, ctor index)
     var slotCount = 0
@@ -148,6 +173,7 @@ object PrincessProgram:
         val id = sortIds.size
         name match
           case "Int" => out += Op.IntSort(id)
+          case "Real" => out += Op.RealSort(id)
           case "Bool" => out += Op.BoolSort(id)
           case _ => out += Op.UninterpretedSort(id, name)
         id
@@ -178,6 +204,8 @@ object PrincessProgram:
                   case None => out += Op.MkApp(dst, declIds(name), as.map(term).toArray)
               case Term.App(fun, _) => throw IllegalArgumentException(s"higher-order application $fun")
               case Term.Num(v) => out += Op.MkNum(dst, v)
+              case Term.Linear(terms, c) if terms.exists((_, u) => realTerm(u)) =>
+                out += Op.MkLinearR(dst, terms.map(_._1).toArray, terms.map((_, u) => term(u)).toArray, c)
               case Term.Linear(terms, c) =>
                 out += Op.MkLinear(dst, terms.map(_._1).toArray, terms.map((_, u) => term(u)).toArray, c)
               case Term.Lambda(_, _) | Term.Var(_) =>
@@ -201,9 +229,15 @@ object PrincessProgram:
               case Formula.Implies(a, b) => out += Op.MkImplies(dst, formula(a), formula(b))
               case Formula.Iff(a, b) => out += Op.MkIff(dst, formula(a), formula(b))
               case Formula.Ite(c, t, e) => out += Op.MkIte(dst, formula(c), formula(t), formula(e))
-              case Formula.Eq(l, r) => out += Op.MkEq(dst, term(l), term(r))
-              case Formula.Le(l, r) => out += Op.MkLe(dst, term(l), term(r))
-              case Formula.Less(l, r) => out += Op.MkLt(dst, term(l), term(r))
+              case Formula.Eq(l, r) =>
+                out += (if realTerm(l) || realTerm(r) then Op.MkEqR(dst, term(l), term(r))
+                        else Op.MkEq(dst, term(l), term(r)))
+              case Formula.Le(l, r) =>
+                out += (if realTerm(l) || realTerm(r) then Op.MkLeR(dst, term(l), term(r))
+                        else Op.MkLe(dst, term(l), term(r)))
+              case Formula.Less(l, r) =>
+                out += (if realTerm(l) || realTerm(r) then Op.MkLtR(dst, term(l), term(r))
+                        else Op.MkLt(dst, term(l), term(r)))
               case Formula.Pred(_) => throw IllegalStateException("handled above")
             dst
       }
@@ -218,6 +252,7 @@ object PrincessProgram:
         case Command.DeclareFun(name, Nil, result) =>
           val dst = freshSlot()
           slots(Term.Const(name)) = dst
+          resultSorts(name) = result
           out += Op.DeclareConst(dst, name, sortId(result))
         case Command.DeclareFun(name, args, "Bool") =>
           val id = freshDecl()
@@ -228,6 +263,7 @@ object PrincessProgram:
         case Command.DeclareFun(name, args, result) =>
           val id = freshDecl()
           declIds(name) = id
+          resultSorts(name) = result
           out += Op.DeclareFun(id, name, args.map(sortId).toArray, sortId(result))
         case Command.DeclareDatatypes(datatypes) =>
           // The datatype names take sort ids silently: DeclareAdts fills them, no uninterpreted sort op.

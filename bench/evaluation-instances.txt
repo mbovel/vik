@@ -18,3 +18,11 @@ smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2
 smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2
 smtlib/QF_UFLIA/smt-lib-incremental/kind__car_6_e2_893.ec.smt2
 smtlib/QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2
+smtlib/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2
+smtlib/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2
+smtlib/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2
+smtlib/HO/cvc5/regress0__define-fun-model.smt2
+smtlib/HO/z3test/regressions__3775.smt2
+smtlib/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2
+smtlib/QF_LRA/smt-lib/Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2
+smtlib/QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_28.smt2
