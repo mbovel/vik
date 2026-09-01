@@ -14,7 +14,7 @@ import net.bovel.smt2.*
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
  *  functions and linear integer arithmetic: `assert` formulas, `push` and `pop`
  *  levels of assertions, and `solve`. Each `solve` simplifies the assertions of
- *  all levels (see [[Simplifier]], unless `simplify` is false) and encodes them
+ *  all levels (see [[smt2.Simplifier]], unless `simplify` is false) and encodes them
  *  afresh into a [[cdclt.Solver]] (Tseitin encoding, one CDCL(T) variable per
  *  distinct atom and per compound subformula) with a [[UfTheory]] over an
  *  [[net.bovel.egraph.EGraph]] for the equalities and a [[LiaTheory]] over a

@@ -23,7 +23,9 @@ subsection:
       - page: components/egraph.md
       - page: components/cdclt.md
       - page: components/lia.md
-      - page: components/front-end.md
+      - page: components/sexpr.md
+      - page: components/smt2.md
+      - page: components/vik.md
   - title: Evaluation
     page: evaluation.md
   - title: Design notes

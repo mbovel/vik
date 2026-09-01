@@ -7,7 +7,7 @@ import net.bovel.smt2.*
  *  values for the declared constants, and a finite graph per declared function
  *  — the applications the problem mentions, and a default.
  *
- *  Values are closed terms: a numeral, `true`/`false` as a [[Term.Bool]], a
+ *  Values are closed terms: a numeral, `true`/`false` as a [[smt2.Term.Bool]], a
  *  constructor application for a datatype, or an abstract element `@Sort!k` for
  *  an uninterpreted sort — distinct constants map to distinct elements exactly
  *  when the e-graph kept them apart.
