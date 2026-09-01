@@ -18,9 +18,11 @@ import net.bovel.smt2.{Datatype, Sorts}
  *  afresh into a [[cdclt.Solver]] (Tseitin encoding, one CDCL(T) variable per
  *  distinct atom and per compound subformula) with a [[UfTheory]] over an
  *  [[net.bovel.egraph.EGraph]] for the equalities and a [[LiaTheory]] over a
- *  [[lia.Solver]] for the bounds. The two theories do not exchange equalities
- *  yet: a term of sort `Int` under an uninterpreted function is not supported
- *  (the SMT-LIB front end rejects such declarations).
+ *  [[lia.Solver]] for the bounds. The theories are combined over the shared
+ *  numeric terms — the ones under uninterpreted functions or compared by
+ *  equality: every pair of shared terms that can meet gets its equality as an
+ *  atom of both theories, and the SAT solver decides the arrangement (Nelson
+ *  and Oppen; see `Encoder.shareIntegers`).
  */
 final class Solver(val simplify: Boolean = true):
   enum Result:

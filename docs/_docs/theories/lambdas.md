@@ -87,6 +87,6 @@ Extensionality is a lemma too: for every equality between function-sorted terms 
 the equalities the script asks about.
 
 Soundness rests on one invariant: no atom is ever put on a term with a free bound variable. The sharing of
-integers and the exhaustiveness of datatypes skip open terms, `ite` and the bit-vector lowering are refused
+integers and the exhaustiveness of datatypes skip open terms, `ite`, the bit-vector lowering and the casts are refused
 under a lambda, and no rule concludes from the equality of two lambdas to the equality of their bodies — so
 an equality the e-graph holds between open terms holds for every value of their variables.

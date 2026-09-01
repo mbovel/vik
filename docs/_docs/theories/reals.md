@@ -36,6 +36,9 @@ Rational literals — decimals and quotients like `(/ 1 3)` — become fresh con
 equation (`3 k = 1`), and a rational coefficient (`(* 2.5 x)`, `(/ x 2)`) is defined the same way, so the
 solver still computes over integers throughout. A division or multiplication that is not linear is refused.
 
-Reals and integers do not mix in a term: a comparison is integer or real by the sorts of its sides, and
-`to_real` is not supported. Disequalities over reals split strictly: `x ≠ c` branches into `x < c` or
+Reals and integers mix through the casts of `Reals_Ints`: `to_real` costs nothing — the solver's terms
+already share one representation, and the sorts carry the difference — `to_int` is the floor, a constant
+defined by two bounds, and `is_int` compares a real with its own floor, which is sound under negation
+too. An integer combination that real constraints confine to a fractional window is cut directly
+([integers](integers.md)). Disequalities over reals split strictly: `x ≠ c` branches into `x < c` or
 `x > c`.
