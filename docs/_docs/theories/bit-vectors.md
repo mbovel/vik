@@ -87,6 +87,7 @@ ways to see it: `(get-assertions)` in a script answers with the lowered assertio
 (declare-const x (_ BitVec 8))
 (declare-const y (_ BitVec 8))
 (assert (bvult x y))
+(check-sat)
 (get-assertions)
 ```
 
@@ -94,5 +95,6 @@ The answer is the ranges of `x` and `y` and the comparison, lowered — `bvult` 
 written `x + 1 ≤ y`:
 
 ```
+sat
 ((and (<= 0 x) (<= x 255)) (and (<= 0 y) (<= y 255)) (<= (+ x 1) y))
 ```

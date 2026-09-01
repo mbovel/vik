@@ -20,7 +20,7 @@ finite check can answer, and the solver says so:
 (set-logic HO_ALL)
 (declare-const g (-> Int Int))
 (assert (= (lambda ((x Int)) (g (g x))) (lambda ((x Int)) (+ x 1))))
-(check-sat)
+(check-sat) ; answers unknown: no finite witness justifies equating these
 ```
 
 No total `g` over the integers satisfies `g ∘ g = successor` — `g` would have to be a bijective square
