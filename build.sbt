@@ -5,6 +5,11 @@ val nativeScalaVersion = "3.9.0"
 
 // In sbt 2, bare settings are common settings injected into all subprojects.
 organization := "net.bovel"
+
+// Every JVM test suite runs forked with the same fixed heap on every machine, so the sbt server
+// only builds: without this, all modules' tests share the server heap and its classloader caches,
+// which exhausted CI's three gigabytes (HoCoreTest OOMed after the earlier suites filled it).
+val forkedTests = Seq(Test / fork := true, Test / javaOptions += "-Xmx2g")
 version := "0.1.0-SNAPSHOT"
 scalaVersion := scala3Version
 scalacOptions += "-Yexplicit-nulls"
@@ -16,7 +21,7 @@ lazy val egraph = projectMatrix
     name := "egraph",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -27,7 +32,7 @@ lazy val cdclt = projectMatrix
     name := "cdclt",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -38,7 +43,7 @@ lazy val sexpr = projectMatrix
     name := "sexpr",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -49,7 +54,7 @@ lazy val lia = projectMatrix
     name := "lia",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -61,7 +66,7 @@ lazy val vik = projectMatrix
     name := "vik",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -74,7 +79,7 @@ lazy val smt2 = projectMatrix
     Compile / mainClass := Some("net.bovel.smt2.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .jvmPlatform(scalaVersions = Seq(scala3Version))
+  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
@@ -87,9 +92,8 @@ lazy val smt2utils = (project in file("smt2utils"))
   .settings(
     name := "smt2utils",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
-    Test / fork := true,
-    Test / javaOptions += "-Xmx2g"
   )
+  .settings(forkedTests*)
 
 // The corpus and the documentation pages are data the JVM tests read from disk. The test cache is keyed on
 // the classpath, not on them (external-issues.md), so their stamp becomes a managed resource: a changed file
