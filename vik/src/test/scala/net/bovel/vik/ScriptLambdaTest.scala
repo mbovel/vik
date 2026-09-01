@@ -47,7 +47,7 @@ class ScriptLambdaTest extends munit.FunSuite:
     assertEquals(asserts(0), IntEq(Const("c"), Term.linear(List((BigInt(1), App(f, List(Num(3))))), 1)))
     assertEquals(asserts(1), IntEq(App(f, List(App(f, List(Const("c"))))), Num(7)))
     // `g` is local to the conjunction: the simplifier substitutes the lambda, and the redex `g(2)` reduces.
-    val (simplified, _) = net.bovel.smt2.Simplifier.simplify(List(And(List(
+    val (simplified, _) = Simplifier.simplify(List(And(List(
       Eq(Const("g"), Lambda(List("Int"), App(f, List(Var(0))))),
       Not(IntEq(App(Const("g"), List(Num(2))), App(f, List(Num(2)))))
     ))))

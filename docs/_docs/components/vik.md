@@ -9,9 +9,11 @@ extraCSS:
 
 # The solver
 
-`net.bovel.vik` plugs the parts together: the encoder (Tseitin, atoms, the theory combination, the lemmas
-of datatypes and lambdas), the theories over [the e-graph](egraph.md) and [the LIA solver](lia.md) driven
-by [the CDCL(T) loop](cdclt.md), models, and the player that runs a parsed script on a solver.
+`net.bovel.vik` plugs the parts together: the polarity-aware
+[simplifier](../theories/first-order-logic.md) that runs before encoding, the encoder (Tseitin, atoms, the
+theory combination, the lemmas of datatypes and lambdas), the theories over [the e-graph](egraph.md) and
+[the LIA solver](lia.md) driven by [the CDCL(T) loop](cdclt.md), models, and the player that runs a parsed
+script on a solver.
 
 ```scala
 import net.bovel.smt2.Parser

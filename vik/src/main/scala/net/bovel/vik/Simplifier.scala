@@ -1,7 +1,8 @@
-package net.bovel.smt2
+package net.bovel.vik
 
 import scala.collection.mutable.HashMap
 
+import net.bovel.smt2.*
 import Formula.*
 import Term.*
 

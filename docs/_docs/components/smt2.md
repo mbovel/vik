@@ -10,10 +10,10 @@ extraCSS:
 # The language
 
 `net.bovel.smt2` is the language layer: `Term` and `Formula` with the normal form of linear combinations,
-the [lowering of bit-vectors](../theories/bit-vectors.md) to integers, the polarity-aware
-[simplifier](../theories/first-order-logic.md), and SMT-LIB 2 in and out — the parser (sorts, datatypes,
-`let`, macros through `define-fun`, `ite` naming), the printer, and the script model. It depends only on
-[the S-expression reader](sexpr.md); the solver depends on it, not the other way around.
+the [lowering of bit-vectors](../theories/bit-vectors.md) to integers, and SMT-LIB 2 in and out — the
+parser (sorts, datatypes, `let`, macros through `define-fun`, `ite` naming), the printer, and the script
+model. It depends only on [the S-expression reader](sexpr.md); the solver depends on it, not the other way
+around.
 
 ```scala
 import net.bovel.smt2.{Parser, Printer}

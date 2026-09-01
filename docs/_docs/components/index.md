@@ -15,7 +15,7 @@ a SAT solver with a theory of its own, or a simplex over the integers, can depen
 | `net.bovel.cdclt` | A CDCL SAT solver with a theory interface | [The CDCL(T) solver](cdclt.md) |
 | `net.bovel.lia` | A simplex over the integers with branch and bound | [The LIA solver](lia.md) |
 | `net.bovel.sexpr` | S-expressions from a string, one pass | [The S-expression reader](sexpr.md) |
-| `net.bovel.smt2` | Terms and formulas, the lowerings, the simplifier, SMT-LIB in and out | [The language](smt2.md) |
-| `net.bovel.vik` | The encoder, the theories, the solver and the player | [The solver](vik.md) |
+| `net.bovel.smt2` | Terms and formulas, the lowerings, SMT-LIB in and out | [The language](smt2.md) |
+| `net.bovel.vik` | The encoder, the simplifier, the theories, the solver and the player | [The solver](vik.md) |
 
 The [API documentation](../api/index.html) covers all of them.
