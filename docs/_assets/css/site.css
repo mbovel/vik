@@ -11,8 +11,9 @@
 #toc ul.toc-list > li > ul { padding-left: 0; }
 
 /* Scaladoc's theme pads every element inside a table (`#content table *` in its bundle.css) — rows,
-   links, emphasis — inflating the cells; surely meant for the cells alone. Undone at the same
-   specificity (this sheet loads after the theme), the cells then get the padding the theme intended;
-   the theme's later rules, such as inline code chips, still apply inside cells. */
-#content table * { padding: 0; }
+   links, emphasis — inflating the cells; surely meant for the cells alone. This sheet loads BEFORE
+   the theme's, so the undo must win by specificity: `:not(td, th)` outranks the theme's `*`, the
+   cells get the padding the theme intended, and the theme's own higher-specificity rules, such as
+   inline code chips, still apply inside cells. */
+#content table :not(td, th) { padding: 0; }
 #content table :is(td, th) { padding: calc(2 * var(--base-spacing)) var(--base-spacing) 17px; }

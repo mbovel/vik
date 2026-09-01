@@ -190,8 +190,9 @@ Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.
   Surely meant for `td` and `th` only.
 - **Reproduce**: any documentation page with a markdown table whose cells hold links or emphasis;
   inspect an element inside a cell.
-- **Workaround**: `docs/_assets/css/site.css` zeroes the rule at the same specificity and pads only the
-  cells.
+- **Workaround**: `docs/_assets/css/site.css` zeroes it with a higher-specificity selector
+  (`#content table :not(td, th)`) and pads only the cells — the page's own stylesheets load before the
+  theme's, so an override must win by specificity, not order.
 
 ## SMTInterpol
 

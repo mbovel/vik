@@ -1,7 +1,7 @@
 /* The tables of the evaluation: compact, the solver headers vertical and sticky, the best cell of a
    row in green (the `best` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
-#content th { /* every header: vertical, read bottom-up */
+#content table th { /* every header: vertical, read bottom-up; outranks site.css's cell padding */
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   vertical-align: bottom;
