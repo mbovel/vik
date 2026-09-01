@@ -189,9 +189,14 @@ final class Solver(val simplify: Boolean = true):
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
     e.solve(assumed, keepGoing) match
-      case cdclt.Solver.Result.Sat(_) =>
-        lastCore = Nil
-        Result.Sat
+      case cdclt.Solver.Result.Sat(model) =>
+        // A satisfying assignment that equates entangled lambdas proves nothing: no finite witness
+        // justifies a pointwise identity like g(g x) = x + 1, which no total g satisfies.
+        if e.entangledLambdas.flatMap(e.litOf).exists(l => model(l.variable) == l.positive) then
+          Result.Unknown(Reason.Stopped)
+        else
+          lastCore = Nil
+          Result.Sat
       case cdclt.Solver.Result.Unsat =>
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }
@@ -328,10 +333,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     val byFunctionSort = classes.keys.collect {
       case a: Term.App
           if Sorts.arrow(sortOf(a.fun)).isDefined
-            && (equatableFuns(a.fun) || (a.fun match
-              case Term.App(Term.Const(n), _) => n.startsWith("store!")
-              case _ => false
-            )) =>
+            && (equatableFuns(a.fun) ||
+              (a.fun match
+                case Term.App(Term.Const(n), _) => n.startsWith("store!")
+                case _ => false)) =>
         a
     }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
     for (_, group) <- byFunctionSort do
@@ -373,6 +378,24 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  same term (de Bruijn indices), congruence relates those with equal bodies,
    *  and no atom is ever on an open term (see [[Term.instantiate]]).
    */
+  /** The literals of function equalities that no finite witness can justify
+   *  accepting: a lambda equated with a lambda, or with a symbol occurring in
+   *  its own body (`g ∘ g = succ` has no total solution over the integers, yet
+   *  a finite graph looks consistent). A `Sat` with such a literal true is
+   *  reported `Unknown` instead.
+   */
+  val entangledLambdas = ArrayBuffer.empty[Formula]
+
+  private def entangled(l: Term, r: Term): Boolean =
+    def lam(t: Term): Boolean = t.isInstanceOf[Term.Lambda]
+    def occursIn(c: Term, t: Term): Boolean = t match
+      case Term.Lambda(_, body) => occursIn(c, body)
+      case Term.App(f, args) => occursIn(c, f) || args.exists(occursIn(c, _))
+      case Term.Linear(terms, _) => terms.exists((_, u) => occursIn(c, u))
+      case Term.Bool(f) => f.terms.exists(occursIn(c, _))
+      case _ => t == c
+    (lam(l) && lam(r)) || (lam(r) && occursIn(l, r)) || (lam(l) && occursIn(r, l))
+
   private val applicationsDone = scala.collection.mutable.HashSet.empty[(Term.App, Term)]
   private val equatedApplications = ArrayBuffer.empty[(Term, Term)]
 
@@ -554,6 +577,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   def clauseCount: Int = clauses.length
 
+  def litOf(f: Formula): Option[Lit] = lits.get(f)
+
   private def selectTerm(array: Term, index: Term): Term = array match
     case Term.App(Term.Const(n), _) if n.startsWith("store!") => Term.App(array, List(index))
     case _ => Term.app(array, List(index))
@@ -647,6 +672,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
           if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula
+            formula match
+              case Formula.Eq(l, r) if entangled(l, r) => entangledLambdas += formula
+              case _ => ()
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
         val e = atom(classOf(term), trueTerm)

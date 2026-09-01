@@ -10,7 +10,8 @@ extraCSS:
 # Introduction
 
 An SMT solver in Scala 3, small enough to read: equality with uninterpreted functions, linear integer
-arithmetic, algebraic datatypes, lambdas, and the arithmetic fragment of bit-vectors, under 5000 lines of
+arithmetic over integers and reals, algebraic datatypes, arrays, lambdas, and the arithmetic fragment of
+bit-vectors, under 5000 lines of
 solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be embedded — as a
 library, in the process of the tool that asks the questions.
 
@@ -30,8 +31,9 @@ editable, so change one and run it again.
 - [Getting started](getting-started.md): the command line, and the Scala API.
 - The theories, each with what you can write and how it is decided:
   [first-order logic](theories/first-order-logic.md), [uninterpreted functions](theories/uninterpreted-functions.md),
-  [integer arithmetic](theories/integers.md), [algebraic datatypes](theories/datatypes.md),
-  [bit-vectors](theories/bit-vectors.md), [functions as values](theories/lambdas.md).
+  [integer arithmetic](theories/integers.md), [real arithmetic](theories/reals.md),
+  [algebraic datatypes](theories/datatypes.md), [bit-vectors](theories/bit-vectors.md),
+  [functions as values](theories/lambdas.md), [arrays](theories/arrays.md).
 - The components, usable on their own: [the e-graph](components/egraph.md), [the CDCL(T) solver](components/cdclt.md),
   [the LIA solver](components/lia.md), [the front end](components/front-end.md).
 - [Evaluation](evaluation.md): what it costs, warm and cold, against z3, cvc5, princess and SMTInterpol.

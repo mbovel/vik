@@ -1,8 +1,8 @@
 # The Verification Intermediate Kit (VIK)
 
 VIK is a minimal but reasonably fast SMT solver for the theories of uninterpreted functions (UF), algebraic data
-types (ADTs), linear integer arithmetic (LIA) and the arithmetic fragment of bit-vectors (BV, lowered to integers),
-and their combinations. It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
+types (ADTs), linear arithmetic over integers and reals (LIA, LRA), extensional arrays, and the arithmetic
+fragment of bit-vectors (BV, lowered to integers), and their combinations. It is designed to be used as a backend for verification tools, and to be easy to understand and to modify.
 
 ## Design principle
 

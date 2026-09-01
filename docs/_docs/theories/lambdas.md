@@ -12,6 +12,23 @@ extraCSS:
 The core of the higher-order fragment of SMT-LIB 2.7: function sorts, lambdas, partial application, and
 equality between functions.
 
+**Decision procedure: no.** This is a sound core — beta-reduction, application lemmas and extensionality
+witnesses — with no completeness claim. An equality that entangles a lambda with itself asks more than any
+finite check can answer, and the solver says so:
+
+```smt2
+(set-logic HO_ALL)
+(declare-const g (-> Int Int))
+(assert (= (lambda ((x Int)) (g (g x))) (lambda ((x Int)) (+ x 1))))
+(check-sat)
+```
+
+No total `g` over the integers satisfies `g ∘ g = successor` — `g` would have to be a bijective square
+root of a single infinite cycle — yet a finite witness set looks consistent, so accepting `sat` would be
+wrong. Equalities between two lambdas, or between a function and a lambda mentioning it, answer `unknown`
+when the search would otherwise accept them (cvc5 answers the same); a plain definition, `g = (lambda ...)`
+with `g` not in the body, keeps its answers.
+
 ## What you can write
 
 ```smt2

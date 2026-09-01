@@ -12,6 +12,9 @@ extraCSS:
 The arithmetic fragment of `QF_BV`, without bit-blasting: a bit-vector is an integer in `[0, 2ⁿ)`, and the
 operations that are arithmetic modulo `2ⁿ` are lowered to linear integer arithmetic. The width costs nothing.
 
+**Decision procedure: yes, for the fragment it accepts.** Anything outside the fragment is refused up
+front, and the lowered problem has bounded variables, which the integer solver decides.
+
 ## What you can write
 
 ```smt2

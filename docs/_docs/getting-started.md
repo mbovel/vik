@@ -33,7 +33,7 @@ The same on a script you write here — press the play button in its corner:
 The front end supports what the theories below support: `declare-sort`, `declare-fun`, `declare-const`,
 `define-fun`, `declare-datatype(s)`, `assert`, `check-sat`, `check-sat-assuming`, `push`, `pop`,
 `reset-assertions`, `reset`, `set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
-not supported (strings, arrays, sets, floating point) are refused rather than read as uninterpreted
+not supported (strings, sets, floating point) are refused rather than read as uninterpreted
 sorts, so a script is never answered on a meaning VIK does not implement. `Real` literals — decimals and
 quotients like `(/ 1 3)` — become fresh constants defined by an integer equation (`3 k = 1`), so the
 solver still computes over integers; only a division or multiplication that is not linear is refused.

@@ -11,6 +11,9 @@ extraCSS:
 
 Monomorphic datatypes: constructors, selectors and testers, with fields of any supported sort.
 
+**Decision procedure: yes.** Injectivity, distinctness, exhaustiveness and acyclicity together decide
+`QF_DT`.
+
 ## What you can write
 
 ```smt2

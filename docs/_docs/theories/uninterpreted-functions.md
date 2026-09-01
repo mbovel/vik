@@ -12,6 +12,8 @@ extraCSS:
 Sorts and functions you declare, of which the solver assumes nothing but congruence: equal arguments give
 equal results.
 
+**Decision procedure: yes.** Congruence closure decides `QF_UF`.
+
 ## What you can write
 
 ```smt2

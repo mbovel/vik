@@ -12,6 +12,9 @@ extraCSS:
 Every question is a formula: the connectives over the atoms of the theories. VIK decides the propositional
 structure with a CDCL(T) search, and the atoms with the theories described in the other pages.
 
+**Decision procedure: yes.** CDCL is complete for the propositional structure; a question is decided
+whenever its theory atoms are.
+
 ## What you can write
 
 `and`, `or`, `not`, `=>`, `xor`, `=` between formulas, `ite`, and `let` for sharing; `true` and `false`;
