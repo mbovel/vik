@@ -4,12 +4,12 @@ import scala.collection.mutable.ArrayBuffer
 import net.bovel.smt2.*
 import net.bovel.smt2.{Formula, Term}
 
-/** Runs a [[smt2.Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`, `pop` and
- *  `check-sat` become calls, and the responses are returned: `sat`, `unsat` or
- *  `unknown` per `check-sat`, and the `:reason-unknown` of `get-info` —
- *  `resourceout` when the fuel is spent (`:rlimit`, or `fuel` here), `timeout`
- *  when the `:timeout` (milliseconds) passed, `canceled` when the caller
- *  stopped it.
+/** Runs a [[smt2.Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`,
+ *  `pop` and `check-sat` become calls, and the responses are returned: `sat`,
+ *  `unsat` or `unknown` per `check-sat`, and the `:reason-unknown` of
+ *  `get-info` — `resourceout` when the fuel is spent (`:rlimit`, or `fuel`
+ *  here), `timeout` when the `:timeout` (milliseconds) passed, `canceled` when
+ *  the caller stopped it.
  */
 object Player:
   private def valueText(m: Model, item: Formula | Term): String = item match
