@@ -49,10 +49,32 @@ bit-blasting solver ([evaluation](../evaluation.md)).
 
 ## Internals
 
-Every bit-vector term becomes an integer with its range asserted, and every operation becomes its arithmetic
-image, with an overflow count where the modulus needs one: `bvadd a b` is `a + b - 2ⁿ·k` with `k` a fresh
-constant in `{0, 1}`, `extract` is a division and a remainder by powers of two, `concat` a weighted sum, the
-signed comparisons are unsigned ones on the value shifted by the sign bit. The lowering is part of the solver (`net.bovel.vik.BitVectors`), which the front end drives as it reads a
+Every bit-vector term becomes an integer with its range asserted, and every operation becomes its
+arithmetic image (`net.bovel.vik.BitVectors`), with fresh bounded constants where the modulus or a
+division needs them — each fresh constant is declared and defined by one linear equation before the
+assertion that uses it. Constant arguments fold at parse time. For an `n`-bit term, `2ⁿ` is written
+`m` below:
+
+| Operation | Integer image | Fresh constants and their defining equation |
+|---|---|---|
+| a declared `(_ BitVec n)` constant `a` | `a` | none; `0 ≤ a ≤ m − 1` asserted |
+| `bvadd a b` | `r` | `r ∈ [0, m)`, `k ∈ {0, 1}`: `a + b = r + m·k` |
+| `bvsub a b` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `a − b = r + m·k` |
+| `bvneg a` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `−a = r + m·k` |
+| `bvnot a` | `m − 1 − a` | none |
+| `bvmul a c`, `c` a constant | `r` | `r ∈ [0, m)`, `k ∈ [0, c − 1]`: `c·a = r + m·k` |
+| `bvshl a c` | as `bvmul a 2ᶜ`; `0` when `c ≥ n` | as `bvmul` |
+| `bvlshr a c` | `q` | `q ∈ [0, m/2ᶜ)`, `r ∈ [0, 2ᶜ)`: `a = 2ᶜ·q + r`; `0` when `c ≥ n` |
+| `bvudiv a c` | `q` | `q ∈ [0, (m−1)/c]`, `r ∈ [0, c)`: `a = c·q + r`; `m − 1` when `c = 0` |
+| `bvurem a c` | `r` | the same division; `a` when `c = 0` |
+| `bvand a c`, `c = 2ᵏ − 1` | `r` | `q, r` of `a = 2ᵏ·q + r`: the low bits are the remainder |
+| `bvand a c`, `c = m − 2ᵏ` | `a − r` | the same division: the high bits are what remains |
+| `extract i j a` | `r₂` | `a = 2ʲ·q₁ + r₁`, then `q₁ = 2^(i−j+1)·q₂ + r₂` |
+| `concat a b`, `b` of width `k` | `2ᵏ·a + b` | none |
+| `zero_extend k a` | `a` | none |
+| `sign_extend k a` | `a + (2^(n+k) − m)·s` | `s ∈ {0, 1}`, `u ∈ [0, m/2)`: `a = u + (m/2)·s` |
+| `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
+| `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit | The lowering is part of the solver (`net.bovel.vik.BitVectors`), which the front end drives as it reads a
 script — it declares the constants the lowering asks for and asserts their definitions (`Lowering`): the
 `set-logic` is rewritten, so the script that VIK plays is a `QF_LIA` script, which `(get-info)`-style
 inspection or the [playground](https://github.com/mbovel/vik) will show you.
