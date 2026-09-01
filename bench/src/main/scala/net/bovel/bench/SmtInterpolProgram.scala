@@ -120,7 +120,7 @@ object SmtInterpolProgram:
       name, {
         val id = sortIds.size
         name match
-          case "Int" | "Bool" => out += Op.MkSort(id, name)
+          case "Int" | "Bool" | "Real" => out += Op.MkSort(id, name)
           case _ => out += Op.DeclareSort(id, name)
         id
       }
