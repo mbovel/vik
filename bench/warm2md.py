@@ -44,7 +44,12 @@ if "--blank" in arguments:
 
 by = collections.defaultdict(dict)
 for path in arguments:
-    for r in json.load(open(path)):
+    try:
+        records = json.load(open(path))
+    except json.JSONDecodeError:
+        print(f"warm2md: skipping unreadable {path} (a run in progress?)", file=sys.stderr)
+        continue
+    for r in records:
         solver = r["benchmark"].split(".")[-1]
         instance = r["params"]["file"].removesuffix(".smt2")
         xs = [x for iteration in r["primaryMetric"]["rawData"] for x in iteration]

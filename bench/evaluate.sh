@@ -79,10 +79,11 @@ cold() { bench/cold.sh > "$OUT-cold.tsv"; }
 regen() {
   # Per group, the newest dated file: a partial re-measurement updates its groups and leaves the
   # others at their last measured values, and the next full run heals everything to one date.
+  # All dates per group, oldest first: the newest measurement of a cell wins, and an instance
+  # only measured on an earlier date keeps its row until a newer run covers it.
   local jsons=() suffix f
   for suffix in warm warm-p warm-inc warm-inc-s warm-inc-slow warm-inc-p warm-neq warm-ho warm-ho-c warm-arr; do
-    f=$(ls -t $R/*-$suffix.json 2>/dev/null | head -1)
-    [ -n "$f" ] && jsons+=("$f")
+    for f in $(ls -tr $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # a running measurement pre-creates its file empty
   done
   local cold_tsv; cold_tsv=$(ls -t $R/*-cold.tsv | head -1)
   echo "regen from: ${jsons[*]} $cold_tsv"
@@ -92,7 +93,7 @@ regen() {
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "${jsons[0]}")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$(ls -t $R/*-warm.json | head -1)")|" docs/_docs/evaluation.md
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-inc\.json|results/smt/$(basename "$(ls -t $R/*-warm-inc.json | head -1)")|" docs/_docs/evaluation.md
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-neq\.json|results/smt/$(basename "$(ls -t $R/*-warm-neq.json | head -1)")|" docs/_docs/evaluation.md
   rm -r "$tmp"
