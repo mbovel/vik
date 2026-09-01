@@ -4,6 +4,7 @@ import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.egraph.{App, EClassId, EGraph, Rules}
+import net.bovel.smt2.*
 
 /** Algebraic datatypes as rules of the e-graph (Barrett, Shikanian and Tinelli
  *  2007, with the hooks of docs/adt-plan.md). The encoder registers the classes

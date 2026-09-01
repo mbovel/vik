@@ -250,7 +250,7 @@ python3 bench/cold2md.py cold.tsv \
   --blank smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000
 
 # the native binary and the WebAssembly module the cold run uses
-sbt "smt2Native/nativeLink; docsAssets"
+sbt "vikNative/nativeLink; docsAssets"
 ```
 
 The raw data of this page, committed in the repository:

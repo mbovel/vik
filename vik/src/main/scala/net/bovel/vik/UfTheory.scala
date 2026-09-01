@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import net.bovel.cdclt.{Lit, Theory, Var}
 import net.bovel.egraph.{EClassId, EGraph}
+import net.bovel.smt2.*
 
 /** Equality with uninterpreted functions over an [[net.bovel.egraph.EGraph]],
  *  as a theory of the CDCL(T) solver: the atom of variable `v` is `t = u` for

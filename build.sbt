@@ -61,9 +61,10 @@ lazy val lia = projectMatrix
 // Terms, formulas and the solver over the theories: subprojects `vik` (JVM), `vikJS` and `vikNative`.
 lazy val vik = projectMatrix
   .in(file("vik"))
-  .dependsOn(cdclt, egraph, lia)
+  .dependsOn(cdclt, egraph, lia, smt2)
   .settings(
     name := "vik",
+    Compile / mainClass := Some("net.bovel.vik.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -73,22 +74,21 @@ lazy val vik = projectMatrix
 // SMT-LIB 2 scripts: subprojects `smt2` (JVM) and `smt2JS`.
 lazy val smt2 = projectMatrix
   .in(file("smt2"))
-  .dependsOn(sexpr, vik)
+  .dependsOn(sexpr)
   .settings(
     name := "smt2",
-    Compile / mainClass := Some("net.bovel.smt2.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
-lazy val smt2JVM = smt2.jvm(scala3Version)
+lazy val vikJVM = vik.jvm(scala3Version)
 
 // The corpus on disk and its importer, and the tests that play it (JVM only): forked with a fixed
 // heap, the same memory budget on every machine.
 lazy val smt2utils = (project in file("smt2utils"))
-  .dependsOn(smt2JVM, smt2JVM % "test->test")
+  .dependsOn(vikJVM, vikJVM % "test->test")
   .settings(
     name := "smt2utils",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
@@ -125,7 +125,7 @@ import org.scalajs.linker.interface.ESVersion
 lazy val docsPlayground = project
   .in(file("docsPlayground"))
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(smt2.js(scala3Version))
+  .dependsOn(vik.js(scala3Version))
   .settings(
     name := "docsPlayground",
     scalaJSLinkerConfig ~= {
@@ -137,7 +137,7 @@ lazy val docsPlayground = project
 lazy val docsPlaygroundJs = project
   .in(file("target/docsPlayground-js"))
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(smt2.js(scala3Version))
+  .dependsOn(vik.js(scala3Version))
   .settings(
     name := "docsPlaygroundJs",
     Compile / scalaSource := (docsPlayground / Compile / scalaSource).value,
@@ -147,7 +147,7 @@ lazy val docsPlaygroundJs = project
 lazy val playground = project
   .in(file("playground"))
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(egraph.js(scala3Version), smt2.js(scala3Version))
+  .dependsOn(egraph.js(scala3Version), vik.js(scala3Version))
   .settings(
     name := "playground",
     scalaJSUseMainModuleInitializer := true,

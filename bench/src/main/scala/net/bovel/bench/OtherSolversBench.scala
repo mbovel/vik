@@ -10,7 +10,8 @@ import com.microsoft.z3.{Context, Status}
 import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
-import net.bovel.smt2.{Corpus, Parser, Player, Printer, Script as VikScript}
+import net.bovel.smt2.{Corpus, Parser, Printer, Script as VikScript}
+import net.bovel.vik.Player
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5

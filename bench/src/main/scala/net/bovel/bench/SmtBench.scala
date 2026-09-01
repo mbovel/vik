@@ -6,7 +6,8 @@ import scala.compiletime.uninitialized
 import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.smt2.{Parser, Player, Script}
+import net.bovel.smt2.{Parser, Script}
+import net.bovel.vik.Player
 import net.bovel.smt2.Corpus
 
 /** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release

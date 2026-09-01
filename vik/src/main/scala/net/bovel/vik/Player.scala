@@ -1,8 +1,8 @@
-package net.bovel.smt2
-
+package net.bovel.vik
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.vik.{Formula, Model, Solver, Term}
+import net.bovel.smt2.*
+import net.bovel.smt2.{Formula, Term}
 
 /** Runs a [[Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`, `pop` and
  *  `check-sat` become calls, and the responses are returned: `sat`, `unsat` or

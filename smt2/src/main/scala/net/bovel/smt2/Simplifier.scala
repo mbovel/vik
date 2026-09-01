@@ -1,4 +1,4 @@
-package net.bovel.vik
+package net.bovel.smt2
 
 import scala.collection.mutable.HashMap
 

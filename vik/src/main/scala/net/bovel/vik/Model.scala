@@ -1,6 +1,7 @@
 package net.bovel.vik
 
 import net.bovel.lia
+import net.bovel.smt2.*
 
 /** A model of a `Sat` answer, taken from the engines before the solver unwound:
  *  values for the declared constants, and a finite graph per declared function

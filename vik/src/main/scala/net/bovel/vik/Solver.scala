@@ -9,6 +9,7 @@ import net.bovel.cdclt
 import net.bovel.cdclt.{Lit, Theory}
 import net.bovel.egraph.{App, EClassId, EGraph, NoRules}
 import net.bovel.lia
+import net.bovel.smt2.*
 
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
  *  functions and linear integer arithmetic: `assert` formulas, `push` and `pop`
@@ -192,7 +193,11 @@ final class Solver(val simplify: Boolean = true):
       case cdclt.Solver.Result.Sat(model) =>
         // A satisfying assignment that equates entangled lambdas proves nothing: no finite witness
         // justifies a pointwise identity like g(g x) = x + 1, which no total g satisfies.
-        if e.entangledLambdas.flatMap(e.litOf).exists(l => model(l.variable) == l.positive) then
+        if e.entangledLambdas.exists((f, sel) =>
+            e.litOf(f).exists(l => model(l.variable) == l.positive)
+              && (sel == null || model(sel.nn.variable) == sel.nn.positive)
+          )
+        then
           Result.Unknown(Reason.Stopped)
         else
           lastCore = Nil
@@ -310,7 +315,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
-      if a != b && isInt(a) && isInt(b) && !sharedPairs((b, a)) && sharedPairs.add((a, b)) then pairs += ((a, b))
+      if a != b && isInt(a) && isInt(b) && Sorts.arrow(sortOf(a)).isEmpty && Sorts.arrow(sortOf(b)).isEmpty
+        && !sharedPairs((b, a)) && sharedPairs.add((a, b))
+      then pairs += ((a, b))
       else if a != b && Sorts.arrow(sortOf(a)).isDefined && Sorts.arrow(sortOf(b)).isDefined
         && Term.closed(a) && Term.closed(b) && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then arrayPairs += ((a, b))
@@ -384,7 +391,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  a finite graph looks consistent). A `Sat` with such a literal true is
    *  reported `Unknown` instead.
    */
-  val entangledLambdas = ArrayBuffer.empty[Formula]
+  val entangledLambdas = ArrayBuffer.empty[(Formula, Lit | Null)] // with the script level's selector, if any
 
   private def entangled(l: Term, r: Term): Boolean =
     def lam(t: Term): Boolean = t.isInstanceOf[Term.Lambda]
@@ -428,7 +435,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         changed = true
 
   private def applicable(a: Term.App, q: Term): Boolean =
-    a.fun != q &&
+    a != q && // a term is not applied to itself: the lemma would equate it with its own application
+      a.fun != q &&
       (Sorts.arrow(sortOf(q)) match
         case Some((params, _)) =>
           a.args.length <= params.length &&
@@ -673,7 +681,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula
             formula match
-              case Formula.Eq(l, r) if entangled(l, r) => entangledLambdas += formula
+              case Formula.Eq(l, r) if entangled(l, r) => entangledLambdas += ((formula, currentSelector))
               case _ => ()
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
@@ -722,6 +730,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    */
   private val assertedEqualities = scala.collection.mutable.HashSet.empty[Formula]
 
+  /** The selector of the assertion being encoded, recorded with its entangled
+   *  equalities.
+   */
+  private var currentSelector: Lit | Null = null
+
   /** Asserts `formula`, guarded by the selector literal `under` when it is not
    *  null: the clause holds only while the selector does — a script level's
    *  assertion (see [[Solver.push]]).
@@ -730,7 +743,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     formula match
       case Formula.Eq(_, _) => assertedEqualities += formula
       case _ => ()
+    currentSelector = under
     val l = lit(formula)
+    currentSelector = null
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
 
   /** A fresh selector literal for a script level. */

@@ -1,5 +1,6 @@
 package net.bovel.vik
 
+import net.bovel.smt2.*
 import Formula.*
 import Term.*
 

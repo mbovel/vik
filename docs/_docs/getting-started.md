@@ -103,5 +103,5 @@ the companion adds `Lt`, `Ge`, `Gt`, `IntEq`, `Distinct`; the operators `===`, `
 VIK is modular, and each layer is usable without the ones above it — the
 [e-graph](components/egraph.md) for congruence closure, the [CDCL(T) solver](components/cdclt.md) for a SAT
 problem with a theory of your own, the [LIA solver](components/lia.md) for a system of integer constraints,
-the [front end](components/front-end.md) to read and print SMT-LIB. Each of those pages shows its API, and
+[the language](components/smt2.md) to read and print SMT-LIB. Each of those pages shows its API, and
 the [API documentation](api/index.html) has the details.

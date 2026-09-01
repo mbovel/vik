@@ -1,5 +1,6 @@
 package net.bovel.bench
 
+import net.bovel.smt2.*
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
@@ -7,9 +8,10 @@ import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
 import net.bovel.vik.* // the formula and term operators
-import net.bovel.vik.{Constructor, Datatype, Formula, Solver, Term}
-import net.bovel.vik.Formula.*
-import net.bovel.vik.Term.*
+import net.bovel.vik.{Solver}
+import net.bovel.smt2.{Constructor, Datatype, Formula, Term}
+import net.bovel.smt2.Formula.*
+import net.bovel.smt2.Term.*
 
 /** Datatypes: random formulas over the finite datatypes `Color` (three
  *  constants) and `Pair` (two colors) with `n` pair constants, a mix of

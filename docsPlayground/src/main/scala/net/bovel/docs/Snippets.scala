@@ -3,7 +3,8 @@ package net.bovel.docs
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 import net.bovel.vik.Solver
-import net.bovel.smt2.{Parser, Player, Printer}
+import net.bovel.smt2.{Parser, Printer}
+import net.bovel.vik.Player
 
 /** The solver as a WebAssembly module for the documentation pages: the
  *  snippets of the guide are run by `solve`, in the reader's browser. Linked

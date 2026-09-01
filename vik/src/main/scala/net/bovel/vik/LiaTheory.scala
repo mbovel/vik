@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import net.bovel.cdclt.{Lit, Theory}
 import net.bovel.lia
+import net.bovel.smt2.*
 
 /** Linear integer arithmetic as a theory of the CDCL(T) solver: the atom of
  *  variable `v` is `atoms(v)`, on a variable `x` of the LIA solver standing for

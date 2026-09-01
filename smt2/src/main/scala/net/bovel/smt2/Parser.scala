@@ -4,21 +4,19 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{SAtom, SList}
-import net.bovel.vik.{BitVectors, Constructor, Datatype, Formula, Lowering, Sorts, Term}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
- *  `Int` into [[net.bovel.vik.Term]]s and Boolean terms into
- *  [[net.bovel.vik.Formula]]s. Bit-vectors are lowered to integers (see
- *  [[BitVectors]]). Sorts of declared symbols decide which is which: `=` on
- *  Booleans is `Iff`, on integers two bounds; a Boolean-sorted constant or
- *  application is a `Pred`; `+`, `-` and `*` by a numeral build linear
- *  combinations, `<=`, `<`, `>=` and `>` bounds. `let` binds names to
- *  translated values; `define-fun` is a macro; `distinct` is expanded to
- *  pairwise disequalities; `ite` on terms is lowered to a fresh constant with
- *  two defining assertions placed before the assertion that uses it. Functions
- *  with `Int` in their signature are rejected: the solver does not combine the
- *  two theories yet.
+ *  `Int` into [[Term]]s and Boolean terms into [[Formula]]s. Bit-vectors are
+ *  lowered to integers (see [[BitVectors]]). Sorts of declared symbols decide
+ *  which is which: `=` on Booleans is `Iff`, on integers two bounds; a
+ *  Boolean-sorted constant or application is a `Pred`; `+`, `-` and `*` by a
+ *  numeral build linear combinations, `<=`, `<`, `>=` and `>` bounds. `let`
+ *  binds names to translated values; `define-fun` is a macro; `distinct` is
+ *  expanded to pairwise disequalities; `ite` on terms is lowered to a fresh
+ *  constant with two defining assertions placed before the assertion that uses
+ *  it. Functions with `Int` in their signature are rejected: the solver does
+ *  not combine the two theories yet.
  */
 /** One parse: the class carries the declarations, macros and sorts the commands
  *  build up, so [[Parser.parse]] makes a fresh one per input.

@@ -1,13 +1,15 @@
 package net.bovel.bench
 
+import net.bovel.smt2.*
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.vik.{Formula, Solver, Term}
-import net.bovel.vik.Formula.*
-import net.bovel.vik.Term.*
+import net.bovel.vik.{Solver}
+import net.bovel.smt2.{Formula, Term}
+import net.bovel.smt2.Formula.*
+import net.bovel.smt2.Term.*
 
 /** Lambdas: `n` function symbols defined by lambdas in a chain,
  *  `g_0 = λx. f(x)` and `g_i = λx. g_{i-1}(x) + 1`, and `g_n(c)` compared with

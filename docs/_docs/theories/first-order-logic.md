@@ -54,7 +54,7 @@ conflict (a set of literals that cannot hold together, learned as a clause) or w
 The solver has two watched literals per clause, first-UIP learning, VMTF decisions, phase saving and Luby
 restarts, and it asks the theories for a final check when every variable is assigned.
 
-Before that, a [simplifier](../components/front-end.md) eliminates the constants that are local to a
+Before that, a [simplifier](../components/smt2.md) eliminates the constants that are local to a
 conjunction — `c = t ∧ φ` becomes `φ[t/c]` when `c` occurs nowhere else and the conjunction is in a positive
 position. That is what turns the `eq_diamond` family from an exponential path enumeration into a single
 equality, and it is polarity-aware, because under a negation the conjunction is not an existential context.

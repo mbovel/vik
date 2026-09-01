@@ -1,6 +1,7 @@
 package net.bovel.smt2
 
-import net.bovel.vik.{Formula, Solver, Term}
+import net.bovel.vik.{Player, Solver}
+import net.bovel.smt2.{Formula, Term}
 
 /** `get-model` and `get-value`, and the models' soundness: the assertions of a
  *  sat script hold under the model the solver reports.

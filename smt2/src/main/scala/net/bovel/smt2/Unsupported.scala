@@ -1,4 +1,7 @@
-package net.bovel.vik
+package net.bovel.smt2
+
+import Formula.*
+import Term.*
 
 /** Something the solver does not decide: an operation outside a fragment (a
  *  bit-vector multiplication of two unknowns, see [[BitVectors]]), a sort of a

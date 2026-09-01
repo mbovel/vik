@@ -1,7 +1,6 @@
 package net.bovel.smt2
 
 import net.bovel.sexpr.SExpr
-import net.bovel.vik.{Datatype, Formula, Term}
 
 /** A command of an SMT-LIB 2 script, restricted to what the supported logics
  *  need.
@@ -83,4 +82,4 @@ final case class Script(commands: List[Command]):
         case _ => ()
     out.result()
 
-case class Smt2Error(message: String) extends net.bovel.vik.Unsupported(message)
+case class Smt2Error(message: String) extends Unsupported(message)

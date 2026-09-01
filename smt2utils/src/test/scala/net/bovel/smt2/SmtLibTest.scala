@@ -1,5 +1,6 @@
 package net.bovel.smt2
 
+import net.bovel.vik.{Player, Solver, Model}
 import scala.concurrent.duration.Duration
 import scala.util.Try
 
@@ -33,7 +34,7 @@ class SmtLibTest extends munit.FunSuite:
         val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
         val responses =
           if expects.isEmpty || reason.isDefined ||
-            !List("(get-value", "(get-model", "(get-unsat-core").exists(text.contains)
+            !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
           then expects
           else Player.run(script, fuel = fuel)
         (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")

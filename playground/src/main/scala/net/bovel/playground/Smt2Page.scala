@@ -2,7 +2,8 @@ package net.bovel.playground
 
 import org.scalajs.dom
 import org.scalajs.dom.{document, html}
-import net.bovel.smt2.{Parser, Player, Printer}
+import net.bovel.smt2.{Parser, Printer}
+import net.bovel.vik.Player
 
 /** The SMT-LIB page: a script in, the answers of its `check-sat` commands and
  *  the script as VIK plays it (bit-vectors lowered to integers) out.

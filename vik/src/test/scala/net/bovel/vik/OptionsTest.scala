@@ -1,4 +1,6 @@
-package net.bovel.smt2
+package net.bovel.vik
+
+import net.bovel.smt2.*
 
 /** `:rlimit` (the fuel), `:timeout`, and `:reason-unknown`. */
 class OptionsTest extends munit.FunSuite:

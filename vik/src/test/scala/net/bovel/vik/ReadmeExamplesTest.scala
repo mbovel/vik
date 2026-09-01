@@ -1,9 +1,10 @@
-package net.bovel.smt2
+package net.bovel.vik
 
 import scala.collection.immutable.ArraySeq
 
+import net.bovel.smt2.*
+import net.bovel.smt2.Term.{App, Const, Num}
 import net.bovel.vik.*
-import net.bovel.vik.Term.{App, Const, Num}
 
 /** The examples of the README's Usage section, as written there. */
 class ReadmeExamplesTest extends munit.FunSuite:

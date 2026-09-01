@@ -1,4 +1,6 @@
-package net.bovel.smt2
+package net.bovel.vik
+
+import net.bovel.smt2.*
 
 /** `:named` assertions and `get-unsat-core`. */
 class CoresTest extends munit.FunSuite:

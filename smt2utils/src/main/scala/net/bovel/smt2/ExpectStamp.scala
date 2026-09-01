@@ -1,5 +1,6 @@
 package net.bovel.smt2
 
+import net.bovel.vik.{Player, Solver, Model}
 import java.nio.file.Files
 
 /** Stamps the corpus files that query values — `get-value`, `get-model`,

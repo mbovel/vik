@@ -1,8 +1,9 @@
-package net.bovel.smt2
+package net.bovel.vik
 
-import net.bovel.vik.{Constructor, Datatype, Formula, Term}
-import net.bovel.vik.Formula.*
-import net.bovel.vik.Term.*
+import net.bovel.smt2.*
+import net.bovel.smt2.{Constructor, Datatype, Formula, Term}
+import net.bovel.smt2.Formula.*
+import net.bovel.smt2.Term.*
 
 /** Datatype declarations: parsed, represented, printed; refused at `check-sat`
  *  until the theory exists.
