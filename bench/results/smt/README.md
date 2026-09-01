@@ -26,7 +26,7 @@ From the repository root (see [bench/README.md](../../README.md) for the setup o
 sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*SmtBench.solve .*OtherSolversBench.vik"   # VIK on every instance
 sbt "bench/Jmh/run -p file=eq_diamond__eq_diamond50.smt2"     # one instance
 bench/.venv/bin/python bench/jmh2md.py target/jmh-result.json
-bench/compare.sh 60 > bench/results/smt/compare.tsv   # wall clock vs z3, cvc5, princess, SMTInterpol
+bench/cold.sh bench/evaluation-instances.txt > bench/results/smt/cold.tsv   # wall clock vs z3, cvc5, princess, SMTInterpol
 ```
 
 The other benchmarks are recorded on subsets (`-p file=...`): `parse` and `smtinterpol` on a few representative instances,
@@ -41,9 +41,9 @@ libraries are downloaded by `bench/fetch-native.sh` into `bench/native/` (Linux 
 counterpart of `vik`, which solves the tree). `sbt "bench/runMain net.bovel.bench.SolverCheck"` runs every in-process
 solver on every instance and reports disagreements with the expected status.
 
-`compare.sh` runs each solver as a separate process with a timeout (default 60 s) and records the answer and the wall
-clock, JVM start-up included for VIK, princess and SMTInterpol. z3 and cvc5 are taken from the `PATH`; princess and
-SMTInterpol are fetched with [coursier](https://get-coursier.io).
+`cold.sh` runs each solver as a separate process on the instances of a file list, with a timeout, and records the
+answer and the wall clock over repetitions, JVM start-up included for VIK, princess and SMTInterpol. z3 and cvc5 are
+taken from the `PATH`; princess and SMTInterpol are fetched with [coursier](https://get-coursier.io).
 
 ## Current results
 
