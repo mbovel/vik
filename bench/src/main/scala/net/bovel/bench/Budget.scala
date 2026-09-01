@@ -18,7 +18,12 @@ import net.bovel.smt2.Corpus
  *  a halted or refusing fork is a recorded fact, not the end of the evaluation.
  */
 object Budget:
-  private val budgetNanos = 5_000_000_000L
+  /** Five seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry
+   *  run raises it — a JIT-cold single invocation on a slow runner is a smoke
+   *  test, not a measurement.
+   */
+  private val budgetNanos =
+    java.lang.Long.getLong("vik.bench.budgetMs", 5000L).nn.longValue * 1_000_000L
   private val ledger: Path = Corpus.root.getParent.resolve("bench").resolve("timeouts.txt")
   private val noted: Set[String] =
     if Files.exists(ledger) then Files.readAllLines(ledger).asScala.filter(_.nonEmpty).toSet
