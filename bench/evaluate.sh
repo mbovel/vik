@@ -44,40 +44,34 @@ ARR="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_
 BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,princess:NEQ__NEQ004_size4,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
 BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
 
-jmh() { # jmh <rff> <files> <methods regex> [fork flags — REPLACE the defaults entirely]
+# Each group is one `bench/Jmh/run` segment; warm() chains all segments into a single sbt
+# invocation — one client, one server session. Reattaching a fresh client per group wedged twice
+# on 2026-09-01: the server accepted the command and never launched the fork. The CI bench job's
+# chained shape never wedged.
+# -foe: any unrecoverable benchmark error fails the run — combos that cannot run are excluded by
+# the groups, never tolerated as failures. A segment's fork flags stand alone (JMH refuses
+# duplicate options, so defaults and overrides must never be concatenated).
+seg() { # seg <rff> <files> <methods regex> [fork flags — replace the defaults entirely]
   local rff=$1 files=$2 methods=$3; shift 3
   local forks="$*"; [ -z "$forks" ] && forks="-f 2 -wi 3 -i 3"
-  # The ceiling catches a wedged run; -k because an sbt client can ignore TERM while its fork lives.
-  # -foe: any unrecoverable benchmark error fails the run — combos that cannot run are excluded by
-  # the groups, never tolerated as failures. Caller flags replace the default forks: JMH refuses
-  # duplicate options, so the two sets must never be concatenated.
-  timeout -k 30 5400 sbt "bench/Jmh/run -foe true $forks -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$"
+  printf '%s' "bench/Jmh/run -foe true $forks -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$; "
 }
 
 warm() {
-  jmh "$OUT-warm.json"          "$MAIN"           "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)"
-  jmh "$OUT-warm-p.json"        "$MAIN"           "princess" -f 1 -wi 1 -i 3
-  jmh "$OUT-warm-inc.json"      "$INC"            "(vik|vikText|z3Direct|cvc5|smtinterpol)"
-  jmh "$OUT-warm-inc-s.json"    "$INC_SLOW"       "(z3Direct|cvc5|smtinterpol)"
-  jmh "$OUT-warm-inc-slow.json" "$INC_SLOW"       "(vik|vikText)" -f 1 -wi 1 -i 2
-  jmh "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2
-  jmh "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)"
+  local chain=""
+  chain+=$(seg "$OUT-warm.json"          "$MAIN"           "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm-p.json"        "$MAIN"           "princess" -f 1 -wi 1 -i 3)
+  chain+=$(seg "$OUT-warm-inc.json"      "$INC"            "(vik|vikText|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm-inc-s.json"    "$INC_SLOW"       "(z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm-inc-slow.json" "$INC_SLOW"       "(vik|vikText)" -f 1 -wi 1 -i 2)
+  chain+=$(seg "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2)
+  chain+=$(seg "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
   # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
-  jmh "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText)"
-  jmh "$OUT-warm-ho-c.json"     "regress0__define-fun-model.smt2" "cvc5"
-  jmh "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)"
-  python3 - "$OUT" <<'PY'
-import json, sys, pathlib
-out = sys.argv[1]
-def cat(dst, *srcs):
-    rows = []
-    for s in srcs:
-        p = pathlib.Path(f"{out}-{s}.json")
-        if p.exists(): rows += json.load(open(p)); p.unlink()
-    json.dump(rows, open(f"{out}-{dst}.json", "w"), indent=1)
-cat("warm", "warm", "warm-p", "warm-ho", "warm-arr")
-cat("warm-inc", "warm-inc", "warm-inc-s", "warm-inc-slow", "warm-inc-p")
-PY
+  chain+=$(seg "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText)")
+  chain+=$(seg "$OUT-warm-ho-c.json"     "regress0__define-fun-model.smt2" "cvc5")
+  chain+=$(seg "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)")
+  # The ceiling catches a wedged run; -k because an sbt client can ignore TERM while its fork lives.
+  timeout -k 30 14400 sbt "${chain%; }"
 }
 
 cold() { bench/cold.sh > "$OUT-cold.tsv"; }
