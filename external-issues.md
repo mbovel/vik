@@ -182,6 +182,17 @@ Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.
   with `data-unresolved-link`, so they do not link to anything.
 - **Reproduce**: any Scala 3 enum with parameterized cases; open the generated page of a case.
 
+### 2. The content table style pads every element inside the table (2026-09-01)
+
+- **Observed**: the theme's `bundle.css` has
+  `#content table * { padding: calc(2 * var(--base-spacing)) var(--base-spacing) 17px; }` — every
+  descendant of a table gets cell padding: rows, links, emphasis, spans, all inflating the cells.
+  Surely meant for `td` and `th` only.
+- **Reproduce**: any documentation page with a markdown table whose cells hold links or emphasis;
+  inspect an element inside a cell.
+- **Workaround**: `docs/_assets/css/site.css` zeroes the rule at the same specificity and pads only the
+  cells.
+
 ## SMTInterpol
 
 Version: `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-916-ga5843d8b` (Maven).

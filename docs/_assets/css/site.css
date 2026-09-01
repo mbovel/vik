@@ -9,3 +9,10 @@
 #toc ul.toc-list ul { padding-left: 1.5em; } /* one step per level below */
 #toc ul.toc-list > li > a { display: none; } /* this Scaladoc still emits the page title as the single top node */
 #toc ul.toc-list > li > ul { padding-left: 0; }
+
+/* Scaladoc's theme pads every element inside a table (`#content table *` in its bundle.css) — rows,
+   links, emphasis — inflating the cells; surely meant for the cells alone. Undone at the same
+   specificity (this sheet loads after the theme), the cells then get the padding the theme intended;
+   the theme's later rules, such as inline code chips, still apply inside cells. */
+#content table * { padding: 0; }
+#content table :is(td, th) { padding: calc(2 * var(--base-spacing)) var(--base-spacing) 17px; }
