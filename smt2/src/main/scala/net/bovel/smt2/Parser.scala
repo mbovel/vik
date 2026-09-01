@@ -52,16 +52,12 @@ private final class Parser:
         case other => throw Smt2Error(s"bad constructor list $other")
       })))
     case SList(SAtom("define-fun") :: SAtom(name) :: SList(params) :: s :: body :: Nil) =>
-      // A body outside the language (a quantifier, say) makes the definition inert: an unused
-      // macro then costs nothing, and a use of it is an unknown symbol.
-      try
-        val ps = parameters(params)
-        val result = sort(s)
-        val env = ps.toMap
-        val typed: Term | Formula = if result == Sort.Bool then formula(body, env) else term(body, env)
-        macros(name) = (ps, result, typed)
-        List(Command.DefineFun(name, ps, result, typed))
-      catch case _: Smt2Error => List(Command.Other(sexpr))
+      val ps = parameters(params)
+      val result = sort(s)
+      val env = ps.toMap
+      val typed: Term | Formula = if result == Sort.Bool then formula(body, env) else term(body, env)
+      macros(name) = (ps, result, typed)
+      List(Command.DefineFun(name, ps, result, typed))
     case SList(SAtom("assert") :: SList(SAtom("!") :: body :: attributes) :: Nil)
         if attributes.sliding(2).exists { case Seq(SAtom(":named"), _) => true; case _ => false } =>
       val name = attributes.sliding(2).collectFirst { case Seq(SAtom(":named"), SAtom(n)) => n }.get
@@ -252,6 +248,7 @@ private final class Parser:
   private def formula(sexpr: SExpr, env: Map[String, Sort]): Formula = sexpr match
     case SAtom("true") => True
     case SAtom("false") => False
+    case SList(SAtom(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
     case SList(SAtom("not") :: arg :: Nil) => Not(formula(arg, env))
     case SList(SAtom("and") :: args) => And(args.map(formula(_, env)))
     case SList(SAtom("or") :: args) => Or(args.map(formula(_, env)))
@@ -297,6 +294,7 @@ private final class Parser:
   private def term(sexpr: SExpr, env: Map[String, Sort]): Term = sexpr match
     case SAtom("true") => Term.Bool(True)
     case SAtom("false") => Term.Bool(False)
+    case SList(SAtom(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
     // A formula-shaped tree where a term is expected (an argument, a field, a lambda body).
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "distinct" | "<=" | "<" | ">=" | ">") :: _) =>
       Term.Bool(formula(sexpr, env))
