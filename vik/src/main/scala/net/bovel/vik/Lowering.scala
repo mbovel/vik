@@ -104,11 +104,24 @@ private final class Lowerer:
     case s2.Command.CheckSatAssuming(assumptions) =>
       flush(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
     case s2.Command.Push(levels) => List(Command.Push(levels))
-    case s2.Command.Pop(levels) => List(Command.Pop(levels))
-    case s2.Command.ResetAssertions => List(Command.ResetAssertions)
+    case s2.Command.Pop(levels) =>
+      // A defining assertion lives and dies with its level: a rational constant
+      // cached across the pop would come back without its definition, so later
+      // uses mint a fresh one, defined again.
+      rationals.clear()
+      rationalProducts.clear()
+      List(Command.Pop(levels))
+    case s2.Command.ResetAssertions =>
+      rationals.clear()
+      rationalProducts.clear()
+      List(Command.ResetAssertions)
     case s2.Command.Reset =>
       functions.clear()
       macros.clear()
+      rationals.clear()
+      rationalProducts.clear()
+      rationalValues.clear()
+      storeSymbols.clear()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
@@ -125,6 +138,8 @@ private final class Lowerer:
       )
       introduced.clear()
       definitions.clear()
+      rationals.clear() // a constant minted here has no definition: later uses must not find it
+      rationalProducts.clear()
       List(Command.GetValue(lowered))
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)

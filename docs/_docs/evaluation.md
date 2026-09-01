@@ -233,7 +233,7 @@ integers together are the combination the solver still pays most for (the solver
 - One machine, shared with other users; the numbers are medians and confidence intervals, not guarantees.
 - Twenty instances, chosen small and inside VIK's fragment. On the competition's hard instances VIK is far
   behind z3 and cvc5, and on some of them it does not finish at all — the
-  [corpus](https://github.com/mbovel/vik/tree/main/smtlib) records that: of its 986 files, 108 are marked as
+  [corpus](https://github.com/mbovel/vik/tree/main/smtlib) records that: of its 993 files, 105 are marked as
   out of the solver's reach or over the tests' five-second budget.
 - The in-process z3 and cvc5 go through the JavaSMT bindings, which cross the JNI boundary per call; their
   binaries are what the cold table measures. Both are reported.
