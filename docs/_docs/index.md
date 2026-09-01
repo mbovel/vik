@@ -29,16 +29,35 @@ editable, so change one and run it again.
 ## Where to go
 
 - [Getting started](getting-started.md): the command line, and the Scala API.
-- The theories, each with what you can write and how it is decided:
-  [first-order logic](theories/first-order-logic.md), [uninterpreted functions](theories/uninterpreted-functions.md),
-  [integer arithmetic](theories/integers.md), [real arithmetic](theories/reals.md),
-  [algebraic datatypes](theories/datatypes.md), [bit-vectors](theories/bit-vectors.md),
-  [functions as values](theories/lambdas.md), [arrays](theories/arrays.md).
-- The components, usable on their own: [the e-graph](components/egraph.md), [the CDCL(T) solver](components/cdclt.md),
-  [the LIA solver](components/lia.md), [the front end](components/front-end.md).
 - [Evaluation](evaluation.md): what it costs, warm and cold, against z3, cvc5, princess and SMTInterpol.
 - The [API documentation](api/index.html) of the six modules, and the
   [repository](https://github.com/mbovel/vik).
+
+## The theories
+
+Each page says what you can write, how it is solved, and first of all whether VIK decides it.
+
+| Theory | Decision procedure |
+|---|---|
+| [First-order logic](theories/first-order-logic.md) | Yes. |
+| [Uninterpreted functions](theories/uninterpreted-functions.md) | Yes. |
+| [Integer arithmetic](theories/integers.md) | No: branch and bound may not terminate on unbounded variables. |
+| [Real arithmetic](theories/reals.md) | Yes. |
+| [Algebraic datatypes](theories/datatypes.md) | Yes. |
+| [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
+| [Functions as values](theories/lambdas.md) | No: a sound core, with no completeness claim. |
+| [Arrays](theories/arrays.md) | Yes, for flat arrays. |
+
+## The components
+
+Each component is a module usable on its own. Lines are `wc -l` over its `src/main/scala`.
+
+| Component | Lines | What it is |
+|---|---|---|
+| [The e-graph](components/egraph.md) | 743 | Congruence closure with backtracking, explanations, disequalities and rules. |
+| [The CDCL(T) solver](components/cdclt.md) | 563 | A CDCL SAT solver with a theory interface. |
+| [The LIA solver](components/lia.md) | 684 | A simplex over the integers with branch and bound. |
+| [The front end](components/front-end.md) | 3076 | Terms and formulas, the simplifier, the encoder, and SMT-LIB in and out (`sexpr`, `vik`, `smt2`). |
 
 ## What it is for
 
