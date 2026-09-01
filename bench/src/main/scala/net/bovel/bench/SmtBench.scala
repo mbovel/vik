@@ -7,7 +7,7 @@ import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
 import net.bovel.smt2.{Parser, Script}
-import net.bovel.vik.Player
+import net.bovel.vik.{Lowering, Player}
 import net.bovel.smt2.Corpus
 
 /** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release
@@ -80,7 +80,7 @@ class SmtBench:
   @Setup(Level.Trial)
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file))
-    script = Parser.parse(text)
+    script = Lowering(Parser.parse(text)) // the tree as the solver plays it: bit-vectors already lowered
 
   @Benchmark
   def parse(): Int = Parser.parse(text).commands.length

@@ -71,6 +71,10 @@ object Printer:
       s"(lambda (${names.zip(sorts).map((n, s) => s"($n $s)").mkString(" ")}) $printed)"
     case Term.Var(index) => s"%${lambdaDepth - 1 - index}"
     case Term.Bool(formula) => print(formula)
+    case Term.Bits(value, width) => s"(_ bv$value $width)"
+    case Term.Bv(op, Nil, args) => args.map(print).mkString(s"($op ", " ", ")")
+    case Term.Bv(op, indices, args) =>
+      args.map(print).mkString(s"((_ $op ${indices.mkString(" ")}) ", " ", ")")
     case Term.Linear(terms, constant) =>
       val summands = terms.map((a, t) => if a == 1 then print(t) else s"(* ${print(Term.Num(a))} ${print(t)})") ++
         Option.when(constant.signum != 0)(print(Term.Num(constant)))

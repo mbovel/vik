@@ -50,9 +50,9 @@ bit-blasting solver ([evaluation](../evaluation.md)).
 ## Internals
 
 Every bit-vector term becomes an integer with its range asserted, and every operation becomes its
-arithmetic image (`net.bovel.vik.BitVectors`), with fresh bounded constants where the modulus or a
+arithmetic image (`net.bovel.vik.Lowering`), with fresh bounded constants where the modulus or a
 division needs them — each fresh constant is declared and defined by one linear equation before the
-assertion that uses it. Constant arguments fold at parse time. For an `n`-bit term, `2ⁿ` is written
+assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
 `m` below:
 
 | Operation | Integer image | Fresh constants and their defining equation |
@@ -76,9 +76,10 @@ assertion that uses it. Constant arguments fold at parse time. For an `n`-bit te
 | `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
 | `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit |
 
-The lowering is part of the solver (`net.bovel.vik.BitVectors`); any front end can drive it through the
-`Lowering` interface, and the SMT-LIB front end does as it reads a script — it declares the constants the
-lowering asks for and asserts their definitions, so the script that VIK plays is a `QF_LIA` script. Two
+The parser reads bit-vector terms as they are written — the tree has them (`Term.Bv`, `Term.Bits`) —
+and the lowering is one function of the solver, `net.bovel.vik.Lowering`: it takes a script and returns
+the lowered script, declaring the constants each assertion needs and asserting their definitions before
+it, so the script that VIK plays is a `QF_LIA` script. The player applies it before playing. Two
 ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and
 `smt2lowered file.smt2` on the command line prints a whole file as VIK will play it.
 

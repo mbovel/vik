@@ -50,9 +50,12 @@ object Player:
 
   /** The responses of the script, in order. */
   def run(script: Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[String] =
+    // The solver speaks integers: the bit-vectors of the script are lowered here, so the assertion
+    // stack, the models and the values are all in the lowered problem (see [[Lowering]]).
+    val lowered = Lowering(script)
     val responses = ArrayBuffer.empty[String]
     // Models cost a walk per sat: taken only when the script asks for them.
-    val wantsModels = script.commands.exists {
+    val wantsModels = lowered.commands.exists {
       case Command.GetModel | Command.GetValue(_) => true
       case Command.SetOption(":produce-models", "true") => true
       case _ => false
@@ -96,7 +99,7 @@ object Player:
           interpreted += c.tester
           interpreted ++= c.selectors.map(_._1)
       case _ => ()
-    for command <- script.commands do
+    for command <- lowered.commands do
       command match
         case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
           declarations += command

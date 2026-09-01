@@ -30,6 +30,16 @@ enum Term:
    */
   case Bool(formula: Formula)
 
+  /** A bit-vector literal of `width` bits, its value in `[0, 2^width)`. */
+  case Bits(value: BigInt, width: Int)
+
+  /** A bit-vector operation as SMT-LIB spells it — `bvadd`, `concat`, an
+   *  indexed `(_ extract i j)` — Boolean-sorted for the comparisons (`bvult`,
+   *  ...). The parser reads these as they are; the solver lowers them to
+   *  integers before anything else sees them (the solver's `Lowering`).
+   */
+  case Bv(op: String, indices: List[Int], args: List[Term])
+
   override def toString: String = this match
     case Const(name) => name
     case App(fun, args) => s"($fun ${args.mkString(" ")})"
@@ -37,6 +47,9 @@ enum Term:
     case Lambda(sorts, body) => s"(λ${sorts.mkString(" ")}. $body)"
     case Var(index) => s"_$index"
     case Bool(formula) => formula.toString
+    case Bits(value, width) => s"(_ bv$value $width)"
+    case Bv(op, Nil, args) => s"($op ${args.mkString(" ")})"
+    case Bv(op, indices, args) => s"((_ $op ${indices.mkString(" ")}) ${args.mkString(" ")})"
     case Linear(terms, constant) =>
       terms.map((a, t) => if a == 1 then s"$t" else s"${a}·$t").mkString(" + ") +
         (if constant.signum == 0 then "" else s" + $constant")
@@ -102,11 +115,12 @@ object Term:
     def subst(t: Term, depth: Int): Term = t match
       case Var(i) if i >= depth && i < depth + params => args(i - depth)
       case Var(i) if i >= depth + params => Var(i - params)
-      case Var(_) | Const(_) | Num(_) => t
+      case Var(_) | Const(_) | Num(_) | Bits(_, _) => t
       case App(f, as) => app(subst(f, depth), as.map(subst(_, depth)))
       case Linear(terms, c) => Term.linear(terms.map((a, u) => (a, subst(u, depth))), c)
       case Lambda(sorts, body) => Lambda(sorts, subst(body, depth + sorts.length))
       case Bool(formula) => boolean(formula.mapTerms(subst(_, depth)))
+      case Bv(op, indices, as) => Bv(op, indices, as.map(subst(_, depth)))
     val body = subst(lambda.body, 0) // the remaining parameters become `Var(0)`, `Var(1)`, ...
     val rest = lambda.sorts.drop(params)
     if rest.isEmpty then body else Lambda(rest, body)
@@ -119,11 +133,12 @@ object Term:
     else
       t match
         case Var(i) if i >= depth => Var(i + k)
-        case Var(_) | Const(_) | Num(_) => t
+        case Var(_) | Const(_) | Num(_) | Bits(_, _) => t
         case App(f, as) => App(shift(f, k, depth), as.map(shift(_, k, depth)))
         case Linear(terms, c) => Term.linear(terms.map((a, u) => (a, shift(u, k, depth))), c)
         case Lambda(sorts, body) => Lambda(sorts, shift(body, k, depth + sorts.length))
         case Bool(formula) => boolean(formula.mapTerms(shift(_, k, depth)))
+        case Bv(op, indices, as) => Bv(op, indices, as.map(shift(_, k, depth)))
 
   /** Whether `t` mentions no bound variable of an enclosing lambda. */
   /** The names of the constants of a term, `fun` positions included. */
@@ -134,20 +149,22 @@ object Term:
       case App(fun, args) =>
         walk(fun)
         args.foreach(walk)
-      case Num(_) | Var(_) => ()
+      case Num(_) | Var(_) | Bits(_, _) => ()
       case Linear(terms, _) => terms.foreach((_, u) => walk(u))
       case Lambda(_, body) => walk(body)
       case Bool(formula) => formula.terms.foreach(walk)
+      case Bv(_, _, args) => args.foreach(walk)
     walk(term)
     out.toSet
 
   def closed(t: Term, depth: Int = 0): Boolean = t match
     case Var(i) => i < depth
-    case Const(_) | Num(_) => true
+    case Const(_) | Num(_) | Bits(_, _) => true
     case App(f, as) => closed(f, depth) && as.forall(closed(_, depth))
     case Linear(terms, _) => terms.forall((_, u) => closed(u, depth))
     case Lambda(sorts, body) => closed(body, depth + sorts.length)
     case Bool(formula) => formula.terms.forall(closed(_, depth))
+    case Bv(_, _, args) => args.forall(closed(_, depth))
 
   /** The linear combination `Σ a × t + c`, normalized: nested combinations and
    *  numerals folded in, equal terms merged, zero coefficients dropped; a

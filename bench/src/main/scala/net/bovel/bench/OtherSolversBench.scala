@@ -11,7 +11,7 @@ import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import net.bovel.smt2.{Corpus, Parser, Printer, Script as VikScript}
-import net.bovel.vik.Player
+import net.bovel.vik.{Lowering, Player}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
@@ -22,8 +22,9 @@ import net.bovel.vik.Player
  *  native libraries of `fetch-native.sh`; every operation creates and closes
  *  its own context, as the other solvers do. `z3Direct` replays a
  *  [[Z3Program]]: only z3 API calls in the operation, compiled from the
- *  instance up front — for a bit-vector instance the front end lowers to
- *  integers while parsing, so that column measures z3 on the lowered problem.
+ *  instance up front — for a bit-vector instance the tree is lowered to
+ *  integers first (as the solver plays it), so that column measures z3 on the
+ *  lowered problem.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -106,7 +107,7 @@ class OtherSolversBench:
   @Setup(Level.Trial)
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
-    script = Parser.parse(text)
+    script = Lowering(Parser.parse(text)) // the tree as the solver plays it: bit-vectors already lowered
     // A program a replay cannot encode (lambdas, say) stays null; its benchmark is simply not selected
     // for such instances — the setup must not fail the others.
     z3Program = try Z3Program.compile(script) catch case _: Exception => null

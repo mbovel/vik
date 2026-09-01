@@ -7,21 +7,22 @@ import net.bovel.sexpr.SExpr.{SAtom, SList}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, and the arithmetic fragment of
  *  QF_BV) into a [[Script]], translating terms of uninterpreted sorts and of
- *  `Int` into [[Term]]s and Boolean terms into [[Formula]]s. Bit-vectors are
- *  lowered to integers (see [[BitVectors]]). Sorts of declared symbols decide
- *  which is which: `=` on Booleans is `Iff`, on integers two bounds; a
- *  Boolean-sorted constant or application is a `Pred`; `+`, `-` and `*` by a
- *  numeral build linear combinations, `<=`, `<`, `>=` and `>` bounds. `let`
- *  binds names to translated values; `define-fun` is a macro; `distinct` is
- *  expanded to pairwise disequalities; `ite` on terms is lowered to a fresh
- *  constant with two defining assertions placed before the assertion that uses
- *  it. Functions with `Int` in their signature are rejected: the solver does
- *  not combine the two theories yet.
+ *  `Int` into [[Term]]s and Boolean terms into [[Formula]]s. Bit-vector terms
+ *  are read as they are ([[Term.Bv]], [[Term.Bits]]); the solver lowers them to
+ *  integers before solving. Sorts of declared symbols decide which is which:
+ *  `=` on Booleans is `Iff`, on integers two bounds; a Boolean-sorted constant
+ *  or application is a `Pred`; `+`, `-` and `*` by a numeral build linear
+ *  combinations, `<=`, `<`, `>=` and `>` bounds. `let` binds names to
+ *  translated values; `define-fun` is a macro; `distinct` is expanded to
+ *  pairwise disequalities; `ite` on terms is lowered to a fresh constant with
+ *  two defining assertions placed before the assertion that uses it. Functions
+ *  with `Int` in their signature are rejected: the solver does not combine the
+ *  two theories yet.
  */
 /** One parse: the class carries the declarations, macros and sorts the commands
  *  build up, so [[Parser.parse]] makes a fresh one per input.
  */
-private final class Parser extends Lowering:
+private final class Parser:
   import Formula.*
 
   private enum Value:
@@ -84,8 +85,7 @@ private final class Parser extends Lowering:
   def parse(input: String): Script = Script(SExprParser.parse(input).flatMap(command))
 
   private def command(sexpr: SExpr): List[Command] = sexpr match
-    // Bit-vectors are lowered to integers, so the script that comes out is in the corresponding integer logic.
-    case SList(SAtom("set-logic") :: SAtom(logic) :: Nil) => List(Command.SetLogic(logic.replace("BV", "LIA")))
+    case SList(SAtom("set-logic") :: SAtom(logic) :: Nil) => List(Command.SetLogic(logic))
     case SList(SAtom("set-info") :: SAtom(key) :: value :: Nil) => List(Command.SetInfo(key, value.toString))
     case SList(SAtom("declare-sort") :: SAtom(name) :: SAtom(arity) :: Nil) =>
       List(Command.DeclareSort(name, arity.toInt))
@@ -168,17 +168,13 @@ private final class Parser extends Lowering:
     introduced.toList.map((k, sort) => Command.DeclareFun(k, Nil, sort)) ++
       definitions.toList.map(Command.Assert(_)) :+ Command.CheckSatAssuming(fs)
 
-  /** Declares `name`: a bit-vector constant becomes an `Int` constant with its
-   *  range asserted; functions over `Int` or bit-vectors are rejected (no
-   *  theory combination yet).
+  /** Declares `name`, with its sort as written — a bit-vector constant keeps
+   *  its sort; the solver's lowering turns it into a bounded `Int`.
    */
   private def declare(name: String, argSorts: List[String], sort: String): List[Command] =
     (sort :: argSorts).foreach(checkSort)
     functions(name) = (argSorts, sort)
-    val width = BitVectors.width(sort)
-    if argSorts.isEmpty && width >= 0 then
-      List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(BitVectors.range(Term.Const(name), width)))
-    else List(Command.DeclareFun(name, argSorts, sort))
+    List(Command.DeclareFun(name, argSorts, sort))
 
   /** Rejects the sorts of theories that are not supported, which would
    *  otherwise pass for uninterpreted sorts: reals, strings, sets, arrays, ...
@@ -437,8 +433,7 @@ private final class Parser extends Lowering:
       val ts = args.map(term(_, env))
       if isArithmetic(sortOf(args.head, env)) then IntDistinct(ts) else Distinct(ts)
     case SList(SAtom(BitVectors.Comparison(op)) :: a :: b :: Nil) =>
-      val width = BitVectors.width(sortOf(a, env))
-      BitVectors.compare(op, term(a, env), term(b, env), width, this)
+      Pred(Term.Bv(op, Nil, List(term(a, env), term(b, env))))
     case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(constructor) :: Nil) :: arg :: Nil) =>
       Pred(Term.App(declared(s"(_ is $constructor)"), List(term(arg, env))))
     case SList(SAtom(op @ ("<=" | "<" | ">=" | ">")) :: args) =>
@@ -466,23 +461,6 @@ private final class Parser extends Lowering:
   private def equal(sort: String, lhs: Term, rhs: Term): Formula =
     if isArithmetic(sort) then IntEq(lhs, rhs) else Eq(lhs, rhs)
 
-  /** A fresh `Int` constant in `[lo, hi]`, declared and bounded before the
-   *  current assertion (for the lowering of bit-vectors).
-   */
-  def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
-    if depth > 0 then throw Smt2Error("bit-vector operations under a lambda are not supported")
-    fresh += 1
-    val name = s"$prefix!$fresh"
-    introduced += ((name, "Int"))
-    functions(name) = (Nil, "Int")
-    val k = Term.Const(name)
-    definitions += Ge(k, Term.Num(lo))
-    definitions += Le(k, Term.Num(hi))
-    k
-
-  /** Asserts `formula` before the current assertion. */
-  def define(formula: Formula): Unit = definitions += formula
-
   private def term(sexpr: SExpr, env: Map[String, Value]): Term = sexpr match
     case SAtom("true") => Term.boolean(Formula.True)
     case SAtom("false") => Term.boolean(Formula.False)
@@ -495,22 +473,16 @@ private final class Parser extends Lowering:
         case _ => Term.app(array, List(term(i, env)))
     case SList(SAtom("store") :: a :: i :: v :: Nil) if arrow(sortOf(a, env)).isDefined =>
       Term.App(storeSymbol(sortOf(a, env)), List(term(a, env), term(i, env), term(v, env)))
-    case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
-    case SAtom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
+    case SAtom(name) if name.startsWith("#b") => Term.Bits(BigInt(name.drop(2), 2), name.length - 2)
+    case SAtom(name) if name.startsWith("#x") => Term.Bits(BigInt(name.drop(2), 16), 4 * (name.length - 2))
     case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>
-      Term.Num(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)))
-    case SList(SAtom(BitVectors.Arithmetic(op)) :: args) =>
-      val width = BitVectors.width(sortOf(args.head, env))
-      BitVectors.arithmetic(op, args.map(term(_, env)), width, this)
+      Term.Bits(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)), width.toInt)
+    case SList(SAtom(BitVectors.Arithmetic(op)) :: args) => Term.Bv(op, Nil, args.map(term(_, env)))
     case SList(SList(SAtom("_") :: SAtom("extract") :: SAtom(i) :: SAtom(j) :: Nil) :: a :: Nil) =>
-      BitVectors.extract(i.toInt, j.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
-    case SList(SList(SAtom("_") :: SAtom("zero_extend") :: SAtom(_) :: Nil) :: a :: Nil) => term(a, env)
-    case SList(SList(SAtom("_") :: SAtom("sign_extend") :: SAtom(k) :: Nil) :: a :: Nil) =>
-      BitVectors.signExtend(k.toInt, term(a, env), BitVectors.width(sortOf(a, env)), this)
-    case SList(SAtom("concat") :: args) =>
-      args.map(a => (term(a, env), BitVectors.width(sortOf(a, env)))).reduceLeft { case ((hi, wh), (lo, wl)) =>
-        (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
-      }._1
+      Term.Bv("extract", List(i.toInt, j.toInt), List(term(a, env)))
+    case SList(SList(SAtom("_") :: SAtom(op @ ("zero_extend" | "sign_extend")) :: SAtom(k) :: Nil) :: a :: Nil) =>
+      Term.Bv(op, List(k.toInt), List(term(a, env)))
+    case SList(SAtom("concat") :: args) => Term.Bv("concat", Nil, args.map(term(_, env)))
     case SAtom(name) =>
       env.get(name) match
         case Some(Value.T(t, _, d)) => Term.shift(t, depth - d)
@@ -556,11 +528,7 @@ private final class Parser extends Lowering:
       val name = s"ite!$fresh"
       val k = Term.Const(name)
       val sort = sortOf(thn, env)
-      introduced +=
-        ((
-          name,
-          if sort == "Real" then "Real" else if isArithmetic(sort) then "Int" else sort
-        )) // declared as it is printed: lowered
+      introduced += ((name, sort)) // declared as written: a bit-vector `ite` lowers with its declaration
       functions(name) = (Nil, sort)
       val c = formula(cond, env)
       definitions += Implies(c, equal(sort, k, term(thn, env)))
