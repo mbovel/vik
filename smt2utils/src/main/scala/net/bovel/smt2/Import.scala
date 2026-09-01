@@ -43,7 +43,8 @@ object Import:
   def classify(text: String): String =
     val logic = "\\(set-logic ([A-Za-z_]+)\\)".r.findFirstMatchIn(text).map(_.group(1).nn).getOrElse("ALL")
     logic match
-      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" | "QF_AX" | "QF_ALIA" | "QF_AUFLIA" => logic
+      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" | "QF_AX" | "QF_ALIA" | "QF_AUFLIA" | "QF_LIRA" => logic
+      case "QF_UFLIRA" => "QF_LIRA"
       case "QF_UFDT" | "QF_UFDTLIA" | "QF_DTLIA" => "QF_DT"
       case "QF_UFBV" | "BV" => "QF_BV"
       case _ if logic.startsWith("HO_") || text.contains("(lambda ") || text.contains("(-> ") => "HO"
@@ -147,7 +148,8 @@ object Import:
     for c <- chosen do
       val content = s"; From $origin: ${c.rel} (${licenses(origin)})\n" +
         c.expected.fold(c.text)(withStatuses(c.text, _))
-      Try(Parser.parse(content)) match
+      // The parser reads the whole language; the fragment line is the lowering's, so both must pass.
+      Try(net.bovel.vik.Lowering(Parser.parse(content))) match
         case scala.util.Success(_) =>
           val dir = Corpus.root.resolve(classify(c.text)).resolve(origin)
           Files.createDirectories(dir)

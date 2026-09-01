@@ -54,6 +54,8 @@ enum ArithOp(val name: String):
   case IntDiv extends ArithOp("div")
   case Mod extends ArithOp("mod")
   case Abs extends ArithOp("abs")
+  case ToReal extends ArithOp("to_real")
+  case ToInt extends ArithOp("to_int")
 
 /** The operations of FixedSizeBitVectors, the whole signature: what the
  *  solver's fragment excludes is rejected by the lowering, not the parser.
@@ -189,6 +191,9 @@ enum Formula:
 
   /** `((_ is C) t)`: the tester of constructor `C`. */
   case IsConstructor(constructor: String, arg: Term)
+
+  /** `(is_int r)`: whether the real `r` is an integer (Reals_Ints). */
+  case IsInt(arg: Term)
   case Let(bindings: List[(String, Term | Formula)], body: Formula)
 
   /** A `Bool`-sorted term where a formula is expected: a constant, an

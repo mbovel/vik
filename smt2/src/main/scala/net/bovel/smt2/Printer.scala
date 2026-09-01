@@ -69,6 +69,7 @@ object Printer:
     case Formula.BvCmp(op, lhs, rhs) => s"(${op.name} ${print(lhs)} ${print(rhs)})"
     case Formula.Ite(cond, thn, els) => s"(ite ${print(cond)} ${print(thn)} ${print(els)})"
     case Formula.IsConstructor(constructor, arg) => s"((_ is $constructor) ${print(arg)})"
+    case Formula.IsInt(arg) => s"(is_int ${print(arg)})"
     case Formula.Let(bs, body) => s"(let (${bindings(bs)}) ${print(body)})"
     case Formula.Pred(term) => print(term)
 

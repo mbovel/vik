@@ -4,6 +4,7 @@ import net.bovel.vik.{Player, Solver, Model}
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
 /** The corpus of SMT-LIB files (`smtlib/`, see its README), one test per file:
@@ -23,6 +24,11 @@ class SmtLibTest extends munit.FunSuite:
 
   private def show(answers: List[Option[Boolean]]): String =
     answers.map(_.map(if _ then "sat" else "unsat").getOrElse("unknown")).mkString(",")
+
+  test("ignore.txt is sorted"):
+    val lines = java.nio.file.Files.readAllLines(Corpus.root.resolve("ignore.txt")).asScala.toList
+      .filter(l => l.nonEmpty && !l.startsWith("#"))
+    assertEquals(lines, lines.sorted, "smtlib/ignore.txt: keep the lines sorted (byte order)")
 
   for file <- Corpus.files do
     val reason = ignored.get(file)

@@ -54,3 +54,20 @@ class LoweringTest extends munit.FunSuite:
     intercept[Unsupported](lowered(
       "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvor a b) a))"
     ))
+
+  test("to_real is the identity, to_int the pinned floor"):
+    val commands = Lowering(Parser.parse(
+      "(declare-const n Int) (declare-const x Real) (assert (= x (to_real n))) (assert (= (to_int x) 2))"
+    )).commands
+    val asserts = commands.collect { case Command.Assert(f) => f }
+    assertEquals(asserts(0), IntEq(Const("x"), Const("n"))) // to_real vanishes: sorts carry the difference
+    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, "Int") => true; case _ => false })
+    assertEquals(asserts(1), Le(Const("floor!1"), Const("x")))
+    assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const("floor!1"))), 1)))
+    assertEquals(asserts(3), IntEq(Const("floor!1"), Num(2)))
+
+  test("the casts fold on literals"):
+    assertEquals(lowered("(assert (is_int 2.0))"), List(True))
+    assertEquals(lowered("(assert (not (is_int 2.5)))").last, Not(False))
+    assertEquals(lowered("(assert (= (to_int 2.5) 2))").last, IntEq(Num(2), Num(2)))
+    assertEquals(lowered("(assert (= (to_int (- 5.5)) (- 6)))").last, IntEq(Num(-6), Num(-6)))

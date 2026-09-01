@@ -164,8 +164,8 @@ private final class Lowerer:
       )
     case s2.Term.ArithApp(op, args) =>
       op match
-        case ArithOp.Div => Sort.Real
-        case ArithOp.IntDiv | ArithOp.Mod | ArithOp.Abs => Sort.Int
+        case ArithOp.Div | ArithOp.ToReal => Sort.Real
+        case ArithOp.IntDiv | ArithOp.Mod | ArithOp.Abs | ArithOp.ToInt => Sort.Int
         case _ => if args.exists(a => sortOf(a, env) == Sort.Real) then Sort.Real else Sort.Int
     case s2.Term.BvApp(op, args) =>
       op match
@@ -249,6 +249,7 @@ private final class Lowerer:
     case s2.Formula.Ite(cond, thn, els) => Ite(formula(cond, env), formula(thn, env), formula(els, env))
     case s2.Formula.IsConstructor(constructor, arg) =>
       Pred(App(Const(s"(_ is $constructor)"), List(term(arg, env))))
+    case s2.Formula.IsInt(arg) => isInt(term(arg, env))
     case s2.Formula.Let(bindings, body) => formula(body, bind(bindings, env))
     case s2.Formula.Pred(t) => Formula.pred(term(t, env))
 
@@ -359,8 +360,41 @@ private final class Lowerer:
           case Some((p, q)) => rationalConst(p * divisor._2, q * divisor._1)
           case None => rationalProduct(divisor._2, divisor._1, numerator)
       }
+    case ArithOp.ToReal => term(args.head, env) // the same value: sorts decide integrality, not the tree
+    case ArithOp.ToInt =>
+      val r = term(args.head, env)
+      literalValue(r) match
+        case Some((p, q)) => Num(floorDiv(p, q))
+        case None => floor(r)
     case ArithOp.IntDiv | ArithOp.Mod | ArithOp.Abs =>
       throw s2.Unsupported(s"${op.name} is not supported")
+
+  /** `is_int r`: `r` equals its own floor — sound under negation too, the floor
+   *  being pinned uniquely by its definition. A literal folds.
+   */
+  private def isInt(r: Term): Formula = literalValue(r) match
+    case Some((p, q)) => if p.mod(q).signum == 0 then True else False
+    case None => IntEq(r, floor(r))
+
+  /** The floor of `r` (`to_int`): a fresh `Int` constant `k` with
+   *  `k ≤ r < k + 1`, declared and defined before the current assertion —
+   *  determined uniquely by `r`, so the definition is sound under both
+   *  polarities.
+   */
+  private def floor(r: Term): Term =
+    if depth > 0 then throw s2.Smt2Error("to_int under a lambda is not supported")
+    fresh += 1
+    val name = s"floor!$fresh"
+    introduced += ((name, "Int"))
+    functions(name) = Sort.Int
+    val k = Const(name)
+    definitions += Le(k, r)
+    definitions += Less(r, Term.linear(List((BigInt(1), k)), 1))
+    k
+
+  private def floorDiv(p: BigInt, q: BigInt): BigInt =
+    val (d, r) = p /% q
+    if r.signum != 0 && r.signum != q.signum then d - 1 else d
 
   private val rationals = HashMap.empty[(BigInt, BigInt), Term]
 

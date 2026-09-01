@@ -218,7 +218,9 @@ private final class Parser:
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) =>
       Sort.Bool
     case SList(SAtom("/") :: _) => Sort.Real
-    case SList(SAtom("div" | "mod" | "abs") :: _) => Sort.Int
+    case SList(SAtom("div" | "mod" | "abs" | "to_int") :: _) => Sort.Int
+    case SList(SAtom("to_real") :: _) => Sort.Real
+    case SList(SAtom("is_int") :: _) => Sort.Bool
     case SList(SAtom("select") :: a :: _ :: Nil) =>
       sortOf(a, env) match
         case Sort.Array(_, element) => element
@@ -263,6 +265,7 @@ private final class Parser:
     case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(constructor) :: Nil) :: arg :: Nil) =>
       declared(s"(_ is $constructor)", env)
       IsConstructor(constructor, term(arg, env))
+    case SList(SAtom("is_int") :: arg :: Nil) => IsInt(term(arg, env))
     case SList(SAtom(op @ ("<=" | "<" | ">=" | ">")) :: args) if args.length >= 2 =>
       for a <- args if !arithmetic(sortOf(a, env)) do
         throw Smt2Error(s"$op on ${sortOf(a, env)} is not supported")
@@ -296,7 +299,7 @@ private final class Parser:
     case SAtom("false") => Term.Bool(False)
     case SList(SAtom(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
     // A formula-shaped tree where a term is expected (an argument, a field, a lambda body).
-    case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "distinct" | "<=" | "<" | ">=" | ">") :: _) =>
+    case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "distinct" | "<=" | "<" | ">=" | ">" | "is_int") :: _) =>
       Term.Bool(formula(sexpr, env))
     case SList(SAtom("=") :: _ :: _ :: _) => Term.Bool(formula(sexpr, env))
     case SList(SAtom(op) :: _ :: _ :: Nil) if BvCmpOp.named.contains(op) => Term.Bool(formula(sexpr, env))
@@ -332,6 +335,8 @@ private final class Parser:
     case SList(SAtom("div") :: args) if args.length >= 2 => Term.ArithApp(ArithOp.IntDiv, args.map(term(_, env)))
     case SList(SAtom("mod") :: a :: b :: Nil) => Term.ArithApp(ArithOp.Mod, List(term(a, env), term(b, env)))
     case SList(SAtom("abs") :: a :: Nil) => Term.ArithApp(ArithOp.Abs, List(term(a, env)))
+    case SList(SAtom("to_real") :: a :: Nil) => Term.ArithApp(ArithOp.ToReal, List(term(a, env)))
+    case SList(SAtom("to_int") :: a :: Nil) => Term.ArithApp(ArithOp.ToInt, List(term(a, env)))
     case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
       Term.Lambda(ps, term(body, env ++ ps))
