@@ -203,6 +203,8 @@ private final class Parser:
         throw Smt2Error(s"unknown symbol $name")
       )
     case SList(SAtom("bvcomp") :: _) => Sort.BitVec(1)
+    case SList(SAtom("ubv_to_int" | "sbv_to_int" | "bv2nat" | "bv2int") :: _) => Sort.Int
+    case SList(SList(SAtom("_") :: SAtom("int_to_bv" | "int2bv") :: SAtom(n) :: Nil) :: _) => Sort.BitVec(n.toInt)
     case SList(SAtom(op) :: a :: _) if BvOp.named.contains(op) && op != "concat" => sortOf(a, env)
     case SList(SAtom("concat") :: args) =>
       Sort.BitVec(args.map(a => width(sortOf(a, env))).sum)

@@ -82,9 +82,12 @@ enum BvOp(val name: String):
   case Srem extends BvOp("bvsrem")
   case Smod extends BvOp("bvsmod")
   case Concat extends BvOp("concat")
+  case UbvToInt extends BvOp("ubv_to_int")
+  case SbvToInt extends BvOp("sbv_to_int")
   case Extract(i: Int, j: Int) extends BvOp("extract")
   case ZeroExtend(k: Int) extends BvOp("zero_extend")
   case SignExtend(k: Int) extends BvOp("sign_extend")
+  case IntToBv(n: Int) extends BvOp("int_to_bv")
   case Repeat(k: Int) extends BvOp("repeat")
   case RotateLeft(k: Int) extends BvOp("rotate_left")
   case RotateRight(k: Int) extends BvOp("rotate_right")
@@ -92,6 +95,7 @@ enum BvOp(val name: String):
   /** The `(_ name i j)` indices, empty for the plain operations. */
   def indices: List[Int] = this match
     case Extract(i, j) => List(i, j)
+    case IntToBv(n) => List(n)
     case ZeroExtend(k) => List(k)
     case SignExtend(k) => List(k)
     case Repeat(k) => List(k)
@@ -123,12 +127,16 @@ object BvOp:
       Urem,
       Smod,
       Srem,
-      Concat
+      Concat,
+      UbvToInt,
+      SbvToInt
     ).map(op => op.name -> op).toMap
+      ++ Map("bv2nat" -> UbvToInt, "bv2int" -> SbvToInt) // the names before SMT-LIB 2.7's renaming
 
   /** An indexed operation `(_ name k...)`, `None` for other identifiers. */
   def indexed(name: String, indices: List[Int]): Option[BvOp] = (name, indices) match
     case ("extract", List(i, j)) => Some(Extract(i, j))
+    case ("int_to_bv" | "int2bv", List(n)) => Some(IntToBv(n)) // int2bv: the name before the renaming
     case ("zero_extend", List(k)) => Some(ZeroExtend(k))
     case ("sign_extend", List(k)) => Some(SignExtend(k))
     case ("repeat", List(k)) => Some(Repeat(k))

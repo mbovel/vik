@@ -28,7 +28,9 @@ front, and the lowered problem has bounded variables, which the integer solver d
 
 Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvshl`, `bvlshr` by
 constants, `bvand`/`bvor` with a mask that is a power of two minus one, `concat`, `extract`, `zero_extend`,
-`sign_extend`, the unsigned and the signed comparisons, equality, and the literals `#b…`, `#x…`, `(_ bvN w)`.
+`sign_extend`, the unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`,
+and the integer conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the
+pre-renaming spellings `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
 
 ```smt2
 (set-logic QF_BV)
@@ -75,6 +77,9 @@ assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit 
 | `sign_extend k a` | `a + (2^(n+k) − m)·s` | `s ∈ {0, 1}`, `u ∈ [0, m/2)`: `a = u + (m/2)·s` |
 | `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
 | `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit |
+| `ubv_to_int a` | `a` | none: the lowered bit-vector is its unsigned value |
+| `sbv_to_int a` | `a − m·s` | `s, u` as for the sign bit |
+| `(_ int_to_bv n) t` | `r` | `r ∈ [0, m)`, `k` unbounded: `t = r + m·k` |
 
 The parser reads bit-vector terms as they are written — the tree has them (`Term.BvApp`, `Term.Bits`) —
 and the lowering is one function of the solver, `net.bovel.vik.Lowering`: it takes a script and returns

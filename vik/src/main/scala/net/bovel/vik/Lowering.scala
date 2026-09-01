@@ -169,6 +169,8 @@ private final class Lowerer:
         case _ => if args.exists(a => sortOf(a, env) == Sort.Real) then Sort.Real else Sort.Int
     case s2.Term.BvApp(op, args) =>
       op match
+        case BvOp.UbvToInt | BvOp.SbvToInt => Sort.Int
+        case BvOp.IntToBv(n) => Sort.BitVec(n)
         case BvOp.Extract(i, j) => Sort.BitVec(i - j + 1)
         case BvOp.ZeroExtend(k) => Sort.BitVec(width(args.head, env) + k)
         case BvOp.SignExtend(k) => Sort.BitVec(width(args.head, env) + k)
@@ -505,6 +507,12 @@ private final class Lowerer:
   private def modulus(width: Int): BigInt = BigInt(2).pow(width)
 
   private def bv(op: BvOp, args: List[s2.Term], env: Env): Term = op match
+    // The value of a lowered bit-vector is its unsigned value: `ubv_to_int` vanishes, `sbv_to_int`
+    // splits off the sign bit, `(_ int_to_bv n)` is the value modulo 2^n through a pinned overflow
+    // count — determined uniquely, so sound under both polarities.
+    case BvOp.UbvToInt => term(args.head, env)
+    case BvOp.SbvToInt => signed(term(args.head, env), width(args.head, env))
+    case BvOp.IntToBv(n) => intToBv(term(args.head, env), n)
     case BvOp.Extract(i, j) => extract(i, j, term(args.head, env), width(args.head, env))
     case BvOp.ZeroExtend(_) => term(args.head, env)
     case BvOp.SignExtend(k) => signExtend(k, term(args.head, env), width(args.head, env))
@@ -576,6 +584,21 @@ private final class Lowerer:
       val u = freshInt("u", 0, modulus(width - 1) - 1)
       definitions += IntEq(t, u + s * modulus(width - 1))
       t - s * modulus(width)
+
+  /** `(_ int_to_bv width) t`: `t mod 2^width` — a fresh result `r` in
+   *  `[0, 2^width)` and an unbounded overflow count `k` with
+   *  `t = r + 2^width × k`, both determined uniquely by `t`.
+   */
+  private def intToBv(t: Term, width: Int): Term = t match
+    case Num(v) => Num(v.mod(modulus(width)))
+    case _ =>
+      val r = freshInt("bv", 0, modulus(width) - 1)
+      fresh += 1
+      val name = s"k!$fresh"
+      introduced += ((name, "Int"))
+      val k = Const(name)
+      definitions += IntEq(t, r + k * modulus(width))
+      r
 
   /** `c × t` modulo `2^width`, for `0 ≤ c < 2^width`. */
   private def times(t: Term, c: BigInt, width: Int): Term =

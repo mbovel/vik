@@ -71,3 +71,16 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(lowered("(assert (not (is_int 2.5)))").last, Not(False))
     assertEquals(lowered("(assert (= (to_int 2.5) 2))").last, IntEq(Num(2), Num(2)))
     assertEquals(lowered("(assert (= (to_int (- 5.5)) (- 6)))").last, IntEq(Num(-6), Num(-6)))
+
+  test("the bit-vector conversions: identity, sign split, pinned modulo"):
+    assertEquals(
+      lowered("(declare-const x (_ BitVec 8)) (declare-const n Int) (assert (= (ubv_to_int x) n))").last,
+      IntEq(Const("x"), Const("n")) // ubv_to_int vanishes: the lowered bit-vector is its unsigned value
+    )
+    assertEquals(lowered("(assert (= (sbv_to_int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1)))
+    assertEquals(lowered("(assert (= (sbv_to_int #x7F) 127))").last, IntEq(Num(127), Num(127)))
+    assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, IntEq(Num(44), Num(44)))
+    assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, IntEq(Num(255), Num(255)))
+    val asserts = lowered("(declare-const n Int) (assert (= ((_ int_to_bv 8) n) #x2A))")
+    assertEquals(asserts.last, IntEq(Const("bv!1"), Num(42)))
+    assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const("bv!1")), (256, Const("k!2"))), 0))), asserts)
