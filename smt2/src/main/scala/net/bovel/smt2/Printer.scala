@@ -31,6 +31,7 @@ object Printer:
     case Command.AssertNamed(name, formula) => s"(assert (! ${print(formula)} :named $name))"
     case Command.CheckSat => "(check-sat)"
     case Command.GetUnsatCore => "(get-unsat-core)"
+    case Command.GetAssertions => "(get-assertions)"
     case Command.CheckSatAssuming(assumptions) => assumptions.map(print).mkString("(check-sat-assuming (", " ", "))")
     case Command.ResetAssertions => "(reset-assertions)"
     case Command.Reset => "(reset)"

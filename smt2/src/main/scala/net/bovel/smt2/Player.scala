@@ -59,6 +59,8 @@ object Player:
     }
     var current = solver
     current.produceModels = wantsModels
+    // The assertion stack as asserted, one buffer per level: what get-assertions prints.
+    val asserted = ArrayBuffer(ArrayBuffer.empty[Formula])
     var rlimit = fuel
     var timeout = Option.empty[Long] // milliseconds
     var reason = Option.empty[String]
@@ -99,9 +101,15 @@ object Player:
         case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
           declarations += command
           declare(command)
-        case Command.Assert(formula) => current.assert(formula)
-        case Command.AssertNamed(name, formula) => current.assert(formula, name)
+        case Command.Assert(formula) =>
+          asserted.last += formula
+          current.assert(formula)
+        case Command.AssertNamed(name, formula) =>
+          asserted.last += formula
+          current.assert(formula, name)
         case Command.GetUnsatCore => responses += current.unsatCore.mkString("(", " ", ")")
+        case Command.GetAssertions =>
+          responses += asserted.flatten.map(Printer.print).mkString("(", " ", ")")
         case Command.GetValue(items) =>
           responses +=
             (current.model() match
@@ -112,8 +120,13 @@ object Player:
             (current.model() match
               case Some(m) => modelText(m, sorts.toMap, interpreted.toSet)
               case None => "(error \"no model\")")
-        case Command.Push(n) => for _ <- 0 until n do current.push()
-        case Command.Pop(n) => for _ <- 0 until n do current.pop()
+        case Command.Push(n) =>
+          for _ <- 0 until n do
+            current.push()
+            asserted += ArrayBuffer.empty
+        case Command.Pop(n) =>
+          for _ <- 0 until n do current.pop()
+          asserted.dropRightInPlace(n min (asserted.length - 1))
         case Command.CheckSat => answer()
         case Command.CheckSatAssuming(assumptions) =>
           current.push()
@@ -121,10 +134,12 @@ object Player:
           answer()
           current.pop()
         case Command.ResetAssertions =>
+          asserted.clear(); asserted += ArrayBuffer.empty
           current = Solver(simplify = solver.simplify)
           current.produceModels = wantsModels
           declarations.foreach(declare)
         case Command.Reset =>
+          asserted.clear(); asserted += ArrayBuffer.empty
           current = Solver(simplify = solver.simplify)
           current.produceModels = wantsModels
           declarations.clear()

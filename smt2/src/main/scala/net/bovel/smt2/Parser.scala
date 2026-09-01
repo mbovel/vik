@@ -142,6 +142,7 @@ private final class Parser extends Lowering:
       macros.clear()
       List(Command.Reset)
     case SList(SAtom("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)
+    case SList(SAtom("get-assertions") :: Nil) => List(Command.GetAssertions)
     case SList(SAtom(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
       throw Smt2Error(s"$name is not supported")
     case SList(SAtom("push") :: SAtom(n) :: Nil) => List(Command.Push(n.toInt))

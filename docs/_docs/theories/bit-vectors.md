@@ -74,7 +74,10 @@ assertion that uses it. Constant arguments fold at parse time. For an `n`-bit te
 | `zero_extend k a` | `a` | none |
 | `sign_extend k a` | `a + (2^(n+k) − m)·s` | `s ∈ {0, 1}`, `u ∈ [0, m/2)`: `a = u + (m/2)·s` |
 | `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
-| `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit | The lowering is part of the solver (`net.bovel.vik.BitVectors`), which the front end drives as it reads a
-script — it declares the constants the lowering asks for and asserts their definitions (`Lowering`): the
-`set-logic` is rewritten, so the script that VIK plays is a `QF_LIA` script, which `(get-info)`-style
-inspection or the [playground](https://github.com/mbovel/vik) will show you.
+| `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit |
+
+The lowering is part of the solver (`net.bovel.vik.BitVectors`); any front end can drive it through the
+`Lowering` interface, and the SMT-LIB front end does as it reads a script — it declares the constants the
+lowering asks for and asserts their definitions, so the script that VIK plays is a `QF_LIA` script. Two
+ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and
+`smt2lowered file.smt2` on the command line prints a whole file as VIK will play it.

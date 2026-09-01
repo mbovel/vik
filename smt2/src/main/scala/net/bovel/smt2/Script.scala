@@ -39,6 +39,11 @@ enum Command:
   /** `get-value`: each item as written (for the echo) and as translated. */
   case GetValue(items: List[(String, Formula | Term)])
   case GetUnsatCore
+
+  /** `get-assertions`: the current assertion stack, as VIK holds it — after the
+   *  lowerings (bit-vectors to integers, rational literals to constants).
+   */
+  case GetAssertions
   case Exit
 
   /** `set-option`: `:rlimit` (the fuel of each `check-sat`) and `:timeout`

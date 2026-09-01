@@ -9,6 +9,16 @@ import scala.io.Source
   finally source.close()
   Player.run(script).foreach(println)
 
+/** Prints an SMT-LIB 2 file as VIK will play it, after the lowerings:
+ *  bit-vectors become bounded integers with their defining equations, rational
+ *  literals become defined constants. A debugging view.
+ */
+@main def smt2lowered(path: String): Unit =
+  val source = Source.fromFile(path)
+  val script = try Parser.parse(source.mkString)
+  finally source.close()
+  print(Printer.print(script))
+
 /** Parses the given SMT-LIB files and prints, per file, `ok` or the error:
  *  whether each is in the supported fragment.
  */
