@@ -163,3 +163,29 @@ scope — `20190906-CLEARSY__0020__00009.smt2` of SMT-LIB incremental stops with
 definitions, datatypes and partition state and `prover.push` scopes the prover's symbols, but
 the parser's own symbol environment is not part of the saved tuple, so declarations survive
 `pop` there. Observed with the princess of 2026-08 (master); not reported yet.
+
+## sbt 2: killed servers and clients leave state that silently wedges every later invocation
+
+One robustness gap with four faces, all observed with sbt 2.0.8 (thin client, GraalVM native image)
+on Linux after `kill`/`kill -9` of servers, clients or test forks — each face hangs later commands
+with no error and a different amount of log:
+
+- **Stale `project/target/active.json`.** A killed server never removes its descriptor; the next
+  client connects to the dead socket URI and hangs *before booting anything* — a zero-byte log is
+  the signature. The client never falls back to starting a fresh server. Remedy: delete the file.
+- **Stale sockets in `/run/user/$UID/.sbt-fork-ipc/`.** After killing a forked test JVM, later
+  forked test runs hang right after "set current project": no compile output, no fork spawned,
+  `timeout` expires on an empty run. Unforked and cache-replayed tasks still work, which disguises
+  it. Remedy: delete the `*.sock` files.
+- **An orphaned command keeps the queue.** When a client is killed mid-command (a shell timeout, a
+  tool cap), the server keeps executing the abandoned command; every later client prints
+  `[info] waiting for: <that command>` and produces nothing. If the abandoned command's fork is
+  then killed, the server waits forever on the half-closed worker socket. Remedy: restart the
+  server.
+- **The client outlives TERM.** `timeout <n> sbt ...` can fail to end the invocation: the client
+  ignores TERM while blocked on the server, so `timeout` without `--kill-after` waits forever.
+  Remedy: `timeout -k 30 <n> sbt ...`.
+
+The reliable cleanup after any kill is all four at once: kill the forks and the server, remove the
+fork sockets, remove `active.json`. A client that timed out connecting to a dead descriptor and
+booted a fresh server would remove the worst face outright. Not minimized or reported yet.
