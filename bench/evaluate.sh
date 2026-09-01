@@ -62,7 +62,9 @@ warm() {
   jmh "$OUT-warm-inc-slow.json" "$INC_SLOW"       "(vik|vikText)" -f 1 -wi 1 -i 2
   jmh "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2
   jmh "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)"
-  jmh "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText|cvc5)"
+  # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
+  jmh "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText)"
+  jmh "$OUT-warm-ho-c.json"     "regress0__define-fun-model.smt2" "cvc5"
   jmh "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)"
   python3 - "$OUT" <<'PY'
 import json, sys, pathlib
