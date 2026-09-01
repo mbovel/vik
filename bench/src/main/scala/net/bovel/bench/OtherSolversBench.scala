@@ -98,9 +98,9 @@ class OtherSolversBench:
 
   private var script: VikScript = uninitialized
   private var text: String = uninitialized
-  private var z3Program: Z3Program = uninitialized
-  private var princessProgram: PrincessProgram = uninitialized
-  private var smtInterpolProgram: SmtInterpolProgram = uninitialized
+  private var z3Program: Z3Program | Null = uninitialized
+  private var princessProgram: PrincessProgram | Null = uninitialized
+  private var smtInterpolProgram: SmtInterpolProgram | Null = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit =
@@ -128,7 +128,7 @@ class OtherSolversBench:
    *  nothing else.
    */
   @Benchmark
-  def princess(): List[Boolean] = princessProgram.check()
+  def princess(): List[Boolean] = princessProgram.nn.check()
 
   /** Prints the tree and has z3 parse it (declarations included); the parsed
    *  assertions go to a fresh solver.
@@ -150,7 +150,7 @@ class OtherSolversBench:
   def z3Direct(): List[Boolean] =
     Natives.z3
     val ctx = Context()
-    try z3Program.check(ctx)
+    try z3Program.nn.check(ctx)
     finally ctx.close()
 
   /** Prints the tree and has cvc5 run the text as a script through its parser,
@@ -178,4 +178,4 @@ class OtherSolversBench:
    *  interface Ultimate embeds, nothing else.
    */
   @Benchmark
-  def smtinterpol(): List[Boolean] = smtInterpolProgram.check()
+  def smtinterpol(): List[Boolean] = smtInterpolProgram.nn.check()
