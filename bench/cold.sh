@@ -13,7 +13,10 @@ REPETITIONS="${2:-3}"
 TIMEOUT="${3:-30}"
 
 CP=$(sbt "print bench/runtimeClasspath" 2>/dev/null | grep -E "^/" | tail -1)
-NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.smt2.smt2" -type f | head -1)
+# A broken classpath must fail here, loudly — not as thirty silent `error` rows.
+java -cp "$CP" net.bovel.smt2.smt2 --help >/dev/null 2>&1 ||
+  { echo "cold.sh: classpath canary failed (CP: ${CP:0:80}...)" >&2; exit 1; }
+NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.smt2.smt2" -type f 2>/dev/null | head -1)
 MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
@@ -44,6 +47,7 @@ measure() { # name, command...: repeats the run and reports the median, the mini
 printf "file\texpected\tsolver\tanswer\tmedian\tmin\tmax\n"
 while read -r f; do
   [ -z "$f" ] && continue
+  [ -r "$f" ] || { echo "cold.sh: no such instance: $f" >&2; exit 1; }
   expected=$(grep -o ':status [a-z]*' "$f" | cut -d' ' -f2 | paste -sd, -)
   inc=$(grep -q "(push" "$f" && echo --incremental)
   base=$(basename "$f")
