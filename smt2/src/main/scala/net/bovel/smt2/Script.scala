@@ -9,9 +9,13 @@ enum Command:
   case SetLogic(logic: String)
   case SetInfo(key: String, value: String)
   case DeclareSort(name: String, arity: Int)
-  case DeclareFun(name: String, argSorts: List[String], sort: String)
+  case DeclareFun(name: String, argSorts: List[Sort], sort: Sort)
   case DeclareDatatypes(datatypes: List[Datatype])
-  case DefineFun(name: String, params: List[(String, String)], sort: String, body: SExpr)
+
+  /** A macro: its body is parsed against the parameters' sorts, and the
+   *  solver's lowering expands each use.
+   */
+  case DefineFun(name: String, params: List[(String, Sort)], sort: Sort, body: Term | Formula)
   case Assert(formula: Formula)
 
   /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can
@@ -39,8 +43,9 @@ enum Command:
   case GetValue(items: List[(String, Formula | Term)])
   case GetUnsatCore
 
-  /** `get-assertions`: the current assertion stack, as VIK holds it — after the
-   *  lowerings (bit-vectors to integers, rational literals to constants).
+  /** `get-assertions`: the current assertion stack, as the solver holds it —
+   *  after the lowerings (bit-vectors to integers, rational literals to
+   *  constants).
    */
   case GetAssertions
   case Exit

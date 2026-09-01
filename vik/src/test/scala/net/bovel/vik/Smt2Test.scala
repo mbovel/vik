@@ -73,9 +73,12 @@ class Smt2Test extends munit.FunSuite:
       (assert (not (= c b)))
       (check-sat)
     """)
-    assertEquals(s.commands.collect { case Command.Assert(_) => 1 }.sum, 4) // two definitions, then the two assertions
+    assertEquals(s.commands.collect { case Command.Assert(_) => 1 }.sum, 2) // the ite stays a term
+    // The lowering names it: a constant of the branches' sort, defined before its assertion.
     assertEquals(
-      s.commands.collect { case Command.DeclareFun(n, Nil, "U") if n.startsWith("ite!") => n },
+      Lowering(s).commands.collect {
+        case net.bovel.vik.Command.DeclareFun(n, Nil, "U") if n.startsWith("ite!") => n
+      },
       List("ite!1")
     )
     assertEquals(Player.play(s), List(false))

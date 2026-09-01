@@ -2,7 +2,7 @@ package net.bovel.vik
 
 import scala.util.Random
 
-import net.bovel.smt2.{Constructor, Datatype}
+import net.bovel.smt2.{Constructor, Datatype, Sort}
 import Formula.*
 import Term.*
 
@@ -49,7 +49,10 @@ class UfliaTest extends munit.FunSuite:
 
   test("datatypes with integer fields"):
     val list =
-      Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", "Int"), ("tail", "List")))))
+      Datatype(
+        "List",
+        List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Int), ("tail", Sort.Named("List")))))
+      )
     def ls(): Solver =
       val s = Solver()
       s.declare(list)

@@ -9,7 +9,10 @@ import net.bovel.smt2.Term.*
  */
 class DatatypesTest extends munit.FunSuite:
   val list =
-    Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", "Int"), ("tail", "List")))))
+    Datatype(
+      "List",
+      List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Int), ("tail", Sort.Named("List")))))
+    )
 
   test("declare-datatype and declare-datatypes"):
     val single = Parser.parse("(declare-datatype List ((nil) (cons (head Int) (tail List))))")
@@ -30,10 +33,10 @@ class DatatypesTest extends munit.FunSuite:
       (assert (not ((_ is nil) (tail l))))""")
     val asserts = script.commands.collect { case Command.Assert(f) => f }
     val l = Const("l")
-    assertEquals(asserts(0), Eq(l, App(Const("cons"), List(Num(1), Const("nil")))))
-    assertEquals(asserts(1), IntEq(App(Const("head"), List(l)), Num(1)))
-    assertEquals(asserts(2), Pred(App(Const("(_ is cons)"), List(l))))
-    assertEquals(asserts(3), Not(Pred(App(Const("(_ is nil)"), List(App(Const("tail"), List(l)))))))
+    assertEquals(asserts(0), Eq(List(l, App(Const("cons"), List(Numeral(1), Const("nil"))))))
+    assertEquals(asserts(1), Eq(List(App(Const("head"), List(l)), Numeral(1))))
+    assertEquals(asserts(2), IsConstructor("cons", l))
+    assertEquals(asserts(3), Not(IsConstructor("nil", App(Const("tail"), List(l)))))
     assertEquals(Parser.parse(Printer.print(script)), script)
     assert(Printer.print(script).contains("(declare-datatypes ((List 0)) (((nil) (cons (head Int) (tail List)))))"))
     assert(Printer.print(script).contains("((_ is cons) l)"))

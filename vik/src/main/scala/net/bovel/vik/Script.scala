@@ -13,11 +13,6 @@ enum Command:
   case DeclareSort(name: String, arity: Int)
   case DeclareFun(name: String, argSorts: List[String], sort: String)
   case DeclareDatatypes(datatypes: List[Datatype])
-
-  /** A macro definition, kept for the echo of a lowered script: its uses are
-   *  already expanded in the formulas.
-   */
-  case DefineFun(name: String, params: List[(String, String)], sort: String, body: SExpr)
   case Assert(formula: Formula)
 
   /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can

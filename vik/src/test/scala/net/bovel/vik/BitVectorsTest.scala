@@ -44,10 +44,9 @@ class BitVectorsTest extends munit.FunSuite:
     )
     assert(sat(s"$decls (assert (= (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)")) // an identity: sat for every x
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
-    // bvmul of two variables parses — the tree holds it — and the lowering rejects it; bvor is not
-    // in the vocabulary, so the parser does not know the symbol.
+    // The whole vocabulary parses — the tree holds it — and the lowering draws the fragment line.
     intercept[net.bovel.smt2.Unsupported](Player.play(Parser.parse(s"$decls (assert (= (bvmul x y) #x01))")))
-    intercept[net.bovel.smt2.Unsupported](Parser.parse(s"$decls (assert (= (bvor x y) #x01))"))
+    intercept[net.bovel.smt2.Unsupported](Player.play(Parser.parse(s"$decls (assert (= (bvor x y) #x01))")))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.

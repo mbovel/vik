@@ -50,8 +50,8 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
               d.constructors.map { c =>
                 val arguments = c.selectors.map { (selector, s) =>
                   val arg: ADT.CtorArgSort =
-                    if names.contains(s) then ADT.ADTSort(names.indexOf(s))
-                    else ADT.OtherSort(sorts(sortIds(s)))
+                    if names.contains(s.text) then ADT.ADTSort(names.indexOf(s.text))
+                    else ADT.OtherSort(sorts(sortIds(s.text)))
                   (selector, arg)
                 }
                 (c.name, ADT.CtorSignature(arguments, ADT.ADTSort(names.indexOf(d.name))))
@@ -270,8 +270,8 @@ object PrincessProgram:
           // The datatype names take sort ids silently: DeclareAdts fills them, no uninterpreted sort op.
           for d <- datatypes do if !sortIds.contains(d.name) then sortIds(d.name) = sortIds.size
           val groupId = sortIds(datatypes.head.name)
-          for d <- datatypes; c <- d.constructors; (_, s) <- c.selectors if !datatypes.exists(_.name == s) do
-            sortId(s)
+          for d <- datatypes; c <- d.constructors; (_, s) <- c.selectors if !datatypes.exists(_.name == s.text) do
+            sortId(s.text)
           val ctorKeys = ArrayBuffer.empty[(String, Int)]
           val selectorKeys = ArrayBuffer.empty[(String, Int)]
           var ctorIndex = 0

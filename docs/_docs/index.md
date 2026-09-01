@@ -58,8 +58,8 @@ Each component is a module usable on its own. Lines are `wc -l` over its `src/ma
 | [The CDCL(T) solver](components/cdclt.md) | 563 | A CDCL SAT solver with a theory interface. |
 | [The LIA solver](components/lia.md) | 684 | A simplex over the integers with branch and bound. |
 | [The S-expression reader](components/sexpr.md) | 85 | S-expressions from a string, one pass. |
-| [The language](components/smt2.md) | 1149 | Terms and formulas, SMT-LIB in and out. |
-| [The solver](components/vik.md) | 2011 | The lowering, the simplifier, the encoder, the theories, the solver and the player. |
+| [The language](components/smt2.md) | 864 | SMT-LIB 2 as written: sorts, terms, formulas, in and out. |
+| [The solver](components/vik.md) | 2759 | The solver's trees and their lowering, the simplifier, the encoder, the theories, the solver and the player. |
 
 ## What it is for
 

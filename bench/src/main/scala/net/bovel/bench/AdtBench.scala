@@ -9,7 +9,7 @@ import scala.util.Random
 import org.openjdk.jmh.annotations.*
 import net.bovel.vik.* // the formula and term operators
 import net.bovel.vik.{Solver}
-import net.bovel.smt2.{Constructor, Datatype}
+import net.bovel.smt2.{Constructor, Datatype, Sort}
 import net.bovel.vik.Formula.*
 import net.bovel.vik.Term.*
 
@@ -31,8 +31,8 @@ class AdtBench:
   var n: Int = uninitialized
 
   val color = Datatype("Color", List("red", "green", "blue").map(Constructor(_, Nil)))
-  val pair = Datatype("Pair", List(Constructor("mk", List(("fst", "Color"), ("snd", "Color")))))
-  val list = Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", "U"), ("tail", "List")))))
+  val pair = Datatype("Pair", List(Constructor("mk", List(("fst", Sort.Named("Color")), ("snd", Sort.Named("Color"))))))
+  val list = Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Named("U")), ("tail", Sort.Named("List"))))))
 
   private var finiteFormulas: List[List[Formula]] = uninitialized
   private var listFormulas: List[(List[Formula], Boolean)] = uninitialized

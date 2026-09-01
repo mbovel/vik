@@ -54,8 +54,8 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
           val names = datatypes.map(_.name)
           val constructors = datatypes.map { d =>
             d.constructors.map { c =>
-              val fieldSorts = c.selectors.map((_, s) => if names.contains(s) then null else sorts(sortIds(s)))
-              val refs = c.selectors.map((_, s) => names.indexOf(s))
+              val fieldSorts = c.selectors.map((_, s) => if names.contains(s.text) then null else sorts(sortIds(s.text)))
+              val refs = c.selectors.map((_, s) => names.indexOf(s.text))
               ctx.mkConstructor(c.name, c.tester, c.selectors.map(_._1).toArray, fieldSorts.toArray, refs.toArray)
             }.toArray
           }
@@ -217,9 +217,9 @@ object Z3Program:
           val members = datatypes.flatMap(d =>
             d.constructors.flatMap(c => (c.name :: c.tester :: c.selectors.map(_._1)).map(n => n -> declId(n)))
           ).toMap
-          for d <- datatypes; c <- d.constructors; (_, s) <- c.selectors if !names.contains(s) do sortId(s)
+          for d <- datatypes; c <- d.constructors; (_, s) <- c.selectors if !names.contains(s.text) do sortId(s.text)
           out += Op.DeclareDatatypes(datatypes, names ++ datatypes.flatMap(d =>
-            d.constructors.flatMap(c => c.selectors.map((_, s) => s -> sortIds(s)))
+            d.constructors.flatMap(c => c.selectors.map((_, s) => s.text -> sortIds(s.text)))
           ), members)
         case Command.Assert(f) => out += Op.Assert(formula(f))
         case Command.AssertNamed(_, f) => out += Op.Assert(formula(f)) // the name changes nothing z3 sees

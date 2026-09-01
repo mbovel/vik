@@ -18,8 +18,11 @@ class HoCoreTest extends munit.FunSuite:
       (assert (= g (f 1)))
       (assert (= ((f 1) 2) (f 1 2)))""")
     val asserts = script.commands.collect { case Command.Assert(a) => a }
-    assertEquals(asserts(0), Eq(Const("g"), App(Const("f"), List(Num(1)))))
-    assertEquals(asserts(1), IntEq(App(Const("f"), List(Num(1), Num(2))), App(Const("f"), List(Num(1), Num(2)))))
+    assertEquals(asserts(0), Eq(List(Const("g"), App(Const("f"), List(Numeral(1))))))
+    assertEquals(
+      asserts(1), // `((f 1) 2)` as written on the left, `(f 1 2)` on the right: the lowering equates them
+      Eq(List(App(App(Const("f"), List(Numeral(1))), List(Numeral(2))), App(Const("f"), List(Numeral(1), Numeral(2)))))
+    )
     assertEquals(
       check("""
         (declare-fun f (Int Int) Int)

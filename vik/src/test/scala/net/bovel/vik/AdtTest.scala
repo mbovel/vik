@@ -2,7 +2,7 @@ package net.bovel.vik
 
 import scala.util.Random
 
-import net.bovel.smt2.{Constructor, Datatype}
+import net.bovel.smt2.{Constructor, Datatype, Sort}
 import Formula.*
 import Term.*
 
@@ -11,7 +11,10 @@ import Term.*
  *  brute force.
  */
 class AdtTest extends munit.FunSuite:
-  val list = Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", "U"), ("tail", "List")))))
+  val list = Datatype(
+    "List",
+    List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Named("U")), ("tail", Sort.Named("List")))))
+  )
 
   def app(f: String, args: Term*): Term = App(Const(f), args.toList)
   def is(c: String, t: Term): Formula = Pred(app(s"(_ is $c)", t))
@@ -78,7 +81,8 @@ class AdtTest extends munit.FunSuite:
 
   test("finite sorts have finitely many values"):
     val unit = Datatype("Unit", List(Constructor("u", Nil)))
-    val option = Datatype("Opt", List(Constructor("none", Nil), Constructor("some", List(("value", "Unit")))))
+    val option =
+      Datatype("Opt", List(Constructor("none", Nil), Constructor("some", List(("value", Sort.Named("Unit"))))))
     def solver(): Solver =
       val s = Solver()
       s.declare(unit)
@@ -96,7 +100,8 @@ class AdtTest extends munit.FunSuite:
    */
   test("random formulas over finite datatypes against brute force"):
     val color = Datatype("Color", List("red", "green", "blue").map(Constructor(_, Nil)))
-    val pair = Datatype("Pair", List(Constructor("mk", List(("fst", "Color"), ("snd", "Color")))))
+    val pair =
+      Datatype("Pair", List(Constructor("mk", List(("fst", Sort.Named("Color")), ("snd", Sort.Named("Color"))))))
     val colors = List("red", "green", "blue")
     val rnd = Random(9)
     // values: colors as their name, pairs as (fst, snd)

@@ -76,7 +76,7 @@ assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit 
 | `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
 | `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit |
 
-The parser reads bit-vector terms as they are written — the tree has them (`Term.Bv`, `Term.Bits`) —
+The parser reads bit-vector terms as they are written — the tree has them (`Term.BvApp`, `Term.Bits`) —
 and the lowering is one function of the solver, `net.bovel.vik.Lowering`: it takes a script and returns
 the lowered script, declaring the constants each assertion needs and asserting their definitions before
 it, so the script that VIK plays is a `QF_LIA` script. The player applies it before playing. Two

@@ -21,30 +21,21 @@ class ScriptLambdaTest extends munit.FunSuite:
       (assert (= (g 0) (h 1 2)))""")
     val f = Const("f")
     val asserts = script.commands.collect { case Command.Assert(a) => a }
-    assertEquals(asserts(0), Eq(Const("g"), Lambda(List("Int"), App(f, List(Var(0), Num(1))))))
-    assertEquals(asserts(1), Eq(Const("h"), Lambda(List("Int"), Lambda(List("Int"), App(f, List(Var(0), Var(1)))))))
+    assertEquals(asserts(0), Eq(List(Const("g"), Lambda(List(("x", Sort.Int)), App(f, List(Const("x"), Numeral(1)))))))
     assertEquals(
-      asserts(2),
-      IntEq(App(Const("g"), List(Num(0))), App(Const("h"), List(Num(1), Num(2))))
-    ) // `(h 1 2)` is `((h 1) 2)`
-    assertEquals(script.commands(1), Command.DeclareFun("g", List("Int"), "Int")) // a function symbol
+      asserts(1),
+      Eq(List(
+        Const("h"),
+        Lambda(List(("y", Sort.Int)), Lambda(List(("z", Sort.Int)), App(f, List(Const("z"), Const("y")))))
+      ))
+    )
+    assertEquals(asserts(2), Eq(List(App(Const("g"), List(Numeral(0))), App(Const("h"), List(Numeral(1), Numeral(2))))))
+    assertEquals(script.commands(1), Command.DeclareFun("g", Nil, Sort.Fun(List(Sort.Int), Sort.Int)))
     assertEquals(
       script.commands(2),
-      Command.DeclareFun("h", List("Int", "Int"), "Int")
-    ) // `(-> Int (-> Int Int))`, flattened
-    assert(Printer.print(script).contains("(lambda ((%0 Int)) (lambda ((%1 Int)) (f %1 %0)))"))
+      Command.DeclareFun("h", Nil, Sort.Fun(List(Sort.Int, Sort.Int), Sort.Int))
+    ) // `(-> Int (-> Int Int))`, flattened by `Sort.fun`
     assertEquals(Parser.parse(Printer.print(script)), script)
-
-  test("syntactic redexes are reduced when parsed and when the simplifier substitutes"):
-    val script = Parser.parse("""
-      (declare-fun f (Int) Int)
-      (declare-const c Int)
-      (assert (= c ((lambda ((x Int)) (+ (f x) 1)) 3)))
-      (assert (= ((lambda ((g (-> Int Int)) (y Int)) (g (g y))) (lambda ((z Int)) (f z)) c) 7))""")
-    val asserts = script.commands.collect { case Command.Assert(a) => a }
-    val f = Const("f")
-    assertEquals(asserts(0), IntEq(Const("c"), Term.linear(List((BigInt(1), App(f, List(Num(3))))), 1)))
-    assertEquals(asserts(1), IntEq(App(f, List(App(f, List(Const("c"))))), Num(7)))
 
   test("alpha-equivalence by congruence"):
     val prefix = """
@@ -81,7 +72,7 @@ class ScriptLambdaTest extends munit.FunSuite:
       List(false, false, false, false)
     )
     intercept[Smt2Error](
-      Parser.parse("(declare-const g (-> Int Int)) (assert (= g (lambda ((x Int)) (ite (< x 0) 0 x))))")
+      Lowering(Parser.parse("(declare-const g (-> Int Int)) (assert (= g (lambda ((x Int)) (ite (< x 0) 0 x))))"))
     )
 
   test("lambdas as arguments"):

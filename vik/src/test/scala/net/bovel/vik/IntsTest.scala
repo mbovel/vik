@@ -28,14 +28,27 @@ class IntsTest extends munit.FunSuite:
     val asserts = s.commands.collect { case Command.Assert(f) => f }
     val x = Const("x")
     val y = Const("y")
-    assertEquals(asserts(0), Le(Linear(List((2, x), (1, y)), -3), Num(5)))
-    assertEquals(asserts(1), Le(Num(1), x)) // 0 < x is 0 + 1 ≤ x
-    assertEquals(asserts(2), IntEq(Linear(List((1, x), (-1, y)), 0), Num(-1)))
-    assertEquals(asserts(3), IntDistinct(List(x, y, Num(7))))
-    assertEquals(asserts(5), Le(Linear(List((1, x), (1, y)), 1), Num(10)))
-    // The `ite` is lowered to a constant defined by two integer equalities before its assertion.
-    assert(s.commands.exists { case Command.DeclareFun("ite!1", Nil, "Int") => true; case _ => false })
-    assertEquals(asserts(6), Implies(Pred(Const("p")), IntEq(Const("ite!1"), x)))
+    assertEquals(
+      asserts(0),
+      Cmp(
+        CmpOp.Le,
+        List(
+          ArithApp(
+            ArithOp.Add,
+            List(ArithApp(ArithOp.Mul, List(Numeral(2), x)), y, ArithApp(ArithOp.Neg, List(Numeral(3))))
+          ),
+          Numeral(5)
+        )
+      )
+    )
+    assertEquals(asserts(1), Cmp(CmpOp.Gt, List(x, Numeral(0))))
+    assertEquals(asserts(2), Eq(List(ArithApp(ArithOp.Sub, List(x, y)), ArithApp(ArithOp.Neg, List(Numeral(1))))))
+    assertEquals(asserts(3), Distinct(List(x, y, Numeral(7))))
+    assertEquals(
+      asserts(5),
+      Formula.Let(List(("s", ArithApp(ArithOp.Add, List(x, y)))), Cmp(CmpOp.Lt, List(Const("s"), Numeral(10))))
+    )
+    assertEquals(asserts(6), Eq(List(Term.Ite(Pred(Const("p")), x, y), Numeral(2))))
 
   test("solving and printing round trip"):
     val s = Parser.parse(script)
@@ -44,4 +57,4 @@ class IntsTest extends munit.FunSuite:
     assertEquals(Player.play(Parser.parse(script.replace("(check-sat)", "(assert (< x 1)) (check-sat)"))), List(false))
 
   test("rejected inputs"):
-    intercept[Smt2Error](Parser.parse("(declare-const x Int) (assert (<= (* x x) 1))"))
+    intercept[Smt2Error](Lowering(Parser.parse("(declare-const x Int) (assert (<= (* x x) 1))")))

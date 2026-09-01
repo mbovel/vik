@@ -76,9 +76,9 @@ final class Solver(val simplify: Boolean = true):
     if encoder != null then dirty = true // its rules and exhaustiveness need an encoder that knows it
     datatypes += datatype
     for c <- datatype.constructors do
-      declarations(c.name) = (c.selectors.map(_._2), datatype.name)
+      declarations(c.name) = (c.selectors.map(_._2.text), datatype.name)
       declarations(c.tester) = (List(datatype.name), "Bool")
-      for (selector, sort) <- c.selectors do declarations(selector) = (List(datatype.name), sort)
+      for (selector, sort) <- c.selectors do declarations(selector) = (List(datatype.name), sort.text)
 
   def push(): Unit =
     levels += ArrayBuffer.empty
@@ -274,7 +274,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     var changed = true
     while changed do
       val more = datatypes.filter(d =>
-        !known(d.name) && d.constructors.forall(_.selectors.forall((_, s) => known(s)))
+        !known(d.name) && d.constructors.forall(_.selectors.forall((_, s) => known(s.text)))
       ).map(_.name)
       changed = more.nonEmpty
       known ++= more
@@ -353,7 +353,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
     for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
     // A selector's applications meet the arguments of its constructor at its position (the selector rule).
-    for d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex if sort == "Int" do
+    for d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex if sort.text == "Int" do
       for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
       do
         if k.args.length > i then pair(s, k.args(i))
@@ -499,7 +499,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             null
           )
           if finite(datatype.name) then
-            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort) do
+            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort.text) do
               todo += Term.App(Term.Const(selector), List(t))
 
   private val liaSolver = lia.Solver()
@@ -843,7 +843,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             constructor match
               case Some(c) =>
                 val args = node.args.toList.zip(c.selectors).map((a, s) =>
-                  valueOfClass(a, s._2, seen + eg.find(cls))
+                  valueOfClass(a, s._2.text, seen + eg.find(cls))
                 )
                 if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
               case None => elementOf(sort, cls)

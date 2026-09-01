@@ -41,7 +41,7 @@ final class SmtInterpolProgram(instructions: Array[SmtInterpolProgram.Op], slotC
           for (d, i) <- datatypes.zipWithIndex do sorts(sortIds(d.name)) = s.sort(unquote(d.name))
           val ctorss = datatypes.map { d =>
             d.constructors.map { c =>
-              s.constructor(unquote(c.name), c.selectors.map((s0, _) => unquote(s0)).toArray, c.selectors.map((_, t) => s.sort(unquote(t))).toArray)
+              s.constructor(unquote(c.name), c.selectors.map((s0, _) => unquote(s0)).toArray, c.selectors.map((_, t) => s.sort(unquote(t.text))).toArray)
             }.toArray
           }
           // A non-parametric datatype wants null for its sort parameters: an empty array means arity zero
@@ -183,7 +183,7 @@ object SmtInterpolProgram:
           for d <- datatypes do if !sortIds.contains(d.name) then sortIds(d.name) = sortIds.size
           for d <- datatypes; c <- d.constructors do
             testers(c.tester) = c.name
-            for (_, s) <- c.selectors if !datatypes.exists(_.name == s) do sortId(s)
+            for (_, s) <- c.selectors if !datatypes.exists(_.name == s.text) do sortId(s.text)
           out += Op.DeclareAdts(datatypes, sortIds.toMap)
         case Command.Assert(f) => out += Op.Assert(formula(f))
         case Command.AssertNamed(_, f) => out += Op.Assert(formula(f))

@@ -9,12 +9,17 @@ extraCSS:
 
 # The solver
 
-`net.bovel.vik` plugs the parts together: the
-[lowering of bit-vectors](../theories/bit-vectors.md) to integers — one function from script to script —
-the polarity-aware [simplifier](../theories/first-order-logic.md) that runs before encoding, the encoder
-(Tseitin, atoms, the theory combination, the lemmas of datatypes and lambdas), the theories over
+`net.bovel.vik` plugs the parts together, starting with its own trees: the solver's term language —
+integers in linear normal form, de Bruijn lambdas — that the surface language of
+[`net.bovel.smt2`](smt2.md) cannot reach except through `Lowering`, one function from script to script.
+The lowering is the compiler: names become indices and substitutions, chained atoms become pairwise
+bounds, a term-level `ite` a defined constant, rational literals defined `Real` constants,
+[bit-vectors](../theories/bit-vectors.md) linear integer arithmetic — and what the fragment excludes is
+rejected here, with a message. Then the polarity-aware
+[simplifier](../theories/first-order-logic.md) that runs before encoding, the encoder (Tseitin, atoms, the
+theory combination, the lemmas of datatypes and lambdas), the theories over
 [the e-graph](egraph.md) and [the LIA solver](lia.md) driven by [the CDCL(T) loop](cdclt.md), models, and
-the player that runs a parsed script on a solver.
+the player that runs a script — either language — on a solver.
 
 ```scala
 import net.bovel.smt2.Parser
