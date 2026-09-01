@@ -91,10 +91,10 @@ regen() {
   bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --blank "$BLANK_COLD" > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|;
-             s|results/smt/[0-9-]+-laraserver4-warm.json|results/smt/$(basename "${jsons[0]}")|;
-             s|results/smt/[0-9-]+-laraserver4-warm-inc.json|results/smt/$(basename "$(ls -t $R/*-warm-inc.json | head -1)")|;
-             s|results/smt/[0-9-]+-laraserver4-warm-neq.json|results/smt/$(basename "$(ls -t $R/*-warm-neq.json | head -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "${jsons[0]}")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-inc\.json|results/smt/$(basename "$(ls -t $R/*-warm-inc.json | head -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-neq\.json|results/smt/$(basename "$(ls -t $R/*-warm-neq.json | head -1)")|" docs/_docs/evaluation.md
   rm -r "$tmp"
 }
 
