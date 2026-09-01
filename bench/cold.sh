@@ -12,7 +12,9 @@ INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-5}"  # the five-second budget: past it the cell says `timeout`, and nobody waits
 
-CP=$(sbt "print bench/runtimeClasspath" 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' | grep -E "^/" | tail -1)
+# --server runs the build in this process, no thin client — a client racing a half-dead
+# background server answered with empty stdout on three of four CI runs.
+CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
 # A broken classpath must fail here, loudly — not as thirty silent `error` rows.
 java -cp "$CP" net.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }

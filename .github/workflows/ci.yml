@@ -20,9 +20,9 @@ jobs:
         with:
           node-version: 24
       - name: Check formatting
-        run: sbt "scalafmtCheckAll; scalafmtSbtCheck"
+        run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
       - name: Test (JVM and Scala.js)
-        run: sbt test
+        run: sbt --server test
   bench:
     # The whole benchmark surface, dry: every JMH class and every solver method in quick mode with
     # -foe true — an error in any benchmark fails the job — then the cold pipeline against the real
@@ -51,7 +51,7 @@ jobs:
         # The solver segments raise the five-second budget (-Dvik.bench.budgetMs): a JIT-cold single
         # invocation here is a smoke test, not a measurement. Like the evaluation, the dry run never
         # selects a combination on bench/timeouts.txt — princess sits out RandomDecoupled.
-        run: sbt "bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -e .*OtherSolversBench.* -e .*SmtBench.*; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,mathsat__FISCHER1-1-fair.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,wisas__xs_8_8.smt2 .*SmtBench.*; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,dillig__20-4.smt2,keymaera__division_dijkstra-node701.smt2,RandomDecoupled__pb_real_30_60_45_28.smt2,20190906-CLEARSY__0020__00009.smt2 .*OtherSolversBench.(vik|vikText|z3|z3Direct|cvc5|smtinterpol)$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,dillig__20-4.smt2,keymaera__division_dijkstra-node701.smt2,20190906-CLEARSY__0020__00009.smt2 .*OtherSolversBench.princess$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,check__array_incompleteness1.smt2,regress0__define-fun-model.smt2,regressions__3775.smt2 .*OtherSolversBench.(vik|vikText)$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,check__array_incompleteness1.smt2,regress0__define-fun-model.smt2 .*OtherSolversBench.cvc5$"
+        run: sbt --server "bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -e .*OtherSolversBench.* -e .*SmtBench.*; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,mathsat__FISCHER1-1-fair.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,wisas__xs_8_8.smt2 .*SmtBench.*; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,dillig__20-4.smt2,keymaera__division_dijkstra-node701.smt2,RandomDecoupled__pb_real_30_60_45_28.smt2,20190906-CLEARSY__0020__00009.smt2 .*OtherSolversBench.(vik|vikText|z3|z3Direct|cvc5|smtinterpol)$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=QG-classification__qg5__iso_brn001.smt2,dillig__20-4.smt2,keymaera__division_dijkstra-node701.smt2,20190906-CLEARSY__0020__00009.smt2 .*OtherSolversBench.princess$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,check__array_incompleteness1.smt2,regress0__define-fun-model.smt2,regressions__3775.smt2 .*OtherSolversBench.(vik|vikText)$; bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000 -p file=storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,check__array_incompleteness1.smt2,regress0__define-fun-model.smt2 .*OtherSolversBench.cvc5$"
       - name: Cold pipeline dry run
         # One instance per theory, one repetition: the script, the binaries and the answer parsing all
         # work; VIK must answer every instance, the other solvers may error on what they do not speak.
@@ -88,7 +88,7 @@ jobs:
           java-version: 17
       - uses: sbt/setup-sbt@v1
       - name: Documentation (the guide, with runnable snippets, and the API of the six modules)
-        run: sbt site
+        run: sbt --server site
       - uses: actions/upload-artifact@v4
         with:
           name: docs

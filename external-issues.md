@@ -155,6 +155,20 @@ leaving the server to build only.
 - Long `-p file=a,b,c` arguments to `Jmh/run` work, but a benchmark that throws during setup (a missing resource) is
   reported only inside the JMH log as `<failure>`; the command itself succeeds with exit code 0.
 
+### 14. After a completed invocation, the next client can exit at once with empty stdout (2026-09-01, runs 33516155117, 33519232381)
+
+- **Observed**: on GitHub Actions, a job step ran a long `sbt` command chain to completion; the next step's
+  `sbt "print bench/runtimeClasspath"` exited within about 1.5 seconds with empty stdout, on three of four
+  runs (the fourth passed unchanged). No process was killed anywhere — this is the healthy path. The
+  client's stderr went to `/dev/null` in the script, so the underlying error was never captured; the
+  symptom is indistinguishable from a successful print of nothing.
+- **Reading**: the thin client of the new step races the previous invocation's background server — its
+  teardown, or a descriptor in transition (issue 9 is the same family on first boot, issue 11 the
+  kill-induced one) — and gives up silently instead of starting a fresh server.
+- **Remedy**: no thin client in scripts and CI — `sbt --server` runs the build in the foreground process,
+  which exits with the step: nothing to race, nothing left behind. (A foreground run coexists with a live
+  background server; interactive use keeps the client.)
+
 ## Scaladoc
 
 Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.

@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 TIMEOUT="${1:-60}"
 FILES=$(ls bench/src/main/resources/smtlib/*.smt2 | grep -E "${2:-.}") # optional second argument: a regex selecting files
 # One classpath for the three JVM solvers (VIK, princess, SMTInterpol): bench depends on all of them.
-CP=$(sbt "print bench/runtimeClasspath" 2>/dev/null | grep -E "^/" | tail -1)
+CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
 run() { # name, command...
   local name=$1; shift
   local start end out
