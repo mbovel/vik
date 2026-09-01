@@ -32,21 +32,24 @@ OUT=$R/$DATE-$HOST
 
 # The warm instances by group; the incremental and NEQ files are separate JMH
 # runs so their results land in their own files, as the tables expect.
-MAIN="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2,check__array_incompleteness1.smt2,keymaera__division_dijkstra-node701.smt2,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2,RandomDecoupled__pb_real_30_60_45_28.smt2,QG-classification__qg5__iso_brn001.smt2,QG-classification__qg5__iso_icl662.smt2,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2,20170829-Rodin__smt3534838651727683253.smt2,20190906-CLEARSY__0016__00003.smt2,TypeSafe__z3.1184131.smt2,CAV_2009_benchmarks__20-vars__problem__001.smt2,cut_lemmas__10-vars__cut_lemma_01_001.smt2,dillig__20-4.smt2,mathsat__FISCHER1-1-fair.smt2,convert__convert-tiff2jpg-query-1831.smt2,prime-cone__prime_cone_unsat_3.smt2,sage__app7__bench_8505.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,20172804-Barrett__tests__v10__v10l20080.cvc.smt2,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2,TwoSquares__smtlib.598294.smt2,mathsat__Wisa__xs-09-05-2-4-4-5.smt2,wisas__xs_8_8.smt2"
+MAIN="keymaera__division_dijkstra-node701.smt2,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2,RandomDecoupled__pb_real_30_60_45_28.smt2,QG-classification__qg5__iso_brn001.smt2,QG-classification__qg5__iso_icl662.smt2,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2,20170829-Rodin__smt3534838651727683253.smt2,20190906-CLEARSY__0016__00003.smt2,TypeSafe__z3.1184131.smt2,CAV_2009_benchmarks__20-vars__problem__001.smt2,cut_lemmas__10-vars__cut_lemma_01_001.smt2,dillig__20-4.smt2,mathsat__FISCHER1-1-fair.smt2,convert__convert-tiff2jpg-query-1831.smt2,prime-cone__prime_cone_unsat_3.smt2,sage__app7__bench_8505.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,20172804-Barrett__tests__v10__v10l20080.cvc.smt2,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2,TwoSquares__smtlib.598294.smt2,mathsat__Wisa__xs-09-05-2-4-4-5.smt2,wisas__xs_8_8.smt2"
 INC="20190906-CLEARSY__0020__00009.smt2,kind__MESI_i4.ec.smt2,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2"
 INC_SLOW="lustre__two_counters.bmc_k100.smt2,lustre__ex3.bmc_k100.smt2"  # VIK: tens of seconds per op
 NEQ="NEQ__NEQ004_size4.smt2"
 HOF="regress0__define-fun-model.smt2,regressions__3775.smt2"  # higher-order: only the solvers with lambdas
+ARR="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2,check__array_incompleteness1.smt2"  # arrays: the replays lack the store axioms
 
 # Blanked cells: the API columns on the bit-vector instances (the tree is
 # already lowered: not the same question), and princess where it needs minutes.
-BLANK_WARM="z3Direct:storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,princess:storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,smtinterpol:storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,z3Direct:swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,princess:swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,smtinterpol:swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,z3Direct:check__array_incompleteness1,princess:check__array_incompleteness1,smtinterpol:check__array_incompleteness1,z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,princess:NEQ__NEQ004_size4,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
+BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,princess:NEQ__NEQ004_size4,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
 BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
 
 jmh() { # jmh <rff> <files> <methods regex> [extra jmh args]
   local rff=$1 files=$2 methods=$3; shift 3
   # The ceiling catches a wedged run; -k because an sbt client can ignore TERM while its fork lives.
-  timeout -k 30 5400 sbt "bench/Jmh/run -f 2 -wi 3 -i 3 $* -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$"
+  # -foe: any unrecoverable benchmark error fails the run — combos that cannot run are excluded by
+  # the groups, never tolerated as failures.
+  timeout -k 30 5400 sbt "bench/Jmh/run -foe true -f 2 -wi 3 -i 3 $* -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$"
 }
 
 warm() {
@@ -58,6 +61,7 @@ warm() {
   jmh "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2
   jmh "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)"
   jmh "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText|cvc5)"
+  jmh "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)"
   python3 - "$OUT" <<'PY'
 import json, sys, pathlib
 out = sys.argv[1]
@@ -67,7 +71,7 @@ def cat(dst, *srcs):
         p = pathlib.Path(f"{out}-{s}.json")
         if p.exists(): rows += json.load(open(p)); p.unlink()
     json.dump(rows, open(f"{out}-{dst}.json", "w"), indent=1)
-cat("warm", "warm", "warm-p", "warm-ho")
+cat("warm", "warm", "warm-p", "warm-ho", "warm-arr")
 cat("warm-inc", "warm-inc", "warm-inc-s", "warm-inc-slow", "warm-inc-p")
 PY
 }
