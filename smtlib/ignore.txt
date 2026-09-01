@@ -72,3 +72,5 @@ QF_LRA/smt-lib/tropical-matrix__constraint-199552.smt2	beyond the search today (
 QF_LRA/smt-lib/tropical-matrix__constraint-223827.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Loop_5-phaseTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Lasso_6-phaseTemplate.smt2	beyond the search today (the fuel, two million steps, runs out)
+QF_LRA/smt-lib/latendresse__shewanella-compact2b.smt2	beyond the search today (the fuel, two million steps, runs out)
+QF_LRA/smt-lib/latendresse__shewanella-compact2.smt2	beyond the search today (the fuel, two million steps, runs out)

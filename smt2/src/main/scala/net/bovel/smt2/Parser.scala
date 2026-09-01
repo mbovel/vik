@@ -93,11 +93,11 @@ private final class Parser extends Lowering:
       List(Command.DeclareSort(name, arity.toInt))
     case SList(SAtom("declare-sort") :: SAtom(name) :: Nil) => List(Command.DeclareSort(name, 0))
     case SList(SAtom("declare-fun") :: SAtom(name) :: SList(args) :: sort :: Nil) =>
-      declare(name, args.map(_.toString), sort.toString)
+      declare(name, args.map(sortText), sortText(sort))
     case SList(SAtom("declare-const") :: SAtom(name) :: sort :: Nil) =>
-      arrow(sort.toString) match // a constant of a function sort is a function symbol
+      arrow(sortText(sort)) match // a constant of a function sort is a function symbol
         case Some((argSorts, result)) => declare(name, argSorts, result)
-        case None => declare(name, Nil, sort.toString)
+        case None => declare(name, Nil, sortText(sort))
     case SList(SAtom("declare-datatype") :: SAtom(name) :: SList(constructors) :: Nil) =>
       List(declareDatatypes(List((name, constructors))))
     case SList(SAtom("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil) =>
@@ -235,6 +235,37 @@ private final class Parser extends Lowering:
       for (selector, sort) <- constructor.selectors do functions(selector) = (List(datatype.name), sort)
     Command.DeclareDatatypes(datatypes)
 
+  /** The sort as a string, `(Array I E)` translated to the function sort
+   *  `(-> I E)`: an array is a function, `select` its application (see the
+   *  `store` case of [[term]]). Untranslated paths (datatype fields) still meet
+   *  the `(Array ` rejection of [[checkSort]].
+   */
+  private def sortText(s: SExpr): String = s match
+    case SAtom(name) => name
+    case SList(SAtom("Array") :: args) if args.length >= 2 =>
+      s"(-> ${args.map(sortText).mkString(" ")})"
+    case SList(items) => s"(${items.map(sortText).mkString(" ")})"
+
+  /** The `store!N` function symbol for arrays of `sort`, declared on first use:
+   *  `store` is not a function of the tree, each array sort gets its own
+   *  uninterpreted symbol, and the solver's array lemmas recognize the name.
+   */
+  private val storeSymbols = scala.collection.mutable.HashMap.empty[String, String]
+
+  private def storeSymbol(sort: String): Term =
+    val name = storeSymbols.getOrElseUpdate(
+      sort, {
+        val (params, result) = arrow(sort).get
+        if arrow(result).isDefined then throw Smt2Error("store on a nested array is not supported")
+        val n = s"store!${storeSymbols.size + 1}"
+        val argSorts = sort :: params ::: List(result) // the array, the index, the value
+        introduced += ((n, Sorts.function(argSorts, sort)))
+        functions(n) = (argSorts, sort)
+        n
+      }
+    )
+    Term.Const(name)
+
   private def isNumeral(name: String): Boolean = name.nonEmpty && name.forall(_.isDigit)
 
   private def isDecimal(name: String): Boolean =
@@ -342,6 +373,12 @@ private final class Parser extends Lowering:
           ))
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) => "Bool"
     case SList(SAtom("/") :: _) => "Real"
+    case SList(SAtom("select") :: a :: _ :: Nil) if arrow(sortOf(a, env)).isDefined =>
+      arrow(sortOf(a, env)).get match
+        case (_ :: Nil, result) => result
+        case (_ :: rest, result) => Sorts.function(rest, result)
+        case _ => "?"
+    case SList(SAtom("store") :: a :: _ :: _ :: Nil) if arrow(sortOf(a, env)).isDefined => sortOf(a, env)
     case SList(SAtom("+" | "-" | "*") :: args) => if args.exists(a => sortOf(a, env) == "Real") then "Real" else "Int"
     case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
       val ps = parameters(params)
@@ -452,6 +489,10 @@ private final class Parser extends Lowering:
     case SAtom("false") => Term.boolean(Formula.False)
     case SAtom(name) if isNumeral(name) => Term.Num(BigInt(name))
     case SAtom(name) if isDecimal(name) => decimalTerm(name)
+    case SList(SAtom("select") :: a :: i :: Nil) if arrow(sortOf(a, env)).isDefined =>
+      Term.app(term(a, env), List(term(i, env)))
+    case SList(SAtom("store") :: a :: i :: v :: Nil) if arrow(sortOf(a, env)).isDefined =>
+      Term.App(storeSymbol(sortOf(a, env)), List(term(a, env), term(i, env), term(v, env)))
     case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))
     case SAtom(name) if name.startsWith("#x") => Term.Num(BigInt(name.drop(2), 16))
     case SList(SAtom("_") :: SAtom(literal) :: SAtom(width) :: Nil) if literal.startsWith("bv") =>

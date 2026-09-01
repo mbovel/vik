@@ -177,6 +177,7 @@ final class Solver(val simplify: Boolean = true):
     val activations = named.toList.map((name, formula) => (name, e.activate(formula)))
     e.assertExtensionality()
     e.applicationLemmas()
+    e.arrayLemmas()
     e.assertExhaustiveness()
     e.shareIntegers()
     e.decideBooleans()
@@ -498,6 +499,44 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  iff its formula does. A predicate application only used as an atom needs
    *  neither: its disequality with `true` is enough.
    */
+  /** The array axioms, as lemmas over the finite product of the `store!`
+   *  applications and the index terms of their array sort (`store` symbols come
+   *  from the parser, one per array sort): for `s = store(a, i, v)`, the write
+   *  is read back — `select(s, i) = v` — and for every index `j` of the sort,
+   *  `i = j ∨ select(s, j) = select(a, j)`. Selection is application, so
+   *  congruence and extensionality (the witnesses join the index set) come from
+   *  the function machinery; each lemma is emitted once, ever. Nested arrays
+   *  would need the pass and the extensionality pass iterated; the
+   *  quantifier-free array logics keep them flat.
+   */
+  private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
+  private val arrayReadsDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
+  private lazy val anyStore = declarations.keys.exists(_.startsWith("store!"))
+
+  def arrayLemmas(): Unit = if anyStore then
+    val stores = classes.keys.collect {
+      case s @ Term.App(Term.Const(name), List(_, _, _)) if name.startsWith("store!") => s
+    }.toList
+    val indices = scala.collection.mutable.HashMap.empty[String, scala.collection.mutable.LinkedHashSet[Term]]
+    def index(sort: String, j: Term): Unit =
+      indices.getOrElseUpdate(sort, scala.collection.mutable.LinkedHashSet.empty) += j
+    for a <- classes.keys do
+      a match
+        case Term.App(f, List(j)) if Sorts.arrow(sortOf(f)).isDefined => index(sortOf(f), j)
+        case _ => ()
+    for s <- stores do index(sortOf(s), s.args(1))
+    def equalAt(sort: String, l: Term, r: Term): Formula =
+      if sort == "Int" || sort == "Real" then Formula.IntEq(l, r) else Formula.Eq(l, r)
+    for case s @ Term.App(_, List(a, i, v)) <- stores do
+      val sort = sortOf(s)
+      val (indexSort :: _, elementSort) = Sorts.arrow(sort).get: @unchecked
+      if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, Term.app(s, List(i)), v)))
+      for j <- indices.getOrElse(sort, Nil) if j != i && arrayReadsDone.add((s, j)) do
+        clauses += Array(
+          lit(equalAt(indexSort, i, j)),
+          lit(equalAt(elementSort, Term.app(s, List(j)), Term.app(a, List(j))))
+        )
+
   def decideBooleans(): Unit =
     var i = 0
     while i < booleans.length do
