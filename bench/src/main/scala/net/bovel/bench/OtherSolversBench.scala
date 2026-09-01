@@ -10,8 +10,8 @@ import com.microsoft.z3.{Context, Status}
 import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
-import net.bovel.smt2.{Corpus, Parser, Printer, Script as VikScript}
-import net.bovel.vik.{Lowering, Player}
+import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.vik.{Lowering, Player, Printer, Script as VikScript, Solver}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
@@ -119,7 +119,7 @@ class OtherSolversBench:
 
   /** The solver on a problem it already holds, as a tool that builds the terms itself calls it. */
   @Benchmark
-  def vik(): List[Boolean] = Budget.run("vik", file)(Player.play(script))
+  def vik(): List[Boolean] = Budget.run("vik", file)(Player.play(script, Solver()))
 
   /** The same, from the text of the script: what the solvers that parse below are measured on. */
   @Benchmark

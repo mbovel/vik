@@ -2,7 +2,7 @@ package net.bovel.vik
 
 import scala.util.Random
 
-import net.bovel.smt2.*
+import net.bovel.smt2.Parser
 
 /** The lowering of bit-vector arithmetic to integers: hand cases, and random
  *  4-bit expressions whose value under an assignment is computed directly and

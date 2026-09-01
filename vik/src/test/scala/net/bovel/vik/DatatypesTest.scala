@@ -1,7 +1,6 @@
 package net.bovel.vik
 
 import net.bovel.smt2.*
-import net.bovel.smt2.{Constructor, Datatype, Formula, Term}
 import net.bovel.smt2.Formula.*
 import net.bovel.smt2.Term.*
 

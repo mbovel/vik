@@ -1,6 +1,7 @@
 package net.bovel.bench
 
 import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.vik.Lowering
 
 /** Checks [[SmtInterpolProgram]] against the corpus statuses, as
  *  `princesscheck` does for princess:
@@ -10,7 +11,7 @@ import net.bovel.smt2.{Corpus, Parser}
   var failures = 0
   for file <- files do
     val script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
-    val answers = SmtInterpolProgram.compile(script).check()
+    val answers = SmtInterpolProgram.compile(Lowering(script)).check()
     val expected = script.expectedStatuses
     val ok = answers.length == expected.length && answers.zip(expected).forall((a, e) => e.forall(_ == a))
     if !ok then failures += 1

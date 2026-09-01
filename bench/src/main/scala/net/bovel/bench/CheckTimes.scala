@@ -1,7 +1,7 @@
 package net.bovel.bench
 
-import net.bovel.smt2.{Command, Corpus, Parser}
-import net.bovel.vik.Solver
+import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.vik.{Command, Lowering, Solver}
 
 /** Prints the wall time of every `check-sat` of a script, one solver for the
  *  whole run: `sbt "bench/runMain net.bovel.bench.checktimes file.smt2"`. The
@@ -9,7 +9,7 @@ import net.bovel.vik.Solver
  *  independent, growing means state accumulates.
  */
 @main def checktimes(file: String): Unit =
-  val script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
+  val script = Lowering(Parser.parse(java.nio.file.Files.readString(Corpus.find(file))))
   val solver = Solver()
   var check = 0
   for command <- script.commands do

@@ -1,15 +1,15 @@
 package net.bovel.vik
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.smt2.*
-import net.bovel.smt2.{Formula, Term}
+import net.bovel.smt2 as s2
 
-/** Runs a [[smt2.Script]] on a [[net.bovel.vik.Solver]]: `assert`, `push`,
- *  `pop` and `check-sat` become calls, and the responses are returned: `sat`,
- *  `unsat` or `unknown` per `check-sat`, and the `:reason-unknown` of
- *  `get-info` — `resourceout` when the fuel is spent (`:rlimit`, or `fuel`
- *  here), `timeout` when the `:timeout` (milliseconds) passed, `canceled` when
- *  the caller stopped it.
+/** Runs a script on a [[Solver]]: `assert`, `push`, `pop` and `check-sat`
+ *  become calls, and the responses are returned: `sat`, `unsat` or `unknown`
+ *  per `check-sat`, and the `:reason-unknown` of `get-info` — `resourceout`
+ *  when the fuel is spent (`:rlimit`, or `fuel` here), `timeout` when the
+ *  `:timeout` (milliseconds) passed, `canceled` when the caller stopped it. A
+ *  surface script (`net.bovel.smt2`) is [[Lowering lowered]] first; a lowered
+ *  [[Script]] plays as it is.
  */
 object Player:
   private def valueText(m: Model, item: Formula | Term): String = item match
@@ -35,24 +35,29 @@ object Player:
       s"(define-fun $n ($params) ${f.result} $body)"
     }
     (constants ++ functions).mkString("(", " ", ")")
-  def play(script: Script, solver: Solver = Solver()): List[Boolean] =
-    answers(script, solver).map(_.getOrElse(throw IllegalStateException("unknown without a budget")))
+  def play(script: s2.Script, solver: Solver = Solver()): List[Boolean] = play(Lowering(script), solver)
 
   /** The answer of each `check-sat`: `Some(true)` for sat, `None` for unknown
    *  (the `fuel` of each `check-sat` is spent, see `Solver.solve`).
    */
-  def answers(script: Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[Option[Boolean]] =
-    run(script, solver, fuel).collect {
+  def answers(script: s2.Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[Option[Boolean]] =
+    answers(Lowering(script), solver, fuel)
+
+  /** The responses of the script, in order. */
+  def run(script: s2.Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[String] =
+    run(Lowering(script), solver, fuel)
+
+  def play(lowered: Script, solver: Solver): List[Boolean] =
+    answers(lowered, solver, Long.MaxValue).map(_.getOrElse(throw IllegalStateException("unknown without a budget")))
+
+  def answers(lowered: Script, solver: Solver, fuel: Long): List[Option[Boolean]] =
+    run(lowered, solver, fuel).collect {
       case "sat" => Some(true)
       case "unsat" => Some(false)
       case "unknown" => None
     }
 
-  /** The responses of the script, in order. */
-  def run(script: Script, solver: Solver = Solver(), fuel: Long = Long.MaxValue): List[String] =
-    // The solver speaks integers: the bit-vectors of the script are lowered here, so the assertion
-    // stack, the models and the values are all in the lowered problem (see [[Lowering]]).
-    val lowered = Lowering(script)
+  def run(lowered: Script, solver: Solver, fuel: Long): List[String] =
     val responses = ArrayBuffer.empty[String]
     // Models cost a walk per sat: taken only when the script asks for them.
     val wantsModels = lowered.commands.exists {

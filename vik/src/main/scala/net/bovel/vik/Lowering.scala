@@ -2,17 +2,18 @@ package net.bovel.vik
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
-import net.bovel.smt2.*
-import net.bovel.smt2.Formula.*
-import net.bovel.smt2.Term.*
+import net.bovel.smt2 as s2
+import Formula.*
+import Term.*
 
-/** Lowers the bit-vectors of a script to linear integer arithmetic — the parser
- *  reads them as they are ([[net.bovel.smt2.Term.Bv]]), and the solver speaks
- *  integers: [[Player.run]] applies this before playing, and `smt2lowered`
- *  prints the result. An `n`-bit term is an `Int` term in `[0, 2^n)`: a
- *  bit-vector declaration becomes an `Int` declaration with its range asserted,
- *  and each operation a linear relation between its arguments, its result and
- *  fresh bounded integers, declared and asserted before the assertion using it:
+/** Lowers a surface script (`net.bovel.smt2`) to the solver's language: the one
+ *  function from the language the parser reads to the trees the solver plays —
+ *  [[Player.run]] applies it, and `smt2lowered` prints its result. Bit-vectors
+ *  go to linear integer arithmetic: an `n`-bit term is an `Int` term in
+ *  `[0, 2^n)` — a bit-vector declaration becomes an `Int` declaration with its
+ *  range asserted, and each operation a linear relation between its arguments,
+ *  its result and fresh bounded integers, declared and asserted before the
+ *  assertion using it:
  *    - `bvadd`, `bvsub`, `bvneg`, `bvmul` and `bvshl` by a constant, `bvnot`:
  *      the exact value is `result + 2^n × k` for an overflow count `k` in a
  *      known range (none for `bvnot`, `2^n − 1 − x`);
@@ -22,10 +23,10 @@ import net.bovel.smt2.Term.*
  *      comparisons split off the sign bit, `x = u + 2^(n−1) × s`.
  *  Multiplication, division and shifts by a variable, and the other bitwise
  *  operations would need bit-blasting: they are rejected
- *  ([[smt2.Unsupported]]).
+ *  ([[net.bovel.smt2.Unsupported]]).
  */
 object Lowering:
-  def apply(script: Script): Script = Script(Lowerer().commands(script.commands))
+  def apply(script: s2.Script): Script = Script(Lowerer().commands(script.commands))
 
 /** One lowering: the declared sorts (for the widths of constants), the fresh
  *  constants of the assertion being lowered and their defining assertions.
@@ -44,35 +45,47 @@ private final class Lowerer:
    *  flush with the assertion — and cleared with it: after a `pop` the
    *  definitions are gone, so nothing may remember the constants.
    */
-  private val memo = HashMap.empty[Term, Term]
+  private val memo = HashMap.empty[s2.Term, Term]
 
-  def commands(cs: List[Command]): List[Command] = cs.flatMap(command)
+  def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
-  private def command(c: Command): List[Command] = c match
+  private def command(c: s2.Command): List[Command] = c match
     // The lowered script is in the corresponding integer logic.
-    case Command.SetLogic(logic) => List(Command.SetLogic(logic.replace("BV", "LIA")))
-    case Command.DeclareFun(name, Nil, sort) if BitVectors.width(sort) >= 0 =>
+    case s2.Command.SetLogic(logic) => List(Command.SetLogic(logic.replace("BV", "LIA")))
+    case s2.Command.SetInfo(key, value) => List(Command.SetInfo(key, value))
+    case s2.Command.DeclareSort(name, arity) => List(Command.DeclareSort(name, arity))
+    case s2.Command.DeclareFun(name, Nil, sort) if s2.BitVectors.width(sort) >= 0 =>
       sorts(name) = sort
-      List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(range(Const(name), BitVectors.width(sort))))
-    case Command.DeclareFun(name, argSorts, sort) =>
-      sorts(name) = if argSorts.isEmpty then sort else Sorts.function(argSorts, sort)
-      List(c)
-    case Command.DeclareDatatypes(datatypes) =>
+      List(
+        Command.DeclareFun(name, Nil, "Int"),
+        Command.Assert(range(Const(name), s2.BitVectors.width(sort)))
+      )
+    case s2.Command.DeclareFun(name, argSorts, sort) =>
+      sorts(name) = if argSorts.isEmpty then sort else s2.Sorts.function(argSorts, sort)
+      List(Command.DeclareFun(name, argSorts, sort))
+    case s2.Command.DeclareDatatypes(datatypes) =>
       for d <- datatypes; ctor <- d.constructors; (selector, sort) <- ctor.selectors do
-        sorts(selector) = Sorts.function(List(d.name), sort)
-      List(c)
-    case Command.Assert(f) => flush(Command.Assert(formula(f)))
-    case Command.AssertNamed(name, f) => flush(Command.AssertNamed(name, formula(f)))
-    case Command.CheckSatAssuming(assumptions) => flush(Command.CheckSatAssuming(assumptions.map(formula)))
-    case Command.GetValue(items) =>
+        sorts(selector) = s2.Sorts.function(List(d.name), sort)
+      List(Command.DeclareDatatypes(datatypes))
+    case s2.Command.DefineFun(name, params, sort, body) => List(Command.DefineFun(name, params, sort, body))
+    case s2.Command.Assert(f) => flush(Command.Assert(formula(f)))
+    case s2.Command.AssertNamed(name, f) => flush(Command.AssertNamed(name, formula(f)))
+    case s2.Command.CheckSat => List(Command.CheckSat)
+    case s2.Command.CheckSatAssuming(assumptions) => flush(Command.CheckSatAssuming(assumptions.map(formula)))
+    case s2.Command.Push(levels) => List(Command.Push(levels))
+    case s2.Command.Pop(levels) => List(Command.Pop(levels))
+    case s2.Command.ResetAssertions => List(Command.ResetAssertions)
+    case s2.Command.Reset => List(Command.Reset)
+    case s2.Command.GetModel => List(Command.GetModel)
+    case s2.Command.GetValue(items) =>
       // The value of a compound operation would need its defining assertions, which cannot be
       // asserted after a check: an item is lowered without them (constants and literals need none).
       val lowered = items.map((source, item) =>
         (
           source,
           (item match
-            case f: Formula => formula(f)
-            case t: Term => term(t)
+            case f: s2.Formula => formula(f)
+            case t: s2.Term => term(t)
           ): Formula | Term
         )
       )
@@ -80,7 +93,12 @@ private final class Lowerer:
       definitions.clear()
       memo.clear()
       List(Command.GetValue(lowered))
-    case other => List(other)
+    case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
+    case s2.Command.GetAssertions => List(Command.GetAssertions)
+    case s2.Command.Exit => List(Command.Exit)
+    case s2.Command.SetOption(key, value) => List(Command.SetOption(key, value))
+    case s2.Command.GetInfo(key) => List(Command.GetInfo(key))
+    case s2.Command.Other(sexpr) => List(Command.Other(sexpr))
 
   /** The introduced declarations and defining assertions, then the command. */
   private def flush(command: Command): List[Command] =
@@ -91,53 +109,69 @@ private final class Lowerer:
     memo.clear()
     out
 
-  private def formula(f: Formula): Formula = f.mapTerms(term)
+  private def formula(f: s2.Formula): Formula = f match
+    case s2.Formula.True => True
+    case s2.Formula.False => False
+    case s2.Formula.Not(arg) => Not(formula(arg))
+    case s2.Formula.And(args) => And(args.map(formula))
+    case s2.Formula.Or(args) => Or(args.map(formula))
+    case s2.Formula.Implies(lhs, rhs) => Implies(formula(lhs), formula(rhs))
+    case s2.Formula.Iff(lhs, rhs) => Iff(formula(lhs), formula(rhs))
+    case s2.Formula.Ite(cond, thn, els) => Ite(formula(cond), formula(thn), formula(els))
+    case s2.Formula.Eq(lhs, rhs) => Eq(term(lhs), term(rhs))
+    // `pred`, not `Pred`: a lowered comparison comes back as a Boolean term and unwraps.
+    case s2.Formula.Pred(t) => Formula.pred(term(t))
+    case s2.Formula.Le(lhs, rhs) => Le(term(lhs), term(rhs))
+    case s2.Formula.Less(lhs, rhs) => Less(term(lhs), term(rhs))
 
   /** The width of an unlowered bit-vector term, -1 for another sort. */
-  private def width(t: Term): Int = t match
-    case Bits(_, w) => w
-    case Bv("extract", i :: j :: Nil, _) => i - j + 1
-    case Bv("zero_extend" | "sign_extend", k :: Nil, a :: Nil) => width(a) + k
-    case Bv("concat", _, args) => args.map(width).sum
-    case Bv(_, _, args) => width(args.head) // the arithmetic operations keep their arguments' width
-    case Const(name) => sorts.get(name).map(BitVectors.width).getOrElse(-1)
-    case App(Const(name), args) =>
-      sorts.get(name).map(s => BitVectors.width(Sorts.applied(s, args.length))).getOrElse(-1)
+  private def width(t: s2.Term): Int = t match
+    case s2.Term.Bits(_, w) => w
+    case s2.Term.Bv("extract", i :: j :: Nil, _) => i - j + 1
+    case s2.Term.Bv("zero_extend" | "sign_extend", k :: Nil, a :: Nil) => width(a) + k
+    case s2.Term.Bv("concat", _, args) => args.map(width).sum
+    case s2.Term.Bv(_, _, args) => width(args.head) // the arithmetic operations keep their arguments' width
+    case s2.Term.Const(name) => sorts.get(name).map(s2.BitVectors.width).getOrElse(-1)
+    case s2.Term.App(s2.Term.Const(name), args) =>
+      sorts.get(name).map(s => s2.BitVectors.width(s2.Sorts.applied(s, args.length))).getOrElse(-1)
     case _ => -1
 
-  private def term(t: Term): Term = t match
-    case Bits(value, _) => Num(value)
-    case bv: Bv => memo.getOrElseUpdate(bv, operation(bv))
-    case Const(_) | Num(_) | Var(_) => t
-    case App(f, as) =>
-      val fun = term(f)
-      val args = as.map(term)
-      // Unchanged applications stay as they are: `Term.app` would re-canonicalize a raw `App`.
-      if (fun eq f) && args.corresponds(as)(_ eq _) then t else Term.app(fun, args)
-    case Linear(terms, constant) => Term.linear(terms.map((a, u) => (a, term(u))), constant)
-    case Lambda(paramSorts, body) =>
+  /** The term, lowered — a structural copy into the solver's language, raw
+   *  constructors throughout: the surface tree is already in the canonical form
+   *  the parser built (`Term.app` would flatten a `store!` application it
+   *  deliberately kept whole).
+   */
+  private def term(t: s2.Term): Term = t match
+    case s2.Term.Const(name) => Const(name)
+    case s2.Term.Num(value) => Num(value)
+    case s2.Term.Bits(value, _) => Num(value)
+    case bv: s2.Term.Bv => memo.getOrElseUpdate(bv, operation(bv))
+    case s2.Term.App(f, as) => App(term(f), as.map(term))
+    case s2.Term.Linear(terms, constant) => Linear(terms.map((a, u) => (a, term(u))), constant)
+    case s2.Term.Lambda(paramSorts, body) =>
       depth += paramSorts.length
       try Lambda(paramSorts, term(body))
       finally depth -= paramSorts.length
-    case Bool(f) => Term.boolean(formula(f))
+    case s2.Term.Var(index) => Var(index)
+    case s2.Term.Bool(f) => Term.boolean(formula(f))
 
-  private def operation(bv: Term.Bv): Term = bv match
-    case Bv(op, Nil, a :: b :: Nil) if BitVectors.Comparison.names(op) =>
+  private def operation(bv: s2.Term.Bv): Term = bv match
+    case s2.Term.Bv(op, Nil, a :: b :: Nil) if s2.BitVectors.Comparison.names(op) =>
       Term.boolean(compare(op, term(a), term(b), width(a)))
-    case Bv("extract", i :: j :: Nil, a :: Nil) => extract(i, j, term(a), width(a))
-    case Bv("zero_extend", _, a :: Nil) => term(a)
-    case Bv("sign_extend", k :: Nil, a :: Nil) => signExtend(k, term(a), width(a))
-    case Bv("concat", _, args) =>
+    case s2.Term.Bv("extract", i :: j :: Nil, a :: Nil) => extract(i, j, term(a), width(a))
+    case s2.Term.Bv("zero_extend", _, a :: Nil) => term(a)
+    case s2.Term.Bv("sign_extend", k :: Nil, a :: Nil) => signExtend(k, term(a), width(a))
+    case s2.Term.Bv("concat", _, args) =>
       args.map(a => (term(a), width(a))).reduceLeft { case ((hi, wh), (lo, wl)) =>
         (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
       }._1
-    case Bv(op, _, args) => arithmetic(op, args.map(term), width(args.head))
+    case s2.Term.Bv(op, _, args) => arithmetic(op, args.map(term), width(args.head))
 
   /** A fresh `Int` constant in `[lo, hi]`, declared and bounded before the
    *  current assertion.
    */
   private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
-    if depth > 0 then throw Unsupported("bit-vector operations under a lambda are not supported")
+    if depth > 0 then throw s2.Unsupported("bit-vector operations under a lambda are not supported")
     fresh += 1
     val name = s"$prefix!$fresh"
     introduced += name
@@ -196,7 +230,7 @@ private final class Lowerer:
           case (Num(u), Num(v)) => Num((u * v).mod(m))
           case (t, Num(c)) => times(t, c.mod(m), width)
           case (Num(c), t) => times(t, c.mod(m), width)
-          case _ => throw Unsupported("bvmul of two variables is not supported (no bit-blasting)")
+          case _ => throw s2.Unsupported("bvmul of two variables is not supported (no bit-blasting)")
       case ("bvshl", a :: Num(c) :: Nil) =>
         if c >= width then Num(0) else times(a, BigInt(2).pow(c.toInt), width)
       case ("bvlshr", a :: Num(c) :: Nil) =>
@@ -208,8 +242,8 @@ private final class Lowerer:
           case (Num(u), Num(v)) => Num(u & v)
           case (t, Num(mask)) => masked(t, mask, width)
           case (Num(mask), t) => masked(t, mask, width)
-          case _ => throw Unsupported("bvand of two variables is not supported (no bit-blasting)")
-      case _ => throw Unsupported(s"$op with these arguments is not supported (no bit-blasting)")
+          case _ => throw s2.Unsupported("bvand of two variables is not supported (no bit-blasting)")
+      case _ => throw s2.Unsupported(s"$op with these arguments is not supported (no bit-blasting)")
     end match
 
   /** `c × t` modulo `2^width`, for `0 ≤ c < 2^width`. */
@@ -226,7 +260,7 @@ private final class Lowerer:
     (low, high) match
       case (Some(k), _) => if k == width then t else divide(t, BigInt(2).pow(k), m / BigInt(2).pow(k) - 1)._2
       case (_, Some(k)) => if k == 0 then t else t - divide(t, BigInt(2).pow(k), m / BigInt(2).pow(k) - 1)._2
-      case _ => throw Unsupported(s"bvand with the mask $mask is not supported (no bit-blasting)")
+      case _ => throw s2.Unsupported(s"bvand with the mask $mask is not supported (no bit-blasting)")
 
   /** Bits `i` down to `j` of `t`: `t = 2^j × q + low`,
    *  `q = 2^(i−j+1) × high + bits`.

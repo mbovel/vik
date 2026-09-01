@@ -1,7 +1,6 @@
 package net.bovel.smt2
 
-import net.bovel.vik.{Player, Solver}
-import net.bovel.smt2.{Formula, Term}
+import net.bovel.vik.{Command, Formula, Lowering, Player, Solver}
 
 /** `get-model` and `get-value`, and the models' soundness: the assertions of a
  *  sat script hold under the model the solver reports.
@@ -40,7 +39,7 @@ class ModelsTest extends munit.FunSuite:
       "dillig__20-4.smt2"
     )
     for file <- scripts do
-      val script = Parser.parse(Corpus.read(Corpus.files.find(_.endsWith(file)).get))
+      val script = Lowering(Parser.parse(Corpus.read(Corpus.files.find(_.endsWith(file)).get)))
       val solver = Solver()
       var checked = false
       val asserted = scala.collection.mutable.ArrayBuffer.empty[Formula]

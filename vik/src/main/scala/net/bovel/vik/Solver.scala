@@ -9,7 +9,7 @@ import net.bovel.cdclt
 import net.bovel.cdclt.{Lit, Theory}
 import net.bovel.egraph.{App, EClassId, EGraph, NoRules}
 import net.bovel.lia
-import net.bovel.smt2.*
+import net.bovel.smt2.{Datatype, Sorts}
 
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
  *  functions and linear integer arithmetic: `assert` formulas, `push` and `pop`

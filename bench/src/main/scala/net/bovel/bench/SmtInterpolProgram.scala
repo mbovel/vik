@@ -5,8 +5,9 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 import de.uni_freiburg.informatik.ultimate.logic.{Script as ItpScript, Sort as ItpSort, Term as ItpTerm}
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.SMTInterpol
-import net.bovel.smt2.{Command, Script}
-import net.bovel.smt2.{Datatype, Formula, Term}
+import net.bovel.vik.{Command, Script}
+import net.bovel.smt2.Datatype
+import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of SMTInterpol API calls —
  *  the `Script` interface Ultimate embeds — the SMTInterpol analogue of

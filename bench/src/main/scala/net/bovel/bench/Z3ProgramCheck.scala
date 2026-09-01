@@ -2,6 +2,7 @@ package net.bovel.bench
 
 import com.microsoft.z3.{Context, Status}
 import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.vik.Lowering
 
 /** Checks [[Z3Program]] against the corpus statuses:
  *  `sbt "bench/runMain net.bovel.bench.z3check file.smt2 [more...]"` compiles
@@ -14,7 +15,7 @@ import net.bovel.smt2.{Corpus, Parser}
   var failures = 0
   for file <- files do
     val script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
-    val program = Z3Program.compile(script)
+    val program = Z3Program.compile(Lowering(script))
     val ctx = Context()
     try
       val answers = program.check(ctx)

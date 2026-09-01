@@ -3,8 +3,9 @@ package net.bovel.bench
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import com.microsoft.z3.{BoolExpr, Context, Expr, FuncDecl, Sort}
-import net.bovel.smt2.{Command, Script}
-import net.bovel.smt2.{Datatype, Formula, Term}
+import net.bovel.vik.{Command, Script}
+import net.bovel.smt2.Datatype
+import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of z3 Java API calls: what
  *  a verifier that builds z3's terms directly executes per query. [[compile]]
