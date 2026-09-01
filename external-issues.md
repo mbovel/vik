@@ -190,6 +190,17 @@ The reliable cleanup after any kill is all four at once: kill the forks and the 
 fork sockets, remove `active.json`. A client that timed out connecting to a dead descriptor and
 booted a fresh server would remove the worst face outright. Not minimized or reported yet.
 
+## sbt 2: the fifth face of the kill-residue wedges — the unkilled server itself
+
+Follow-up to the four faces: on 2026-09-01 the same wedge struck twice more at benchmark group
+boundaries (a new `sbtn` client per group; the server accepted the command and never launched the
+fork). The root cause was residue of our own making: the cleanup killed clients, forks, sockets and
+`active.json`, but its process patterns (`xsbt.boot.Boot`, `sbt-server`) never matched the actual
+sbt 2 server — a plain `java -Divy.home=… -Dsbt.io.virtual=true …` process. The wedged server
+survived every cleanup with its orphaned queue intact, and each relaunch handed it a fresh client.
+Two such servers (48 and 31 minutes old) were found alive side by side. Kill by `sbt.io.virtual`,
+then remove the fork-ipc sockets and `active.json`; only then is a relaunch actually fresh.
+
 ## sbt: the server is a shared-heap single point of failure for unforked tests
 
 Not established as an upstream bug — recorded as a mechanism worth knowing. With
