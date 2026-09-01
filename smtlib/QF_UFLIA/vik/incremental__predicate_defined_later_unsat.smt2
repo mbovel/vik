@@ -1,0 +1,16 @@
+; Hand-written for VIK (this repository's license): as `predicate_defined_later`,
+; until the last assertion contradicts the meaning of the second.
+(set-logic QF_UFLIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-fun p (Int) Bool)
+(assert (> x 5))
+(assert (p y))
+(set-info :status sat)
+(check-sat)
+(assert (= (p y) (> y x)))
+(set-info :status sat)
+(check-sat)
+(assert (<= y x))
+(set-info :status unsat)
+(check-sat)

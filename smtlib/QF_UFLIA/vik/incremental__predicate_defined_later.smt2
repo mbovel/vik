@@ -1,0 +1,16 @@
+; Hand-written for VIK (this repository's license): a predicate constrained
+; before its arithmetic meaning arrives, one theory at a time.
+(set-logic QF_UFLIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-fun p (Int) Bool)
+(assert (> x 5))
+(assert (p y))
+(set-info :status sat)
+(check-sat)
+(assert (= (p y) (> y x)))
+(set-info :status sat)
+(check-sat)
+(assert (< x y))
+(set-info :status sat)
+(check-sat)

@@ -86,11 +86,16 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    *  moves to the front, and decisions take the first unassigned one. Each
    *  variable carries the time it last moved, so that `vmtfSearch`, the
    *  position from which the next decision searches, can be reset when a
-   *  variable before it becomes unassigned.
+   *  variable before it becomes unassigned. A greater stamp must mean earlier
+   *  in the list for every pair, so the initial stamps decrease along the
+   *  initial list (`-v`) and the bumped ones grow from 1: without that, two
+   *  never-bumped variables compare equal and the reset can leave `vmtfSearch`
+   *  past an unassigned variable — a decision never made, and a `Sat` on an
+   *  incomplete assignment.
    */
   private var vmtfPrev = Array.tabulate(numVars)(v => v - 1)
   private var vmtfNext = Array.tabulate(numVars)(v => if v + 1 < numVars then v + 1 else -1)
-  private var vmtfStamp = new Array[Long](numVars)
+  private var vmtfStamp = Array.tabulate(numVars)(v => -v.toLong)
   private var vmtfHead = if numVars > 0 then 0 else -1
   private var vmtfTail = numVars - 1
   private var vmtfSearch = vmtfHead
@@ -121,6 +126,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     watches += ArrayBuffer.empty
     vmtfPrev(v) = vmtfTail
     vmtfNext(v) = -1
+    vmtfStamp(v) = -v.toLong // last in the order: the smallest stamp so far
     if vmtfTail >= 0 then vmtfNext(vmtfTail) = v else vmtfHead = v
     vmtfTail = v
     if vmtfSearch < 0 then vmtfSearch = v
