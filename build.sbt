@@ -91,9 +91,9 @@ lazy val smt2utils = (project in file("smt2utils"))
   .dependsOn(smt2JVM, smt2JVM % "test->test")
   .settings(
     name := "smt2utils",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
-  .settings(forkedTests*)
+  .settings(forkedTests *)
 
 // The corpus and the documentation pages are data the JVM tests read from disk. The test cache is keyed on
 // the classpath, not on them (external-issues.md), so their stamp becomes a managed resource: a changed file
