@@ -427,7 +427,68 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
+  /** For the tests: pretend the small-model box is this many bits wide. */
+  private[lia] var boxBitsOverride: Long = -1
+
+  /** How many bits a solution needs at most, when every variable is an integer:
+   *  a generous envelope of Papadimitriou's small-model bound (JACM 1981) — a
+   *  feasible system of `m` constraints over `n` variables with entries of
+   *  absolute value at most `a` has a solution with entries at most
+   *  `n·(m·a)^(2m+1)`. The bound itself is astronomical and never computed; its
+   *  bit length is enough to prune a branch against, and the pruning is what
+   *  makes [[check]] a decision procedure for pure integers, fuel allowing: no
+   *  solution lives past the box, so exhausting it is a sound unsat.
+   */
+  private def smallModelBoxBits(): Long =
+    var a = BigInt(2)
+    var m = 0
+    var x = 0
+    while x < numVars do
+      val row = rows(x)
+      if row != null then
+        m += 1
+        var l = BigInt(1)
+        for (_, c) <- row do l = l / (l gcd c.den) * c.den
+        for (_, c) <- row do a = a.max((c.num * (l / c.den)).abs)
+        a = a.max(l)
+      val lo = lower(x)
+      val hi = upper(x)
+      if lo != null then
+        m += 1
+        a = a.max(lo.value.r.num.abs)
+      if hi != null then
+        m += 1
+        a = a.max(hi.value.r.num.abs)
+      x += 1
+    val size = BigInt(m + numVars + 2) * (a + 2)
+    (2L * (m + numVars) + 6) * size.bitLength
+
+  /** Every reason asserted, bounds and disequalities: the explanation when the
+   *  small-model box took part in an unsat — the box argument is about the
+   *  whole system, never a subset of it.
+   */
+  private def assertedReasons(): Set[Int] =
+    val out = Set.newBuilder[Int]
+    var x = 0
+    while x < numVars do
+      val l = lower(x)
+      val u = upper(x)
+      if l != null then out ++= l.reasons.filter(_ >= 0)
+      if u != null then out ++= u.reasons.filter(_ >= 0)
+      x += 1
+    for (_, _, reason) <- distinct do out += reason
+    out.result()
+
   def check(): Result =
+    val boxBits: Long =
+      if anyReal then -1L
+      else if boxBitsOverride >= 0 then boxBitsOverride
+      else smallModelBoxBits()
+    var boxPruned = false
+    def pastBox(c: BigInt): Boolean =
+      val past = boxBits >= 0 && c.abs.bitLength > boxBits
+      if past then boxPruned = true
+      past
     val open = ArrayBuffer.empty[Branch]
 
     /** Decides the relaxation and splits on the first fractional unknown, or
@@ -465,16 +526,20 @@ final class Solver:
         case Result.Unknown =>
           for _ <- open do pop()
           return Result.Unknown
-        case Result.Unsat(reasons) if open.isEmpty => return Result.Unsat(reasons)
+        case Result.Unsat(reasons) if open.isEmpty =>
+          return Result.Unsat(if boxPruned then assertedReasons() else reasons)
         case Result.Unsat(reasons) =>
           val branch = open.last
           pop()
           if branch.left == null then // the left side failed: try the right one
             branch.left = reasons
             push()
-            current = assertLower(branch.x, branch.ceil, branch.strict, branch.reason) match
-              case Result.Sat => step()
-              case unsat => unsat
+            current =
+              if pastBox(branch.ceil) then Result.Unsat(Set.empty) // no solution past the box
+              else
+                assertLower(branch.x, branch.ceil, branch.strict, branch.reason) match
+                  case Result.Sat => step()
+                  case unsat => unsat
           else // both sides failed
             open.remove(open.length - 1)
             current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
@@ -484,9 +549,12 @@ final class Solver:
         case branch: Branch =>
           open += branch
           push()
-          current = assertUpper(branch.x, branch.floor, branch.strict, branch.reason) match
-            case Result.Sat => step()
-            case unsat => unsat
+          current =
+            if pastBox(branch.floor) then Result.Unsat(Set.empty) // no solution past the box
+            else
+              assertUpper(branch.x, branch.floor, branch.strict, branch.reason) match
+                case Result.Sat => step()
+                case unsat => unsat
     throw AssertionError("unreachable")
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the

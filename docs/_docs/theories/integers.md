@@ -12,13 +12,17 @@ extraCSS:
 Linear arithmetic over the integers: sums with integer coefficients, compared with `<=`, `<`, `>=`, `>`, `=`
 and `distinct`.
 
-**Decision procedure: no.** Branch and bound may not terminate on unbounded variables, so a `QF_LIA`
-question can run forever (in practice: to the fuel, and `unknown`). Bounded variables — the lowered
-[bit-vectors](bit-vectors.md), for instance — are decided; completeness in general would need a-priori
-bounds on the solutions, which are astronomically large and are not implemented. The corpus shows the
-boundary: the `cut_lemmas` instances — integer-infeasible systems whose rational relaxation is
-satisfiable, built to need cutting planes — take the search seconds at ten variables and grow out of any
-budget as they widen, where a solver with cuts answers at once.
+**Decision procedure: yes, fuel allowing.** Branch and bound explores inside an a-priori box: if a
+pure-integer system has a solution at all, it has one of bounded size (Papadimitriou 1981), so a branch
+past the bound is pruned — no solution lives there — and exhausting the box is a sound `unsat`. The
+bound is astronomical, so an instance that used to run forever still answers `unknown` within any real
+fuel: termination in principle, fuel in practice. Bounded variables — the lowered
+[bit-vectors](bit-vectors.md), for instance — are decided promptly either way, and an integer
+combination that real constraints confine to a fractional window is cut directly, reals eliminated and
+the remainder rounded. The corpus still shows a practical boundary: the `cut_lemmas` instances —
+integer-infeasible systems whose rational relaxation is satisfiable, built to need cutting planes —
+take the search seconds at ten variables and grow out of any budget as they widen, where a solver with
+Gomory-style cuts answers at once.
 
 ## What you can write
 

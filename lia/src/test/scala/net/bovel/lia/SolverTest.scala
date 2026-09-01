@@ -162,3 +162,29 @@ class SolverTest extends munit.FunSuite:
     solver.check() match
       case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
       case other => fail(s"expected unsat, got $other")
+
+  test("the small-model box turns a sliding branch and bound into a sound unsat"):
+    // x even and x odd: integer-infeasible, rationally satisfiable everywhere, and no single
+    // expression's gcd sees it — the branches slide.
+    def parity(): Solver =
+      val s = Solver()
+      val x = s.newVar()
+      val y = s.newVar()
+      val z = s.newVar()
+      val even = s.newSlack(List((BigInt(1), x), (BigInt(-2), y)))
+      val odd = s.newSlack(List((BigInt(1), x), (BigInt(-2), z)))
+      assertEquals(s.assertUpper(even, 0, 1), Result.Sat)
+      assertEquals(s.assertLower(even, 0, 2), Result.Sat)
+      assertEquals(s.assertUpper(odd, 1, 3), Result.Sat)
+      assertEquals(s.assertLower(odd, 1, 4), Result.Sat)
+      s
+    val diverging = parity()
+    var steps = 10000
+    diverging.keepGoing = () =>
+      steps -= 1; steps >= 0
+    assertEquals(diverging.check(), Result.Unknown) // without the box: to the fuel
+    val boxed = parity()
+    boxed.boxBitsOverride = 8 // a test-sized box: past it, exhaustion is unsat
+    boxed.check() match
+      case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
+      case other => fail(s"expected unsat, got $other")
