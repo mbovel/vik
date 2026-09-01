@@ -80,8 +80,10 @@ warm() {
   chain+=$(seg "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)")
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
+  # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
+  # sbt restoring the terminal at exit gets SIGTTOU and stops forever, the whole chain done.
   local ledger_before; ledger_before=$(cat bench/timeouts.txt)
-  timeout -k 30 14400 sbt --server "${chain%; }"
+  timeout --foreground -k 30 14400 sbt --server "${chain%; }"
   # A combo the watchdog noted during this run is news: name it, once, here.
   if [ "$(cat bench/timeouts.txt)" != "$ledger_before" ]; then
     echo "newly past the five-second budget (bench/timeouts.txt, skipped from now on):"
