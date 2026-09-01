@@ -32,11 +32,12 @@ budget as they widen, where a solver with cuts answers at once.
 (check-sat)
 ```
 
-Integrality is decided, not approximated — this system has rational solutions and no integer one:
+Integrality is decided, not approximated — this system has rational solutions (anything strictly
+between ½ and 1) and no integer one:
 
 ```smt2
 (declare-const x Int)
-(assert (< (* 2 x) 3))
+(assert (< (* 2 x) 2))
 (assert (> (* 2 x) 1))
 (check-sat)
 ```
