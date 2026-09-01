@@ -10,7 +10,7 @@ set -u
 cd "$(dirname "$0")/.."
 INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
-TIMEOUT="${3:-30}"
+TIMEOUT="${3:-5}"  # the five-second budget: past it the cell says `timeout`, and nobody waits
 
 CP=$(sbt "print bench/runtimeClasspath" 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' | grep -E "^/" | tail -1)
 # A broken classpath must fail here, loudly — not as thirty silent `error` rows.

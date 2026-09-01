@@ -86,4 +86,4 @@ class SmtBench:
   def parse(): Int = Parser.parse(text).commands.length
 
   @Benchmark
-  def solve(): List[Boolean] = Player.play(script)
+  def solve(): List[Boolean] = Budget.run("vik", file)(Player.play(script))

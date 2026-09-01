@@ -6,7 +6,9 @@ status — and one column per solver: the mean over the samples in milliseconds,
 highlighted (`<span class="best">`, styled by the site's `tables.css`). A note after the table summarizes the
 95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--blank` leaves out
 the cells of a solver on an instance where the measurement would not mean what the column says (see the
-evaluation page). Run from the repository root, where `smtlib/` is.
+evaluation page). `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
+`solver:instance` per line): those cells say `timeout`, whatever an older result file measured. Run from the
+repository root, where `smtlib/` is.
 """
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
@@ -46,6 +48,12 @@ if "--drop" in arguments:
     i = arguments.index("--drop")
     drop = set(arguments[i + 1].split(","))
     arguments = arguments[:i] + arguments[i + 2:]
+timeouts = set()  # (solver, instance) past the five-second budget: the cell says `timeout`
+if "--timeouts" in arguments:
+    i = arguments.index("--timeouts")
+    lines = pathlib.Path(arguments[i + 1]).read_text().splitlines()
+    timeouts = {tuple(line.split(":", 1)) for line in lines if line}
+    arguments = arguments[:i] + arguments[i + 2:]
 
 by = collections.defaultdict(dict)
 for path in arguments:
@@ -73,11 +81,14 @@ print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "I
 print("<tbody>")
 intervals = []  # (ci / mean, solver, instance) of every cell shown
 for instance, solvers in by.items():
-    shown = {s: solvers[s] for s in order if s in solvers and (s, instance) not in blank}
+    shown = {s: solvers[s] for s in order
+             if s in solvers and (s, instance) not in blank and (s, instance) not in timeouts}
     best = min((mean for mean, _ in shown.values()), default=None)
     cells = []
     for s in order:
-        if s not in shown:
+        if (s, instance) in timeouts and (s, instance) not in blank:
+            cells.append("timeout")
+        elif s not in shown:
             cells.append("—")
         else:
             mean, ci = shown[s]

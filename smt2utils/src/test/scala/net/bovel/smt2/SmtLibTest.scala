@@ -1,15 +1,19 @@
 package net.bovel.smt2
 
 import net.bovel.vik.{Player, Solver, Model}
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.util.Try
 
 /** The corpus of SMT-LIB files (`smtlib/`, see its README), one test per file:
  *  the answers must be the statuses in the file, within a fuel per `check-sat`
- *  (conflicts and branches: deterministic, the same on every machine). A file
- *  on `smtlib/ignore.txt` (out of fuel, a wrong answer, an unsupported feature)
- *  is expected to fail, with a tenth of the fuel; when it passes, the test asks
- *  for its line to be removed.
+ *  (conflicts and branches: deterministic, the same on every machine) and
+ *  within five seconds of wall clock — the budget the benchmarks also hold to;
+ *  a file over either goes to `smtlib/ignore.txt`, nobody waits on it. A file
+ *  on `smtlib/ignore.txt` (out of fuel or time, a wrong answer, an unsupported
+ *  feature) is expected to fail, with a tenth of the fuel; when it passes, the
+ *  test asks for its line to be removed.
  */
 class SmtLibTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
@@ -23,21 +27,28 @@ class SmtLibTest extends munit.FunSuite:
   for file <- Corpus.files do
     val reason = ignored.get(file)
     test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):
+      // The five-second budget, as a wall-clock guard under the fuel: the solver cannot be
+      // interrupted, so a run over it is failed from outside and its thread left to the JVM's end.
       val outcome = Try {
-        val text = Corpus.read(file)
-        val script = Parser.parse(text)
-        val expected = script.expectedStatuses
-        val got = Player.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
-        val agrees = got.length == expected.length &&
-          got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
-        // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
-        val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
-        val responses =
-          if expects.isEmpty || reason.isDefined ||
-            !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
-          then expects
-          else Player.run(script, fuel = fuel)
-        (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")
+        Await.result(
+          Future {
+            val text = Corpus.read(file)
+            val script = Parser.parse(text)
+            val expected = script.expectedStatuses
+            val got = Player.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
+            val agrees = got.length == expected.length &&
+              got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
+            // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
+            val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
+            val responses =
+              if expects.isEmpty || reason.isDefined ||
+                !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
+              then expects
+              else Player.run(script, fuel = fuel)
+            (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")
+          },
+          Duration(5, "s")
+        )
       }
       reason match
         case None => assert(outcome.get._1, outcome.get._2)

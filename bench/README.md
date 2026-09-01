@@ -21,10 +21,15 @@ groups, the per-solver measurement budgets and the deliberately blank cells all 
 
 ```sh
 bench/evaluate.sh all     # everything below, in order
-bench/evaluate.sh warm    # the in-process JMH table   (~2 h: princess needs 96 s per MESI operation)
-bench/evaluate.sh cold    # the process-per-question table (~20 min; z3 and cvc5 on the PATH)
+bench/evaluate.sh warm    # the in-process JMH table       (z3 and cvc5 native libraries)
+bench/evaluate.sh cold    # the process-per-question table (z3 and cvc5 on the PATH)
 bench/evaluate.sh regen   # only regenerate the page from the newest dated results (seconds)
 ```
+
+Every single measurement holds to a five-second budget. A warm operation past it is halted by a watchdog
+([Budget.scala](src/main/scala/net/bovel/bench/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
+committed, so the combination is refused on every later run and its cell reads `timeout`; a fixed solver
+earns its line's removal. A cold run is cut by `timeout 5` (in [cold.sh](cold.sh)) with the same cell.
 
 It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`, the cold binaries) and
 fails with the command to run. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`

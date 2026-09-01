@@ -118,24 +118,24 @@ class OtherSolversBench:
 
   /** The solver on a problem it already holds, as a tool that builds the terms itself calls it. */
   @Benchmark
-  def vik(): List[Boolean] = Player.play(script)
+  def vik(): List[Boolean] = Budget.run("vik", file)(Player.play(script))
 
   /** The same, from the text of the script: what the solvers that parse below are measured on. */
   @Benchmark
-  def vikText(): List[Boolean] = Player.play(Parser.parse(text))
+  def vikText(): List[Boolean] = Budget.run("vikText", file)(Player.play(Parser.parse(text)))
 
   /** Replays the instance's [[PrincessProgram]] — declarations, terms,
    *  asserts, `push`/`pop` and every `check-sat` through princess's API,
    *  nothing else.
    */
   @Benchmark
-  def princess(): List[Boolean] = princessProgram.nn.check()
+  def princess(): List[Boolean] = Budget.run("princess", file)(princessProgram.nn.check())
 
   /** Prints the tree and has z3 parse it (declarations included); the parsed
    *  assertions go to a fresh solver.
    */
   @Benchmark
-  def z3(): Boolean =
+  def z3(): Boolean = Budget.run("z3", file):
     Natives.z3
     val ctx = Context()
     try
@@ -148,7 +148,7 @@ class OtherSolversBench:
    *  `push`/`pop` and every `check-sat` through z3's Java API, nothing else.
    */
   @Benchmark
-  def z3Direct(): List[Boolean] =
+  def z3Direct(): List[Boolean] = Budget.run("z3Direct", file):
     Natives.z3
     val ctx = Context()
     try z3Program.nn.check(ctx)
@@ -158,7 +158,7 @@ class OtherSolversBench:
    *  recording the check-sat answers.
    */
   @Benchmark
-  def cvc5(): List[Boolean] =
+  def cvc5(): List[Boolean] = Budget.run("cvc5", file):
     val solver = Cvc5Solver()
     try
       if text.contains("(push") then solver.setOption("incremental", "true") // scripts that push need the option
@@ -179,4 +179,4 @@ class OtherSolversBench:
    *  interface Ultimate embeds, nothing else.
    */
   @Benchmark
-  def smtinterpol(): List[Boolean] = smtInterpolProgram.nn.check()
+  def smtinterpol(): List[Boolean] = Budget.run("smtinterpol", file)(smtInterpolProgram.nn.check())

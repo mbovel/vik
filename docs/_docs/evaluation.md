@@ -59,7 +59,10 @@ second each, average time per operation, one thread. Every operation is a comple
 build the problem, solve it — on a solver built for that call, which is what a verification tool does per
 query.
 
-**Times in milliseconds — lower is better;** the best cell of a row is green.
+**Times in milliseconds — lower is better;** the best cell of a row is green. Every measurement here holds
+to a five-second budget: a solver past it on an instance is halted, noted on
+[`bench/timeouts.txt`](https://github.com/mbovel/vik/blob/main/bench/timeouts.txt), never run again, and its
+cell reads `timeout` — past five seconds per operation, the milliseconds of the others are the story.
 
 <div class="table-scroll">
 <table>
@@ -86,12 +89,12 @@ query.
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_DT/smt-lib/20172804-Barrett__tests__v1__v1l20086.cvc.smt2" title="20172804-Barrett__tests__v1__v1l20086.cvc">20172804-Barrett__<wbr>t…</a></td><td>QF_DT</td><td>✗</td><td>sat</td><td align="right"><span class="best">0.01</span></td><td align="right">0.03</td><td align="right">0.75</td><td align="right">0.84</td><td align="right">1.15</td><td align="right">5.18</td><td align="right">0.01</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2" title="keymaera__division_dijkstra-node701">keymaera__<wbr>division_…</a></td><td>QF_LRA</td><td>✗</td><td>unsat</td><td align="right"><span class="best"><0.01</span></td><td align="right">0.01</td><td align="right">0.63</td><td align="right">0.75</td><td align="right">0.90</td><td align="right">0.66</td><td align="right">0.01</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_LRA/smt-lib/Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2" title="Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005">Chua__<wbr>1__<wbr>VC2__<wbr>L__<wbr>Ch…</a></td><td>QF_LRA</td><td>✗</td><td>sat</td><td align="right"><span class="best">0.01</span></td><td align="right">0.02</td><td align="right">0.95</td><td align="right">1.00</td><td align="right">1.11</td><td align="right">4.27</td><td align="right">0.03</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_28.smt2" title="RandomDecoupled__pb_real_30_60_45_28">RandomDecoupled__<wbr>pb…</a></td><td>QF_UFLRA</td><td>✗</td><td>unsat</td><td align="right">97.01</td><td align="right">98.80</td><td align="right">10.48</td><td align="right"><span class="best">5.82</span></td><td align="right">17.03</td><td align="right">103134.30</td><td align="right">11.73</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_28.smt2" title="RandomDecoupled__pb_real_30_60_45_28">RandomDecoupled__<wbr>pb…</a></td><td>QF_UFLRA</td><td>✗</td><td>unsat</td><td align="right">97.01</td><td align="right">98.80</td><td align="right">10.48</td><td align="right"><span class="best">5.82</span></td><td align="right">17.03</td><td align="right">timeout</td><td align="right">11.73</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_LIA/smt-lib/cut_lemmas__10-vars__cut_lemma_01_001.smt2" title="cut_lemmas__10-vars__cut_lemma_01_001">cut_lemmas__<wbr>10-vars…</a></td><td>QF_LIA</td><td>✗</td><td>unsat</td><td align="right"><span class="best">0.01</span></td><td align="right">0.03</td><td align="right">1.49</td><td align="right">1.61</td><td align="right">1.31</td><td align="right">0.20</td><td align="right">0.03</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2" title="20190906-CLEARSY__0020__00009">20190906-CLEARSY__<wbr>0…</a></td><td>QF_UF</td><td>✓</td><td>181 checks</td><td align="right">9.09</td><td align="right">10.72</td><td align="right"><span class="best">7.13</span></td><td align="right">—</td><td align="right">61.04</td><td align="right">754.29</td><td align="right">12.98</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2" title="kind__MESI_i4.ec">kind__<wbr>MESI_i4.ec</a></td><td>QF_UFLIA</td><td>✓</td><td>5 checks</td><td align="right">747.85</td><td align="right">762.66</td><td align="right"><span class="best">24.15</span></td><td align="right">—</td><td align="right">102.26</td><td align="right">96490.10</td><td align="right">70.63</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2" title="kind__MESI_i4.ec">kind__<wbr>MESI_i4.ec</a></td><td>QF_UFLIA</td><td>✓</td><td>5 checks</td><td align="right">747.85</td><td align="right">762.66</td><td align="right"><span class="best">24.15</span></td><td align="right">—</td><td align="right">102.26</td><td align="right">timeout</td><td align="right">70.63</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_BV/smt-lib-incremental/2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2" title="2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max">2018-Goel-hwbench__<wbr>…</a></td><td>QF_BV</td><td>✓</td><td>2 checks</td><td align="right"><span class="best">0.68</span></td><td align="right">0.79</td><td align="right">—</td><td align="right">—</td><td align="right">2.82</td><td align="right">—</td><td align="right">—</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2" title="NEQ__NEQ004_size4">NEQ__<wbr>NEQ004_size4</a></td><td>QF_UF</td><td>✗</td><td>unsat</td><td align="right">113.62</td><td align="right">110.13</td><td align="right">11.48</td><td align="right"><span class="best">11.12</span></td><td align="right">109.53</td><td align="right">—</td><td align="right">124.49</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/smtlib/QF_UF/smt-lib/NEQ__NEQ004_size4.smt2" title="NEQ__NEQ004_size4">NEQ__<wbr>NEQ004_size4</a></td><td>QF_UF</td><td>✗</td><td>unsat</td><td align="right">113.62</td><td align="right">110.13</td><td align="right">11.48</td><td align="right"><span class="best">11.12</span></td><td align="right">109.53</td><td align="right">timeout</td><td align="right">124.49</td></tr>
 </tbody>
 </table>
 </div>
@@ -127,8 +130,10 @@ direction: its own script executor rejects these scripts (a re-declaration after
 [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)).
 
 Three instances are in the cold table only: `pspace/ndist.a.20000`, whose sort the in-process cvc5 bindings
-reject, and `car_6` and the `Certora` one, which ask seconds per operation of VIK. `NEQ004_size4` is in the table without
-princess, which needs minutes per operation on it. SMTInterpol's binary keeps its `QF_BV` cells out of the
+reject, and `car_6` and the `Certora` one, which ask seconds per operation of VIK. The `timeout` cells are
+all princess's — `NEQ004_size4`, `RandomDecoupled` and `MESI_i4` ask minutes per operation of it (for
+`MESI_i4`, 39× its own CLI on the same file: a replay pathology recorded in
+[external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)). SMTInterpol's binary keeps its `QF_BV` cells out of the
 cold table — it has no bit-vector theory: it rejects the declarations and then answers about what remains
 (see [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)) — and in the warm
 table its `QF_BV` cells are out with the other *(API)* columns, by the lowering rule above.
@@ -170,11 +175,12 @@ the same persistence buys `car_6`'s 21 checks a 1.45× win in the cold table bel
 ## Cold: a process per question
 
 The measurement is the one a competition makes: a new process for every instance, the wall-clock time of the
-whole answer, three repetitions, the median reported (a scheduling hiccup then decides nothing), with a
-limit of 30 seconds. This is where start-up appears, and it is what a tool pays when it shells out to a
-solver.
+whole answer, three repetitions, the median reported (a scheduling hiccup then decides nothing), cut at the
+same five-second budget as the warm table. This is where start-up appears, and it is what a tool pays when
+it shells out to a solver.
 
-**Times in seconds — lower is better;** the best correct answer of a row is green.
+**Times in seconds — lower is better;** the best correct answer of a row is green; a run past the budget
+reads `timeout`.
 
 <div class="table-scroll">
 <table>
@@ -212,13 +218,13 @@ never warm up.
 
 `pspace/ndist.a.20000` is the instance where the fragment matters more than the engine: 20 000-bit vectors,
 which VIK lowers to integers and answers in 20 ms as a native binary, while z3 bit-blasts and does not
-finish in 30 seconds.
+finish within the budget.
 
 The three added rows draw the solver's current boundary. On `CLEARSY` — 181 checks, each easy — every
 solver is fast and VIK's script time is start-up plus 181 small solves. On `kind/MESI_i4` and `car_6` the
 learned clauses carry across the checks: 3.6 s for `car_6`'s 21 checks on the JVM — 5.4 s before the solver
 persisted — the native binary over the limit, where z3 replays them in 0.10 s. And the `Certora` instance — `QF_UFDTLIA`, its status unknown to the release —
-takes VIK 15 s on the JVM where every other solver answers within about 2 s: datatypes, functions and
+takes VIK past the budget on the JVM (15 s, measured once) where every other solver answers within about 2 s: datatypes, functions and
 integers together are the combination the solver still pays most for (the solvers that finish agree on
 `sat`).
 
@@ -227,8 +233,8 @@ integers together are the combination the solver still pays most for (the solver
 - One machine, shared with other users; the numbers are medians and confidence intervals, not guarantees.
 - Twenty instances, chosen small and inside VIK's fragment. On the competition's hard instances VIK is far
   behind z3 and cvc5, and on some of them it does not finish at all — the
-  [corpus](https://github.com/mbovel/vik/tree/main/smtlib) records that: of its 740 files, 55 are marked as
-  out of the solver's reach.
+  [corpus](https://github.com/mbovel/vik/tree/main/smtlib) records that: of its 939 files, 105 are marked as
+  out of the solver's reach or over the tests' five-second budget.
 - The in-process z3 and cvc5 go through the JavaSMT bindings, which cross the JNI boundary per call; their
   binaries are what the cold table measures. Both are reported.
 - VIK's answers are checked against the status of every file, on every run of the test suite; a wrong answer
