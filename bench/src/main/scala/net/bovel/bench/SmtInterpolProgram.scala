@@ -64,8 +64,10 @@ final class SmtInterpolProgram(instructions: Array[SmtInterpolProgram.Op], slotC
         case Op.MkTrue(dst) => slots(dst) = s.term("true")
         case Op.MkFalse(dst) => slots(dst) = s.term("false")
         case Op.MkNot(dst, a) => slots(dst) = s.term("not", slots(a))
-        case Op.MkAnd(dst, args) => slots(dst) = s.term("and", args.map(slots)*)
-        case Op.MkOr(dst, args) => slots(dst) = s.term("or", args.map(slots)*)
+        case Op.MkAnd(dst, args) => // SMTInterpol rejects unary and/or
+          slots(dst) = if args.length == 1 then slots(args(0)) else s.term("and", args.map(slots)*)
+        case Op.MkOr(dst, args) =>
+          slots(dst) = if args.length == 1 then slots(args(0)) else s.term("or", args.map(slots)*)
         case Op.MkImplies(dst, a, b) => slots(dst) = s.term("=>", slots(a), slots(b))
         case Op.MkIff(dst, a, b) => slots(dst) = s.term("=", slots(a), slots(b))
         case Op.MkIte(dst, c, t, e) => slots(dst) = s.term("ite", slots(c), slots(t), slots(e))
