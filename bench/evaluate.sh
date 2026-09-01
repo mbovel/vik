@@ -86,9 +86,9 @@ regen() {
   # only measured on an earlier date keeps its row until a newer run covers it.
   local jsons=() suffix f
   for suffix in warm warm-p warm-inc warm-inc-s warm-inc-slow warm-inc-p warm-neq warm-ho warm-ho-c warm-arr; do
-    for f in $(ls -tr $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # a running measurement pre-creates its file empty
+    for f in $(ls $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # empties skipped (a running run pre-creates its file); names sort chronologically, mtimes lie after checkout
   done
-  local cold_tsv; cold_tsv=$(ls -t $R/*-cold.tsv | head -1)
+  local cold_tsv; cold_tsv=$(ls $R/*-cold.tsv | tail -1)
   echo "regen from: ${jsons[*]} $cold_tsv"
   local tmp; tmp=$(mktemp -d)
   bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --blank "$BLANK_WARM" --drop "$DROP_WARM" > "$tmp/warm.md"
@@ -96,9 +96,9 @@ regen() {
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$(ls -t $R/*-warm.json | head -1)")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-inc\.json|results/smt/$(basename "$(ls -t $R/*-warm-inc.json | head -1)")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-neq\.json|results/smt/$(basename "$(ls -t $R/*-warm-neq.json | head -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$(ls $R/*-warm.json | tail -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-inc\.json|results/smt/$(basename "$(ls $R/*-warm-inc.json | tail -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-neq\.json|results/smt/$(basename "$(ls $R/*-warm-neq.json | tail -1)")|" docs/_docs/evaluation.md
   rm -r "$tmp"
 }
 
