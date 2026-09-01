@@ -14,9 +14,9 @@ TIMEOUT="${3:-30}"
 
 CP=$(sbt "print bench/runtimeClasspath" 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' | grep -E "^/" | tail -1)
 # A broken classpath must fail here, loudly — not as thirty silent `error` rows.
-java -cp "$CP" net.bovel.smt2.smt2 /dev/null >/dev/null 2>&1 ||
+java -cp "$CP" net.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
-NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.smt2.smt2" -type f 2>/dev/null | head -1)
+NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.vik.smt2" -type f 2>/dev/null | head -1)
 MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
@@ -52,7 +52,7 @@ while read -r f; do
   inc=$(grep -q "(push" "$f" && echo --incremental)
   base=$(basename "$f")
   {
-    measure vik-jvm java -cp "$CP" net.bovel.smt2.smt2 "$f"
+    measure vik-jvm java -cp "$CP" net.bovel.vik.smt2 "$f"
     [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
