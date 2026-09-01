@@ -44,12 +44,14 @@ ARR="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_
 BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,princess:NEQ__NEQ004_size4,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
 BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
 
-jmh() { # jmh <rff> <files> <methods regex> [extra jmh args]
+jmh() { # jmh <rff> <files> <methods regex> [fork flags — REPLACE the defaults entirely]
   local rff=$1 files=$2 methods=$3; shift 3
+  local forks="$*"; [ -z "$forks" ] && forks="-f 2 -wi 3 -i 3"
   # The ceiling catches a wedged run; -k because an sbt client can ignore TERM while its fork lives.
   # -foe: any unrecoverable benchmark error fails the run — combos that cannot run are excluded by
-  # the groups, never tolerated as failures.
-  timeout -k 30 5400 sbt "bench/Jmh/run -foe true -f 2 -wi 3 -i 3 $* -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$"
+  # the groups, never tolerated as failures. Caller flags replace the default forks: JMH refuses
+  # duplicate options, so the two sets must never be concatenated.
+  timeout -k 30 5400 sbt "bench/Jmh/run -foe true $forks -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$"
 }
 
 warm() {
