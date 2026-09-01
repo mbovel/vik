@@ -46,6 +46,7 @@ BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinte
 # The full k100 lustre unrollings are superseded by their prefix25 instances: measured, kept in the
 # result files, left off the page.
 DROP_WARM="lustre__ex3.bmc_k100,lustre__two_counters.bmc_k100"
+BLANK_WARM="$BLANK_WARM,princess:kind__MESI_i4.ec"
 
 # Each group is one `bench/Jmh/run` segment; warm() chains all segments into a single sbt
 # invocation — one client, one server session. Reattaching a fresh client per group wedged twice
@@ -67,7 +68,9 @@ warm() {
   chain+=$(seg "$OUT-warm-inc.json"      "$INC"            "(vik|vikText|z3Direct|cvc5|smtinterpol)")
   chain+=$(seg "$OUT-warm-inc-s.json"    "$INC_SLOW"       "(z3Direct|cvc5|smtinterpol)")
   chain+=$(seg "$OUT-warm-inc-slow.json" "$INC_SLOW"       "(vik|vikText)" -f 1 -wi 1 -i 2)
-  chain+=$(seg "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2)
+  # princess sits out MESI: its answer through our API replay costs ~96 s per operation, 39x its own
+  # CLI on the same file (2.5 s, +incremental) — a replay-path pathology recorded in external-issues.
+  chain+=$(seg "$OUT-warm-inc-p.json"    "${INC/kind__MESI_i4.ec.smt2,/},$INC_SLOW"  "princess" -f 1 -wi 1 -i 2)
   chain+=$(seg "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
   # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
   chain+=$(seg "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText)")

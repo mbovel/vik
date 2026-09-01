@@ -212,3 +212,11 @@ scope — `20190906-CLEARSY__0020__00009.smt2` of SMT-LIB incremental stops with
 definitions, datatypes and partition state and `prover.push` scopes the prover's symbols, but
 the parser's own symbol environment is not part of the saved tuple, so declarations survive
 `pop` there.
+
+### 3. The API replay pays 39x the CLI on an incremental QF_UFLIA instance (2026-09-01)
+
+On `kind__MESI_i4.ec.smt2` (SMT-LIB incremental, 5 check-sats), `ap.CmdlMain +incremental` answers the
+whole file in 2.5 s, while the same script replayed through `SimpleAPI` (our benchmark harness, a
+compile-once instruction list) costs about 96 s per replay — 39x, reproducibly, and far out of line
+with the same replay on other instances. Not diagnosed further; the benchmark leaves the combination
+out rather than print a number that measures the replay path instead of the solver.
