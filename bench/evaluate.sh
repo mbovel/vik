@@ -77,16 +77,24 @@ warm() {
 cold() { bench/cold.sh > "$OUT-cold.tsv"; }
 
 regen() {
-  local warm_json inc_json neq_json cold_tsv
-  warm_json=$(ls -t $R/*-warm.json | head -1)
-  inc_json=$(ls -t $R/*-warm-inc.json | head -1)
-  neq_json=$(ls -t $R/*-warm-neq.json | head -1)
-  cold_tsv=$(ls -t $R/*-cold.tsv | head -1)
-  echo "regen from: $warm_json $inc_json $neq_json $cold_tsv"
+  # Per group, the newest dated file: a partial re-measurement updates its groups and leaves the
+  # others at their last measured values, and the next full run heals everything to one date.
+  local jsons=() suffix f
+  for suffix in warm warm-p warm-inc warm-inc-s warm-inc-slow warm-inc-p warm-neq warm-ho warm-ho-c warm-arr; do
+    f=$(ls -t $R/*-$suffix.json 2>/dev/null | head -1)
+    [ -n "$f" ] && jsons+=("$f")
+  done
+  local cold_tsv; cold_tsv=$(ls -t $R/*-cold.tsv | head -1)
+  echo "regen from: ${jsons[*]} $cold_tsv"
   local tmp; tmp=$(mktemp -d)
-  bench/.venv/bin/python bench/warm2md.py "$warm_json" "$inc_json" "$neq_json" --blank "$BLANK_WARM" > "$tmp/warm.md"
+  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --blank "$BLANK_WARM" > "$tmp/warm.md"
   bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --blank "$BLANK_COLD" > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
+  # The raw-data links of the page name the files the tables were built from.
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|;
+             s|results/smt/[0-9-]+-laraserver4-warm.json|results/smt/$(basename "${jsons[0]}")|;
+             s|results/smt/[0-9-]+-laraserver4-warm-inc.json|results/smt/$(basename "$(ls -t $R/*-warm-inc.json | head -1)")|;
+             s|results/smt/[0-9-]+-laraserver4-warm-neq.json|results/smt/$(basename "$(ls -t $R/*-warm-neq.json | head -1)")|" docs/_docs/evaluation.md
   rm -r "$tmp"
 }
 
