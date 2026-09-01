@@ -74,3 +74,28 @@ QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Loop_5-phaseTe
 QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Lasso_6-phaseTemplate.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_LRA/smt-lib/latendresse__shewanella-compact2b.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_LRA/smt-lib/latendresse__shewanella-compact2.smt2	beyond the search today (the fuel, two million steps, runs out)
+QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_lazy.i_3.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_lazy.i_7.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_stateful-1.i_4.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/array_benchmarks__stack-invalid-6.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/array_benchmarks__stack-th1-6.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/array_benchmarks__stack-th2-6.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/cvc__pp-dmem2.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/cvc__pp-dmem-a.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/cvc__read2.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/ios__ios_t1_ios_bia_np_sf_ai_00002_001.cvc.smt2	beyond the search today (the fuel, two million steps, runs out)
+QF_ALIA/smt-lib/qlock2__qlock.base.5.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/qlock2__qlock.induction.5.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_ALIA/smt-lib/qlock2__qlock.induction.6.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/array_benchmarks__pipeline-invalid.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/cvc__fb_var_27_8.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/cvc__read7.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/cvc__read8.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_002.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_003.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_005.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AX/smt-lib/cvc__read5.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_001.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_002.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_005.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
+QF_AUFLIA/smt-lib/swap__swap_invalid_t1_pp_nf_ai_00002_009.cvc.smt2	beyond the search today (the fuel, two million steps, runs out)

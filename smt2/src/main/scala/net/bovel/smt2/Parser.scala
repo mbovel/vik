@@ -490,7 +490,10 @@ private final class Parser extends Lowering:
     case SAtom(name) if isNumeral(name) => Term.Num(BigInt(name))
     case SAtom(name) if isDecimal(name) => decimalTerm(name)
     case SList(SAtom("select") :: a :: i :: Nil) if arrow(sortOf(a, env)).isDefined =>
-      Term.app(term(a, env), List(term(i, env)))
+      val array = term(a, env)
+      array match // a store application is a whole array: applying it must not flatten (see the solver)
+        case Term.App(Term.Const(n), _) if n.startsWith("store!") => Term.App(array, List(term(i, env)))
+        case _ => Term.app(array, List(term(i, env)))
     case SList(SAtom("store") :: a :: i :: v :: Nil) if arrow(sortOf(a, env)).isDefined =>
       Term.App(storeSymbol(sortOf(a, env)), List(term(a, env), term(i, env), term(v, env)))
     case SAtom(name) if name.startsWith("#b") => Term.Num(BigInt(name.drop(2), 2))

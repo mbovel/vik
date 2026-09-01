@@ -175,11 +175,16 @@ final class Solver(val simplify: Boolean = true):
     val e = encoder.nn
     e.produceModels = produceModels
     val activations = named.toList.map((name, formula) => (name, e.activate(formula)))
-    e.assertExtensionality()
-    e.applicationLemmas()
-    e.arrayLemmas()
-    e.assertExhaustiveness()
-    e.shareIntegers()
+    // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
+    // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
+    var emitted = -1
+    while emitted != e.clauseCount do
+      emitted = e.clauseCount
+      e.assertExtensionality()
+      e.applicationLemmas()
+      e.arrayLemmas()
+      e.assertExhaustiveness()
+      e.shareIntegers()
     e.decideBooleans()
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
@@ -298,12 +303,40 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
+    val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
       if a != b && isInt(a) && isInt(b) && !sharedPairs((b, a)) && sharedPairs.add((a, b)) then pairs += ((a, b))
+      else if a != b && Sorts.arrow(sortOf(a)).isDefined && Sorts.arrow(sortOf(b)).isDefined
+        && Term.closed(a) && Term.closed(b) && !sharedPairs((b, a)) && sharedPairs.add((a, b))
+      then arrayPairs += ((a, b))
     val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
     for (_, group) <- applications do
       val relevant = group.filter(a => isInt(a) || a.args.exists(isInt)) // the others have nothing to share
       for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
+        pair(a, b)
+        for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    // Applications of different function terms meet too when the functions themselves can be equated —
+    // two arrays, or a store and the array it may equal: group by the function's sort instead of the
+    // function.
+    // Only functions the search may actually equate: the sides of a function equality (recorded or
+    // shared), and store applications. Pairing every same-sorted application would be quadratic on
+    // ordinary uninterpreted functions.
+    val equatableFuns = scala.collection.mutable.HashSet.empty[Term]
+    for case Formula.Eq(f, g) <- functionEqualities do
+      equatableFuns += f
+      equatableFuns += g
+    val byFunctionSort = classes.keys.collect {
+      case a: Term.App
+          if Sorts.arrow(sortOf(a.fun)).isDefined
+            && (equatableFuns(a.fun) || (a.fun match
+              case Term.App(Term.Const(n), _) => n.startsWith("store!")
+              case _ => false
+            )) =>
+        a
+    }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
+    for (_, group) <- byFunctionSort do
+      val relevant = group.filter(a => isInt(a) || a.args.exists(isInt))
+      for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
     for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
@@ -322,6 +355,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         case difference =>
           liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
           anySharedAtom = true
+    // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
+    // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
+    // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
+    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
 
   /** Applications of the functions the search may equate, as lemmas: for every
    *  closed application `h(args)` and closed function-sorted term `q` other
@@ -409,7 +446,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
                 introduced(name) = sort
                 Term.Const(name)
               }
-              clauses += Array(lit(eq), lit(Formula.Eq(Term.app(f, witnesses), Term.app(g, witnesses))).neg)
+              clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
 
   /** Asserts, for every term of a datatype sort seen so far, that one of its
@@ -509,6 +546,18 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  would need the pass and the extensionality pass iterated; the
    *  quantifier-free array logics keep them flat.
    */
+  /** Applies an array to an index. A store application is already a whole
+   *  array, so applying it must not flatten into the store symbol — the
+   *  higher-order merging of [[Term.app]] is for partial applications.
+   */
+  private def applyAll(f: Term, args: List[Term]): Term = args.foldLeft(f)(selectTerm)
+
+  def clauseCount: Int = clauses.length
+
+  private def selectTerm(array: Term, index: Term): Term = array match
+    case Term.App(Term.Const(n), _) if n.startsWith("store!") => Term.App(array, List(index))
+    case _ => Term.app(array, List(index))
+
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
   private val arrayReadsDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
   private lazy val anyStore = declarations.keys.exists(_.startsWith("store!"))
@@ -530,11 +579,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     for case s @ Term.App(_, List(a, i, v)) <- stores do
       val sort = sortOf(s)
       val (indexSort :: _, elementSort) = Sorts.arrow(sort).get: @unchecked
-      if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, Term.app(s, List(i)), v)))
+      if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
       for j <- indices.getOrElse(sort, Nil) if j != i && arrayReadsDone.add((s, j)) do
         clauses += Array(
           lit(equalAt(indexSort, i, j)),
-          lit(equalAt(elementSort, Term.app(s, List(j)), Term.app(a, List(j))))
+          lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
         )
 
   def decideBooleans(): Unit =
