@@ -32,6 +32,7 @@ class CdcltBench:
       s.solve() match
         case Solver.Result.Sat(_) => sats += 1
         case Solver.Result.Unsat => ()
+        case Solver.Result.Unknown => throw IllegalStateException("the solver answered unknown: not a measurement")
     sats
 
   /** Ten random 3-SAT instances at the ratio 4.2, near the threshold: a mix of
@@ -61,3 +62,4 @@ class CdcltBench:
     s.solve() match
       case Solver.Result.Sat(_) => true
       case Solver.Result.Unsat => false
+      case Solver.Result.Unknown => throw IllegalStateException("the solver answered unknown: not a measurement")
