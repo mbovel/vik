@@ -6,11 +6,19 @@ val nativeScalaVersion = "3.9.0"
 // In sbt 2, bare settings are common settings injected into all subprojects.
 organization := "net.bovel"
 
+// Publishing to Maven Central (through the Sonatype Central Portal): the version comes from the git
+// tag (sbt-dynver: pushing `v0.1.0` publishes 0.1.0), signing and upload are sbt-ci-release in the
+// `publish` job of the CI — see "Releasing" in CONTRIBUTING.md.
+homepage := Some(uri("https://github.com/mbovel/vik"))
+licenses := List(License.Apache2)
+developers := List(Developer("mbovel", "Matthieu Bovel", "matthieu@bovel.net", uri("https://github.com/mbovel")))
+scmInfo := Some(ScmInfo(uri("https://github.com/mbovel/vik"), "scm:git:git@github.com:mbovel/vik.git"))
+versionScheme := Some("early-semver")
+
 // Every JVM test suite runs forked with the same fixed heap on every machine, so the sbt server
 // only builds: without this, all modules' tests share the server heap and its classloader caches,
 // which exhausted CI's three gigabytes (HoCoreTest OOMed after the earlier suites filled it).
 val forkedTests = Seq(Test / fork := true, Test / javaOptions += "-Xmx2g")
-version := "0.1.0-SNAPSHOT"
 scalaVersion := scala3Version
 scalacOptions += "-Yexplicit-nulls"
 
@@ -19,6 +27,7 @@ lazy val egraph = projectMatrix
   .in(file("egraph"))
   .settings(
     name := "egraph",
+    description := "A congruence closure engine with explanations (an e-graph)",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -30,6 +39,7 @@ lazy val cdclt = projectMatrix
   .in(file("cdclt"))
   .settings(
     name := "cdclt",
+    description := "A CDCL(T) SAT solver: watched literals, first-UIP learning, theories",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -41,6 +51,7 @@ lazy val sexpr = projectMatrix
   .in(file("sexpr"))
   .settings(
     name := "sexpr",
+    description := "An S-expression parser and printer",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -52,6 +63,7 @@ lazy val lia = projectMatrix
   .in(file("lia"))
   .settings(
     name := "lia",
+    description := "Linear integer arithmetic: simplex, branch and bound in a small-model box",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -64,6 +76,7 @@ lazy val vik = projectMatrix
   .dependsOn(cdclt, egraph, lia, smt2)
   .settings(
     name := "vik",
+    description := "A minimal, readable SMT solver",
     Compile / mainClass := Some("net.bovel.vik.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
@@ -77,6 +90,7 @@ lazy val smt2 = projectMatrix
   .dependsOn(sexpr)
   .settings(
     name := "smt2",
+    description := "SMT-LIB 2 as written: trees, parser, printer",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -91,6 +105,7 @@ lazy val smt2utils = (project in file("smt2utils"))
   .dependsOn(vikJVM, vikJVM % "test->test")
   .settings(
     name := "smt2utils",
+    publish / skip := true, // corpus tooling and tests, not a library
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .settings(forkedTests *)
@@ -128,6 +143,7 @@ lazy val docsPlayground = project
   .dependsOn(vik.js(scala3Version))
   .settings(
     name := "docsPlayground",
+    publish / skip := true,
     scalaJSLinkerConfig ~= {
       _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule)
     }
@@ -140,6 +156,7 @@ lazy val docsPlaygroundJs = project
   .dependsOn(vik.js(scala3Version))
   .settings(
     name := "docsPlaygroundJs",
+    publish / skip := true,
     Compile / scalaSource := (docsPlayground / Compile / scalaSource).value,
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) }
   )
@@ -150,6 +167,7 @@ lazy val playground = project
   .dependsOn(egraph.js(scala3Version), vik.js(scala3Version))
   .settings(
     name := "playground",
+    publish / skip := true,
     scalaJSUseMainModuleInitializer := true,
     // WebAssembly too (see the JS rows below): the pages load `main.js` as an ES module, which fetches `main.wasm`.
     scalaJSLinkerConfig ~= {
@@ -176,6 +194,7 @@ lazy val bench = project
   )
   .settings(
     name := "bench",
+    publish / skip := true,
     // Other solvers, run in-process by the benchmarks and as separate processes by compare.sh.
     libraryDependencies ++= Seq(
       ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),
