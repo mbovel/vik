@@ -189,3 +189,27 @@ with no error and a different amount of log:
 The reliable cleanup after any kill is all four at once: kill the forks and the server, remove the
 fork sockets, remove `active.json`. A client that timed out connecting to a dead descriptor and
 booted a fresh server would remove the worst face outright. Not minimized or reported yet.
+
+## sbt: the server is a shared-heap single point of failure for unforked tests
+
+Not established as an upstream bug — recorded as a mechanism worth knowing. With
+`Test / fork := false` (the default), every module's suites execute inside the sbt
+server JVM, whose heap also carries the build state, the Scala.js linker and the
+layered-classloader cache. On a CI runner with the launcher's default `-Xmx1G`
+(and still at 3G), our seven-module `sbt test` exhausted the server heap before
+the forked corpus suite even started: over 100% of CPU seconds went to GC pauses,
+and whichever thread allocated next threw — once `classloader-cache-cleanup-0`,
+once a network-channel thread, once a 15-second suite that then reported as
+"4555 s, OutOfMemoryError" (runs 33470652739, 33473080564, 33477637073, 2026-09-01).
+
+This is not an sbt 2 regression. The cache is inherited from sbt 1 nearly
+verbatim — same `SoftReference` values, same `classloader-cache-cleanup-$id`
+cleanup thread (`main-command/src/main/scala/sbt/internal/classpath/ClassLoaderCache.scala`,
+branches `develop` and `1.13.x`; the 1.x file documents the intended
+metaspace-pressure design, the 2.x file adds a note about entries whose
+`Reference` can become unreachable with open jar handles). SoftReferences mean
+the cache should shrink before an OOM, so the heap was dominated by everything
+else the server hosts; the cleanup thread was just holding the bag.
+
+The fix that matters: fork every JVM test suite with a fixed heap
+(`Test / fork := true`, `-Xmx2g` here), leaving the server to build only.
