@@ -20,8 +20,8 @@ behind it.
 - [Arrays](arrays.md): `select` as application, `store` by lemmas, extensional.
 
 Each page opens with whether VIK is a decision procedure for its fragment: yes for uninterpreted
-functions, reals, datatypes, the bit-vector fragment and flat arrays; no for unbounded integers (branch
-and bound may not terminate) and the higher-order core (sound, no completeness claim). Every answer is
+functions, integers (branch and bound inside the small-model box), reals, datatypes, the bit-vector
+fragment and flat arrays; no for the higher-order core (sound, no completeness claim). Every answer is
 within a fuel: any question can also stop at the budget with `unknown`.
 
 Not supported: quantifiers, strings, sets, floating point. A script that uses them is

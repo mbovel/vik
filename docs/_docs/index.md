@@ -41,7 +41,7 @@ Each page says what you can write, how it is solved, and first of all whether VI
 |---|---|
 | [First-order logic](theories/first-order-logic.md) | Yes. |
 | [Uninterpreted functions](theories/uninterpreted-functions.md) | Yes. |
-| [Integer arithmetic](theories/integers.md) | No: branch and bound may not terminate on unbounded variables. |
+| [Integer arithmetic](theories/integers.md) | Yes: branch and bound inside the small-model box. |
 | [Real arithmetic](theories/reals.md) | Yes. |
 | [Algebraic datatypes](theories/datatypes.md) | Yes. |
 | [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
