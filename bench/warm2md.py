@@ -41,6 +41,11 @@ if "--blank" in arguments:
     i = arguments.index("--blank")
     blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
     arguments = arguments[:i] + arguments[i + 2:]
+drop = set()  # --drop instance,...: rows left out entirely (superseded instances)
+if "--drop" in arguments:
+    i = arguments.index("--drop")
+    drop = set(arguments[i + 1].split(","))
+    arguments = arguments[:i] + arguments[i + 2:]
 
 by = collections.defaultdict(dict)
 for path in arguments:
@@ -52,6 +57,8 @@ for path in arguments:
     for r in records:
         solver = r["benchmark"].split(".")[-1]
         instance = r["params"]["file"].removesuffix(".smt2")
+        if instance in drop:
+            continue
         xs = [x for iteration in r["primaryMetric"]["rawData"] for x in iteration]
         mean = statistics.mean(xs)
         ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0

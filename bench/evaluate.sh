@@ -43,6 +43,9 @@ ARR="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_
 # already lowered: not the same question), and princess where it needs minutes.
 BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,princess:NEQ__NEQ004_size4,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
 BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
+# The full k100 lustre unrollings are superseded by their prefix25 instances: measured, kept in the
+# result files, left off the page.
+DROP_WARM="lustre__ex3.bmc_k100,lustre__two_counters.bmc_k100"
 
 # Each group is one `bench/Jmh/run` segment; warm() chains all segments into a single sbt
 # invocation — one client, one server session. Reattaching a fresh client per group wedged twice
@@ -88,7 +91,7 @@ regen() {
   local cold_tsv; cold_tsv=$(ls -t $R/*-cold.tsv | head -1)
   echo "regen from: ${jsons[*]} $cold_tsv"
   local tmp; tmp=$(mktemp -d)
-  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --blank "$BLANK_WARM" > "$tmp/warm.md"
+  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --blank "$BLANK_WARM" --drop "$DROP_WARM" > "$tmp/warm.md"
   bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --blank "$BLANK_COLD" > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
