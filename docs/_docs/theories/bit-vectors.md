@@ -81,3 +81,18 @@ The lowering is part of the solver (`net.bovel.vik.BitVectors`); any front end c
 lowering asks for and asserts their definitions, so the script that VIK plays is a `QF_LIA` script. Two
 ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and
 `smt2lowered file.smt2` on the command line prints a whole file as VIK will play it.
+
+```smt2
+(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(declare-const y (_ BitVec 8))
+(assert (bvult x y))
+(get-assertions)
+```
+
+The answer is the ranges of `x` and `y` and the comparison, lowered — `bvult` is `<` on the values,
+written `x + 1 ≤ y`:
+
+```
+((and (<= 0 x) (<= x 255)) (and (<= 0 y) (<= y 255)) (<= (+ x 1) y))
+```
