@@ -147,3 +147,18 @@ class SolverTest extends munit.FunSuite:
         solver.pop()
         assertEquals(solver.check(), Result.Sat, s"round $round: not satisfiable again after pop")
         assert(base.forall(_.holds(solver.value)), s"round $round: model after pop")
+
+  test("a mixed row confining an integer difference to an empty window is unsat"):
+    val solver = Solver()
+    val n1 = solver.newVar()
+    val n2 = solver.newVar()
+    val x = solver.newVar(integer = false)
+    // x = n1 - n2, and 0 < x < 1: an integer difference in an open unit interval.
+    val s = solver.newSlack(List((BigInt(1), n1), (BigInt(-1), n2), (BigInt(-1), x)), integer = false)
+    assertEquals(solver.assertUpper(s, 0, 1), Result.Sat)
+    assertEquals(solver.assertLower(s, 0, 2), Result.Sat)
+    assertEquals(solver.assertLower(x, 0, true, 3), Result.Sat)
+    assertEquals(solver.assertUpper(x, 1, true, 4), Result.Sat)
+    solver.check() match
+      case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
+      case other => fail(s"expected unsat, got $other")

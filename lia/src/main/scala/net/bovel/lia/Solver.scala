@@ -111,6 +111,7 @@ final class Solver:
    *  tightenings apply to it; a real variable is decided by the relaxation.
    */
   private val isInt = ArrayBuffer.empty[Boolean]
+  private var anyInt = false
 
   def isInteger(x: Var): Boolean = isInt(x)
 
@@ -145,7 +146,7 @@ final class Solver:
     isSlack += false
     scale += 1
     isInt += integer
-    if !integer then anyReal = true
+    if integer then anyInt = true else anyReal = true
     values.length - 1
 
   /** A new variable standing for `Σ coefficient × variable` over `terms`
@@ -432,7 +433,7 @@ final class Solver:
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
      */
-    def step(): Result | Branch = checkRelaxation() match
+    def step(): Result | Branch = relaxationAndWindows() match
       case Result.Sat =>
         var x = 0
         while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
@@ -450,6 +451,10 @@ final class Solver:
               if isInt(x) then Branch(x, c - scale(x), c + scale(x), -branches, Set(reason))
               else Branch(x, c, c, -branches, Set(reason), strict = true)
             case None => Result.Sat
+      case unsat => unsat
+
+    def relaxationAndWindows(): Result = checkRelaxation() match
+      case Result.Sat => integerWindows()
       case unsat => unsat
     var current: Result | Branch = step()
     while true do
@@ -490,6 +495,98 @@ final class Solver:
   def checkRelaxation(): Result = propagateBounds() match
     case Result.Sat => simplex()
     case unsat => unsat
+
+  /** A cut on the integer content of the mixed rows, for the problems branch
+   *  and bound alone cannot close: an integer combination confined to a window
+   *  holding none of its values (`is_int x` and `not (is_int (+ x 1))` — an
+   *  integer difference in an open unit interval). The real variables are
+   *  eliminated from the bounds and the rows — substituted away where a row
+   *  defines them, Fourier–Motzkin pairs elsewhere — leaving inequalities over
+   *  integer variables only, whose right sides round down after dividing by the
+   *  gcd of the coefficients: opposite inequalities that cross after the
+   *  rounding are inconsistent, and the bounds they came from explain it.
+   *  Vacuous on a pure-integer problem, and skipped unless some row mixes the
+   *  two kinds; the work is capped, a cut being an aid, not an obligation.
+   */
+  private def integerWindows(): Result =
+    if !anyReal || !anyInt then return Result.Sat
+    var mixed = false
+    var b = 0
+    while b < numVars && !mixed do
+      val row = rows(b)
+      mixed = row != null && row.keysIterator.exists(x => isInt(x) != isInt(b))
+      b += 1
+    if !mixed then return Result.Sat
+    // The system: every bound as `Σ c·x ≤ d` with its reasons, every row touching a real as an equation.
+    val inequalities = ArrayBuffer.empty[(HashMap[Var, Rational], Delta, Set[Int])]
+    val equations = ArrayBuffer.empty[HashMap[Var, Rational]]
+    val reals = HashSet.empty[Var]
+    b = 0
+    while b < numVars do
+      val row = rows(b)
+      if row != null && (!isInt(b) || row.keysIterator.exists(x => !isInt(x))) then
+        val eq = row.clone()
+        eq(b) = Rational(-1)
+        equations += eq
+        for x <- eq.keys if !isInt(x) do reals += x
+      b += 1
+    for x <- 0 until numVars do
+      if reals(x) || !isInt(x) then
+        val u = upper(x)
+        val l = lower(x)
+        if u != null then inequalities += ((HashMap(x -> Rational.one), u.value, u.reasons))
+        if l != null then inequalities += ((HashMap(x -> Rational(-1)), -l.value, l.reasons))
+    // Eliminate each real: by the first equation defining it, its bounds following the substitution,
+    // or by pairing its upper and lower inequalities when no equation mentions it.
+    val cap = 256 // a cut is an aid, not an obligation: beyond this, give up quietly
+    def substitute(into: HashMap[Var, Rational], x: Var, pivot: HashMap[Var, Rational]): Unit =
+      into.get(x) match
+        case None => ()
+        case Some(c) =>
+          val f = c / pivot(x)
+          for (y, a) <- pivot do
+            val updated = into.getOrElse(y, Rational.zero) - a * f
+            if updated.isZero then into.remove(y) else into(y) = updated
+    for x <- reals.toList.sorted do // a fixed order: the same conflict on every machine
+      equations.find(_.contains(x)) match
+        case Some(pivot) =>
+          equations -= pivot
+          for eq <- equations do substitute(eq, x, pivot)
+          for (terms, _, _) <- inequalities do substitute(terms, x, pivot)
+        case None =>
+          val (touching, rest) = inequalities.toList.partition(_._1.contains(x))
+          val (uppers, lowers) = touching.partition(_._1(x).signum > 0) // c·x ≤ ... vs −c·x ≤ ...
+          if uppers.length * lowers.length + rest.length > cap then return Result.Sat
+          inequalities.clear()
+          inequalities ++= rest
+          for (ut, ud, ur) <- uppers; (lt, ld, lr) <- lowers do
+            val terms = ut.clone()
+            val f = ut(x) / -lt(x)
+            for (y, a) <- lt do
+              val updated = terms.getOrElse(y, Rational.zero) + a * f
+              if updated.isZero then terms.remove(y) else terms(y) = updated
+            terms.remove(x)
+            inequalities += ((terms, ud + ld * f, ur ++ lr))
+    // Integer-only inequalities: divide by the gcd, round down, and look for a crossing pair.
+    val best = HashMap.empty[List[(Var, BigInt)], (BigInt, Set[Int])]
+    for (terms, d, reasons) <- inequalities do
+      if terms.isEmpty then
+        if d < Delta.zero then return Result.Unsat(reasons)
+      else if terms.keysIterator.forall(isInt(_)) then
+        var l = BigInt(1)
+        for (_, a) <- terms do l = l / (l gcd a.den) * a.den
+        var g = BigInt(0)
+        for (_, a) <- terms do g = g gcd (a.num * (l / a.den)).abs
+        val key = terms.toList.map((y, a) => (y, a.num * (l / a.den) / g)).sortBy(_._1)
+        val bound = (d * Rational(l) / Rational(g)).floor
+        val better = best.get(key) match
+          case Some((known, _)) => bound < known
+          case None => true
+        if better then best(key) = (bound, reasons)
+        best.get(key.map((y, n) => (y, -n))) match
+          case Some((opposite, others)) if bound + opposite < 0 => return Result.Unsat(reasons ++ others)
+          case _ => ()
+    Result.Sat
 
   /** Repairs the basic variables violating their bounds, smallest first, by
    *  pivoting with the smallest non-basic variable of their row that can move
