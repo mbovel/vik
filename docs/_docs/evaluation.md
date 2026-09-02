@@ -59,9 +59,9 @@ and the two tables were taken the same morning.
 ## Warm: the solver as a library
 
 The measurement is JMH in the same JVM: two forks, three warm-up and three measurement iterations of one
-second each, a forced GC between iterations, average time per operation, one thread. Every operation is a
-complete answer — parse the script, build the problem, solve it — on a solver built for that call, which
-is what a verification tool does per query.
+second each, average time per operation, one thread. Every operation is a complete answer — parse the script,
+build the problem, solve it — on a solver built for that call, which is what a verification tool does per
+query.
 
 **Times in milliseconds — lower is better;** the best cell of a row is green. Every measurement here holds
 to a ten-second budget: a solver past it on an instance is halted, noted on
