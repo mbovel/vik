@@ -62,9 +62,17 @@ QF_LIA, from `QF_LIA.tar.zst` of the same release, the same way:
 | `convert__convert-tiff2jpg-query-1831.smt2` | convert | unsat | program verification queries |
 | `fft__Sz64_1160.smt2`, `nec-smt__small__int_from_list__prp-2-17.smt2`, `wisa__wisa1.smt2` | fft, nec-smt, wisa | sat, unsat, sat | larger structured instances (VIK 17 s, timeout, timeout: comparison only) |
 
-QF_BV, from `QF_BV.tar.zst` of the same release: instances in the arithmetic fragment that `vik` lowers to integers
-(no bit-blasting; of 188 small files across 43 families, 53 were in the fragment: the others use `bvmul` or `bvand` of
-two variables, `bvor`, `bvxor`, or division and shifts by a variable):
+QF_BV, from `QF_BV.tar.zst` of the same release, a representative sample rather than every file: the release
+has 46 191 QF_BV files, 10 359 of them (up to 200 KB) in the arithmetic fragment that `vik` lowers to integers —
+the others use `bvor`, `bvashr`, `bvsdiv`, or `bvmul`/`bvand` of two variables, which would need bit-blasting —
+and four families of generated series (`sage`, `Sage2`, `20221012-MCMPC`, `bruttomesso`) make up nine tenths
+of those. A hundred were taken (2026-09-02), spread over the seventeen families and the sizes within each, and
+where a family's files are alike, the ones VIK answers in tens of milliseconds: 66 that it answers within the
+suite's budget, and 34 that it does not — the generated series, `calypto`, `fft`, the SV-COMP `bmc-bv`
+scripts — on `ignore.txt` with their reason, so that a change in the solver's reach shows in the suite. The
+first rows of the table below are the earlier picks (the three smallest files of each family, 53 of 188 in
+the fragment); the sample is on top of them. Nine files of the release overflow the parser's stack (`fft`'s
+`Sz512` series, `bmc-bv/ex2_prime`, `bmc-bv/queens`: deep `let` nests) and were left out.
 
 | File | Family | Status | Workload |
 |---|---|---|---|

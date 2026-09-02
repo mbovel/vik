@@ -1,3 +1,4 @@
+; From smt-lib: QF_BV/20190311-bv-term-small-rw-Noetzli/bv-term-small-rw_17.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_BV)
 (set-info :source |
