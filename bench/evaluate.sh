@@ -7,12 +7,12 @@
 #   bench/evaluate.sh cold    # the cold binaries run + regen
 #   bench/evaluate.sh regen   # tables from the dated results already on disk
 #
-# Every single measurement lives under the five-second budget: a warm operation
-# past 5 s is halted and noted on bench/timeouts.txt (see bench Budget.scala),
-# never run again, and shown as `timeout` in the table; a cold run is cut by
-# `timeout 5` (cold.sh) and shown the same way. The instance groups, the
-# princess-separated runs and the blanked cells live here, as the one source of
-# truth.
+# Every single measurement lives under the ten-second budget: a warm operation
+# past 10 s is halted and noted on bench/timeouts.txt (see bench Budget.scala),
+# never run again, and shown as 🐢 in the table; a cold run is cut by
+# `timeout 10` (cold.sh) and shown the same way. The instances and their groups
+# are bench/evaluation-instances.txt, in the order of both tables; the solvers
+# of each group, the princess-separated runs and the blanked cells live here.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,23 +31,14 @@ DATE=$(date +%F)
 HOST=$(hostname -s)
 OUT=$R/$DATE-$HOST
 
-# The warm instances by group; the incremental and NEQ files are separate JMH
-# runs so their results land in their own files, as the tables expect.
-MAIN="keymaera__division_dijkstra-node701.smt2,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2,RandomDecoupled__pb_real_30_60_45_28.smt2,QG-classification__qg5__iso_brn001.smt2,QG-classification__qg5__iso_icl662.smt2,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2,20170829-Rodin__smt3534838651727683253.smt2,20190906-CLEARSY__0016__00003.smt2,TypeSafe__z3.1184131.smt2,CAV_2009_benchmarks__20-vars__problem__001.smt2,cut_lemmas__10-vars__cut_lemma_01_001.smt2,dillig__20-4.smt2,mathsat__FISCHER1-1-fair.smt2,convert__convert-tiff2jpg-query-1831.smt2,prime-cone__prime_cone_unsat_3.smt2,sage__app7__bench_8505.smt2,bmc-bv__adpcm.smt2,20172804-Barrett__tests__v1__v1l20086.cvc.smt2,20172804-Barrett__tests__v10__v10l20080.cvc.smt2,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2,TwoSquares__smtlib.598294.smt2,mathsat__Wisa__xs-09-05-2-4-4-5.smt2,wisas__xs_8_8.smt2"
-INC="20190906-CLEARSY__0020__00009.smt2,kind__MESI_i4.ec.smt2,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2"
-INC_SLOW="lustre__two_counters.bmc_k100.prefix25.smt2,lustre__ex3.bmc_k100.prefix25.smt2"  # 25-round prefixes: the full k100 takes VIK tens of seconds per op
-NEQ="NEQ__NEQ004_size4.smt2"
-HOF="regress0__define-fun-model.smt2,regressions__3775.smt2"  # higher-order: only the solvers with lambdas
-ARR="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2,check__array_incompleteness1.smt2"  # arrays: the replays lack the store axioms
+# The warm instances of a group of bench/evaluation-instances.txt, comma-separated, as JMH's -p takes them.
+group() { awk -v g="$1" '$2 == g { sub(".*/", "", $1); print $1 }' bench/evaluation-instances.txt | paste -sd, -; }
 
 # Blanked cells: the API columns on the bit-vector instances (the tree is
 # already lowered: not the same question). A solver that is merely too slow is
 # not blanked — it is on bench/timeouts.txt, and its cell says so.
 BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
 BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
-# The full k100 lustre unrollings are superseded by their prefix25 instances: measured, kept in the
-# result files, left off the page.
-DROP_WARM="lustre__ex3.bmc_k100,lustre__two_counters.bmc_k100"
 
 # Each group is one `bench/Jmh/run` segment; warm() chains all segments into a single sbt
 # invocation — one client, one server session. Reattaching a fresh client per group wedged twice
@@ -55,7 +46,7 @@ DROP_WARM="lustre__ex3.bmc_k100,lustre__two_counters.bmc_k100"
 # chained shape never wedged.
 # -foe false: a fork the Budget watchdog halts, or that refuses a combo already on
 # bench/timeouts.txt, must not end the evaluation — JMH prints the failure and moves to the next
-# combo, and the table renders the noted cell as `timeout`. A segment's fork flags stand alone
+# combo, and the table renders the noted cell as 🐢. A segment's fork flags stand alone
 # (JMH refuses duplicate options, so defaults and overrides must never be concatenated).
 seg() { # seg <rff> <files> <methods regex> [fork flags — replace the defaults entirely]
   local rff=$1 files=$2 methods=$3; shift 3
@@ -65,19 +56,17 @@ seg() { # seg <rff> <files> <methods regex> [fork flags — replace the defaults
 
 warm() {
   local chain=""
-  chain+=$(seg "$OUT-warm.json"          "$MAIN"           "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
-  chain+=$(seg "$OUT-warm-p.json"        "$MAIN"           "princess" -f 1 -wi 1 -i 3)
-  chain+=$(seg "$OUT-warm-inc.json"      "$INC"            "(vik|vikText|z3Direct|cvc5|smtinterpol)")
-  chain+=$(seg "$OUT-warm-inc-s.json"    "$INC_SLOW"       "(z3Direct|cvc5|smtinterpol)")
-  chain+=$(seg "$OUT-warm-inc-slow.json" "$INC_SLOW"       "(vik|vikText)" -f 1 -wi 1 -i 2)
-  # princess on MESI (~96 s per replayed operation, a pathology recorded in external-issues) is on
-  # bench/timeouts.txt: the fork refuses it in milliseconds, and the cell reads `timeout`.
-  chain+=$(seg "$OUT-warm-inc-p.json"    "$INC,$INC_SLOW"  "princess" -f 1 -wi 1 -i 2)
-  chain+=$(seg "$OUT-warm-neq.json"      "$NEQ"            "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm.json"      "$(group main)"    "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm-p.json"    "$(group main)"    "princess" -f 1 -wi 1 -i 3)
+  chain+=$(seg "$OUT-warm-inc.json"  "$(group inc)"     "(vik|vikText|z3Direct|cvc5|smtinterpol)")
+  # princess on MESI (~96 s per replayed operation, a pathology recorded in external-issues) lands on
+  # bench/timeouts.txt the first time: the fork refuses it in milliseconds after, and the cell reads 🐢.
+  chain+=$(seg "$OUT-warm-inc-p.json" "$(group inc)"    "princess" -f 1 -wi 1 -i 2)
   # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
-  chain+=$(seg "$OUT-warm-ho.json"       "$HOF"            "(vik|vikText)")
-  chain+=$(seg "$OUT-warm-ho-c.json"     "regress0__define-fun-model.smt2" "cvc5")
-  chain+=$(seg "$OUT-warm-arr.json"      "$ARR"            "(vik|vikText|z3|cvc5)")
+  chain+=$(seg "$OUT-warm-ho.json"   "$(group hof)"     "(vik|vikText|z3)")
+  chain+=$(seg "$OUT-warm-ho-c.json" "regress0__define-fun-model.smt2" "cvc5")
+  chain+=$(seg "$OUT-warm-arr.json"  "$(group arr)"     "(vik|vikText|z3|cvc5)")
+  chain+=$(seg "$OUT-warm-arr-i.json" "$(group arr-inc)" "(vik|vikText|cvc5)")
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
   # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
@@ -86,12 +75,12 @@ warm() {
   timeout --foreground -k 30 14400 sbt --server "${chain%; }"
   # A combo the watchdog noted during this run is news: name it, once, here.
   if [ "$(cat bench/timeouts.txt)" != "$ledger_before" ]; then
-    echo "newly past the five-second budget (bench/timeouts.txt, skipped from now on):"
+    echo "newly past the ten-second budget (bench/timeouts.txt, skipped from now on):"
     comm -13 <(sort <<<"$ledger_before") <(sort bench/timeouts.txt)
   fi
 }
 
-cold() { bench/cold.sh > "$OUT-cold.tsv"; }
+cold() { bench/cold.sh > "$OUT-cold.tsv"; }  # reads bench/evaluation-instances.txt itself
 
 regen() {
   # Per group, the newest dated file: a partial re-measurement updates its groups and leaves the
@@ -99,20 +88,19 @@ regen() {
   # All dates per group, oldest first: the newest measurement of a cell wins, and an instance
   # only measured on an earlier date keeps its row until a newer run covers it.
   local jsons=() suffix f
-  for suffix in warm warm-p warm-inc warm-inc-s warm-inc-slow warm-inc-p warm-neq warm-ho warm-ho-c warm-arr; do
+  for suffix in warm warm-p warm-inc warm-inc-p warm-ho warm-ho-c warm-arr warm-arr-i; do
     for f in $(ls $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # empties skipped (a running run pre-creates its file); names sort chronologically, mtimes lie after checkout
   done
   local cold_tsv; cold_tsv=$(ls $R/*-cold.tsv | tail -1)
   echo "regen from: ${jsons[*]} $cold_tsv"
   local tmp; tmp=$(mktemp -d)
-  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --blank "$BLANK_WARM" --drop "$DROP_WARM" --timeouts bench/timeouts.txt > "$tmp/warm.md"
-  bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --blank "$BLANK_COLD" > "$tmp/cold.md"
+  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --order bench/evaluation-instances.txt --blank "$BLANK_WARM" --timeouts bench/timeouts.txt > "$tmp/warm.md"
+  bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --order bench/evaluation-instances.txt --blank "$BLANK_COLD" > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$(ls $R/*-warm.json | tail -1)")|" docs/_docs/evaluation.md
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-inc\.json|results/smt/$(basename "$(ls $R/*-warm-inc.json | tail -1)")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm-neq\.json|results/smt/$(basename "$(ls $R/*-warm-neq.json | tail -1)")|" docs/_docs/evaluation.md
   rm -r "$tmp"
 }
 

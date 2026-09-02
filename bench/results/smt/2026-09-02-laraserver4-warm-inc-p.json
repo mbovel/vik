@@ -1,0 +1,269 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.OtherSolversBench.princess",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik/bench/native"
+        ],
+        "jdkVersion" : "17.0.20",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20+8-1-24.04-Ubuntu",
+        "warmupIterations" : 1,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 2,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "20190906-CLEARSY__0020__00009.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 1088.66099575,
+            "scoreError" : "NaN",
+            "scoreConfidence" : [
+                "NaN",
+                "NaN"
+            ],
+            "scorePercentiles" : {
+                "0.0" : 772.1627925,
+                "50.0" : 1088.66099575,
+                "90.0" : 1405.159199,
+                "95.0" : 1405.159199,
+                "99.0" : 1405.159199,
+                "99.9" : 1405.159199,
+                "99.99" : 1405.159199,
+                "99.999" : 1405.159199,
+                "99.9999" : 1405.159199,
+                "100.0" : 1405.159199
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    1405.159199,
+                    772.1627925
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.OtherSolversBench.princess",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik/bench/native"
+        ],
+        "jdkVersion" : "17.0.20",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20+8-1-24.04-Ubuntu",
+        "warmupIterations" : 1,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 2,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "lustre__two_counters.bmc_k100.prefix25.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 399.6342823333333,
+            "scoreError" : "NaN",
+            "scoreConfidence" : [
+                "NaN",
+                "NaN"
+            ],
+            "scorePercentiles" : {
+                "0.0" : 357.47604633333333,
+                "50.0" : 399.6342823333333,
+                "90.0" : 441.7925183333333,
+                "95.0" : 441.7925183333333,
+                "99.0" : 441.7925183333333,
+                "99.9" : 441.7925183333333,
+                "99.99" : 441.7925183333333,
+                "99.999" : 441.7925183333333,
+                "99.9999" : 441.7925183333333,
+                "100.0" : 441.7925183333333
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    441.7925183333333,
+                    357.47604633333333
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.OtherSolversBench.princess",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik/bench/native"
+        ],
+        "jdkVersion" : "17.0.20",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20+8-1-24.04-Ubuntu",
+        "warmupIterations" : 1,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 2,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "cpachecker__diskperf_simpl1.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 89.5282076969697,
+            "scoreError" : "NaN",
+            "scoreConfidence" : [
+                "NaN",
+                "NaN"
+            ],
+            "scorePercentiles" : {
+                "0.0" : 85.40100166666667,
+                "50.0" : 89.5282076969697,
+                "90.0" : 93.65541372727273,
+                "95.0" : 93.65541372727273,
+                "99.0" : 93.65541372727273,
+                "99.9" : 93.65541372727273,
+                "99.99" : 93.65541372727273,
+                "99.999" : 93.65541372727273,
+                "99.9999" : 93.65541372727273,
+                "100.0" : 93.65541372727273
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    93.65541372727273,
+                    85.40100166666667
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.OtherSolversBench.princess",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik/bench/native"
+        ],
+        "jdkVersion" : "17.0.20",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20+8-1-24.04-Ubuntu",
+        "warmupIterations" : 1,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 2,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "cpachecker__list_false-unreach-call.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 1012.336278,
+            "scoreError" : "NaN",
+            "scoreConfidence" : [
+                "NaN",
+                "NaN"
+            ],
+            "scorePercentiles" : {
+                "0.0" : 826.337101,
+                "50.0" : 1012.336278,
+                "90.0" : 1198.335455,
+                "95.0" : 1198.335455,
+                "99.0" : 1198.335455,
+                "99.9" : 1198.335455,
+                "99.99" : 1198.335455,
+                "99.999" : 1198.335455,
+                "99.9999" : 1198.335455,
+                "100.0" : 1198.335455
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    1198.335455,
+                    826.337101
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.OtherSolversBench.princess",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/usr/lib/jvm/java-17-openjdk-amd64/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik/bench/native"
+        ],
+        "jdkVersion" : "17.0.20",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20+8-1-24.04-Ubuntu",
+        "warmupIterations" : 1,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 2,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 15.453483327687444,
+            "scoreError" : "NaN",
+            "scoreConfidence" : [
+                "NaN",
+                "NaN"
+            ],
+            "scorePercentiles" : {
+                "0.0" : 12.217862914634146,
+                "50.0" : 15.453483327687444,
+                "90.0" : 18.68910374074074,
+                "95.0" : 18.68910374074074,
+                "99.0" : 18.68910374074074,
+                "99.9" : 18.68910374074074,
+                "99.99" : 18.68910374074074,
+                "99.999" : 18.68910374074074,
+                "99.9999" : 18.68910374074074,
+                "100.0" : 18.68910374074074
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    18.68910374074074,
+                    12.217862914634146
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

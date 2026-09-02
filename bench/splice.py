@@ -28,9 +28,9 @@ def main(warm_path, cold_path):
     if warm_path != "-":
         note_start = text.index(NOTE)
         note_end = text.index("\n\n", note_start)
-        text = text[:note_start] + text[note_end + 2:]
+        text = text[:note_start] + text[note_end:].lstrip("\n")  # the note and the blank lines after it
         s, e = region(text, 0)
-        text = text[:s] + pathlib.Path(warm_path).read_text().strip() + text[e:]
+        text = text[:s] + pathlib.Path(warm_path).read_text().strip() + "\n\n" + text[e:].lstrip("\n")
     assert text.count(OPEN) == 2, "two generated tables expected"
     assert text.count(NOTE) == 1, "one confidence note expected"
     page.write_text(text)

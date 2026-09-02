@@ -6,7 +6,7 @@ import scala.jdk.CollectionConverters.*
 
 import net.bovel.smtlib.Corpus
 
-/** The five-second budget of the warm benchmarks: a solver that needs more per
+/** The ten-second budget of the warm benchmarks: a solver that needs more per
  *  operation has nothing to say in a table of milliseconds, and nobody waits
  *  minutes on it again. Every solver operation runs under [[run]]; a watchdog
  *  thread halts the forked VM when the running operation passes the budget —
@@ -14,16 +14,16 @@ import net.bovel.smtlib.Corpus
  *  noting `solver:instance` on `bench/timeouts.txt`. A noted combination
  *  refuses to start on later runs (a fresh fork reads the ledger, so even the
  *  second fork of the run that discovered it refuses), and its cell in the
- *  table reads `timeout` (`bench/warm2md.py`). The JMH runs pass `-foe false`:
+ *  table reads 🐢 (`bench/warm2md.py`). The JMH runs pass `-foe false`:
  *  a halted or refusing fork is a recorded fact, not the end of the evaluation.
  */
 object Budget:
-  /** Five seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry
+  /** Ten seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry
    *  run raises it — a JIT-cold single invocation on a slow runner is a smoke
    *  test, not a measurement.
    */
   private val budgetNanos =
-    java.lang.Long.getLong("vik.bench.budgetMs", 5000L).nn.longValue * 1_000_000L
+    java.lang.Long.getLong("vik.bench.budgetMs", 10000L).nn.longValue * 1_000_000L
   private val ledger: Path = Corpus.root.getParent.resolve("bench").resolve("timeouts.txt")
   private val noted: Set[String] =
     if Files.exists(ledger) then Files.readAllLines(ledger).asScala.filter(_.nonEmpty).toSet
@@ -38,7 +38,7 @@ object Budget:
         Thread.sleep(250)
         if System.nanoTime() > deadline then
           Files.writeString(ledger, running + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-          System.err.println(s"Budget: $running passed the five-second budget, noted on $ledger; halting this fork")
+          System.err.println(s"Budget: $running passed the ten-second budget, noted on $ledger; halting this fork")
           Runtime.getRuntime.halt(66)
     ,
     "benchmark-budget"

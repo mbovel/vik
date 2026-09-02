@@ -4,13 +4,14 @@
 #
 # Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
-# The instances file holds one path per line. Every run is repeated, and the median (with the extremes) is
-# reported, so a scheduling hiccup does not decide a number.
+# The instances file holds one path per line (what follows the path on the line, and `#` lines, are
+# skipped). Every run is repeated, and the median (with the extremes) is reported, so a scheduling hiccup
+# does not decide a number.
 set -u
 cd "$(dirname "$0")/.."
 INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
-TIMEOUT="${3:-5}"  # the five-second budget: past it the cell says `timeout`, and nobody waits
+TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nobody waits
 
 # --server runs the build in this process, no thin client — a client racing a half-dead
 # background server answered with empty stdout on three of four CI runs.
@@ -23,14 +24,15 @@ MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
 seconds() { # the wall-clock time of one run, and the answers (comma-separated for an incremental script);
-  # `timeout` when it does not finish, `error` when it stops without answering
+  # `timeout` when it does not finish, `error` when it stops before answering every check-sat
   local start end raw code out
   start=$(date +%s.%N)
   raw=$(timeout "$TIMEOUT" "$@" 2>/dev/null)
   code=$?
   end=$(date +%s.%N)
   out=$(grep -E '^(sat|unsat|unknown)$' <<< "$raw" | paste -sd, -)
-  if [ -z "$out" ]; then if [ "$code" = 124 ]; then out=timeout; else out=error; fi; fi
+  if [ "$code" = 124 ]; then out=timeout
+  elif [ "$(tr -cd , <<< "$out" | wc -c)" -lt $((CHECKS - 1)) ] || [ -z "$out" ]; then out=error; fi
   printf "%s\t%.3f" "$out" "$(echo "$end - $start" | bc)"
 }
 
@@ -47,11 +49,14 @@ measure() { # name, command...: repeats the run and reports the median, the mini
 }
 
 printf "file\texpected\tsolver\tanswer\tmedian\tmin\tmax\n"
-while read -r f; do
-  [ -z "$f" ] && continue
+while read -r f _; do
+  [ -z "$f" ] || [ "${f:0:1}" = "#" ] && continue
   [ -r "$f" ] || { echo "cold.sh: no such instance: $f" >&2; exit 1; }
   expected=$(grep -o ':status [a-z]*' "$f" | cut -d' ' -f2 | paste -sd, -)
-  inc=$(grep -q "(push" "$f" && echo --incremental)
+  # More than one check-sat, with or without push: cvc5 and princess answer only the first otherwise.
+  inc=""; pinc=""
+  CHECKS=$(grep -c "(check-sat" "$f")
+  if [ "$CHECKS" -gt 1 ]; then inc=--incremental; pinc=+incremental; fi
   base=$(basename "$f")
   {
     measure vik-jvm java -cp "$CP" net.bovel.vik.smt2 "$f"
@@ -59,7 +64,7 @@ while read -r f; do
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"
-    measure princess java -cp "$CP" ap.CmdlMain "$f"
+    measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"
     measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
   } | while read -r line; do printf "%s\t%s\t%s\n" "$base" "$expected" "$line"; done
 done < "$INSTANCES"

@@ -78,7 +78,9 @@ class OtherSolversBench:
       "20190906-CLEARSY__0020__00009.smt2",
       "kind__MESI_i4.ec.smt2",
       "lustre__two_counters.bmc_k100.smt2",
+      "lustre__two_counters.bmc_k100.prefix25.smt2",
       "lustre__ex3.bmc_k100.smt2",
+      "lustre__ex3.bmc_k100.prefix25.smt2",
       "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2",
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
@@ -93,7 +95,14 @@ class OtherSolversBench:
       "wisas__xs_20_20.smt2",
       "mathsat__Wisa__xs-09-05-2-4-4-5.smt2",
       "mathsat__Wisa__xs-07-11-1-1-1-1.smt2",
-      "mathsat__Hash__hash_uns_04_18.smt2"
+      "mathsat__Hash__hash_uns_04_18.smt2",
+      "kind__car_6_e2_893.ec.smt2",
+      "20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2",
+      "cpachecker__diskperf_simpl1.smt2",
+      "cpachecker__list_false-unreach-call.smt2",
+      "bmc__stack_k20.smt2",
+      "safari__mux.smt2",
+      "safari__illinois.smt2"
     )
   )
   var file: String = uninitialized

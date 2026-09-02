@@ -7,7 +7,9 @@ highlighted (`<span class="best">`, styled by the site's `tables.css`). A note a
 95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--blank` leaves out
 the cells of a solver on an instance where the measurement would not mean what the column says (see the
 evaluation page). `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
-`solver:instance` per line): those cells say `timeout`, whatever an older result file measured. Run from the
+`solver:instance` per line): those cells say 🐢, whatever an older result file measured. `--order file`
+(bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
+instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
 repository root, where `corpus/` is.
 """
 import collections, json, pathlib, re, statistics, sys
@@ -43,12 +45,13 @@ if "--blank" in arguments:
     i = arguments.index("--blank")
     blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
     arguments = arguments[:i] + arguments[i + 2:]
-drop = set()  # --drop instance,...: rows left out entirely (superseded instances)
-if "--drop" in arguments:
-    i = arguments.index("--drop")
-    drop = set(arguments[i + 1].split(","))
+order_of = None  # --order file: the instances of the table, in its order
+if "--order" in arguments:
+    i = arguments.index("--order")
+    order_of = [line.split()[0].rsplit("/", 1)[-1].removesuffix(".smt2")
+                for line in pathlib.Path(arguments[i + 1]).read_text().splitlines() if line.startswith("corpus/")]
     arguments = arguments[:i] + arguments[i + 2:]
-timeouts = set()  # (solver, instance) past the five-second budget: the cell says `timeout`
+timeouts = set()  # (solver, instance) past the ten-second budget: the cell says 🐢
 if "--timeouts" in arguments:
     i = arguments.index("--timeouts")
     lines = pathlib.Path(arguments[i + 1]).read_text().splitlines()
@@ -56,6 +59,7 @@ if "--timeouts" in arguments:
     arguments = arguments[:i] + arguments[i + 2:]
 
 by = collections.defaultdict(dict)
+samples = {}  # per solver, the samples of its cells (forks × iterations)
 for path in arguments:
     try:
         records = json.load(open(path))
@@ -65,12 +69,11 @@ for path in arguments:
     for r in records:
         solver = r["benchmark"].split(".")[-1]
         instance = r["params"]["file"].removesuffix(".smt2")
-        if instance in drop:
-            continue
         xs = [x for iteration in r["primaryMetric"]["rawData"] for x in iteration]
         mean = statistics.mean(xs)
         ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0
         by[instance][solver] = (mean, ci)
+        samples[solver] = len(xs)
 
 # A real HTML table in a scrolling wrapper: narrow screens scroll the wrapper (a table made its own
 # scroll container renders badly on iOS), wide screens keep the sticky vertical headers.
@@ -80,14 +83,15 @@ print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "I
       + "".join(f"<th>{names[s]}</th>" for s in order) + "</tr></thead>")
 print("<tbody>")
 intervals = []  # (ci / mean, solver, instance) of every cell shown
-for instance, solvers in by.items():
+for instance in (order_of if order_of is not None else list(by)):
+    solvers = by.get(instance, {})
     shown = {s: solvers[s] for s in order
              if s in solvers and (s, instance) not in blank and (s, instance) not in timeouts}
     best = min((mean for mean, _ in shown.values()), default=None)
     cells = []
     for s in order:
         if (s, instance) in timeouts and (s, instance) not in blank:
-            cells.append("timeout")
+            cells.append("🐢")
         elif s not in shown:
             cells.append("—")
         else:
@@ -110,9 +114,18 @@ average = 100 * statistics.mean(p for p, _, _ in intervals)
 widest = sorted((x for x in intervals if 100 * x[0] >= 20), reverse=True)
 print()
 if widest:
-    named = ", ".join(f"{names[s]} on `{i}` ({100 * p:.0f}%)" for p, s, i in widest)
+    # A solver wide on many cells (princess: one fork of three samples, so a Student's t of 4.3) is
+    # summed up; the others are named one by one.
+    parts = []
+    for s in order:
+        wide = [(p, i) for p, sv, i in widest if sv == s]
+        if len(wide) >= 4:
+            parts.append(f"{names[s]} on {len(wide)} instances ({100 * min(wide)[0]:.0f}–{100 * max(wide)[0]:.0f}%,"
+                         f" from {samples[s]} samples per cell)")
+        else:
+            parts.extend(f"{names[s]} on `{i}` ({100 * p:.0f}%)" for p, i in wide)
     print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"
-          f" the mean; every cell is within 20% of its mean except {named}.")
+          f" the mean; every cell is within 20% of its mean except {', '.join(parts)}.")
 else:
     p, s, i = max(intervals)
     print(f"The 95% confidence intervals (Student's t over the samples of a cell) average {average:.0f}% of"

@@ -3,10 +3,12 @@
 
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the median of the repetitions in seconds, the best of the row highlighted
-(`<span class="best">`, styled by the site's `tables.css`); `timeout` when the solver did not finish, and the
+(`<span class="best">`, styled by the site's `tables.css`); 🐢 when the solver did not finish, and the
 answer in bold when it disagrees with the file's status. `--blank solver:instance,...` leaves out the cells
-where the measurement would not mean what the column says (see the evaluation page). Run from the repository
-root, where `corpus/` is.
+where the measurement would not mean what the column says (see the evaluation page). `--order file`
+(bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
+instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
+repository root, where `corpus/` is.
 """
 import collections, csv, pathlib, re, sys
 
@@ -33,6 +35,12 @@ if "--blank" in arguments:
     i = arguments.index("--blank")
     blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
     arguments = arguments[:i] + arguments[i + 2:]
+order_of = None  # --order file: the instances of the table, in its order
+if "--order" in arguments:
+    i = arguments.index("--order")
+    order_of = [line.split()[0].rsplit("/", 1)[-1]
+                for line in pathlib.Path(arguments[i + 1]).read_text().splitlines() if line.startswith("corpus/")]
+    arguments = arguments[:i] + arguments[i + 2:]
 
 rows = list(csv.DictReader(open(arguments[0]), delimiter="\t"))
 solvers = arguments[1].split(",") if len(arguments) > 1 else [
@@ -57,21 +65,23 @@ print("<table>")
 print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "Incremental", "Status"])
       + "".join(f"<th>{names[s]}</th>" for s in solvers) + "</tr></thead>")
 print("<tbody>")
-for f, answers in by.items():
-    best = min((median for answer, median in answers.values() if agrees(answer, status[f])), default=None)
+for f in (order_of if order_of is not None else list(by)):
+    answers = by.get(f, {})
+    expected = status.get(f, "")
+    best = min((median for answer, median in answers.values() if agrees(answer, expected)), default=None)
     cells = []
     for s in solvers:
         answer, median = answers.get(s, ("missing", 0.0))
         if (s, f[:-5]) in blank:
             cells.append("—")
         elif answer == "timeout":
-            cells.append("timeout")
-        elif answer == "error":
+            cells.append("🐢")
+        elif answer in ("error", "missing"):
             cells.append("—")
-        elif agrees(answer, status[f]):
+        elif agrees(answer, expected):
             text = fmt(median)
             cells.append(f'<span class="best">{text}</span>' if median == best else text)
-        elif "," in answer or "," in status[f]:
+        elif "," in answer or "," in expected:
             cells.append(f"<strong>wrong</strong> {fmt(median)}")
         else:
             cells.append(f"<strong>{answer}</strong> {fmt(median)}")
@@ -80,8 +90,8 @@ for f, answers in by.items():
     short = instance if len(instance) <= 20 else instance[:19] + "…"  # the link's title carries the full name
     label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
     name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
-    checks = status[f].count(",") + 1
-    shown = status[f] if checks == 1 else f"{checks} checks"
+    checks = expected.count(",") + 1
+    shown = (expected or "—") if checks == 1 else f"{checks} checks"
     print(f"<tr><td>{name}</td><td>{logic}</td><td>{incremental}</td><td>{shown}</td>"
           + "".join(f'<td align="right">{c}</td>' for c in cells) + "</tr>")
 

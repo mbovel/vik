@@ -16,8 +16,9 @@ are kept per module:
 ## The evaluation page
 
 [evaluate.sh](evaluate.sh) reproduces the two tables of
-[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place — the instance
-groups, the per-solver measurement budgets and the deliberately blank cells all live in that one script:
+[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place — the solvers of
+each instance group, the per-solver measurement budgets and the deliberately blank cells all live in that
+one script:
 
 ```sh
 bench/evaluate.sh all     # everything below, in order
@@ -26,10 +27,12 @@ bench/evaluate.sh cold    # the process-per-question table (z3 and cvc5 on the P
 bench/evaluate.sh regen   # only regenerate the page from the newest dated results (seconds)
 ```
 
-Every single measurement holds to a five-second budget. A warm operation past it is halted by a watchdog
+Every single measurement holds to a ten-second budget. A warm operation past it is halted by a watchdog
 ([Budget.scala](src/main/scala/net/bovel/bench/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
-committed, so the combination is refused on every later run and its cell reads `timeout`; a fixed solver
-earns its line's removal. A cold run is cut by `timeout 5` (in [cold.sh](cold.sh)) with the same cell.
+committed, so the combination is refused on every later run and its cell reads 🐢; a fixed solver
+earns its line's removal. A cold run is cut by `timeout 10` (in [cold.sh](cold.sh)) with the same cell.
+The instances of both tables, in their order, with the warm group of each, are
+[evaluation-instances.txt](evaluation-instances.txt).
 
 It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`, the cold binaries) and
 fails with the command to run. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`
