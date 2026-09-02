@@ -6,10 +6,11 @@ import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formu
 
 /** An instance compiled to a straight-line program of SMT-LIB's own operations
  *  over numbered slots: what a verifier that builds a solver's terms directly
- *  executes per query, before any solver's API is named. [[Z3Replay]],
- *  [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]] run one against
- *  their solver — declarations, term construction, asserts, `push`/`pop` and
- *  every `check-sat`, nothing else: no VIK tree is walked, no text is parsed.
+ *  executes per query, before any solver's API is named. [[VikReplay]],
+ *  [[Z3Replay]], [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]]
+ *  run one against their solver — declarations, term construction, asserts,
+ *  `push`/`pop` and every `check-sat`, nothing else: no text is parsed, and
+ *  VIK's tree is built by VIK's own front end from the terms handed to it.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
  *  what every solver's front end does with the text: a `let` binding becomes a
@@ -22,16 +23,18 @@ import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formu
  *
  *  `named` has the slots the script reaches through a name — a `let` binding's
  *  value, a `define-fun` application — which a parser translates once and then
- *  treats as a unit.
+ *  treats as a unit. `slotSorts` has each slot's sort: a replay that must build
+ *  a Boolean equality differently from another (VIK's `Iff`) reads it there.
  */
 final class Replay(
     val ops: Array[Replay.Op],
-    val slotCount: Int,
+    val slotSorts: Array[Sort],
     val sortCount: Int,
     val declCount: Int,
     val logic: String | Null,
     val named: Set[Int]
-)
+):
+  def slotCount: Int = slotSorts.length
 
 object Replay:
   enum Op:
@@ -77,13 +80,20 @@ object Replay:
     case BvCmp(dst: Int, op: BvCmpOp, lhs: Int, rhs: Int)
     case IsCtor(dst: Int, ctor: Int, arg: Int)
     case IsInt(dst: Int, a: Int)
+
+    /** A lambda's parameter, by name, and the lambda over its body: encoded for
+     *  [[VikReplay]] — the other replays throw on them.
+     */
+    case Param(dst: Int, name: String, sort: Sort)
+    case Lambda(dst: Int, params: List[(String, Sort)], body: Int)
     case Assert(slot: Int)
     case Push(levels: Int)
     case Pop(levels: Int)
     case Check
 
   /** Compiles the script: the only walk of the tree, done before measuring.
-   *  Throws on what no replay encodes (lambdas, sort parameters).
+   *  Throws on what no replay encodes (sort parameters, higher-order
+   *  application).
    */
   def compile(script: Script): Replay =
     val out = ArrayBuffer.empty[Op]
@@ -250,7 +260,10 @@ object Replay:
         val (slots, sort) = typed(List(thn, els), env, expected)
         emit(("ite", c, slots(0), slots(1)), sort)(Op.Ite(_, c, slots(0), slots(1)))
       case Term.Let(bindings, body) => term(body, env ++ bind(bindings, env), expected)
-      case Term.Lambda(_, _) => throw UnsupportedOperationException("lambdas are not encoded")
+      case Term.Lambda(params, body) =>
+        val bound = params.map((name, sort) => name -> emit(("param", name, sort), sort)(Op.Param(_, name, sort)))
+        val b = term(body, env ++ bound, null)
+        emit(("lambda", params, b), Sort.fun(params.map(_._2), slotSorts(b)))(Op.Lambda(_, params, b))
       case Term.Bool(f) => formula(f, env)
 
     def formula(f: Formula, env: Env): Int = f match
@@ -338,4 +351,4 @@ object Replay:
         case Command.Pop(levels) => out += Op.Pop(levels)
         case Command.CheckSat => out += Op.Check
         case _ => () // check-sat-assuming, get-*, set-*: not part of what the solvers are measured on
-    Replay(out.toArray, slotSorts.length, sortIds.size, declIds.size, logic, named.toSet)
+    Replay(out.toArray, slotSorts.toArray, sortIds.size, declIds.size, logic, named.toSet)

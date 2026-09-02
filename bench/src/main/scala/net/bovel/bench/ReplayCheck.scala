@@ -6,11 +6,11 @@ import net.bovel.smtlib.{Corpus, Parser}
 
 /** Checks a solver's [[Replay]] against its own front end on some files:
  *  `sbt "bench/runMain net.bovel.bench.replaycheck z3 3 file.smt2 …"` (or
- *  `cvc5`, `princess`, `smtinterpol`). Each file gets both the replay and the
- *  [[TextOracle]], best of `reps` runs, and a line with their times: a mismatch
- *  in answers or a replay slower than twice the front end is flagged, since the
- *  replay then hands the solver something its parser would not have built.
- *  Prints the number of flagged files last.
+ *  `vik`, `cvc5`, `princess`, `smtinterpol`). Each file gets both the replay
+ *  and the [[TextOracle]], best of `reps` runs, and a line with their times: a
+ *  mismatch in answers or a replay slower than twice the front end is flagged,
+ *  since the replay then hands the solver something its parser would not have
+ *  built. Prints the number of flagged files last.
  *
  *  Each run holds to the ten-second budget of the warm table: past it, that
  *  side reads 🐢 and is flagged only if the other side finished. The solvers
@@ -56,11 +56,13 @@ import net.bovel.smtlib.{Corpus, Parser}
         finally ctx.close()
       case "cvc5" => Cvc5Replay.check(program)
       case "princess" => PrincessReplay.check(program)
+      case "vik" => VikReplay.check(program)
       case "smtinterpol" => SmtInterpolReplay.check(program))
     val (parsed, textMs) = best(solver match
       case "z3" => TextOracle.z3(text)
       case "cvc5" => TextOracle.cvc5(text)
       case "princess" => TextOracle.princess(text)
+      case "vik" => TextOracle.vik(text)
       case "smtinterpol" => TextOracle.smtinterpol(text))
     val flag =
       if replayMs.isInfinite && textMs.isInfinite then ""

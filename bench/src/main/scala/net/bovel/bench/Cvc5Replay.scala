@@ -26,7 +26,7 @@ object Cvc5Replay:
     val tm = TermManager()
     val solver = Solver(tm)
     try
-      if program.logic != null then solver.setLogic(program.logic.nn)
+      if program.logic != null then solver.setLogic(program.logic)
       if program.ops.exists(_.isInstanceOf[Op.Push]) then solver.setOption("incremental", "true")
       val slots = new Array[Term](program.slotCount)
       val decls = new Array[Term](program.declCount)
@@ -169,5 +169,7 @@ object Cvc5Replay:
           case Op.Push(levels) => solver.push(levels)
           case Op.Pop(levels) => solver.pop(levels)
           case Op.Check => answers += solver.checkSat().isSat
+          case Op.Param(_, _, _) | Op.Lambda(_, _, _) =>
+            throw UnsupportedOperationException("lambdas: VIK's replay only")
       answers.toList
     finally solver.deletePointer()

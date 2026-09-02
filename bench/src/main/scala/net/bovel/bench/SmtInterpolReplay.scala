@@ -97,4 +97,5 @@ object SmtInterpolReplay:
         case Op.Push(levels) => s.push(levels)
         case Op.Pop(levels) => s.pop(levels)
         case Op.Check => answers += (s.checkSat() == ItpScript.LBool.SAT)
+        case Op.Param(_, _, _) | Op.Lambda(_, _, _) => throw UnsupportedOperationException("lambdas: VIK's replay only")
     answers.toList

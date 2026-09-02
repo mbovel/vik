@@ -122,11 +122,10 @@ cell deliberately left out, for the reasons below.
 The 95% confidence intervals (Student's t over the samples of a cell) average 21% of the mean; every cell is within 20% of its mean except z3 (API) on 19 instances (25–77%, from 6 samples per cell), princess (API) on 34 instances (42–352%, from 2 samples per cell).
 
 The *(SMT2)* columns — z3 and cvc5 — receive the text of the script and parse it themselves; the *(API)*
-columns receive the problem already built: *VIK (API)* solves its own tree, and *z3 (API)*, *cvc5 (API)*,
-*princess (API)* and *SMTInterpol (API)* are handed the script's own terms through each solver's API —
-declarations, terms, asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier
-pays. Each of the four replays is checked against the solver's own front end run in process on the same
-text
+columns receive the problem already built: *VIK (API)*, *z3 (API)*, *cvc5 (API)*, *princess (API)* and
+*SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
+asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. Each of the five
+replays is checked against the solver's own front end run in process on the same text
 ([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/ReplayCheck.scala)):
 the same answers, and a time within a factor of two — so what the solver receives is what its own parser
 would have built, down to the order in which princess's parser flattens a nested `or` or `+` (handed the
@@ -138,8 +137,8 @@ SMTInterpol and 1.30 for z3, half of the instances within 0.8–1.5× of even �
 table say the same, within 20% of each other either way on the small instances (the check's z3 front end
 builds a context per run, 0.46 ms that dominates its ratio on the smallest). Parsing a script this size is
 a small part of what a solver does with it, and z3's C++ parser builds a term about as fast as a JNI call
-does. The higher-order rows run the solvers that speak lambdas: VIK, z3 from text (the replays build no
-lambdas) and, on the one of the two that is not in z3's dialect, cvc5. The incremental instances leave one
+does. The higher-order rows run the solvers that speak lambdas: VIK, z3 from text (only VIK's replay
+builds lambdas) and, on the one of the two that is not in z3's dialect, cvc5. The incremental instances leave one
 cell out: z3's text column flattens the script into one problem — its bindings execute no script — a
 different question on a script of many `check-sat`s. Princess is measured through its API for the same
 reason in the other direction: its own script executor rejects these scripts (a re-declaration after
@@ -152,10 +151,11 @@ and VIK on the `Certora` instance, discussed below. In the cold table, princess 
 the re-declaration above, so that cell is a `—`, and the three solvers without lambdas reject
 `regressions__3775`.
 
-Read the two VIK columns together: *VIK (API)* is the solver on a problem it already holds, which is how a
-tool that builds the terms itself calls it, and *VIK (SMT2)* adds the parsing of the script, which is what
-the other *(SMT2)* columns include. The gap between them is the front end — tens of microseconds on
-the small instances.
+Read the two VIK columns together: *VIK (API)* is the solver handed the script's terms through its
+`Session`, which is how a tool that builds the terms itself calls it — the lowering to the solver's own
+language is part of the call, as it is for any client — and *VIK (SMT2)* adds the parsing of the script,
+which is what the other *(SMT2)* columns include. The gap between them is the parser — tens of
+microseconds on the small instances.
 
 On the queries a verifier produces — the small ones, a millisecond or less — VIK is the fastest of the
 five, by one to two orders of magnitude over z3 and cvc5: 6 µs where z3 takes 380 µs and cvc5 1.8 ms on

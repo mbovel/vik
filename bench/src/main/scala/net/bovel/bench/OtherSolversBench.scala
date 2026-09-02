@@ -12,21 +12,21 @@ import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
- *  start-up: VIK solves the tree directly; z3 and cvc5 receive the file as it
- *  is and parse it themselves (`print` measures the printing alone); and
- *  `z3Direct`, `cvc5Direct`, `princess` and `smtinterpol` replay the script's
- *  own terms through each solver's API — a [[Replay]], compiled from the
- *  instance up front, so an operation is only API calls, and what the solver
- *  receives is what its own parser would have built (checked by `replaycheck`).
- *  z3 and cvc5 run through their Java bindings as published by SoSy-Lab
- *  (JavaSMT) with the native libraries of `fetch-native.sh`. z3 keeps one
- *  `Context` for the trial, as a tool that embeds it does, and takes a fresh
- *  solver per operation, reset on the way out (see [[Z3Replay.check]]):
- *  creating a context costs 0.46 ms, more than the small instances take to
- *  solve. cvc5 gets a fresh `Solver` per operation: the solver itself is cheap
- *  (30 µs), and the ~0.4 ms its engine spends initialising at the first
- *  `assert` is what a solver kept in incremental mode would save — at the price
- *  of another engine (24× slower on `NEQ004_size4`), so the fresh solver stays.
+ *  start-up: `vik`, `z3Direct`, `cvc5Direct`, `princess` and `smtinterpol`
+ *  replay the script's own terms through each solver's API — a [[Replay]],
+ *  compiled from the instance up front, so an operation is only API calls, and
+ *  what the solver receives is what its own parser would have built (checked by
+ *  `replaycheck`); `vikText`, `z3` and `cvc5` receive the file as it is and
+ *  parse it themselves (`print` measures the printing alone). z3 and cvc5 run
+ *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
+ *  native libraries of `fetch-native.sh`. z3 keeps one `Context` for the trial,
+ *  as a tool that embeds it does, and takes a fresh solver per operation, reset
+ *  on the way out (see [[Z3Replay.check]]): creating a context costs 0.46 ms,
+ *  more than the small instances take to solve. cvc5 gets a fresh `Solver` per
+ *  operation: the solver itself is cheap (30 µs), and the ~0.4 ms its engine
+ *  spends initialising at the first `assert` is what a solver kept in
+ *  incremental mode would save — at the price of another engine (24× slower on
+ *  `NEQ004_size4`), so the fresh solver stays.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -120,8 +120,8 @@ class OtherSolversBench:
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
     val parsed = Parser.parse(text)
     script = Lowering(parsed) // the tree as VIK plays it
-    // A script no replay encodes (lambdas, say) leaves it null; the replays are simply not selected for
-    // such instances — the setup must not fail the others.
+    // A script no replay encodes (sort parameters, say) leaves it null; the replays are simply not
+    // selected for such instances — the setup must not fail the others.
     replay = try Replay.compile(parsed)
     catch case _: Exception => null
     Natives.z3
@@ -134,11 +134,12 @@ class OtherSolversBench:
   @Benchmark
   def print(): Int = Printer.print(script).length
 
-  /** The solver on a problem it already holds, as a tool that builds the terms
-   *  itself calls it.
+  /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
+   *  every `check-sat` through VIK's `Session` API, nothing else: what a tool
+   *  that builds the terms itself pays, the lowering included.
    */
   @Benchmark
-  def vik(): List[Boolean] = Budget.run("vik", file)(Session().play(script.commands).map(_ == "sat"))
+  def vik(): List[Boolean] = Budget.run("vik", file)(VikReplay.check(replay.nn))
 
   /** The same, from the text of the script: what the solvers that parse below
    *  are measured on.

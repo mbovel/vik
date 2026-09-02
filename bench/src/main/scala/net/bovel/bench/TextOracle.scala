@@ -19,6 +19,10 @@ object TextOracle:
   private def answers(output: String): List[Boolean] =
     output.linesIterator.map(_.trim).collect { case "sat" => true; case "unsat" => false }.toList
 
+  /** VIK's own front end: a `Session` on the text. */
+  def vik(text: String): List[Boolean] =
+    net.bovel.vik.Session().run(text).collect { case "sat" => true; case "unsat" => false }
+
   /** `SimpleAPI.execSMTLIB`, what `ap.CmdlMain +incremental` runs. */
   def princess(text: String): List[Boolean] =
     val out = ByteArrayOutputStream()

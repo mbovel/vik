@@ -206,5 +206,7 @@ object PrincessReplay:
           case Op.Push(levels) => for _ <- 1 to levels do p.push()
           case Op.Pop(levels) => for _ <- 1 to levels do p.pop()
           case Op.Check => answers += (p.checkSat(true) == SimpleAPI.ProverStatus.Sat)
+          case Op.Param(_, _, _) | Op.Lambda(_, _, _) =>
+            throw UnsupportedOperationException("lambdas: VIK's replay only")
       answers.toList
     }
