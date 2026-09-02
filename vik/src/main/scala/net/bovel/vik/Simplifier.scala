@@ -32,10 +32,14 @@ object Simplifier:
       interpreted: Set[String] = Set.empty,
       kept: List[Formula] = Nil
   ): (List[Formula], Map[String, Term]) =
-    val total = HashMap.empty[String, Int]
-    for f <- assertions do countConstants(f, total)
-    for f <- kept do countConstants(f, total)
-    for name <- interpreted do total(name) = Int.MaxValue // never local to a conjunction
+    // The occurrences of every constant over the whole set: one walk, taken the first time a
+    // conjunction has an equality to eliminate — most sets have none, and pay nothing.
+    lazy val total =
+      val counts = HashMap.empty[String, Int]
+      for f <- assertions do countConstants(f, counts)
+      for f <- kept do countConstants(f, counts)
+      for name <- interpreted do counts(name) = Int.MaxValue // never local to a conjunction
+      counts
     val defined = HashMap.empty[String, Term]
     val out = assertions.map(f => simplify(f, total, true, defined)).filter(_ != True)
     (out, defined.toMap)
@@ -84,7 +88,7 @@ object Simplifier:
    */
   private def simplify(
       f: Formula,
-      total: HashMap[String, Int],
+      total: => HashMap[String, Int],
       positive: Boolean,
       defined: HashMap[String, Term]
   ): Formula =
@@ -102,8 +106,10 @@ object Simplifier:
       case And(as) if !positive => And(as.map(simplify(_, total, false, defined)))
       case And(as) =>
         var conjuncts = as.map(simplify(_, total, true, defined))
-        // Eliminate the constants local to this conjunction, one equality at a time.
-        var changed = true
+        // Eliminate the constants local to this conjunction, one equality at a time. Only a
+        // conjunction with an equality `c = t` among its conjuncts is counted: the counting walks
+        // the conjunction, and every conjunction nested inside is walked once more per level above.
+        var changed = conjuncts.exists(isDefinition)
         while changed do
           changed = false
           val local = HashMap.empty[String, Int]
@@ -122,6 +128,10 @@ object Simplifier:
           case Nil => True
           case single :: Nil => single
           case _ => And(conjuncts)
+
+  private def isDefinition(f: Formula): Boolean = f match
+    case Eq(Const(_), _) | Eq(_, Const(_)) => true
+    case _ => false
 
   private def mentions(t: Term, c: String): Boolean = t match
     case Const(name) => name == c
