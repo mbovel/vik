@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A markdown table from a JMH run of OtherSolversBench: warm2md.py results.json [more.json ...]
+"""A markdown table from a JMH run of the evaluation suites: warm2md.py results.json [more.json ...]
 
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the mean over the samples in milliseconds, the best of the row
@@ -13,10 +13,15 @@ repository root, where `corpus/` is.
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
-order = ["vik", "vikText", "z3Direct", "z3", "cvc5Direct", "cvc5", "princess", "smtinterpol"]
-names = {"vik": "VIK (API)", "vikText": "VIK (SMT2)", "z3Direct": "z3 (API)", "z3": "z3 (SMT2)",
-         "cvc5Direct": "cvc5 (API)", "cvc5": "cvc5 (SMT2)", "princess": "princess (API)",
-         "smtinterpol": "SMTInterpol (API)"}
+order = ["VikBench.api", "VikBench.text", "Z3Bench.api", "Z3TextBench.text", "Cvc5Bench.api", "Cvc5Bench.text",
+         "PrincessBench.api", "SmtInterpolBench.api"]
+names = {"VikBench.api": "VIK (API)", "VikBench.text": "VIK (SMT2)", "Z3Bench.api": "z3 (API)",
+         "Z3TextBench.text": "z3 (SMT2)", "Cvc5Bench.api": "cvc5 (API)", "Cvc5Bench.text": "cvc5 (SMT2)",
+         "PrincessBench.api": "princess (API)", "SmtInterpolBench.api": "SMTInterpol (API)"}
+# The names of the one suite the results of 2026-09-02 and before came from (`OtherSolversBench`).
+aliases = {"vik": "VikBench.api", "vikText": "VikBench.text", "z3Direct": "Z3Bench.api", "z3": "Z3TextBench.text",
+           "cvc5Direct": "Cvc5Bench.api", "cvc5": "Cvc5Bench.text", "princess": "PrincessBench.api",
+           "smtinterpol": "SmtInterpolBench.api"}
 
 
 def corpus(base):
@@ -61,13 +66,14 @@ for path in arguments:
         print(f"warm2md: skipping unreadable {path} (a run in progress?)", file=sys.stderr)
         continue
     for r in records:
-        solver = r["benchmark"].split(".")[-1]
+        cls, method = r["benchmark"].split(".")[-2:]
+        solver = aliases.get(method, f"{cls}.{method}") if cls == "OtherSolversBench" else f"{cls}.{method}"
         instance = r["params"]["file"].removesuffix(".smt2")
         xs = [x for iteration in r["primaryMetric"]["rawData"] for x in iteration]
         mean = statistics.mean(xs)
         ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0
         by[instance][solver] = (mean, ci)
-        samples[solver] = len(xs)
+        samples[solver] = min(samples.get(solver, len(xs)), len(xs))  # the fewest a cell of the solver has
 
 # A real HTML table in a scrolling wrapper: narrow screens scroll the wrapper (a table made its own
 # scroll container renders badly on iOS), wide screens keep the sticky vertical headers.

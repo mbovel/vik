@@ -309,3 +309,18 @@ Version: z3 4.14.0 (the binary) and `org.sosy-lab:javasmt-solver-z3:4.14.0` in p
 - **Workaround**: `Solver.reset()` on the way out of each operation (`Z3Replay.check`) — flat at 1.3 ms
   over the same 2000 replays; the wrappers still wait for the GC, but they hold nothing then. A context
   per operation would do too, at 0.46 ms each, more than the small instances take to solve.
+
+## sbt-jmh
+
+Version: `pl.project13.scala:sbt-jmh:0.4.8`.
+
+### 1. The generated benchmark classes of a removed or recompiled benchmark stay in `target` (2026-09-02)
+
+- **Observed**: after a benchmark class was removed (`OtherSolversBench`), `bench/Jmh/run` failed in
+  `generateJmhSourcesAndResources` with `NoClassDefFoundError: net/bovel/bench/evaluation/OtherSolversBench`;
+  after a build on JDK 26 followed by one on JDK 25, with `UnsupportedClassVersionError ... class file
+  version 70.0` on a `jmh_generated` class. The generator scans the whole class directory, where its
+  own output of the previous run still is, and loads it.
+- **Workaround**: delete the `jmh_generated` directories under `target/out/jvm/<scala>/bench/classes`
+  (and any class of the removed benchmark) before the next `Jmh/run`; `bench/clean` does too, at the
+  price of the module's compilation.

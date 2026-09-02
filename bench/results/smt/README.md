@@ -22,7 +22,7 @@ Random instances built with the `vik` API:
 From the repository root (see [bench/README.md](../../README.md) for the setup of `jmh2md.py`):
 
 ```sh
-sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*SmtBench.solve .*OtherSolversBench.vik"   # VIK on every instance
+sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*SmtBench.solve .*VikBench.api"   # VIK on every instance
 sbt "bench/Jmh/run -p file=eq_diamond__eq_diamond50.smt2"     # one instance
 bench/.venv/bin/python bench/jmh2md.py target/jmh-result.json
 bench/cold.sh bench/evaluation-instances.txt > bench/results/smt/cold.tsv   # wall clock vs z3, cvc5, princess, SMTInterpol
@@ -33,11 +33,11 @@ The other benchmarks are recorded on subsets (`-p file=...`): `parse` and `smtin
 
 Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
-In process, `OtherSolversBench` runs princess and SMTInterpol (JVM libraries) and z3 and cvc5 through their Java bindings
+In process, the suites of `net.bovel.bench.evaluation` run princess and SMTInterpol (JVM libraries) and z3 and cvc5 through their Java bindings
 as published by SoSy-Lab (the JavaSMT project) on Maven Central: the Java parts are dependencies of `bench`, the native
 libraries are downloaded by `bench/fetch-native.sh` into `bench/native/` (Linux x86-64) and found through
-`java.library.path`. `z3` parses the printed script, `z3Direct` builds z3's AST from the tree through the API (the
-counterpart of `vik`, which solves the tree). `sbt "bench/runMain net.bovel.bench.evaluation.SolverCheck"` runs every in-process
+`java.library.path`. `Z3TextBench.text` has z3 parse the script, `Z3Bench.api` builds z3's terms through the API (the
+counterpart of `VikBench.api`). `sbt "bench/runMain net.bovel.bench.evaluation.SolverCheck"` runs every in-process
 solver on every instance and reports disagreements with the expected status.
 
 `cold.sh` runs each solver as a separate process on the instances of a file list, with a timeout, and records the

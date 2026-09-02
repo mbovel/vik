@@ -58,7 +58,7 @@ and the two tables were taken the same morning.
 
 ## Warm: the solver as a library
 
-The measurement is JMH in the same JVM: two forks, three warm-up and three measurement iterations of one
+The measurement is JMH in the same JVM: three forks, three warm-up and three measurement iterations of one
 second each, average time per operation, one thread. Every operation is a complete answer — parse the script,
 build the problem, solve it — on a solver built for that call, which is what a verification tool does per
 query.
@@ -297,13 +297,13 @@ bench/evaluate.sh cold    # the cold table only — with the binaries below
 sbt "vikNative/nativeLink; docsAssets"   # the native binary and the WebAssembly module the cold run uses
 ```
 
-`bench/evaluation-instances.txt` lists the instances, in the order of both tables, with the warm group of
-each (which solvers run on it); the script holds the fork counts, the blanked cells and the ten-second budget;
-`bench/timeouts.txt` is the ledger of the warm combinations past it, never run again.
+`bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per
+solver in `bench/src/main/scala/net/bovel/bench/evaluation`, list the instances each solver takes and,
+commented, the ones it does not and why (the blanked cells); `bench/timeouts.txt` is the ledger of the warm
+combinations past the ten-second budget, never run again.
 
 The raw data of this page, committed in the repository:
 [cold](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-02-laraserver4-cold.tsv),
-[warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-02-laraserver4-warm.json),
-[warm, incremental](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-02-laraserver4-warm-inc.json),
-and the other groups of the same date in
+[warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-02-laraserver4-warm.json)
+and the other files of the same date in
 [`bench/results/smt`](https://github.com/mbovel/vik/tree/main/bench/results/smt).
