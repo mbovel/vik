@@ -51,9 +51,19 @@ class LoweringTest extends munit.FunSuite:
   test("outside the fragment: nonlinear multiplication, integer division"):
     intercept[Smt2Error](lowered("(declare-const x Int) (assert (<= (* x x) 1))"))
     intercept[Unsupported](lowered("(declare-const x Int) (assert (= (div x 2) 1))"))
-    intercept[Unsupported](lowered(
-      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvor a b) a))"
-    ))
+
+  test("a bit-vector operation of two unknowns is its interpreted symbol, declared once"):
+    val commands = Lowering(Parser.parse(
+      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvor a b) a)) (assert (= (bvor b a) b))"
+    )).commands
+    val (a, b) = (Const("a"), Const("b"))
+    assertEquals(commands.collect { case Command.DeclareFun("bvor!8", Nil, sort) => sort }, List("(-> Int Int Int)"))
+    val asserts = commands.collect { case Command.Assert(f) => f }.drop(2) // after the ranges of a and b
+    val (ab, ba) = (App(Const("bvor!8"), List(a, b)), App(Const("bvor!8"), List(b, a)))
+    assertEquals(asserts(0), And(List(Ge(ab, Num(0)), Le(ab, Num(255))))) // each application bounded to the width
+    assertEquals(asserts(1), IntEq(ab, a))
+    assertEquals(asserts(2), And(List(Ge(ba, Num(0)), Le(ba, Num(255)))))
+    assertEquals(asserts(3), IntEq(ba, b))
 
   test("to_real is the identity, to_int the pinned floor"):
     val commands = Lowering(Parser.parse(

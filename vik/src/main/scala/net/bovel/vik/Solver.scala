@@ -188,27 +188,33 @@ final class Solver(val simplify: Boolean = true):
       e.arrayLemmas()
       e.assertExhaustiveness()
       e.shareIntegers()
-    e.decideBooleans()
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
-    e.solve(assumed, keepGoing) match
-      case cdclt.Solver.Result.Sat(model) =>
-        // A satisfying assignment that equates entangled lambdas proves nothing: no finite witness
-        // justifies a pointwise identity like g(g x) = x + 1, which no total g satisfies.
-        if e.entangledLambdas.exists((f, sel) =>
-            e.litOf(f).exists(l => model(l.variable) == l.positive)
-              && (sel == null || model(sel.nn.variable) == sel.nn.positive)
-          )
-        then
-          Result.Unknown(Reason.Stopped)
-        else
-          lastCore = Nil
-          Result.Sat
-      case cdclt.Solver.Result.Unsat =>
-        val core = e.core().toSet
-        lastCore = activations.collect { case (name, a) if core(a) => name }
-        Result.Unsat
-      case cdclt.Solver.Result.Unknown => Result.Unknown(Reason.Stopped)
+    e.decideBooleans()
+    var result: Result | Null = null
+    while result == null do
+      e.solve(assumed, keepGoing) match
+        case cdclt.Solver.Result.Sat(model) =>
+          // A satisfying assignment that equates entangled lambdas proves nothing: no finite witness
+          // justifies a pointwise identity like g(g x) = x + 1, which no total g satisfies.
+          if e.entangledLambdas.exists((f, sel) =>
+              e.litOf(f).exists(l => model(l.variable) == l.positive)
+                && (sel == null || model(sel.nn.variable) == sel.nn.positive)
+            )
+          then result = Result.Unknown(Reason.Stopped)
+          else if e.valueLemmas.nonEmpty then
+            // The candidate misreads an interpreted symbol: the lemmas say what it is at these
+            // arguments, and the search goes on with them (counterexample-guided; see Interpreted).
+            e.valueLemmas.foreach(e.assert(_, null))
+          else
+            lastCore = Nil
+            result = Result.Sat
+        case cdclt.Solver.Result.Unsat =>
+          val core = e.core().toSet
+          lastCore = activations.collect { case (name, a) if core(a) => name }
+          result = Result.Unsat
+        case cdclt.Solver.Result.Unknown => result = Result.Unknown(Reason.Stopped)
+    result
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into
@@ -555,6 +561,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) =>
         args.foreach(boolean)
+        fun match
+          case Term.Const(name) if name.indexOf('!') > 0 =>
+            Interpreted(name).foreach(meaning => interpretedApps += ((Term.App(fun, args), meaning)))
+          case _ => ()
         eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
       case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
       case Term.Var(_) => eg.newClass() // a bound variable: a leaf shared by every lambda, never merged
@@ -802,6 +812,32 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   var lastModel: Model | Null = null
   var produceModels: Boolean = true
 
+  /** The applications of interpreted symbols ([[Interpreted]]) the problem
+   *  mentions, and after a `Sat`, the value lemmas the candidate model
+   *  violates: for each application whose value differs from its meaning on the
+   *  values of its arguments, these arguments give that result. Empty when the
+   *  candidate is a model.
+   */
+  private val interpretedApps = ArrayBuffer.empty[(Term.App, List[BigInt] => BigInt)]
+  var valueLemmas: List[Formula] = Nil
+
+  private def intValue(t: Term): BigInt = t match
+    case Term.Num(v) => v
+    case Term.Linear(terms, c) => terms.foldLeft(c) { case (sum, (a, u)) => sum + a * intValue(u) }
+    case _ => intVars.get(t).map(liaSolver.value).getOrElse(BigInt(0))
+
+  private def checkInterpreted(): List[Formula] =
+    interpretedApps.toList.flatMap { case (app @ Term.App(_, args), meaning) =>
+      val values = args.map(intValue)
+      val expected = meaning(values)
+      if intValue(app) == expected then Nil
+      else
+        List(Formula.Implies(
+          Formula.And(args.zip(values).map((a, v) => Formula.IntEq(a, Term.Num(v)))),
+          Formula.IntEq(app, Term.Num(expected))
+        ))
+    }
+
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     while satVars < atoms.length do
@@ -812,8 +848,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       clauseCursor += 1
     lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
+    valueLemmas = Nil
     result match
-      case cdclt.Solver.Result.Sat(_) => if produceModels then lastModel = takeModel()
+      case cdclt.Solver.Result.Sat(_) =>
+        valueLemmas = checkInterpreted()
+        if produceModels && valueLemmas.isEmpty then lastModel = takeModel()
       case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
@@ -866,7 +905,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             case None => if sort == "Bool" then Term.boolean(Formula.False) else elementOf(sort, eg.newClass())
     val constants = Map.newBuilder[String, Term]
     val functions = Map.newBuilder[String, Model.Function]
-    for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
+    for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") && Interpreted(name).isEmpty do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else
         val rows = classes.keys.collect {

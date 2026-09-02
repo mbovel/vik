@@ -31,9 +31,11 @@ final case class Model(
         case _ => constants.getOrElse(name, term)
     case Term.App(Term.Const(name), args) =>
       val values = args.map(value)
-      functions.get(name) match
-        case Some(f) => f.rows.collectFirst { case (a, r) if a == values => r }.getOrElse(f.default)
-        case None => term
+      (functions.get(name), Interpreted(name)) match
+        case (Some(f), _) => f.rows.collectFirst { case (a, r) if a == values => r }.getOrElse(f.default)
+        case (None, Some(meaning)) if values.forall(_.isInstanceOf[Term.Num]) =>
+          Term.Num(meaning(values.map { case Term.Num(v) => v; case _ => BigInt(0) }))
+        case _ => term
     case Term.Bool(formula) => Term.boolean(if holds(formula) then Formula.True else Formula.False)
     case _ => term
 

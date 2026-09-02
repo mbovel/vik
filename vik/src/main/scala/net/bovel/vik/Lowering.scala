@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, Sort}
 import net.bovel.smtlib as s2
@@ -31,8 +31,9 @@ import Term.*
  *      extractions through `x = d × q + r`, the signed comparisons and
  *      `sign_extend` through the sign bit (`x = u + 2^(n−1) × s`).
  *      Multiplication, division and shifts by a variable, and the other bitwise
- *      operations would need bit-blasting: rejected
- *      ([[net.bovel.smtlib.Unsupported]]).
+ *      operations, which would need bit-blasting, become applications of an
+ *      [[Interpreted]] symbol `op!n`, bounded to the width, that the solver
+ *      holds to its meaning.
  */
 object Lowering:
   def apply(script: s2.Script): Script = Script(Lowerer().commands(script.commands))
@@ -64,6 +65,7 @@ private final class Lowerer:
   private var fresh = 0
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
+  private val interpretedSymbols = HashSet.empty[String] // the `op!w` symbols declared so far
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
@@ -122,6 +124,7 @@ private final class Lowerer:
       rationalProducts.clear()
       rationalValues.clear()
       storeSymbols.clear()
+      interpretedSymbols.clear()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
@@ -136,6 +139,7 @@ private final class Lowerer:
           ): Formula | Term
         )
       )
+      introduced.foreach((n, _) => interpretedSymbols -= n) // an interpreted symbol minted here is not declared
       introduced.clear()
       definitions.clear()
       rationals.clear() // a constant minted here has no definition: later uses must not find it
@@ -551,7 +555,7 @@ private final class Lowerer:
           case (Num(u), Num(v)) => Num((u * v).mod(m))
           case (t, Num(c)) => times(t, c.mod(m), width)
           case (Num(c), t) => times(t, c.mod(m), width)
-          case _ => throw s2.Unsupported("bvmul of two variables is not supported (no bit-blasting)")
+          case _ => interpreted(op, args, width)
       case (BvOp.Shl, a :: Num(c) :: Nil) =>
         if c >= width then Num(0) else times(a, BigInt(2).pow(c.toInt), width)
       case (BvOp.Lshr, a :: Num(c) :: Nil) =>
@@ -563,9 +567,28 @@ private final class Lowerer:
           case (Num(u), Num(v)) => Num(u & v)
           case (t, Num(mask)) => masked(t, mask, width)
           case (Num(mask), t) => masked(t, mask, width)
-          case _ => throw s2.Unsupported("bvand of two variables is not supported (no bit-blasting)")
+          case _ => interpreted(op, args, width)
+      case (BvOp.Comp, _ :: _ :: Nil) => interpreted(op, args, width, resultWidth = 1)
+      case (_, _ :: _ :: Nil) if Interpreted(s"${op.name}!$width").isDefined => interpreted(op, args, width)
       case _ => throw s2.Unsupported(s"${op.name} with these arguments is not supported (no bit-blasting)")
     end match
+
+  /** An operation that is not arithmetic, as an application of its interpreted
+   *  symbol `op!width` ([[Interpreted]]): declared once as a function on
+   *  integers, uninterpreted for the search, its result bounded to the width;
+   *  the solver holds it to its meaning. Constant arguments fold.
+   */
+  private def interpreted(op: BvOp, args: List[Term], width: Int, resultWidth: Int = -1): Term =
+    val name = s"${op.name}!$width"
+    val meaning = Interpreted(name).get
+    if args.forall(_.isInstanceOf[Num]) then Num(meaning(args.map { case Num(v) => v; case _ => BigInt(0) }))
+    else
+      if interpretedSymbols.add(name) then
+        introduced += ((name, s2.Sorts.function(args.map(_ => "Int"), "Int")))
+        functions(name) = Sort.Named(name)
+      val app = App(Const(name), args)
+      if depth == 0 then definitions += range(app, if resultWidth < 0 then width else resultWidth)
+      app
 
   /** `value` reduced modulo `2^width`: a fresh result `r` with
    *  `value = r + 2^width × k`, the overflow count `k` in `[lo, hi]`.
@@ -629,7 +652,7 @@ private final class Lowerer:
     (low, high) match
       case (Some(k), _) => if k == width then t else divide(t, BigInt(2).pow(k), m / BigInt(2).pow(k) - 1)._2
       case (_, Some(k)) => if k == 0 then t else t - divide(t, BigInt(2).pow(k), m / BigInt(2).pow(k) - 1)._2
-      case _ => throw s2.Unsupported(s"bvand with the mask $mask is not supported (no bit-blasting)")
+      case _ => interpreted(BvOp.And, List(t, Num(mask)), width)
 
   /** Bits `i` down to `j` of `t`: `t = 2^j × q + low`,
    *  `q = 2^(i−j+1) × high + bits`.
