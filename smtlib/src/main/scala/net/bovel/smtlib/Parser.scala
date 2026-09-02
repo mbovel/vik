@@ -15,10 +15,11 @@ import net.bovel.sexpr.SExpr.{SAtom, SList}
  *  application a [[Formula.Pred]]) and reject what no theory here speaks
  *  (strings, floats, ...). An unknown symbol is an error.
  */
-/** One parse: the class carries the declarations and macros the commands build
- *  up, so [[Parser.parse]] makes a fresh one per input.
+/** One parser: it carries the declarations and macros the commands build up, so
+ *  the next `parse` reads its input in their scope ([[Parser.parse]] makes a
+ *  fresh one per input; a `vik.Session` keeps one).
  */
-private final class Parser:
+final class Parser:
   import Formula.*
 
   /** The declared symbols (functions with their whole function sort) and the

@@ -96,6 +96,17 @@ solver.pop()   // back to what was asserted before the push
 `solve(fuel)` bounds the search in steps and answers `Result.Unknown(Reason.Fuel)` beyond it;
 `solve(keepGoing)` takes the decision itself, so a deadline or a cancellation is a function you write.
 
+The same with the language attached — a `Session` reads SMT-LIB text or `net.bovel.smtlib` trees piece by
+piece, each in the scope the earlier pieces declared, and keeps the solver across them:
+
+```scala
+val s = Session()
+s.run("(declare-fun f (Int) Int) (declare-const x Int) (declare-const y Int)")
+s.assert("(and (<= x y) (<= y x))")
+s.assert("(not (= (f x) (f y)))")
+s.checkSat() // Some(false)
+```
+
 Sorts are strings, as in SMT-LIB: `"Int"`, `"Bool"`, an uninterpreted sort you declared, a datatype you
 declared, or a function sort `"(-> Int Int)"`. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
 the companion adds `Lt`, `Ge`, `Gt`, `IntEq`, `Distinct`; the operators `===`, `!==`, `<=`, `<`, `>=`, `>`,

@@ -66,8 +66,8 @@ final class Solver(val simplify: Boolean = true):
    *  Declarations are optional for uninterpreted functions and integers, and
    *  needed for datatypes: they tell which terms are of a datatype sort.
    */
-  private val declarations = HashMap.empty[String, (List[String], String)]
-  private val datatypes = ArrayBuffer.empty[Datatype]
+  private[vik] val declarations = HashMap.empty[String, (List[String], String)]
+  private[vik] val datatypes = ArrayBuffer.empty[Datatype]
 
   def declare(name: String, argSorts: List[String], sort: String): Unit = declarations(name) = (argSorts, sort)
 

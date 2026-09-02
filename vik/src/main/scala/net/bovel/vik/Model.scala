@@ -50,11 +50,7 @@ final case class Model(
     case Formula.Eq(l, r) => value(l) == value(r)
     case Formula.Le(l, r) => rational(value(l)) <= rational(value(r))
     case Formula.Less(l, r) => rational(value(l)) < rational(value(r))
-    case Formula.Pred(t) =>
-      value(t) match
-        case Term.Bool(Formula.True) => true
-        case Term.Bool(Formula.False) => false
-        case other => other == Term.Bool(Formula.True)
+    case Formula.Pred(t) => value(t) == Term.Bool(Formula.True)
 
   private def rational(t: Term): lia.Rational = t match
     case Term.Num(v) => lia.Rational(v)

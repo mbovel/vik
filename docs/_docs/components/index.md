@@ -16,6 +16,6 @@ a SAT solver with a theory of its own, or a simplex over the integers, can depen
 | `net.bovel.lia` | A simplex over the integers with branch and bound | [The LIA solver](lia.md) |
 | `net.bovel.sexpr` | S-expressions from a string, one pass | [The S-expression reader](sexpr.md) |
 | `net.bovel.smtlib` | SMT-LIB 2 as written: sorts, terms, formulas, in and out | [The language](smtlib.md) |
-| `net.bovel.vik` | The solver's trees and their lowering, the simplifier, the encoder, the theories, the solver and the player | [The solver](vik.md) |
+| `net.bovel.vik` | The solver's trees and their lowering, the simplifier, the encoder, the theories, the solver and the session | [The solver](vik.md) |
 
 The [API documentation](../api/index.html) covers all of them.

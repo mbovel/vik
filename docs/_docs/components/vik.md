@@ -19,18 +19,24 @@ rejected here, with a message. Then the polarity-aware
 [simplifier](../theories/first-order-logic.md) that runs before encoding, the encoder (Tseitin, atoms, the
 theory combination, the lemmas of datatypes and lambdas), the theories over
 [the e-graph](egraph.md) and [the LIA solver](lia.md) driven by [the CDCL(T) loop](cdclt.md), models, and
-the player that runs a script — either language — on a solver.
+the session that runs a script — either language, in pieces — on a solver.
 
 ```scala
-import net.bovel.smtlib.Parser
-import net.bovel.vik.Player
+import net.bovel.vik.Session
 
-val script = Parser.parse("(declare-const x Int) (assert (> x 2)) (check-sat)")
-Player.run(script)          // List("sat"): the responses, in order
+val s = Session()
+s.run("(declare-const x Int) (declare-const y Int)") // any commands, as text; the responses come back
+s.assert("(< x y)")                                  // in the scope the earlier pieces declared
+s.checkSat()                                         // Some(true); None for unknown
+s.assert(formula)                                    // a `net.bovel.smtlib.Formula`, lowered the same way
 ```
 
-`Player.answers(script, fuel = ...)` gives `Some(true)`, `Some(false)` or `None` per `check-sat`;
-`Player.play` is the short form when unknown cannot happen.
+A `Session` keeps one parser, one lowering and one `Solver` alive together, so the declarations,
+macros and defined constants of one piece serve the next; `push`, `pop`, `model()` and `unsatCore` are the
+same commands as calls, and an `Smt2Error` names a symbol the text has not declared. `Player.run(script)`
+runs a whole parsed script in a session of its own and returns the responses; `Player.answers(script, fuel =
+...)` gives `Some(true)`, `Some(false)` or `None` per `check-sat`, and `Player.play` is the short form when
+unknown cannot happen.
 
 A script can also ask why and what. After an `unsat`, `(get-unsat-core)` names the guilty
 `(assert (! ... :named n))` assertions: re-asserting just those, with the unnamed assertions, stays unsat.
