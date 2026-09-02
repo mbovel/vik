@@ -1,6 +1,6 @@
 # S-expression parser benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.sexpr.SExprParser`, in [SExprBench.scala](../../src/main/scala/net/bovel/bench/SExprBench.scala).
+[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.sexpr.SExprParser`, in [SExprBench.scala](../../src/main/scala/net/bovel/bench/sexpr/SExprBench.scala).
 
 ## Workloads
 

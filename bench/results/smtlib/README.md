@@ -1,6 +1,6 @@
 # SMT-LIB parser benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.smt2.Parser`, in [Smt2Bench.scala](../../src/main/scala/net/bovel/bench/Smt2Bench.scala). The parsing of real benchmark files, and their solving, is measured in [the smt results](../smt/README.md).
+[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.smt2.Parser`, in [SmtlibBench.scala](../../src/main/scala/net/bovel/bench/smtlib/SmtlibBench.scala). The parsing of real benchmark files, and their solving, is measured in [the smt results](../smt/README.md).
 
 ## Workloads
 
@@ -31,4 +31,4 @@ laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup 
 ## All results
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
-- [2026-08-29, laraserver4](2026-08-29-laraserver4.md) — First full run of `Smt2Bench` (S-expression lexer, sort-directed translation)
+- [2026-08-29, laraserver4](2026-08-29-laraserver4.md) — First full run of `SmtlibBench` (S-expression lexer, sort-directed translation)

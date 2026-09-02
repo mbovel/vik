@@ -1,13 +1,13 @@
-package net.bovel.bench
+package net.bovel.bench.evaluation
 
 import net.bovel.smtlib.Corpus
 
 /** Runs every in-process solver of [[OtherSolversBench]] on the SMT-LIB
  *  instances of the corpus taken from SMT-LIB (`smtlib/<logic>/smt-lib`, the
  *  ones the benchmarks use) and reports the answers that differ from the
- *  expected status: `sbt "bench/runMain net.bovel.bench.SolverCheck"`
- *  (optionally a regex selecting files among the whole corpus, and solver
- *  names).
+ *  expected status:
+ *  `sbt "bench/runMain net.bovel.bench.evaluation.SolverCheck"` (optionally a
+ *  regex selecting files among the whole corpus, and solver names).
  */
 object SolverCheck:
   def main(args: Array[String]): Unit =

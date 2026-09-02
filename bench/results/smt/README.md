@@ -37,7 +37,7 @@ In process, `OtherSolversBench` runs princess and SMTInterpol (JVM libraries) an
 as published by SoSy-Lab (the JavaSMT project) on Maven Central: the Java parts are dependencies of `bench`, the native
 libraries are downloaded by `bench/fetch-native.sh` into `bench/native/` (Linux x86-64) and found through
 `java.library.path`. `z3` parses the printed script, `z3Direct` builds z3's AST from the tree through the API (the
-counterpart of `vik`, which solves the tree). `sbt "bench/runMain net.bovel.bench.SolverCheck"` runs every in-process
+counterpart of `vik`, which solves the tree). `sbt "bench/runMain net.bovel.bench.evaluation.SolverCheck"` runs every in-process
 solver on every instance and reports disagreements with the expected status.
 
 `cold.sh` runs each solver as a separate process on the instances of a file list, with a timeout, and records the

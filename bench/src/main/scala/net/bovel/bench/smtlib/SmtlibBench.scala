@@ -1,4 +1,4 @@
-package net.bovel.bench
+package net.bovel.bench.smtlib
 
 import java.util.concurrent.TimeUnit
 
@@ -17,7 +17,7 @@ import net.bovel.smtlib.{Command, Parser}
 @Fork(3)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 5, time = 1)
-class Smt2Bench:
+class SmtlibBench:
 
   @Param(Array("1000", "10000"))
   var n: Int = uninitialized

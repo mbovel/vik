@@ -1,6 +1,6 @@
 # E-graph benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.egraph.EGraph`, in [EGraphBench.scala](../../src/main/scala/net/bovel/bench/EGraphBench.scala).
+[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.egraph.EGraph`, in [EGraphBench.scala](../../src/main/scala/net/bovel/bench/egraph/EGraphBench.scala).
 
 ## Workloads
 

@@ -1,11 +1,11 @@
-package net.bovel.bench
+package net.bovel.bench.vik
 
 import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Command, Lowering, Solver}
 
 /** Prints the wall time of every `check-sat` of a script, one solver for the
- *  whole run: `sbt "bench/runMain net.bovel.bench.checktimes file.smt2"`. The
- *  shape of the curve tells persistence stories: flat means checks are
+ *  whole run: `sbt "bench/runMain net.bovel.bench.vik.checktimes file.smt2"`.
+ *  The shape of the curve tells persistence stories: flat means checks are
  *  independent, growing means state accumulates.
  */
 @main def checktimes(file: String): Unit =

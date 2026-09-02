@@ -1,4 +1,4 @@
-package net.bovel.bench
+package net.bovel.bench.evaluation
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 

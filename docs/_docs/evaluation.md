@@ -124,7 +124,7 @@ columns receive the problem already built: *VIK (API)*, *z3 (API)*, *cvc5 (API)*
 *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
 asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. Each of the five
 replays is checked against the solver's own front end run in process on the same text
-([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/ReplayCheck.scala)):
+([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/evaluation/ReplayCheck.scala)):
 the same answers, and a time within a factor of two — so what the solver receives is what its own parser
 would have built, down to the order in which princess's parser flattens a nested `or` or `+` (handed the
 same operands in another order, it took 27 s on `MESI_i4` where its parser takes 0.2 s; see

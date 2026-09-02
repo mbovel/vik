@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Downloads what the other solvers need into bench/native/: the native libraries of the z3 and cvc5 Java
 # bindings published by SoSy-Lab (the JavaSMT project) on Maven Central, for the in-process benchmarks
-# (`OtherSolversBench.z3`, `z3Direct`, `cvc5`, `cvc5Direct`), and the z3 and cvc5 binaries of the same
+# (`evaluation.OtherSolversBench.z3`, `z3Direct`, `cvc5`, `cvc5Direct`), and the z3 and cvc5 binaries of the same
 # versions from their GitHub releases into bench/native/bin, for the cold table (bench/cold.sh runs them from
 # there). Linux x86-64 only; the Java parts of the bindings are ordinary dependencies of the bench project.
 set -eu

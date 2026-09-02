@@ -1,10 +1,11 @@
-package net.bovel.bench
+package net.bovel.bench.vik
 
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 import scala.io.Source
 
+import net.bovel.bench.evaluation.Budget
 import org.openjdk.jmh.annotations.*
 import net.bovel.smtlib.Corpus
 import net.bovel.smtlib.Parser

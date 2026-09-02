@@ -1,4 +1,4 @@
-package net.bovel.bench
+package net.bovel.bench.evaluation
 
 import java.util.concurrent.TimeUnit
 

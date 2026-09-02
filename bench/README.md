@@ -1,17 +1,17 @@
 # Benchmarks
 
 One [JMH](https://github.com/openjdk/jmh) project for all the modules, in [src/main/scala/net/bovel/bench](src/main/scala/net/bovel/bench):
-one benchmark class per module, plus the comparison with other solvers on SMT-LIB files. The workloads and the results
-are kept per module:
+a package per module with its benchmark class, and `evaluation` for the comparison with other solvers on SMT-LIB
+files. The workloads and the results are kept per module:
 
 | Module | Benchmark class | Workloads and results |
 |---|---|---|
-| `egraph` | `EGraphBench` | [results/egraph](results/egraph/README.md) |
-| `cdclt` | `CdcltBench` | [results/cdclt](results/cdclt/README.md) |
-| `lia` | `LiaBench` | [results/lia](results/lia/README.md) |
-| `sexpr` | `SExprBench` | [results/sexpr](results/sexpr/README.md) |
-| `smtlib` | `Smt2Bench` | [results/smt2](results/smt2/README.md) |
-| `vik` (SMT-LIB instances; princess, SMTInterpol, z3 and cvc5 in process; datatypes) | `SmtBench`, `OtherSolversBench`, `AdtBench`, `SolverCheck` | [results/smt](results/smt/README.md) |
+| `egraph` | `egraph.EGraphBench` | [results/egraph](results/egraph/README.md) |
+| `cdclt` | `cdclt.CdcltBench` | [results/cdclt](results/cdclt/README.md) |
+| `lia` | `lia.LiaBench` | [results/lia](results/lia/README.md) |
+| `sexpr` | `sexpr.SExprBench` | [results/sexpr](results/sexpr/README.md) |
+| `smtlib` | `smtlib.SmtlibBench` | [results/smtlib](results/smtlib/README.md) |
+| `vik` (SMT-LIB instances, datatypes), `evaluation` (princess, SMTInterpol, z3 and cvc5 in process) | `vik.SmtBench`, `vik.AdtBench`, `evaluation.OtherSolversBench`, `evaluation.SolverCheck` | [results/smt](results/smt/README.md) |
 
 ## The evaluation page
 
@@ -28,7 +28,7 @@ bench/evaluate.sh regen   # only regenerate the page from the newest dated resul
 ```
 
 Every single measurement holds to a ten-second budget. A warm operation past it is halted by a watchdog
-([Budget.scala](src/main/scala/net/bovel/bench/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
+([Budget.scala](src/main/scala/net/bovel/bench/evaluation/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
 committed, so the combination is refused on every later run and its cell reads 🐢; a fixed solver
 earns its line's removal. A cold run is cut by `timeout 10` (in [cold.sh](cold.sh)) with the same cell.
 The instances of both tables, in their order, with the warm group of each, are

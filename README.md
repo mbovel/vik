@@ -83,7 +83,7 @@ sbt "bench/Jmh/run .*EGraphBench.*"   # the benchmarks matching a regex
 
 See [bench/README.md](bench/README.md) for running and result files, and [bench/results/egraph](bench/results/egraph/README.md),
 [cdclt](bench/results/cdclt/README.md), [lia](bench/results/lia/README.md), [sexpr](bench/results/sexpr/README.md),
-[smt2](bench/results/smt2/README.md) and [smt](bench/results/smt/README.md) (SMT-LIB instances and the comparison with
+[smtlib](bench/results/smtlib/README.md) and [smt](bench/results/smt/README.md) (SMT-LIB instances and the comparison with
 z3, cvc5, princess and SMTInterpol, in process through their Java bindings and as separate processes) for the workloads and current results.
 
 ### Documentation
