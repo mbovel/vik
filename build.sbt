@@ -208,6 +208,9 @@ lazy val bench = project
       "org.sosy-lab" % "javasmt-solver-cvc5" % "2026-02-26-d22638a"
     ),
     fork := true, // runs and benchmarks in their own JVM, with the native libraries of z3 and cvc5 on its path
+    // The Java that sbt-jmh generates is compiled for 17 whatever JDK runs the build: a class compiled by a
+    // newer one stays in target/ and a build on 17 then cannot load it (UnsupportedClassVersionError).
+    javacOptions ++= Seq("--release", "17"),
     javaOptions += s"-Djava.library.path=${baseDirectory.value / "native"}",
     Jmh / run / javaOptions += s"-Djava.library.path=${baseDirectory.value / "native"}",
     runtimeClasspath := {
