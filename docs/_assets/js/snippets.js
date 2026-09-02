@@ -110,5 +110,9 @@
   }
 
   // After the page's own scripts, which highlight the blocks and add their buttons.
+  // Scaladoc binds keys on the document — `s` opens the search, `f` the member filter, `/` too — and
+  // checks the target for an input, not for an editable block: a key typed into a snippet must not
+  // reach it. Window capture runs before any document listener; the key's default, typing, stays.
+  window.addEventListener("keydown", (e) => { if (e.target instanceof Element && e.target.isContentEditable) e.stopPropagation() }, true)
   window.addEventListener("load", () => document.querySelectorAll("code.language-smt2").forEach(decorate))
 })()
