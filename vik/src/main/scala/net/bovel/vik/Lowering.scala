@@ -461,10 +461,11 @@ private final class Lowerer:
     val key = sortString(arraySort)
     val name = storeSymbols.getOrElseUpdate(
       key, {
-        val (params, result) = s2.Sorts.arrow(key).getOrElse(throw s2.Smt2Error(s"store on $arraySort"))
-        if s2.Sorts.arrow(result).isDefined then throw s2.Smt2Error("store on a nested array is not supported")
+        // The array's function sort, flattened when its elements are arrays: the index is the first
+        // parameter, the value sort what the array applied to one index has.
+        val (params, _) = s2.Sorts.arrow(key).getOrElse(throw s2.Smt2Error(s"store on $arraySort"))
         val n = s"store!${storeSymbols.size + 1}"
-        val argSorts = key :: params ::: List(result) // the array, the index, the value
+        val argSorts = key :: params.head :: List(s2.Sorts.applied(key, 1)) // the array, the index, the value
         introduced += ((n, s2.Sorts.function(argSorts, key)))
         functions(n) = Sort.Named(n) // the solver reads the introduced declaration; the name is enough here
         n

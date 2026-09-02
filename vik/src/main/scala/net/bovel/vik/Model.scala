@@ -127,7 +127,11 @@ object Model:
     case Term.App(Term.Const(_), List(d)) => (d, Map.empty)
     case _ => (array, Map.empty)
 
-  /** Whether two values are the same: arrays extensionally, the rest as terms.
+  /** Whether two values are the same: arrays extensionally (their elements
+   *  likewise, for arrays of arrays), the rest as terms.
    */
   def same(a: Term, b: Term): Boolean =
-    if isArray(a) && isArray(b) then graph(a) == graph(b) else a == b
+    if isArray(a) && isArray(b) then
+      val ((da, ma), (db, mb)) = (graph(a), graph(b))
+      same(da, db) && ma.keySet == mb.keySet && ma.forall((i, v) => same(v, mb(i)))
+    else a == b

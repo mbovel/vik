@@ -396,13 +396,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         noteInts(b)
         changed = true
 
+  /** Whether `a` reads an array of the store's sort — the same sort, not an
+   *  inner array of it — at one index.
+   */
   private def applicable(a: Term.App, s: Term): Boolean =
-    a != s && a.fun != s &&
-      (Sorts.arrow(sortOf(s)) match
-        case Some((params, _)) =>
-          a.args.length == params.length &&
-          a.args.zip(params).forall((arg, sort) => sortOf(arg) == "?" || sortOf(arg) == sort)
-        case None => false)
+    a != s && a.fun != s && a.args.length == 1 && sortOf(a.fun) == sortOf(s)
 
   /** Extensionality: for every equality atom between function-sorted terms, the
    *  lemma `f = g ∨ f(c) ≠ g(c)` with fresh constants `c` (the witnesses of the
@@ -524,9 +522,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    *  is read back — `select(s, i) = v` — and for every index `j` of the sort,
    *  `i = j ∨ select(s, j) = select(a, j)`. Selection is application, so
    *  congruence and extensionality (the witnesses join the index set) come from
-   *  the function machinery; each lemma is emitted once, ever. Nested arrays
-   *  would need the pass and the extensionality pass iterated; the
-   *  quantifier-free array logics keep them flat.
+   *  the function machinery; each lemma is emitted once, ever. An array of
+   *  arrays is a function of several arguments (its sort flattened), its inner
+   *  arrays functions of one: a store at either level gets the lemmas of its
+   *  level, and the passes run to a fixpoint (see [[Solver.solve]]).
    */
   /** Applies an array to an index: a store application is a whole array, so it
    *  is applied as one, never flattened into the store symbol's arguments.
@@ -561,7 +560,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       if sort == "Int" || sort == "Real" then Formula.IntEq(l, r) else Formula.Eq(l, r)
     for case s @ Term.App(_, List(a, i, v)) <- stores do
       val sort = sortOf(s)
-      val (indexSort :: _, elementSort) = Sorts.arrow(sort).get: @unchecked
+      val indexSort = Sorts.arrow(sort).get._1.head
+      val elementSort = Sorts.applied(sort, 1) // an array, for an array of arrays
       if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
       for j <- indices.getOrElse(sort, Nil) if j != i && arrayReadsDone.add((s, j)) do
         clauses += Array(
@@ -778,6 +778,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     def elementOf(sort: String, cls: EClassId): Term =
       val root = eg.find(cls)
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$sort!${elements.count(_._1._1 == sort)}"))
+    val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
     def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
       datatypes.find(_.name == sort) match
         case Some(datatype) =>
@@ -801,6 +802,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     def valueOfTerm(t: Term, sort: String): Term =
       (t, sort) match
         case (Term.Num(_), _) => t // a literal argument of an application
+        case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
+          if classes.contains(t) then arrayValue(t, s)
+          else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
         case (_, "Int") =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).flatMap(c => classValues.get(eg.find(c))).map(Term.Num(_)))
@@ -815,12 +819,12 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             case None => if sort == "Bool" then Term.boolean(Formula.False) else elementOf(sort, eg.newClass())
     // An array's value, per e-class: its default and the indices its class was read at — its own
     // selects, the ones of every array equal to it, the write of a store it equals.
-    val arrayValues = HashMap.empty[EClassId, Term]
     def arrayValue(array: Term, sort: String): Term =
       val root = eg.find(classOf(array))
       arrayValues.getOrElseUpdate(
         root, {
-          val (indexSort :: _, elementSort) = Sorts.arrow(sort).get: @unchecked
+          val indexSort = Sorts.arrow(sort).get._1.head
+          val elementSort = Sorts.applied(sort, 1) // itself an array, for an array of arrays
           val rows = classes.keys.collect {
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
               (valueOfTerm(j, indexSort), valueOfTerm(app, elementSort))

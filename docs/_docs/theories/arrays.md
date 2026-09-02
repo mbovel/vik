@@ -10,9 +10,8 @@ extraCSS:
 
 Extensional arrays: `select`, `store`, and equality between arrays.
 
-**Decision procedure: yes, for flat arrays.** The store lemmas over the finite index set decide `QF_AX`
-(and its combinations, up to the integer page's caveat); `store` on a nested array — an array of arrays —
-is refused up front.
+**Decision procedure: yes.** The store lemmas over the finite index set decide `QF_AX` and its combinations
+(up to the integer page's caveat), arrays of arrays included.
 
 ## What you can write
 
@@ -42,8 +41,24 @@ where indices collide. The index set is the finite set of indices written in the
 witnesses included.
 
 Arrays combine with the other theories through their indices and elements: `(Array Int Int)` shares its
-terms with [integer arithmetic](integers.md) like any function over integers. `store` on a nested array
-(an array of arrays) is not supported.
+terms with [integer arithmetic](integers.md) like any function over integers.
+
+An array of arrays is a function of two arguments to the solver, its inner arrays functions of one; a
+`store` at either level gets the lemmas of its level, an equality between inner arrays a witness of its
+own, and the passes run to a fixpoint of what they emit. The price is in the indices: with integer indices
+at both levels, every index of a level meets every other in an equality atom, and a matrix read at many
+places costs the search a case per arrangement — seconds where a flat array takes milliseconds.
+
+```smt2
+(set-logic QF_ALIA)
+(declare-const m (Array Int (Array Int Int)))
+(declare-const n (Array Int (Array Int Int)))
+(declare-const i Int)
+(assert (= n (store m i (store (select m i) 2 7))))
+(assert (= (select (select m i) 2) 3))
+(assert (= (select (select n i) 2) (select (select m i) 2)))
+(check-sat)
+```
 
 ## Models
 

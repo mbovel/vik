@@ -51,5 +51,4 @@ refused at the declaration, rather than read as uninterpreted sorts.
 - An assertion that still mentions a sort parameter, which the standard reads as one assertion per
   monomorphic sort of the context, is refused: a use of a polymorphic symbol must determine its
   instance; see [sort parameters](theories/polymorphism.md).
-- Arrays of arrays (`store` on a nested array) are refused; see [arrays](theories/arrays.md).
 - `check-sat-using`, z3's tactic form, is read as `check-sat`.
