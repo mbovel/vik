@@ -239,10 +239,26 @@ definitions, datatypes and partition state and `prover.push` scopes the prover's
 the parser's own symbol environment is not part of the saved tuple, so declarations survive
 `pop` there.
 
-### 3. The API replay pays 39x the CLI on an incremental QF_UFLIA instance (2026-09-01)
+### 3. A relation costs 30x a Bool-valued function (2026-09-01, diagnosed 2026-09-02)
 
-On `kind__MESI_i4.ec.smt2` (SMT-LIB incremental, 5 check-sats), `ap.CmdlMain +incremental` answers the
-whole file in 2.5 s, while the same script replayed through `SimpleAPI` (our benchmark harness, a
-compile-once instruction list) costs about 96 s per replay — 39x, reproducibly, and far out of line
-with the same replay on other instances. Not diagnosed further; the benchmark leaves the combination
-out rather than print a number that measures the replay path instead of the solver.
+Not a princess bug but a trap of its API, recorded because our harness fell into it. On
+`kind__MESI_i4.ec.smt2` (SMT-LIB incremental, 5 check-sats), `ap.CmdlMain +incremental` answers the
+whole file in 2.5 s, while the same script replayed through `SimpleAPI` cost 96 s: the replay declared
+`(declare-fun f (Int Int) Bool)` as a relation (`createRelation`, an `IAtom` in the formulas), the
+natural reading of the API, whereas princess's own SMT-LIB parser declares it as a function into
+`Sort.MultipleValueBool` and reads an application as the formula `f(x, y) = 0`
+(`SMTParser2InputAbsy`, `BOOLEAN_FUNCTIONS_AS_PREDICATES` off by default). With the prover settings
+equal (`sanitiseNames = false`, `genTotalityAxioms = false`), the two encodings measured 97.8 s and
+3.1 s in the same JVM — the predicate form sends the prover into `ReduceWithPredLits` /
+`BetaFormulaTask` search that the function form never enters. The replay now declares Bool results
+as the parser does.
+
+The same file showed a second sensitivity of the same kind once the replay handed princess the script's
+own terms: the parser flattens nested `and`, `or`, `+` and `*` (`SMTParser2InputAbsy.flatten`, a stack
+walk that leaves the first operand in place and the rest reversed, and stops at a `let` name) before
+folding them left. The same formula with the operands in source order took 27 s on the fifth
+`check-sat`; in the parser's order, 0.2 s.
+
+Two rules for an API replay came out of it: hand a solver what its own front end would build, and
+check the replay against that front end in the same process (`SimpleAPI.execSMTLIB` on the text,
+per check-sat) before trusting a number.
