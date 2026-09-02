@@ -15,9 +15,8 @@ import net.bovel.smtlib.Corpus
  *  not start on later runs (a fresh fork reads the ledger, so even the second
  *  fork of the run that discovered it holds back): the operation returns
  *  `refused` at once, and its cell in the table reads 🐢 whatever that measured
- *  (`bench/warm2md.py` reads the ledger). The evaluation passes `-foe false` to
- *  JMH: a halted fork is a recorded fact, not the end of the run; the CI dry
- *  run passes `-foe true`, since nothing there should fail.
+ *  (`bench/warm2md.py` reads the ledger). The JMH runs pass `-foe true`: a
+ *  halted fork ends the run, and the next run holds the combination back.
  */
 object Budget:
   /** Ten seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry
