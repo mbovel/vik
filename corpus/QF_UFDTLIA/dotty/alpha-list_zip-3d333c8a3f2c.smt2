@@ -1,0 +1,16 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `list_zip.scala`
+; original path: tests/*-custom-args/qualified-types/list_zip.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-sort scala.collection.immutable.List_B 0)
+(declare-sort scala.collection.immutable.List_A 0)
+(declare-fun x0 () scala.collection.immutable.List_B)
+(declare-fun SeqOps.size@scala.collection.immutable.List_B (scala.collection.immutable.List_B) Int)
+(declare-fun xt () scala.collection.immutable.List_A)
+(declare-fun SeqOps.size@scala.collection.immutable.List_A (scala.collection.immutable.List_A) Int)
+(declare-fun p_xs () scala.collection.immutable.List_A)
+(assert (= (SeqOps.size@scala.collection.immutable.List_B x0) (SeqOps.size@scala.collection.immutable.List_A xt)))
+(assert (not (= (SeqOps.size@scala.collection.immutable.List_B x0) (SeqOps.size@scala.collection.immutable.List_A p_xs))))
+(check-sat)

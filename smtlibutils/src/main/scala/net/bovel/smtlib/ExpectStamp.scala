@@ -8,7 +8,7 @@ import net.bovel.vik.Session
  *  `get-unsat-core` — with the solver's own responses as `; EXPECT:` lines,
  *  replacing whatever a file brought along: the answers of another solver print
  *  differently, and a core may be a different, equally correct subset.
- *  `SmtLibTest` then holds every response to these lines. Run after a change
+ *  `CorpusTest` then holds every response to these lines. Run after a change
  *  that legitimately moves them, review the diff, and commit it:
  *  `sbt "smtlibutils/runMain net.bovel.smtlib.expectstamp"`.
  */

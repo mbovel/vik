@@ -1,0 +1,20 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `matrices2.scala`
+; original path: tests/*-custom-args/qualified-types/matrices2.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: proved|)
+(set-info :status unsat)
+(set-logic QF_UFDTLIA)
+(declare-sort CheckedArray 0)
+(declare-datatypes ((Matrix 0)) (((new_Matrix (Matrix.width@Matrix Int) (Matrix.height@Matrix Int)))))
+(declare-fun x0 () Int)
+(declare-fun sk_apply_7 () CheckedArray)
+(declare-fun this_Matrix () Matrix)
+(declare-fun Matrix.data@Matrix (Matrix) CheckedArray)
+(declare-fun CheckedArray.size@CheckedArray (CheckedArray) Int)
+(assert (<= 0 x0))
+(assert (= sk_apply_7 (Matrix.data@Matrix this_Matrix)))
+(assert (<= 0 (CheckedArray.size@CheckedArray sk_apply_7)))
+(assert (<= 0 x0))
+(assert (< x0 (CheckedArray.size@CheckedArray (Matrix.data@Matrix this_Matrix))))
+(assert (not (<= 0 x0)))
+(check-sat)

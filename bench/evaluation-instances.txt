@@ -27,6 +27,8 @@ corpus/QF_DT/smt-lib/20172804-Barrett__tests__v1__v1l20086.cvc.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2
 corpus/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2
 corpus/QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2
+corpus/QF_UFDTLIA/dotty/alpha-093dddceea58.smt2
+corpus/QF_UFDTLIA/dotty/alpha-fib_memoized-36bd61c61979.smt2
 corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2
 corpus/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2
 corpus/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2

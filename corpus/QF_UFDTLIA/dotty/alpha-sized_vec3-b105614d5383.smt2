@@ -1,0 +1,18 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `sized_vec3.scala`
+; original path: tests/*-custom-args/qualified-types/sized_vec3.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: sized_vec3$package.Vec[String]
+(set-info :source |qualified types implication; e-graph: proved|)
+(set-info :status unsat)
+(set-logic QF_UFDTLIA)
+(declare-sort Any 0)
+(declare-fun m () Int)
+(declare-fun n () Int)
+(declare-fun mPlusN () Int)
+(declare-fun x0 () Any)
+(declare-fun sized_vec3$package$.len_String (Any) Int)
+(assert (= (+ m n) mPlusN))
+(assert (= (+ m n) mPlusN))
+(assert (= mPlusN (sized_vec3$package$.len_String x0)))
+(assert (not (= mPlusN (sized_vec3$package$.len_String x0))))
+(check-sat)

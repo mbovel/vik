@@ -1,0 +1,21 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `member_qualifiers.scala`
+; original path: tests/*-custom-args/qualified-types/member_qualifiers.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: proved|)
+(set-info :status unsat)
+(set-logic QF_UFDTLIA)
+(declare-sort Params 0)
+(declare-sort Deep 0)
+(declare-fun d () Deep)
+(declare-fun Deep.c@Deep (Deep) Params)
+(declare-fun Params.a@Params (Params) Int)
+(declare-fun x0 () Int)
+(declare-fun sk_compoundPrefix_228 () Params)
+(declare-fun Params.b@Params (Params) Int)
+(assert (= (Params.a@Params (Deep.c@Deep d)) x0))
+(assert (= (Params.a@Params (Deep.c@Deep d)) x0))
+(assert (= (Deep.c@Deep d) sk_compoundPrefix_228))
+(assert (< (Params.a@Params sk_compoundPrefix_228) (Params.b@Params sk_compoundPrefix_228)))
+(assert (= (Params.a@Params (Deep.c@Deep d)) x0))
+(assert (not (< x0 (Params.b@Params (Deep.c@Deep d)))))
+(check-sat)

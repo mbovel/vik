@@ -1,0 +1,20 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `scala-workshop-25.scala`
+; original path: tests/*-custom-args/qualified-types/scala-workshop-25.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-sort Str 0)
+(declare-fun str () Str)
+(declare-fun x0 () Str)
+(declare-fun str~2 () Str)
+(declare-fun idRegex () Str)
+(declare-fun Predef$.runtimeChecked_String (Str) Str)
+(declare-fun String.matches@Str (Str Str) Bool)
+(assert (distinct str str~2))
+(assert (= str x0))
+(assert (= str x0))
+(assert (= str~2 idRegex))
+(assert (= x0 (Predef$.runtimeChecked_String str)))
+(assert (not (String.matches@Str x0 idRegex)))
+(check-sat)

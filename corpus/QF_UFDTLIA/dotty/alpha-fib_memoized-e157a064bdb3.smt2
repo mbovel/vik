@@ -1,0 +1,28 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `fib_memoized.scala`
+; original path: tests/*-custom-args/qualified-types/fib_memoized.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)100
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-fun sk_fib_252 () Int)
+(declare-fun fib_memoized$package$.fib (Int) Int)
+(declare-fun sk_fib_253 () Int)
+(declare-fun n () Int)
+(declare-fun n$1 () Int)
+(declare-fun x0 () Int)
+(declare-fun sk_fib_251 () Int)
+(declare-fun sk_fib_250 () Int)
+(assert (= (fib_memoized$package$.fib (+ (- 1) sk_fib_252)) (ite (= 0 (+ (- 1) sk_fib_252)) 0 (ite (= 1 (+ (- 1) sk_fib_252)) 1 (+ (fib_memoized$package$.fib (+ (- 2) sk_fib_252)) (fib_memoized$package$.fib (+ (- 3) sk_fib_252)))))))
+(assert (= (fib_memoized$package$.fib (+ (- 2) sk_fib_253)) (ite (= 0 (+ (- 2) sk_fib_253)) 0 (ite (= 1 (+ (- 2) sk_fib_253)) 1 (+ (fib_memoized$package$.fib (+ (- 3) sk_fib_253)) (fib_memoized$package$.fib (+ (- 4) sk_fib_253)))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (= (+ (- 1) n) n$1))
+(assert (= (fib_memoized$package$.fib (+ (- 1) n$1)) (ite (= 0 (+ (- 1) n$1)) 0 (ite (= 1 (+ (- 1) n$1)) 1 (+ (fib_memoized$package$.fib (+ (- 2) n$1)) (fib_memoized$package$.fib (+ (- 3) n$1)))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (= (fib_memoized$package$.fib (+ (- 2) n$1)) (ite (= 0 (+ (- 2) n$1)) 0 (ite (= 1 (+ (- 2) n$1)) 1 (+ (fib_memoized$package$.fib (+ (- 3) n$1)) (fib_memoized$package$.fib (+ (- 4) n$1)))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (not (= 1 n)))
+(assert (not (= 0 n)))
+(assert (= x0 (ite (= 0 sk_fib_250) 0 (ite (= 1 sk_fib_251) 1 (+ (fib_memoized$package$.fib (+ (- 1) sk_fib_252)) (fib_memoized$package$.fib (+ (- 2) sk_fib_253)))))))
+(assert (not (= x0 (ite (= 0 n$1) 0 (ite (= 1 n$1) 1 (+ (fib_memoized$package$.fib (+ (- 1) n$1)) (fib_memoized$package$.fib (+ (- 2) n$1))))))))
+(check-sat)

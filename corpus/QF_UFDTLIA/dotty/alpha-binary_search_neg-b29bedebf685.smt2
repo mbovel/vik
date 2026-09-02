@@ -1,0 +1,18 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `binary_search_neg.scala`
+; original path: tests/*-custom-args/qualified-types/binary_search_neg.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-fun x () Int)
+(declare-fun sk_posMinusOne_0 () Int)
+(declare-fun x0 () Int)
+(declare-fun Predef$.runtimeChecked_Int (Int) Int)
+(assert (< 0 x))
+(assert (= sk_posMinusOne_0 x0))
+(assert (= sk_posMinusOne_0 x0))
+(assert (= sk_posMinusOne_0 x0))
+(assert (< 0 x))
+(assert (= x0 (Predef$.runtimeChecked_Int (+ (- 1) x))))
+(assert (not (and (<= (- 1) x0) (< x0 x))))
+(check-sat)

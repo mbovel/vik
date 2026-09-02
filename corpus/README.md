@@ -3,7 +3,7 @@
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
 `QF_LRA`, `QF_UFLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
-test `SmtLibTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
+test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
 so the outcome is the same on every machine). `ignore.txt` lists the files the solver is known not to answer
 within that fuel, or to answer wrongly, with the reason: the test expects those to fail, and when one passes it
@@ -20,6 +20,7 @@ their `@Param`s.
 | [cvc5](https://github.com/cvc5/cvc5) regression tests, `test/regress/cli` | `<logic>/cvc5/` | every regression file in our fragment with `; EXPECT:` answers (options in `; COMMAND-LINE:` are ignored) | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3test](https://github.com/Z3Prover/z3test), `regressions/smt2` | `<logic>/z3test/` | every file in our fragment whose `.expected.out` is made of answers | MIT, [LICENSES/z3test.txt](LICENSES/z3test.txt) |
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
+| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `QF_UFDTLIA/dotty/` | every implication the qualifier solver checked while compiling its test suite, dumped with `-Yqualified-types-smt-dump` (2 032 files, 1.4 s for the whole suite): `:status unsat` is what its e-graph proved, `unknown` what it did not — the answer of a complete solver may be `sat` there. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) and one generated script, `QF_DT/vik/bmc__stack_k20.smt2`: bounded model checking of a stack of integers, twenty steps, a postcondition (unsat) and a reachability question (sat) per step under `push`/`pop` — datatypes and integers together, the way a BMC tool drives an incremental solver (`bench/gen-bmc-stack.py`) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment

@@ -1,0 +1,13 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `range.scala`
+; original path: tests/*-custom-args/qualified-types/range.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-datatypes ((CheckedRange 0)) (((new_CheckedRange (CheckedRange.from@CheckedRange Int) (CheckedRange.until@CheckedRange Int)))))
+(declare-fun this_CheckedRange () CheckedRange)
+(declare-fun x0 () Int)
+(assert (< (CheckedRange.from@CheckedRange this_CheckedRange) (CheckedRange.until@CheckedRange this_CheckedRange)))
+(assert true)
+(assert (not (and (<= (CheckedRange.from@CheckedRange this_CheckedRange) x0) (< x0 (CheckedRange.until@CheckedRange this_CheckedRange)))))
+(check-sat)

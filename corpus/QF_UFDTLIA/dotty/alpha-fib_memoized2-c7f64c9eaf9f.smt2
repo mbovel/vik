@@ -1,0 +1,25 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `fib_memoized2.scala`
+; original path: tests/*-custom-args/qualified-types/fib_memoized2.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)100
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFDTLIA)
+(declare-fun sk_fib_189 () Int)
+(declare-fun fib_memoized2$package$.fib (Int) Int)
+(declare-fun sk_fib_190 () Int)
+(declare-fun n () Int)
+(declare-fun n$1 () Int)
+(declare-fun x0 () Int)
+(declare-fun sk_fib_188 () Int)
+(assert (= (fib_memoized2$package$.fib (+ (- 1) sk_fib_189)) (ite (<= (+ (- 1) sk_fib_189) 1) 1 (+ (fib_memoized2$package$.fib (+ (- 2) sk_fib_189)) (fib_memoized2$package$.fib (+ (- 3) sk_fib_189))))))
+(assert (= (fib_memoized2$package$.fib (+ (- 2) sk_fib_190)) (ite (<= (+ (- 2) sk_fib_190) 1) 1 (+ (fib_memoized2$package$.fib (+ (- 3) sk_fib_190)) (fib_memoized2$package$.fib (+ (- 4) sk_fib_190))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (= (fib_memoized2$package$.fib (+ (- 1) n$1)) (ite (<= (+ (- 1) n$1) 1) 1 (+ (fib_memoized2$package$.fib (+ (- 2) n$1)) (fib_memoized2$package$.fib (+ (- 3) n$1))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (= (fib_memoized2$package$.fib (+ (- 2) n$1)) (ite (<= (+ (- 2) n$1) 1) 1 (+ (fib_memoized2$package$.fib (+ (- 3) n$1)) (fib_memoized2$package$.fib (+ (- 4) n$1))))))
+(assert (= (+ (- 1) n) n$1))
+(assert (< 1 n))
+(assert (= x0 (ite (<= sk_fib_188 1) 1 (+ (fib_memoized2$package$.fib (+ (- 1) sk_fib_189)) (fib_memoized2$package$.fib (+ (- 2) sk_fib_190))))))
+(assert (not (= x0 (ite (<= n$1 1) 1 (+ (fib_memoized2$package$.fib (+ (- 1) n$1)) (fib_memoized2$package$.fib (+ (- 2) n$1)))))))
+(check-sat)
