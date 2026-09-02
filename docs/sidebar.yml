@@ -16,6 +16,8 @@ subsection:
       - page: theories/datatypes.md
       - page: theories/bit-vectors.md
       - page: theories/arrays.md
+  - title: Non-features
+    page: non-features.md
   - title: Components
     index: components/index.md
     subsection:
