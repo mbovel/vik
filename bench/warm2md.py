@@ -18,10 +18,6 @@ order = ["VikBench.api", "VikBench.text", "Z3Bench.api", "Z3TextBench.text", "Cv
 names = {"VikBench.api": "VIK (API)", "VikBench.text": "VIK (SMT2)", "Z3Bench.api": "z3 (API)",
          "Z3TextBench.text": "z3 (SMT2)", "Cvc5Bench.api": "cvc5 (API)", "Cvc5Bench.text": "cvc5 (SMT2)",
          "PrincessBench.api": "princess (API)", "SmtInterpolBench.api": "SMTInterpol (API)"}
-# The names of the one suite the results of 2026-09-02 and before came from (`OtherSolversBench`).
-aliases = {"vik": "VikBench.api", "vikText": "VikBench.text", "z3Direct": "Z3Bench.api", "z3": "Z3TextBench.text",
-           "cvc5Direct": "Cvc5Bench.api", "cvc5": "Cvc5Bench.text", "princess": "PrincessBench.api",
-           "smtinterpol": "SmtInterpolBench.api"}
 
 
 def corpus(base):
@@ -67,7 +63,7 @@ for path in arguments:
         continue
     for r in records:
         cls, method = r["benchmark"].split(".")[-2:]
-        solver = aliases.get(method, f"{cls}.{method}") if cls == "OtherSolversBench" else f"{cls}.{method}"
+        solver = f"{cls}.{method}"
         instance = r["params"]["file"].removesuffix(".smt2")
         xs = [x for iteration in r["primaryMetric"]["rawData"] for x in iteration]
         mean = statistics.mean(xs)

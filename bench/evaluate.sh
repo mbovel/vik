@@ -56,20 +56,19 @@ warm() {
 cold() { bench/cold.sh > "$OUT-cold.tsv"; }  # reads bench/evaluation-instances.txt itself
 
 regen() {
-  # Every dated warm file, oldest first: the newest measurement of a cell wins, and an instance
-  # only measured on an earlier date keeps its row until a newer run covers it. (The runs up to
-  # 2026-09-02 were several files per date, one per instance group: -warm-p, -warm-inc, ...)
-  local jsons=() f
-  for f in $(ls $R/*-warm*.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # empties skipped (a running run pre-creates its file); names sort chronologically, mtimes lie after checkout
+  # The newest dated warm file and the newest cold one: one JMH run measures every cell of the warm
+  # table, so a table is one file, and a date's file is the whole run. (Names sort chronologically;
+  # mtimes lie after a checkout.)
+  local warm_json; warm_json=$(ls $R/*-warm.json | tail -1)
   local cold_tsv; cold_tsv=$(ls $R/*-cold.tsv | tail -1)
-  echo "regen from: ${jsons[*]} $cold_tsv"
+  echo "regen from: $warm_json $cold_tsv"
   local tmp; tmp=$(mktemp -d)
-  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --order bench/evaluation-instances.txt --timeouts bench/timeouts.txt > "$tmp/warm.md"
+  bench/.venv/bin/python bench/warm2md.py "$warm_json" --order bench/evaluation-instances.txt --timeouts bench/timeouts.txt > "$tmp/warm.md"
   bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --order bench/evaluation-instances.txt > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md
-  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$(ls $R/*-warm.json | tail -1)")|" docs/_docs/evaluation.md
+  sed -i -E "s|results/smt/[0-9-]+-laraserver4-warm\.json|results/smt/$(basename "$warm_json")|" docs/_docs/evaluation.md
   rm -r "$tmp"
 }
 
