@@ -7,26 +7,26 @@ import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
 import com.microsoft.z3.{Context, Status}
-import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
-import io.github.cvc5.modes.InputLanguage
+import io.github.cvc5.Context as Cvc5Context
 import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; z3 and cvc5 receive the file as it
  *  is and parse it themselves (`print` measures the printing alone); and
- *  `z3Direct`, `princess` and `smtinterpol` replay the script's own terms
- *  through each solver's API — a [[Replay]], compiled from the instance up
- *  front, so an operation is only API calls, and what the solver receives is
- *  what its own parser would have built (checked by `replaycheck`). z3 and cvc5
- *  run through their Java bindings as published by SoSy-Lab (JavaSMT) with the
- *  native libraries of `fetch-native.sh`. z3 keeps one `Context` for the trial,
- *  as a tool that embeds it does, and takes a fresh solver per operation:
- *  creating a context costs 0.46 ms, more than the small instances take to
- *  solve. cvc5 gets a fresh `Solver` per operation: the solver itself is cheap
- *  (30 µs), and the ~0.4 ms its engine spends initialising at the first
- *  `assert` is what a solver kept in incremental mode would save — at the price
- *  of another engine (24× slower on `NEQ004_size4`), so the fresh solver stays.
+ *  `z3Direct`, `cvc5Direct`, `princess` and `smtinterpol` replay the script's
+ *  own terms through each solver's API — a [[Replay]], compiled from the
+ *  instance up front, so an operation is only API calls, and what the solver
+ *  receives is what its own parser would have built (checked by `replaycheck`).
+ *  z3 and cvc5 run through their Java bindings as published by SoSy-Lab
+ *  (JavaSMT) with the native libraries of `fetch-native.sh`. z3 keeps one
+ *  `Context` for the trial, as a tool that embeds it does, and takes a fresh
+ *  solver per operation: creating a context costs 0.46 ms, more than the small
+ *  instances take to solve. cvc5 gets a fresh `Solver` per operation: the
+ *  solver itself is cheap (30 µs), and the ~0.4 ms its engine spends
+ *  initialising at the first `assert` is what a solver kept in incremental mode
+ *  would save — at the price of another engine (24× slower on `NEQ004_size4`),
+ *  so the fresh solver stays.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -168,25 +168,23 @@ class OtherSolversBench:
   @Benchmark
   def z3Direct(): List[Boolean] = Budget.run("z3Direct", file)(Z3Replay.check(replay.nn, ctx))
 
-  /** Prints the tree and has cvc5 run the text as a script through its parser,
-   *  recording the check-sat answers.
+  /** Has cvc5 run the text as a script through its parser, each command as its
+   *  binary would, recording the check-sat answers. The binding keeps every
+   *  object it created until `Context.deletePointers()`: part of the operation,
+   *  as it is of every use of the binding.
    */
   @Benchmark
   def cvc5(): List[Boolean] = Budget.run("cvc5", file):
-    val solver = Cvc5Solver()
-    try
-      if text.contains("(push") then solver.setOption("incremental", "true") // scripts that push need the option
-      val parser = InputParser(solver)
-      parser.setStringInput(InputLanguage.SMT_LIB_2_6, text, "script")
-      val symbols = parser.getSymbolManager
-      var results = List.empty[Boolean]
-      var command = parser.nextCommand()
-      while !command.isNull do
-        val output = command.invoke(solver, symbols)
-        if output.startsWith("sat") || output.startsWith("unsat") then results ::= output.startsWith("sat")
-        command = parser.nextCommand()
-      results.reverse
-    finally solver.deletePointer()
+    try TextOracle.cvc5(text)
+    finally Cvc5Context.deletePointers()
+
+  /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
+   *  every `check-sat` through cvc5's Java API, nothing else.
+   */
+  @Benchmark
+  def cvc5Direct(): List[Boolean] = Budget.run("cvc5Direct", file):
+    try Cvc5Replay.check(replay.nn)
+    finally Cvc5Context.deletePointers()
 
   /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
    *  every `check-sat` through the `Script` interface Ultimate embeds, nothing

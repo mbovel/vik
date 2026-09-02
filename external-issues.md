@@ -264,3 +264,30 @@ folding them left. The same formula with the operands in source order took 27 s 
 Two rules for an API replay came out of it: hand a solver what its own front end would build, and
 check the replay against that front end in the same process (`SimpleAPI.execSMTLIB` on the text,
 per check-sat) before trusting a number.
+
+## cvc5
+
+Version: cvc5 1.3.3 (the binary) and `org.sosy-lab:javasmt-solver-cvc5:2026-02-26-d22638a` in process —
+cvc5's main the day after the 1.3.3 tag, four housekeeping commits past it (`1.2.1-g8594a8e4dc` until
+2026-09-02).
+
+### 1. The 1.2.1 Java binding scans every object it ever created at each new one (2026-09-02; on 1.2.1)
+
+- **Observed**: the evaluation's scripts replayed through the Java API of
+  `javasmt-solver-cvc5:1.2.1-g8594a8e4dc` took 3–36× the time of cvc5's own parser on the same text,
+  and the cost grew with every run in the process: `mkTerm` measured 24 µs a call, then 56, then 88, over
+  three rounds of the same script in one JVM. Every `Term`, `Sort`, `Op` and `Solver` the binding hands
+  out registers itself in a static `io.github.cvc5.Context` — an `ArrayList` that `addAbstractPointer`
+  first searches with `contains` (`Term.equals`, a JNI call per element), so the n-th object costs n
+  native comparisons, and the list is only ever emptied by `Context.deletePointers()`, which nothing
+  calls for you.
+- **Fixed upstream**: on cvc5's main the registry is a `LinkedHashMap` keyed by the native pointer, and
+  `deletePointer()` on an object removes it. The JavaSMT snapshot `2026-02-26-d22638a` has it: `mkTerm`
+  at 1.1–1.5 µs, flat across rounds, and the replay within a few percent of the parser on the forty
+  instances (`replaycheck cvc5`, none flagged). SoSy-Lab published no release build after 1.2.1, hence
+  the dated snapshot in `build.sbt`.
+- **Trap kept**: `Context.deletePointers()` frees every object of the process, those of a `checkSat`
+  still running on another thread included — the JVM then dies in
+  `cvc5::internal::ResourceManager::spendResource`. The benchmarks free after each operation;
+  `replaycheck` only while no run has outlived its budget.
+

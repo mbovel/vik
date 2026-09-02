@@ -200,9 +200,12 @@ lazy val bench = project
       ("io.github.uuverifiers" %% "princess" % "2026-05-20").cross(CrossVersion.for3Use2_13),
       "de.uni-freiburg.informatik.ultimate" % "smtinterpol" % "2.5-1388-ga5a4ab0c",
       // The Java bindings of z3 and cvc5 as published by SoSy-Lab (JavaSMT); their native libraries come from
-      // bench/fetch-native.sh into bench/native, found through java.library.path below.
+      // bench/fetch-native.sh into bench/native, found through java.library.path below. The cvc5 one is a
+      // snapshot of cvc5's main taken the day after the 1.3.3 tag (four housekeeping commits past it): SoSy-Lab
+      // stopped publishing release builds after 1.2.1, whose binding scans a list of every object created for
+      // each new term (external-issues.md).
       "org.sosy-lab" % "javasmt-solver-z3" % "4.14.0",
-      "org.sosy-lab" % "javasmt-solver-cvc5" % "1.2.1-g8594a8e4dc"
+      "org.sosy-lab" % "javasmt-solver-cvc5" % "2026-02-26-d22638a"
     ),
     fork := true, // runs and benchmarks in their own JVM, with the native libraries of z3 and cvc5 on its path
     javaOptions += s"-Djava.library.path=${baseDirectory.value / "native"}",

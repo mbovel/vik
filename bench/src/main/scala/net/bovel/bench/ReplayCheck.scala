@@ -1,11 +1,12 @@
 package net.bovel.bench
 
 import com.microsoft.z3.Context
+import io.github.cvc5.Context as Cvc5Context
 import net.bovel.smtlib.{Corpus, Parser}
 
 /** Checks a solver's [[Replay]] against its own front end on some files:
  *  `sbt "bench/runMain net.bovel.bench.replaycheck z3 3 file.smt2 …"` (or
- *  `princess`, `smtinterpol`). Each file gets both the replay and the
+ *  `cvc5`, `princess`, `smtinterpol`). Each file gets both the replay and the
  *  [[TextOracle]], best of `reps` runs, and a line with their times: a mismatch
  *  in answers or a replay slower than twice the front end is flagged, since the
  *  replay then hands the solver something its parser would not have built.
@@ -21,6 +22,8 @@ import net.bovel.smtlib.{Corpus, Parser}
   Natives.z3
   val budgetMs = 10000L
 
+  var leaked = false // a run past the budget, still on its thread
+
   /** The best time of the runs that finished — infinite when none did, the runs
    *  stopping at the first past the budget.
    */
@@ -35,6 +38,9 @@ import net.bovel.smtlib.{Corpus, Parser}
       thread.start()
       thread.join(budgetMs)
       if thread.isAlive then over = true else ms = ms min (System.nanoTime() - start) / 1e6
+    leaked |= over
+    // cvc5's binding frees the objects of its runs only all together — never from under a leaked run.
+    if solver == "cvc5" && !leaked then Cvc5Context.deletePointers()
     (answers, ms)
   def show(answers: List[Boolean], ms: Double): String =
     if ms.isInfinite then "🐢" else answers.map(if _ then "sat" else "unsat").mkString(",")
@@ -48,10 +54,12 @@ import net.bovel.smtlib.{Corpus, Parser}
         val ctx = Context();
         try Z3Replay.check(program, ctx)
         finally ctx.close()
+      case "cvc5" => Cvc5Replay.check(program)
       case "princess" => PrincessReplay.check(program)
       case "smtinterpol" => SmtInterpolReplay.check(program))
     val (parsed, textMs) = best(solver match
       case "z3" => TextOracle.z3(text)
+      case "cvc5" => TextOracle.cvc5(text)
       case "princess" => TextOracle.princess(text)
       case "smtinterpol" => TextOracle.smtinterpol(text))
     val flag =

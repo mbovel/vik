@@ -22,8 +22,8 @@ one script:
 
 ```sh
 bench/evaluate.sh all     # everything below, in order
-bench/evaluate.sh warm    # the in-process JMH table       (z3 and cvc5 native libraries)
-bench/evaluate.sh cold    # the process-per-question table (z3 and cvc5 on the PATH)
+bench/evaluate.sh warm    # the in-process JMH table       (the z3 and cvc5 bindings of fetch-native.sh)
+bench/evaluate.sh cold    # the process-per-question table (the z3 and cvc5 binaries of fetch-native.sh)
 bench/evaluate.sh regen   # only regenerate the page from the newest dated results (seconds)
 ```
 

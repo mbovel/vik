@@ -7,9 +7,9 @@ import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formu
 /** An instance compiled to a straight-line program of SMT-LIB's own operations
  *  over numbered slots: what a verifier that builds a solver's terms directly
  *  executes per query, before any solver's API is named. [[Z3Replay]],
- *  [[PrincessReplay]] and [[SmtInterpolReplay]] run one against their solver —
- *  declarations, term construction, asserts, `push`/`pop` and every
- *  `check-sat`, nothing else: no VIK tree is walked, no text is parsed.
+ *  [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]] run one against
+ *  their solver — declarations, term construction, asserts, `push`/`pop` and
+ *  every `check-sat`, nothing else: no VIK tree is walked, no text is parsed.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
  *  what every solver's front end does with the text: a `let` binding becomes a

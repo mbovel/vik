@@ -9,6 +9,7 @@
 # does not decide a number.
 set -u
 cd "$(dirname "$0")/.."
+PATH="$PWD/bench/native/bin:$PATH" # the z3 and cvc5 binaries of bench/fetch-native.sh, pinned versions
 INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nobody waits

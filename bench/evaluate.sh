@@ -23,8 +23,8 @@ preflight() {
     { echo "missing native libraries — run: bench/fetch-native.sh"; exit 1; }
 }
 preflight_cold() {
-  command -v z3 >/dev/null && command -v cvc5 >/dev/null ||
-    { echo "z3 and cvc5 must be on the PATH for the cold table"; exit 1; }
+  [ -x bench/native/bin/z3 ] && [ -x bench/native/bin/cvc5 ] ||
+    { echo "missing the z3 and cvc5 binaries — run: bench/fetch-native.sh"; exit 1; }
 }
 R=bench/results/smt
 DATE=$(date +%F)
@@ -50,9 +50,9 @@ seg() { # seg <rff> <files> <methods regex> [fork flags — replace the defaults
 
 warm() {
   local chain=""
-  chain+=$(seg "$OUT-warm.json"      "$(group main)"    "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm.json"      "$(group main)"    "(vik|vikText|z3|z3Direct|cvc5|cvc5Direct|smtinterpol)")
   chain+=$(seg "$OUT-warm-p.json"    "$(group main)"    "princess" -f 1 -wi 1 -i 3)
-  chain+=$(seg "$OUT-warm-inc.json"  "$(group inc)"     "(vik|vikText|z3Direct|cvc5|smtinterpol)")
+  chain+=$(seg "$OUT-warm-inc.json"  "$(group inc)"     "(vik|vikText|z3Direct|cvc5|cvc5Direct|smtinterpol)")
   # A princess operation past the budget (car_6, stack_k20: princess itself, its binary is as slow) lands
   # on bench/timeouts.txt the first time: the fork refuses it in milliseconds after, and the cell reads 🐢.
   chain+=$(seg "$OUT-warm-inc-p.json" "$(group inc)"    "princess" -f 1 -wi 1 -i 2)

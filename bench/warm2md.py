@@ -13,9 +13,10 @@ repository root, where `corpus/` is.
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
-order = ["vik", "vikText", "z3Direct", "z3", "cvc5", "princess", "smtinterpol"]
+order = ["vik", "vikText", "z3Direct", "z3", "cvc5Direct", "cvc5", "princess", "smtinterpol"]
 names = {"vik": "VIK (API)", "vikText": "VIK (SMT2)", "z3Direct": "z3 (API)", "z3": "z3 (SMT2)",
-         "cvc5": "cvc5 (SMT2)", "princess": "princess (API)", "smtinterpol": "SMTInterpol (API)"}
+         "cvc5Direct": "cvc5 (API)", "cvc5": "cvc5 (SMT2)", "princess": "princess (API)",
+         "smtinterpol": "SMTInterpol (API)"}
 
 
 def corpus(base):

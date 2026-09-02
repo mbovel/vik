@@ -34,8 +34,8 @@ Two families of solvers appear:
 
 - **VIK** on its three platforms: the JVM, a native binary (Scala Native, LLVM), and Node.js (Scala.js,
   linked to WebAssembly).
-- **Others**: z3 and cvc5 (the binaries, and in process through the JavaSMT bindings), princess and
-  SMTInterpol (JVM solvers, in process and from the command line).
+- **Others**: z3 and cvc5 (the binaries, and in process through the JavaSMT bindings — from text and
+  through their APIs), princess and SMTInterpol (JVM solvers, in process and from the command line).
 
 ## The machine and the versions
 
@@ -49,7 +49,7 @@ Two families of solvers appear:
 | Build | sbt 2.0.8, JMH through sbt-jmh 0.4.8 |
 | VIK | this repository, commit of the run |
 | z3 | 4.14.0 (the binary and, in process, `org.sosy-lab:javasmt-solver-z3:4.14.0`) |
-| cvc5 | 1.2.1 (the binary and, in process, `org.sosy-lab:javasmt-solver-cvc5:1.2.1-g8594a8e4dc`) |
+| cvc5 | 1.3.3 (the binary) and, in process, `org.sosy-lab:javasmt-solver-cvc5:2026-02-26-d22638a` — cvc5's main the day after the 1.3.3 tag, four housekeeping commits past it (the released 1.2.1 binding has a quadratic object registry, see [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)) |
 | princess | `io.github.uuverifiers:princess:2026-05-20` |
 | SMTInterpol | `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c` |
 
@@ -122,26 +122,28 @@ cell deliberately left out, for the reasons below.
 The 95% confidence intervals (Student's t over the samples of a cell) average 21% of the mean; every cell is within 20% of its mean except z3 (API) on 19 instances (25–77%, from 6 samples per cell), princess (API) on 34 instances (42–352%, from 2 samples per cell).
 
 The *(SMT2)* columns — z3 and cvc5 — receive the text of the script and parse it themselves; the *(API)*
-columns receive the problem already built: *VIK (API)* solves its own tree, and *z3 (API)*, *princess (API)*
-and *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
-asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. Each of the three
-replays is checked against the solver's own front end run in process on the same text
+columns receive the problem already built: *VIK (API)* solves its own tree, and *z3 (API)*, *cvc5 (API)*,
+*princess (API)* and *SMTInterpol (API)* are handed the script's own terms through each solver's API —
+declarations, terms, asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier
+pays. Each of the four replays is checked against the solver's own front end run in process on the same
+text
 ([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/ReplayCheck.scala)):
 the same answers, and a time within a factor of two — so what the solver receives is what its own parser
 would have built, down to the order in which princess's parser flattens a nested `or` or `+` (handed the
 same operands in another order, it took 27 s on `MESI_i4` where its parser takes 0.2 s; see
 [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)). The check also puts
-parsing in proportion: over the forty instances the front end and the replay take about the same time — the
-median ratio is 1.03 for princess, 1.06 for SMTInterpol and 1.19 for z3, the quartiles within 0.8–1.6× —
-and the two z3 columns of the table say the same, within 20% of each other either way on the small
-instances. Parsing a script this size is a small part of what a solver does with it, and z3's C++ parser
-builds a term about as fast as a JNI call does. The higher-order rows run the solvers that speak lambdas:
-VIK, z3 from text (the replays build no lambdas) and, on the one of the two that is not in z3's dialect,
-cvc5. The incremental instances leave one cell out: z3's text column flattens the script into one problem —
-its bindings execute no script — a different question on a script of many `check-sat`s. Princess is
-measured through its API for the same reason in the other direction: its own script executor rejects these
-scripts (a re-declaration after `pop`, see
-[external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)).
+parsing in proportion: over the forty instances the front end and the replay take about the same time —
+the median ratio of the front end's time to the replay's is 1.01 for cvc5, 1.03 for princess, 1.19 for
+SMTInterpol and 1.30 for z3, half of the instances within 0.8–1.5× of even — and the two z3 columns of the
+table say the same, within 20% of each other either way on the small instances (the check's z3 front end
+builds a context per run, 0.46 ms that dominates its ratio on the smallest). Parsing a script this size is
+a small part of what a solver does with it, and z3's C++ parser builds a term about as fast as a JNI call
+does. The higher-order rows run the solvers that speak lambdas: VIK, z3 from text (the replays build no
+lambdas) and, on the one of the two that is not in z3's dialect, cvc5. The incremental instances leave one
+cell out: z3's text column flattens the script into one problem — its bindings execute no script — a
+different question on a script of many `check-sat`s. Princess is measured through its API for the same
+reason in the other direction: its own script executor rejects these scripts (a re-declaration after
+`pop`, see [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)).
 
 The 🐢 cells are mostly princess's — `NEQ004_size4`, `RandomDecoupled`, `lustre/ex3`, `car_6` and
 `stack_k20` ask more than ten seconds per operation of it. The others are both z3 columns on
@@ -285,16 +287,18 @@ finish agree on `sat`).
   [corpus](https://github.com/mbovel/vik/tree/main/corpus) records that: of its 1029 files, 105 are marked as
   out of the solver's reach or over the tests' five-second budget.
 - The in-process z3 and cvc5 go through the JavaSMT bindings, which cross the JNI boundary per call; their
-  binaries are what the cold table measures. Both are reported.
+  binaries are what the cold table measures. Both are reported. cvc5's binding is a snapshot of its main
+  rather than a release, for the registry above.
 - VIK's answers are checked against the status of every file, on every run of the test suite; a wrong answer
   would show as such in these tables (none does).
 
 ## Reproducing
 
 ```sh
+bench/fetch-native.sh     # once: the z3 and cvc5 libraries and binaries of the versions above (Linux x86-64)
 bench/evaluate.sh all     # the warm JMH groups, the cold run, and the tables of this page
 bench/evaluate.sh warm    # or one half: the warm table only
-bench/evaluate.sh cold    # the cold table only — z3 and cvc5 on the PATH, and the binaries below
+bench/evaluate.sh cold    # the cold table only — with the binaries below
 sbt "vikNative/nativeLink; docsAssets"   # the native binary and the WebAssembly module the cold run uses
 ```
 

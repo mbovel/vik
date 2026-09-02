@@ -4,6 +4,8 @@ import java.io.{ByteArrayOutputStream, PrintStream, StringReader}
 
 import ap.api.SimpleAPI
 import com.microsoft.z3.{Context, Native}
+import io.github.cvc5.{InputParser, Solver as Cvc5Solver, TermManager}
+import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import de.uni_freiburg.informatik.ultimate.smtinterpol.option.OptionMap
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.{ParseEnvironment, SMTInterpol}
@@ -33,6 +35,28 @@ object TextOracle:
     val ctx = Context()
     try answers(Native.evalSmtlib2String(ctx.nCtx(), text))
     finally ctx.close()
+
+  /** cvc5's `InputParser` on a fresh solver, each command invoked as its binary
+   *  would (`incremental` set for a script that pushes, as the binary's command
+   *  line would): the `cvc5` benchmark. The binding's objects are the caller's
+   *  to free, as after [[Cvc5Replay.check]].
+   */
+  def cvc5(text: String): List[Boolean] =
+    val tm = TermManager()
+    val solver = Cvc5Solver(tm)
+    try
+      if text.contains("(push") then solver.setOption("incremental", "true")
+      val parser = InputParser(solver)
+      parser.setStringInput(InputLanguage.SMT_LIB_2_6, text, "script")
+      val symbols = parser.getSymbolManager
+      var results = List.empty[Boolean]
+      var command = parser.nextCommand()
+      while !command.isNull do
+        val output = command.invoke(solver, symbols)
+        if output.startsWith("sat") || output.startsWith("unsat") then results ::= output.startsWith("sat")
+        command = parser.nextCommand()
+      results.reverse
+    finally solver.deletePointer()
 
   /** SMTInterpol's `ParseEnvironment`, what its `Main` runs, minus the
    *  `System.exit` of `(exit)`.
