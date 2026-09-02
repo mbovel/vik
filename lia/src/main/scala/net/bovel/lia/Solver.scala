@@ -576,15 +576,15 @@ final class Solver:
    *  Vacuous on a pure-integer problem, and skipped unless some row mixes the
    *  two kinds; the work is capped, a cut being an aid, not an obligation.
    */
-  private def integerWindows(): Result =
-    if !anyReal || !anyInt then return Result.Sat
+  private def integerWindows(): Result = boundary:
+    if !anyReal || !anyInt then break(Result.Sat)
     var mixed = false
     var b = 0
     while b < numVars && !mixed do
       val row = rows(b)
       mixed = row != null && row.keysIterator.exists(x => isInt(x) != isInt(b))
       b += 1
-    if !mixed then return Result.Sat
+    if !mixed then break(Result.Sat)
     // The system: every bound as `Σ c·x ≤ d` with its reasons, every row touching a real as an equation.
     val inequalities = ArrayBuffer.empty[(HashMap[Var, Rational], Delta, Set[Int])]
     val equations = ArrayBuffer.empty[HashMap[Var, Rational]]
@@ -624,7 +624,7 @@ final class Solver:
         case None =>
           val (touching, rest) = inequalities.toList.partition(_._1.contains(x))
           val (uppers, lowers) = touching.partition(_._1(x).signum > 0) // c·x ≤ ... vs −c·x ≤ ...
-          if uppers.length * lowers.length + rest.length > cap then return Result.Sat
+          if uppers.length * lowers.length + rest.length > cap then break(Result.Sat)
           inequalities.clear()
           inequalities ++= rest
           for (ut, ud, ur) <- uppers; (lt, ld, lr) <- lowers do
@@ -639,7 +639,7 @@ final class Solver:
     val best = HashMap.empty[List[(Var, BigInt)], (BigInt, Set[Int])]
     for (terms, d, reasons) <- inequalities do
       if terms.isEmpty then
-        if d < Delta.zero then return Result.Unsat(reasons)
+        if d < Delta.zero then break(Result.Unsat(reasons))
       else if terms.keysIterator.forall(isInt(_)) then
         var l = BigInt(1)
         for (_, a) <- terms do l = l / (l gcd a.den) * a.den
@@ -652,7 +652,7 @@ final class Solver:
           case None => true
         if better then best(key) = (bound, reasons)
         best.get(key.map((y, n) => (y, -n))) match
-          case Some((opposite, others)) if bound + opposite < 0 => return Result.Unsat(reasons ++ others)
+          case Some((opposite, others)) if bound + opposite < 0 => break(Result.Unsat(reasons ++ others))
           case _ => ()
     Result.Sat
 

@@ -38,7 +38,7 @@ enum Term:
    *  maps, and a subterm shared through `let` would otherwise be hashed in full
    *  at each lookup of each term containing it.
    */
-  private lazy val hash: Int = MurmurHash3.productHash(this)
+  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
   override def hashCode: Int = hash
 
 object Term:
@@ -106,7 +106,7 @@ enum Formula:
   case Less(lhs: Term, rhs: Term)
 
   /** Computed once, as for terms. */
-  private lazy val hash: Int = MurmurHash3.productHash(this)
+  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
   override def hashCode: Int = hash
 
   /** The terms at the leaves: the sides of `Eq` and `Le`, the term of `Pred`.

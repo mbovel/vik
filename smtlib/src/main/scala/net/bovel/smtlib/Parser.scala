@@ -474,7 +474,13 @@ final class Parser:
     case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(_) :: Nil) :: _ :: Nil) => Sort.Bool
     case SList(SAtom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
     case SList(SAtom("let") :: SList(bindings) :: body :: Nil) =>
-      sortOf(body, env ++ bindings.map { case SList(SAtom(name) :: value :: Nil) => name -> sortOf(value, env) })
+      sortOf(
+        body,
+        env ++ bindings.map {
+          case SList(SAtom(name) :: value :: Nil) => name -> sortOf(value, env)
+          case other => throw Smt2Error(s"bad binding $other")
+        }
+      )
     case SList(SAtom("match") :: _) => sortOf(matchToIte(sexpr), env)
     case SList(SAtom(name) :: args) if macros.contains(name) => macros(name)._2
     case SList(SAtom(name) :: args) if polymorphic.contains(name) && !env.contains(name) =>

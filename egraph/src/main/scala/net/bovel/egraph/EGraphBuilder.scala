@@ -49,7 +49,7 @@ class EGraphBuilder:
     sb ++= "\n"
 
     val names =
-      syms.toSeq.groupBy((_, id) => eg.find(id)).mapValues(_.map(_._1))
+      syms.toSeq.groupBy((_, id) => eg.find(id)).map((cls, group) => cls -> group.map(_._1))
 
     val links = ArrayBuffer.empty[(String, EClassId)]
 

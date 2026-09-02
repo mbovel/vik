@@ -154,7 +154,7 @@ object Import:
         case scala.util.Success(_) =>
           val dir = Corpus.root.resolve(classify(c.text)).resolve(origin)
           Files.createDirectories(dir)
-          val name = s"${c.family}__${Path.of(c.rel).getFileName.nn}".replace("/", "_")
+          val name = s"${c.family}__${Path.of(c.rel).getFileName}".replace("/", "_")
           Files.writeString(dir.resolve(name), content)
           copied += 1
         case scala.util.Failure(e) =>

@@ -36,7 +36,7 @@ enum Term:
    */
   case Bool(formula: Formula)
 
-  private lazy val hash: Int = MurmurHash3.productHash(this)
+  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
   override def hashCode: Int = hash
   override def toString: String = Printer.print(this)
 
@@ -208,6 +208,6 @@ enum Formula:
    */
   case Pred(term: Term)
 
-  private lazy val hash: Int = MurmurHash3.productHash(this)
+  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
   override def hashCode: Int = hash
   override def toString: String = Printer.print(this)
