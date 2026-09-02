@@ -117,7 +117,7 @@ lazy val corpusStamp = taskKey[Seq[File]]("The corpus and docs listing, as a tes
 smt2utils / Test / corpusStamp := Def.uncached {
   import scala.jdk.CollectionConverters.*
   val listing = new StringBuilder
-  Seq("smtlib", "docs/_docs").foreach { root =>
+  Seq("corpus", "docs/_docs").foreach { root =>
     val stream = java.nio.file.Files.walk(java.nio.file.Path.of(root))
     try {
       stream.iterator().asScala.filter(java.nio.file.Files.isRegularFile(_)).toList.sortBy(_.toString).foreach {

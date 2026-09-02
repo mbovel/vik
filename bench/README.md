@@ -50,7 +50,7 @@ bench/.venv/bin/python bench/jmh2md.py target/jmh-result.json         # Markdown
 ```
 
 To sweep an arbitrary corpus subset one process per solver and instance, hand [cold.sh](cold.sh) a file
-list and a timeout: `find smtlib -name '*.smt2' | grep -E <regex> > /tmp/list && bench/cold.sh /tmp/list 1 60`.
+list and a timeout: `find corpus -name '*.smt2' | grep -E <regex> > /tmp/list && bench/cold.sh /tmp/list 1 60`.
 
 Configuration (annotations in the benchmark classes): 3 forks, 5 warmup and 5 measurement iterations of 1 s each,
 average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line

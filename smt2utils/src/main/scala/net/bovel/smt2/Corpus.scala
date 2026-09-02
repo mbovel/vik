@@ -4,19 +4,19 @@ import java.nio.file.{Files, Path}
 
 import scala.jdk.CollectionConverters.*
 
-/** The SMT-LIB files of the repository's `smtlib` directory — by logic, then
- *  origin (see `smtlib/README.md`) — for the tests and the benchmarks, and
- *  `smtlib/ignore.txt`, the files the tests expect to fail.
+/** The SMT-LIB files of the repository's `corpus` directory — by logic, then
+ *  origin (see `corpus/README.md`) — for the tests and the benchmarks, and
+ *  `corpus/ignore.txt`, the files the tests expect to fail.
  */
 object Corpus:
-  /** The `smtlib` directory: up from this source file to the repository root.
+  /** The `corpus` directory: up from this source file to the repository root.
    */
   val root: Path =
     Iterator.iterate(Path.of(SourcePath.here).toAbsolutePath)(_.getParent)
       .takeWhile(_ != null)
-      .map(_.resolve("smtlib"))
+      .map(_.resolve("corpus"))
       .find(Files.isDirectory(_))
-      .getOrElse(throw IllegalStateException("no smtlib directory above " + SourcePath.here))
+      .getOrElse(throw IllegalStateException("no corpus directory above " + SourcePath.here))
 
   /** Every `.smt2` file, by path relative to `root`, sorted. */
   def files: List[String] =

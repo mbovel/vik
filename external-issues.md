@@ -94,9 +94,9 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 ### 10. The cached test task replays although a generated resource changed (2026-08-31, sbt 2.0.8)
 
 - **Observed**: `smt2utils / Test` is cache-keyed through a managed resource, `corpus-stamp.tsv`, an
-  uncached listing (path, size, mtime) of every file under `smtlib/` and `docs/_docs` —
+  uncached listing (path, size, mtime) of every file under `corpus/` and `docs/_docs` —
   the documented workaround for the classpath-only cache key. Adding 80
-  files under `smtlib/` (nothing else changed) still replays `smt2utils/test` from the
+  files under `corpus/` (nothing else changed) still replays `smt2utils/test` from the
   cache: `Passed: Total 0`, twice, including right after `smt2utils/clean`. The stamp
   regenerates with the new content, so the resource's hash should differ; the replay
   suggests the cache key does not see it. `testOnly` is not cached and runs the tests. Not minimized yet.
@@ -221,7 +221,7 @@ Version: `io.github.uuverifiers:princess:2026-05-20` (Maven, for3Use2_13).
 ### 1. `unknown` with "Stack overflow, giving up" on an unsat QF_LIA instance (2026-08-29, 2026-09-01)
 
 A behaviour, not a bug: an incomplete answer honestly labeled. `ap.CmdlMain
-smtlib/QF_LIA/smt-lib/cut_lemmas__20-vars__cut_lemma_01_001.smt2` prints `Stack overflow, giving up` and
+corpus/QF_LIA/smt-lib/cut_lemmas__20-vars__cut_lemma_01_001.smt2` prints `Stack overflow, giving up` and
 answers `unknown` after a few seconds on the default JVM stack; the file's status is `unsat`, and z3, cvc5
 and VIK answer it. With `-Xss512m` (2026-09-01) the overflow disappears but princess still does not answer:
 it sits in "Constructing countermodel ..." past 2 minutes of wall time (9.5 CPU-minutes) before being

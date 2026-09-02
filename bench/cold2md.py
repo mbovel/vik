@@ -6,14 +6,14 @@ status — and one column per solver: the median of the repetitions in seconds, 
 (`<span class="best">`, styled by the site's `tables.css`); `timeout` when the solver did not finish, and the
 answer in bold when it disagrees with the file's status. `--blank solver:instance,...` leaves out the cells
 where the measurement would not mean what the column says (see the evaluation page). Run from the repository
-root, where `smtlib/` is.
+root, where `corpus/` is.
 """
 import collections, csv, pathlib, re, sys
 
 
 def corpus(base):
     """The corpus file of an instance, and what the table says about it: logic, incremental."""
-    path = next(iter(pathlib.Path("smtlib").glob(f"*/*/{base}")), None)
+    path = next(iter(pathlib.Path("corpus").glob(f"*/*/{base}")), None)
     if path is None:
         return None, "?", ""
     text = path.read_text(errors="replace")

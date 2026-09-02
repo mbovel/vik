@@ -8,7 +8,7 @@ highlighted (`<span class="best">`, styled by the site's `tables.css`). A note a
 the cells of a solver on an instance where the measurement would not mean what the column says (see the
 evaluation page). `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
 `solver:instance` per line): those cells say `timeout`, whatever an older result file measured. Run from the
-repository root, where `smtlib/` is.
+repository root, where `corpus/` is.
 """
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
@@ -20,7 +20,7 @@ names = {"vik": "VIK (API)", "vikText": "VIK (SMT2)", "z3Direct": "z3 (API)", "z
 
 def corpus(base):
     """The corpus file of an instance, and what the table says about it: logic, incremental, status."""
-    path = next(iter(pathlib.Path("smtlib").glob(f"*/*/{base}")), None)
+    path = next(iter(pathlib.Path("corpus").glob(f"*/*/{base}")), None)
     if path is None:
         return None, "?", "", ""
     text = path.read_text(errors="replace")

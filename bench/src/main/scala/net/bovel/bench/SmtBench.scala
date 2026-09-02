@@ -13,7 +13,7 @@ import net.bovel.smt2.Corpus
 /** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release
  *  2025, see `bench/results/smt/README.md`): each operation parses and solves
  *  one file; `parse` measures the parsing alone. The instances VIK cannot
- *  answer within seconds are on `smtlib/ignore.txt`.
+ *  answer within seconds are on `corpus/ignore.txt`.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))

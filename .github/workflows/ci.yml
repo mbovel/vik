@@ -59,12 +59,12 @@ jobs:
         # work; VIK must answer every instance, the other solvers may error on what they do not speak.
         run: |
           printf '%s\n' \
-            smtlib/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2 \
-            smtlib/QF_LIA/smt-lib/dillig__20-4.smt2 \
-            smtlib/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2 \
-            smtlib/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2 \
-            smtlib/HO/z3test/regressions__3775.smt2 \
-            smtlib/QF_UF/smt-lib-incremental/20190906-CLEARSY__0016__00004.smt2 \
+            corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2 \
+            corpus/QF_LIA/smt-lib/dillig__20-4.smt2 \
+            corpus/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2 \
+            corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2 \
+            corpus/HO/z3test/regressions__3775.smt2 \
+            corpus/QF_UF/smt-lib-incremental/20190906-CLEARSY__0016__00004.smt2 \
             > /tmp/cold-dry.txt
           bench/cold.sh /tmp/cold-dry.txt 1 20 > /tmp/cold-dry.tsv
           column -t /tmp/cold-dry.tsv | head -30

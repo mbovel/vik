@@ -73,6 +73,6 @@ the bit-vector operations — comes back as that constant's name (`ite!3`) rathe
 ```
 
 The corpus of SMT-LIB files that the tests play is in
-[smtlib/](https://github.com/mbovel/vik/tree/main/smtlib), with one test per file: it holds the instances of
+[corpus/](https://github.com/mbovel/vik/tree/main/corpus), with one test per file: it holds the instances of
 the benchmarks, the three smallest files of every family of the release in our fragment, and the regression
 suites of cvc5, z3 and princess, each file keeping its origin and its licence.

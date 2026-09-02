@@ -3,7 +3,7 @@
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
 `QF_LRA`, `QF_UFLRA`, `HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
-test `SmtLibTest` (`smt2/src/test/scalajvm`) registers one test per file it finds here: the answers must be the
+test `SmtLibTest` (`smt2utils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
 so the outcome is the same on every machine). `ignore.txt` lists the files the solver is known not to answer
 within that fuel, or to answer wrongly, with the reason: the test expects those to fail, and when one passes it

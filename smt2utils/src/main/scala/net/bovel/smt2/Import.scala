@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
-/** Imports SMT-LIB files into the corpus (see `smtlib/README.md`):
+/** Imports SMT-LIB files into the corpus (see `corpus/README.md`):
  *  `sbt "smt2/runMain net.bovel.smt2.smt2import <origin> <source root> [files per family]"`.
  *  Origins: `cvc5` (`test/regress/cli`, answers in `; EXPECT:` lines), `z3test`
  *  (`regressions/smt2`, answers in `.expected.out` files), `princess`

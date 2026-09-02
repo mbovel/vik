@@ -7,12 +7,12 @@ import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
 
-/** The corpus of SMT-LIB files (`smtlib/`, see its README), one test per file:
+/** The corpus of SMT-LIB files (`corpus/`, see its README), one test per file:
  *  the answers must be the statuses in the file, within a fuel per `check-sat`
  *  (conflicts and branches: deterministic, the same on every machine) and
  *  within five seconds of wall clock — the budget the benchmarks also hold to;
- *  a file over either goes to `smtlib/ignore.txt`, nobody waits on it. A file
- *  on `smtlib/ignore.txt` (out of fuel or time, a wrong answer, an unsupported
+ *  a file over either goes to `corpus/ignore.txt`, nobody waits on it. A file
+ *  on `corpus/ignore.txt` (out of fuel or time, a wrong answer, an unsupported
  *  feature) is expected to fail, with a tenth of the fuel; when it passes, the
  *  test asks for its line to be removed.
  */
@@ -28,7 +28,7 @@ class SmtLibTest extends munit.FunSuite:
   test("ignore.txt is sorted"):
     val lines = java.nio.file.Files.readAllLines(Corpus.root.resolve("ignore.txt")).asScala.toList
       .filter(l => l.nonEmpty && !l.startsWith("#"))
-    assertEquals(lines, lines.sorted, "smtlib/ignore.txt: keep the lines sorted (byte order)")
+    assertEquals(lines, lines.sorted, "corpus/ignore.txt: keep the lines sorted (byte order)")
 
   for file <- Corpus.files do
     val reason = ignored.get(file)
@@ -59,4 +59,4 @@ class SmtLibTest extends munit.FunSuite:
       reason match
         case None => assert(outcome.get._1, outcome.get._2)
         case Some(why) =>
-          assert(outcome.toOption.forall(!_._1), s"passes now: remove it from smtlib/ignore.txt (was: $why)")
+          assert(outcome.toOption.forall(!_._1), s"passes now: remove it from corpus/ignore.txt (was: $why)")
