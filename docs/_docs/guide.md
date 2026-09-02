@@ -83,27 +83,6 @@ Constructors are injective and distinct, selectors and testers follow them, and 
 (check-sat)
 ```
 
-## Lambdas
-
-Functions are values: `(-> Int Int)` is a sort, `lambda` makes a function, and applying one reduces it.
-
-```smt2
-(declare-fun f (Int) Int)
-(declare-const g (-> Int Int))
-(assert (= g (lambda ((x Int)) (+ (f x) 1))))
-(assert (not (= (g 2) (+ (f 2) 1))))
-(check-sat)
-```
-
-Two lambdas with the same body are the same function, whatever their parameters are called, and a function
-that differs from another differs on some argument (extensionality).
-
-```smt2
-(declare-fun f (Int) Int)
-(assert (not (= (lambda ((x Int)) (f x)) (lambda ((y Int)) (f y)))))
-(check-sat)
-```
-
 ## Reals
 
 `Real` is the same simplex without the integrality; `to_real`, `to_int` and `is_int` cross between the two.

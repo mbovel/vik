@@ -12,8 +12,8 @@ import Term.*
  *  plays — a [[Session]] applies it, and `smt2lowered` prints its result. This
  *  is where the surface language's conveniences are compiled away and where the
  *  fragment line is drawn, with a message:
- *    - `let` and `lambda` names become substitutions and de Bruijn indices;
- *      `define-fun` macros are expanded at their uses;
+ *    - `let` names become substitutions; `define-fun` macros are expanded at
+ *      their uses;
  *    - `+`, `-` and `*` by a literal become the linear normal form; rational
  *      literals and divisions become defined `Real` constants; `div`, `mod`,
  *      `abs` and nonlinear multiplication are rejected;
@@ -42,25 +42,14 @@ object Lowering:
  *  assertion being lowered and their defining assertions.
  */
 private final class Lowerer:
-  private enum Value:
-    /** A `let`-bound value, made under `depth` lambda parameters (its free
-     *  variables are shifted when used under more).
-     */
-    case T(term: Term, sort: Sort, depth: Int)
-    case F(formula: Formula, depth: Int)
-
-    /** A parameter of an enclosing lambda: its level (the parameters of the
-     *  lambdas outside it, plus its position).
-     */
-    case Bound(level: Int, sort: Sort)
+  private enum Value: // a `let`-bound value
+    case T(term: Term, sort: Sort)
+    case F(formula: Formula)
 
   private type Env = Map[String, Value]
 
   private val functions = HashMap.empty[String, Sort] // declared symbols, with their whole function sort
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, s2.Term | s2.Formula)]
-
-  /** The number of parameters of the enclosing lambdas. */
-  private var depth = 0
 
   private var fresh = 0
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
@@ -85,7 +74,7 @@ private final class Lowerer:
       List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(range(Const(name), w)))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       functions(name) = Sort.fun(argSorts, sort)
-      // A constant of a function sort (an array, a lambda) is a function symbol: flattened.
+      // A constant of a function sort (an array) is a function symbol: flattened.
       val strings = argSorts.map(sortString)
       s2.Sorts.arrow(s2.Sorts.function(strings, sortString(sort))) match
         case Some((params, result)) => List(Command.DeclareFun(name, params, result))
@@ -166,9 +155,8 @@ private final class Lowerer:
   private def sortOf(t: s2.Term, env: Env): Sort = t match
     case s2.Term.Const(name) =>
       env.get(name) match
-        case Some(Value.T(_, sort, _)) => sort
-        case Some(Value.F(_, _)) => Sort.Bool
-        case Some(Value.Bound(_, sort)) => sort
+        case Some(Value.T(_, sort)) => sort
+        case Some(Value.F(_)) => Sort.Bool
         case None =>
           functions.get(name).orElse(macros.get(name).map(_._2)).getOrElse(
             throw s2.Smt2Error(s"unknown symbol $name")
@@ -209,12 +197,10 @@ private final class Lowerer:
         env ++ bindings.map((name, value) =>
           name ->
             (value match
-              case t: s2.Term => Value.T(Num(0), sortOf(t, env), depth) // only the sort matters here
-              case _: s2.Formula => Value.F(True, depth))
+              case t: s2.Term => Value.T(Num(0), sortOf(t, env)) // only the sort matters here
+              case _: s2.Formula => Value.F(True))
         )
       )
-    case s2.Term.Lambda(params, body) =>
-      Sort.fun(params.map(_._2), sortOf(body, env ++ params.map((p, s) => p -> Value.Bound(0, s))))
     case s2.Term.Bool(_) => Sort.Bool
 
   private def width(t: s2.Term, env: Env): Int = sortOf(t, env) match
@@ -283,21 +269,15 @@ private final class Lowerer:
         (value match
           case t: s2.Term =>
             val sort = sortOf(t, env)
-            if sort == Sort.Bool then Value.F(Formula.pred(term(t, env)), depth) else Value.T(term(t, env), sort, depth)
-          case f: s2.Formula => Value.F(formula(f, env), depth))
+            if sort == Sort.Bool then Value.F(Formula.pred(term(t, env))) else Value.T(term(t, env), sort)
+          case f: s2.Formula => Value.F(formula(f, env)))
     )
-
-  private def bindParameters(ps: List[(String, Sort)], env: Env): Env =
-    ps.zipWithIndex.foldLeft(env) { case (e, ((p, sort), i)) =>
-      e + (p -> Value.Bound(depth + ps.length - 1 - i, sort))
-    }
 
   private def term(t: s2.Term, env: Env): Term = t match
     case s2.Term.Const(name) =>
       env.get(name) match
-        case Some(Value.T(t, _, d)) => Term.shift(t, depth - d)
-        case Some(Value.F(f, d)) => Term.boolean(f.mapTerms(Term.shift(_, depth - d)))
-        case Some(Value.Bound(level, _)) => Var(depth - 1 - level)
+        case Some(Value.T(t, _)) => t
+        case Some(Value.F(f)) => Term.boolean(f)
         case None =>
           if macros.contains(name) then expand(name, Nil, env)
           else if functions.contains(name) then Const(name)
@@ -306,20 +286,19 @@ private final class Lowerer:
     case s2.Term.Decimal(unscaled, scale) => rationalConst(unscaled, BigInt(10).pow(scale))
     case s2.Term.Bits(value, _) => Num(value)
     case s2.Term.App(s2.Term.Const(name), args) if macros.contains(name) => expand(name, args, env)
-    case s2.Term.App(fun, args) => Term.app(term(fun, env), args.map(term(_, env)))
+    case s2.Term.App(fun, args) => App(term(fun, env), args.map(term(_, env)))
     case s2.Term.ArithApp(op, args) => arith(op, args, env)
     case s2.Term.BvApp(op, args) => bv(op, args, env)
     case s2.Term.Select(array, index) =>
       val a = term(array, env)
       a match // a store application is a whole array: applying it must not flatten (see the solver)
         case App(Const(n), _) if n.startsWith("store!") => App(a, List(term(index, env)))
-        case _ => Term.app(a, List(term(index, env)))
+        case _ => App(a, List(term(index, env)))
     case s2.Term.Store(array, index, value) =>
       App(storeSymbol(sortOf(array, env)), List(term(array, env), term(index, env), term(value, env)))
     case s2.Term.Ite(cond, thn, els) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the
       // current assertion.
-      if depth > 0 then throw s2.Smt2Error("ite under a lambda is not supported")
       val sort = sortOf(thn, env)
       fresh += 1
       val name = s"ite!$fresh"
@@ -335,11 +314,6 @@ private final class Lowerer:
       definitions += Implies(Not(c), equal(sort, k, term(els, env)))
       k
     case s2.Term.Let(bindings, body) => term(body, bind(bindings, env))
-    case s2.Term.Lambda(params, body) =>
-      val inner = bindParameters(params, env)
-      depth += params.length
-      try Lambda(params.map((_, s) => sortString(s)), term(body, inner))
-      finally depth -= params.length
     case s2.Term.Bool(f) => Term.boolean(formula(f, env))
 
   /** Expands the macro `name` applied to `args` (evaluated in `env`). */
@@ -349,8 +323,8 @@ private final class Lowerer:
     val inner = params.zip(args).foldLeft(env) { case (e, ((p, s), a)) =>
       e +
         (p -> (
-          if s == Sort.Bool then Value.F(Formula.pred(term(a, env)), depth)
-          else Value.T(term(a, env), s, depth)
+          if s == Sort.Bool then Value.F(Formula.pred(term(a, env)))
+          else Value.T(term(a, env), s)
         ))
     }
     body match
@@ -403,7 +377,6 @@ private final class Lowerer:
    *  polarities.
    */
   private def floor(r: Term): Term =
-    if depth > 0 then throw s2.Smt2Error("to_int under a lambda is not supported")
     fresh += 1
     val name = s"floor!$fresh"
     introduced += ((name, "Int"))
@@ -448,7 +421,6 @@ private final class Lowerer:
     else
       rationals.getOrElseUpdate(
         (p, q), {
-          if depth > 0 then throw s2.Smt2Error("a rational literal under a lambda is not supported")
           fresh += 1
           val name = s"rat!$fresh"
           introduced += ((name, "Real"))
@@ -471,7 +443,6 @@ private final class Lowerer:
     else
       rationalProducts.getOrElseUpdate(
         (p, q, t), {
-          if depth > 0 then throw s2.Smt2Error("a rational coefficient under a lambda is not supported")
           fresh += 1
           val name = s"rat!$fresh"
           introduced += ((name, "Real"))
@@ -511,7 +482,6 @@ private final class Lowerer:
    *  current assertion.
    */
   private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
-    if depth > 0 then throw s2.Unsupported("bit-vector operations under a lambda are not supported")
     fresh += 1
     val name = s"$prefix!$fresh"
     introduced += ((name, "Int"))
@@ -587,7 +557,7 @@ private final class Lowerer:
         introduced += ((name, s2.Sorts.function(args.map(_ => "Int"), "Int")))
         functions(name) = Sort.Named(name)
       val app = App(Const(name), args)
-      if depth == 0 then definitions += range(app, if resultWidth < 0 then width else resultWidth)
+      definitions += range(app, if resultWidth < 0 then width else resultWidth)
       app
 
   /** `value` reduced modulo `2^width`: a fresh result `r` with

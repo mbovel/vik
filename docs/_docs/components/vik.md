@@ -10,14 +10,14 @@ extraCSS:
 # The solver
 
 `net.bovel.vik` plugs the parts together, starting with its own trees: the solver's term language —
-integers in linear normal form, de Bruijn lambdas — that the surface language of
+integers in linear normal form — that the surface language of
 [`net.bovel.smtlib`](smtlib.md) cannot reach except through `Lowering`, one function from script to script.
 The lowering is the compiler: names become indices and substitutions, chained atoms become pairwise
 bounds, a term-level `ite` a defined constant, rational literals defined `Real` constants,
 [bit-vectors](../theories/bit-vectors.md) linear integer arithmetic — and what the fragment excludes is
 rejected here, with a message. Then the polarity-aware
 [simplifier](../theories/first-order-logic.md) that runs before encoding, the encoder (Tseitin, atoms, the
-theory combination, the lemmas of datatypes and lambdas), the theories over
+theory combination, the lemmas of datatypes and arrays), the theories over
 [the e-graph](egraph.md) and [the LIA solver](lia.md) driven by [the CDCL(T) loop](cdclt.md), models, and
 the session that runs a script — either language, in pieces — on a solver.
 
@@ -50,7 +50,7 @@ the `check-sat`s of a script: what one check learns, the next one keeps.
 
 What a model holds: every declared constant, of every sort — an integer, a rational `(/ 1 3)`, a Boolean, an
 element `@U!0` of an uninterpreted sort, a constructor term for a datatype; and a finite graph per declared
-function, array or lambda-sorted constant, as an `ite` chain over the applications the assertions mention,
+function or array, as an `ite` chain over the applications the assertions mention,
 with a default for the rest. Its edges: a bit-vector constant is printed as its unsigned integer, with sort
 `Int`, since the solver lowered it; a datatype component the assertions never touched is an element
 `@List!0` rather than a constructor term; the constants the lowering introduced (`ite!1`, `floor!2`) are

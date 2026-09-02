@@ -17,13 +17,13 @@ committed next to the results.
 
 ## What was measured
 
-Forty-two instances — of the [SMT-LIB library](https://smt-lib.org), release 2025, but for the two
-higher-order ones, which come from the regression suites of cvc5 and z3, and one generated here — spread over
+Forty instances — of the [SMT-LIB library](https://smt-lib.org), release 2025, but for one generated here —
+spread over
 the logics VIK supports and small enough that the comparison is about the solvers rather than about one hard
 instance: eight `QF_UF`, eight `QF_LIA`, five `QF_UFLIA`, five with datatypes (two of them `QF_UFDTLIA`),
-four `QF_BV`, five over the reals, five with arrays, two higher-order. Eleven are incremental scripts —
+four `QF_BV`, five over the reals, five with arrays. Eleven are incremental scripts —
 several `check-sat`s under `push`/`pop`, the *Incremental* column — and there the whole script is the
-question. The two tables hold the same forty-two, in the same order
+question. The two tables hold the same forty, in the same order
 ([`bench/evaluation-instances.txt`](https://github.com/mbovel/vik/blob/main/bench/evaluation-instances.txt)).
 They are part of the
 [corpus](https://github.com/mbovel/vik/tree/main/corpus) the tests play, with their families and licences.
@@ -102,8 +102,6 @@ cell deliberately left out, for the reasons below.
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2" title="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc">storeinv__<wbr>storeinv_…</a></td><td>QF_AX</td><td>✗</td><td>unsat</td><td align="right">0.06</td><td align="right">0.08</td><td align="right">0.52</td><td align="right">0.64</td><td align="right">—</td><td align="right">1.37</td><td align="right">9.50</td><td align="right"><span class="best">0.03</span></td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2" title="swap__swap_invalid_t3_np_nf_ai_00002_009.cvc">swap__<wbr>swap_invalid_…</a></td><td>QF_AX</td><td>✗</td><td>sat</td><td align="right">0.43</td><td align="right">0.48</td><td align="right">0.54</td><td align="right">0.67</td><td align="right">—</td><td align="right">1.31</td><td align="right">18.70</td><td align="right"><span class="best">0.03</span></td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2" title="check__array_incompleteness1">check__<wbr>array_incomp…</a></td><td>QF_AUFLIA</td><td>✗</td><td>unsat</td><td align="right">3.29</td><td align="right">3.49</td><td align="right">0.58</td><td align="right">0.71</td><td align="right">—</td><td align="right">1.82</td><td align="right">14.69</td><td align="right"><span class="best">0.03</span></td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/HO/cvc5/regress0__define-fun-model.smt2" title="regress0__define-fun-model">regress0__<wbr>define-fu…</a></td><td>UFLIA</td><td>✗</td><td>sat</td><td align="right"><span class="best">0.01</span></td><td align="right">0.02</td><td align="right">—</td><td align="right">0.67</td><td align="right">—</td><td align="right">1.16</td><td align="right">—</td><td align="right">—</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/HO/z3test/regressions__3775.smt2" title="regressions__3775">regressions__<wbr>3775</a></td><td>HO</td><td>✗</td><td>sat</td><td align="right"><span class="best"><0.01</span></td><td align="right">0.01</td><td align="right">—</td><td align="right">0.41</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2" title="20190906-CLEARSY__0020__00009">20190906-CLEARSY__<wbr>0…</a></td><td>QF_UF</td><td>✓</td><td>181 checks</td><td align="right">9.11</td><td align="right">10.79</td><td align="right"><span class="best">6.28</span></td><td align="right">—</td><td align="right">—</td><td align="right">65.04</td><td align="right">1175.27</td><td align="right">13.02</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_LIA/smt-lib-incremental/lustre__two_counters.bmc_k100.prefix25.smt2" title="lustre__two_counters.bmc_k100.prefix25">lustre__<wbr>two_counter…</a></td><td>QF_LIA</td><td>✓</td><td>25 checks</td><td align="right"><span class="best">5.26</span></td><td align="right">6.37</td><td align="right">8.70</td><td align="right">—</td><td align="right">—</td><td align="right">22.70</td><td align="right">372.50</td><td align="right">6.89</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.prefix25.smt2" title="lustre__ex3.bmc_k100.prefix25">lustre__<wbr>ex3.bmc_k10…</a></td><td>QF_LIA</td><td>✓</td><td>25 checks</td><td align="right">510.50</td><td align="right">551.99</td><td align="right">238.56</td><td align="right">—</td><td align="right">—</td><td align="right">268.77</td><td align="right">🐢</td><td align="right"><span class="best">110.70</span></td></tr>
@@ -137,8 +135,7 @@ SMTInterpol and 1.30 for z3, half of the instances within 0.8–1.5× of even �
 table say the same, within 20% of each other either way on the small instances (the check's z3 front end
 builds a context per run, 0.46 ms that dominates its ratio on the smallest). Parsing a script this size is
 a small part of what a solver does with it, and z3's C++ parser builds a term about as fast as a JNI call
-does. The higher-order rows run the solvers that speak lambdas: VIK, z3 from text (only VIK's replay
-builds lambdas) and, on the one of the two that is not in z3's dialect, cvc5. The incremental instances leave one
+does. The incremental instances leave one
 cell out: z3's text column flattens the script into one problem — its bindings execute no script — a
 different question on a script of many `check-sat`s. Princess is measured through its API for the same
 reason in the other direction: its own script executor rejects these scripts (a re-declaration after
@@ -148,8 +145,7 @@ The 🐢 cells are mostly princess's — `NEQ004_size4`, `RandomDecoupled`, `lus
 `stack_k20` ask more than ten seconds per operation of it. The others are both z3 columns on
 `pspace/ndist.a.20000` — 20 000-bit vectors, which z3 bit-blasts whether it parses them or is handed them —
 and VIK on the `Certora` instance, discussed below. In the cold table, princess stops on `CLEARSY__0020` at
-the re-declaration above, so that cell is a `—`, and the three solvers without lambdas reject
-`regressions__3775`.
+the re-declaration above, so that cell is a `—`.
 
 Read the two VIK columns together: *VIK (API)* is the solver handed the script's terms through its
 `Session`, which is how a tool that builds the terms itself calls it — the lowering to the solver's own
@@ -242,8 +238,6 @@ reads 🐢, and a solver that rejects the file (a sort or a dialect it does not 
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2" title="storeinv__storeinv_t2_np_nf_ai_00001_001.cvc">storeinv__<wbr>storeinv_…</a></td><td>QF_AX</td><td>✗</td><td>unsat</td><td align="right">0.27</td><td align="right">0.01</td><td align="right">0.07</td><td align="right">0.01</td><td align="right"><span class="best">0.01</span></td><td align="right">0.73</td><td align="right">0.10</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2" title="swap__swap_invalid_t3_np_nf_ai_00002_009.cvc">swap__<wbr>swap_invalid_…</a></td><td>QF_AX</td><td>✗</td><td>sat</td><td align="right">0.30</td><td align="right">0.01</td><td align="right">0.09</td><td align="right">0.02</td><td align="right"><span class="best">0.01</span></td><td align="right">0.78</td><td align="right">0.10</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2" title="check__array_incompleteness1">check__<wbr>array_incomp…</a></td><td>QF_AUFLIA</td><td>✗</td><td>unsat</td><td align="right">0.38</td><td align="right">0.04</td><td align="right">0.12</td><td align="right">0.01</td><td align="right"><span class="best">0.01</span></td><td align="right">0.75</td><td align="right">0.10</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/HO/cvc5/regress0__define-fun-model.smt2" title="regress0__define-fun-model">regress0__<wbr>define-fu…</a></td><td>UFLIA</td><td>✗</td><td>sat</td><td align="right">0.26</td><td align="right">0.01</td><td align="right">0.07</td><td align="right">0.01</td><td align="right"><span class="best">0.01</span></td><td align="right">0.53</td><td align="right">0.11</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/HO/z3test/regressions__3775.smt2" title="regressions__3775">regressions__<wbr>3775</a></td><td>HO</td><td>✗</td><td>sat</td><td align="right">0.23</td><td align="right"><span class="best">0.01</span></td><td align="right">0.06</td><td align="right">0.02</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2" title="20190906-CLEARSY__0020__00009">20190906-CLEARSY__<wbr>0…</a></td><td>QF_UF</td><td>✓</td><td>181 checks</td><td align="right">0.45</td><td align="right">0.18</td><td align="right">0.17</td><td align="right"><span class="best">0.02</span></td><td align="right">0.03</td><td align="right">—</td><td align="right">0.25</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_LIA/smt-lib-incremental/lustre__two_counters.bmc_k100.prefix25.smt2" title="lustre__two_counters.bmc_k100.prefix25">lustre__<wbr>two_counter…</a></td><td>QF_LIA</td><td>✓</td><td>25 checks</td><td align="right">0.43</td><td align="right">0.10</td><td align="right">0.14</td><td align="right">0.02</td><td align="right"><span class="best">0.01</span></td><td align="right">1.40</td><td align="right">0.22</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.prefix25.smt2" title="lustre__ex3.bmc_k100.prefix25">lustre__<wbr>ex3.bmc_k10…</a></td><td>QF_LIA</td><td>✓</td><td>25 checks</td><td align="right">1.68</td><td align="right">3.97</td><td align="right">1.47</td><td align="right"><span class="best">0.19</span></td><td align="right">0.23</td><td align="right">🐢</td><td align="right">0.52</td></tr>

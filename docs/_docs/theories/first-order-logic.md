@@ -30,8 +30,8 @@ uninterpreted predicates, which are functions into `Bool`.
 (check-sat)
 ```
 
-A formula may appear where a term is expected — as an argument, in an `ite`, as a field of a datatype, or as
-the body of a lambda — and two formulas with the same truth value are then the same value:
+A formula may appear where a term is expected — as an argument, in an `ite`, or as a field of a datatype — and
+two formulas with the same truth value are then the same value:
 
 ```smt2
 (declare-fun f (Bool) Int)

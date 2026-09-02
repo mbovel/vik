@@ -29,9 +29,11 @@ is refused up front.
 (check-sat)
 ```
 
-An array is a function: `(Array I E)` is the function sort `(-> I E)`, and `select` is application. That
+An array is a function to the solver: `(Array I E)` becomes a function sort in the lowering, and `select` is
+application. That
 gives congruence — equal arrays select equal values — and extensionality — distinct arrays differ at a
-witness index — from the [function machinery](lambdas.md), with nothing added.
+witness index — from the machinery of [uninterpreted functions](uninterpreted-functions.md) and one
+witness lemma per array equality, with nothing else added.
 
 `store` is the one new operation. Each `(store a i v)` is a fresh array constrained by two lemmas: the
 write is read back (`(select (store a i v) i)` is `v`), and at every other index the store reads as `a` —

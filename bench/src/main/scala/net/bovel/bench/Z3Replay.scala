@@ -184,5 +184,4 @@ object Z3Replay:
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)
         case Op.Check => answers += (solver.check() == Status.SATISFIABLE)
-        case Op.Param(_, _, _) | Op.Lambda(_, _, _) => throw UnsupportedOperationException("lambdas: VIK's replay only")
     answers.toList

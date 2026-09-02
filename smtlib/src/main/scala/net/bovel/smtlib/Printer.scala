@@ -89,6 +89,4 @@ object Printer:
     case Term.Store(array, index, value) => s"(store ${print(array)} ${print(index)} ${print(value)})"
     case Term.Ite(cond, thn, els) => s"(ite ${print(cond)} ${print(thn)} ${print(els)})"
     case Term.Let(bs, body) => s"(let (${bindings(bs)}) ${print(body)})"
-    case Term.Lambda(params, body) =>
-      s"(lambda (${params.map((p, s) => s"($p ${s.text})").mkString(" ")}) ${print(body)})"
     case Term.Bool(formula) => print(formula)

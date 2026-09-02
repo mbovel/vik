@@ -80,20 +80,13 @@ object Replay:
     case BvCmp(dst: Int, op: BvCmpOp, lhs: Int, rhs: Int)
     case IsCtor(dst: Int, ctor: Int, arg: Int)
     case IsInt(dst: Int, a: Int)
-
-    /** A lambda's parameter, by name, and the lambda over its body: encoded for
-     *  [[VikReplay]] — the other replays throw on them.
-     */
-    case Param(dst: Int, name: String, sort: Sort)
-    case Lambda(dst: Int, params: List[(String, Sort)], body: Int)
     case Assert(slot: Int)
     case Push(levels: Int)
     case Pop(levels: Int)
     case Check
 
   /** Compiles the script: the only walk of the tree, done before measuring.
-   *  Throws on what no replay encodes (sort parameters, higher-order
-   *  application).
+   *  Throws on what no replay encodes (sort parameters).
    */
   def compile(script: Script): Replay =
     val out = ArrayBuffer.empty[Op]
@@ -207,7 +200,7 @@ object Replay:
         val id = declIds(name)
         val slots = args.zip(argSorts).map((a, s) => termOf(a, env, s)).toArray
         emit(("app", id, slots.toList), result)(Op.App(_, id, slots))
-      case Term.App(fun, _) => throw UnsupportedOperationException(s"higher-order application of $fun")
+      case Term.App(fun, _) => throw IllegalArgumentException(s"undeclared function $fun")
       case Term.ArithApp(op, args) =>
         op match
           case ArithOp.ToReal =>
@@ -260,10 +253,6 @@ object Replay:
         val (slots, sort) = typed(List(thn, els), env, expected)
         emit(("ite", c, slots(0), slots(1)), sort)(Op.Ite(_, c, slots(0), slots(1)))
       case Term.Let(bindings, body) => term(body, env ++ bind(bindings, env), expected)
-      case Term.Lambda(params, body) =>
-        val bound = params.map((name, sort) => name -> emit(("param", name, sort), sort)(Op.Param(_, name, sort)))
-        val b = term(body, env ++ bound, null)
-        emit(("lambda", params, b), Sort.fun(params.map(_._2), slotSorts(b)))(Op.Lambda(_, params, b))
       case Term.Bool(f) => formula(f, env)
 
     def formula(f: Formula, env: Env): Int = f match

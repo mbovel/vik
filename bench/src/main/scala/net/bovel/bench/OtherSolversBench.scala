@@ -87,8 +87,6 @@ class OtherSolversBench:
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
       "check__array_incompleteness1.smt2",
-      "regress0__define-fun-model.smt2",
-      "regressions__3775.smt2",
       "keymaera__division_dijkstra-node701.smt2",
       "Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2",
       "RandomDecoupled__pb_real_30_60_45_28.smt2",

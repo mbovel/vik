@@ -14,7 +14,6 @@ class IncrementalConsistencyTest extends munit.FunSuite:
     (declare-const y Int)
     (declare-fun f (Int) Int)
     (declare-fun p (Int) Bool)
-    (declare-const g (-> Int Int))
   """
 
   private val fuel = 200000L
@@ -23,7 +22,7 @@ class IncrementalConsistencyTest extends munit.FunSuite:
     val random = scala.util.Random(20260901)
     def num(n: Int): String = if n < 0 then s"(- ${-n})" else n.toString
     def simple(): String =
-      random.nextInt(11) match
+      random.nextInt(8) match
         case 0 => s"(< x ${num(random.nextInt(7) - 2)})"
         case 1 => s"(> x ${num(random.nextInt(7) - 2)})"
         case 2 => s"(< y ${num(random.nextInt(7) - 2)})"
@@ -31,10 +30,7 @@ class IncrementalConsistencyTest extends munit.FunSuite:
         case 4 => s"(= (f y) ${random.nextInt(4)})"
         case 5 => "(= x y)"
         case 6 => "(p x)"
-        case 7 => "(not (p y))"
-        case 8 => s"(= (g 0) ${random.nextInt(4)})"
-        case 9 => s"(= (g x) ${random.nextInt(4)})"
-        case _ => s"(= g (lambda ((z Int)) (+ z ${random.nextInt(3)})))"
+        case _ => "(not (p y))"
     def atom(): String = if random.nextInt(4) == 0 then s"(or ${simple()} ${simple()})" else simple()
     for scriptIndex <- 1 to 60 do
       val live = collection.mutable.ArrayBuffer(collection.mutable.ArrayBuffer.empty[String])

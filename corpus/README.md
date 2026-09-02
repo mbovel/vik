@@ -1,7 +1,7 @@
 # The corpus of SMT-LIB files
 
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
-`QF_LRA`, `QF_UFLRA`, `HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
+`QF_LRA`, `QF_UFLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `SmtLibTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —

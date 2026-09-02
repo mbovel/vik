@@ -151,11 +151,3 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve(fuel = 1), s.Result.Unknown(s.Reason.Fuel))
     assertEquals(s.solve(() => false), s.Result.Unknown(s.Reason.Stopped))
     assertEquals(s.solve(), s.Result.Sat)
-
-  test("the simplifier substitutes a local lambda and the redex reduces"):
-    val f = Const("f")
-    val (simplified, _) = Simplifier.simplify(List(And(List(
-      Eq(Const("g"), Lambda(List("Int"), App(f, List(Var(0))))),
-      Not(IntEq(App(Const("g"), List(Num(2))), App(f, List(Num(2)))))
-    ))))
-    assertEquals(simplified, List(Not(IntEq(App(f, List(Num(2))), App(f, List(Num(2)))))))

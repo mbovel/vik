@@ -26,8 +26,7 @@ equal results.
 (check-sat)
 ```
 
-Disequalities, `distinct`, and functions of any arity; a function symbol is a value of a function sort, so
-`f = g` is an equality like any other (see [functions as values](lambdas.md)).
+Disequalities, `distinct`, and functions of any arity.
 
 ```smt2
 (declare-sort U 0)

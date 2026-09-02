@@ -17,12 +17,11 @@ behind it.
 - [Algebraic datatypes](datatypes.md): constructors, selectors, testers, acyclicity.
 - [Bit-vectors](bit-vectors.md): the arithmetic lowered to integers, no bit-blasting; the rest by a
   counterexample-guided loop.
-- [Functions as values](lambdas.md): function sorts, lambdas, partial application, extensionality.
 - [Arrays](arrays.md): `select` as application, `store` by lemmas, extensional.
 
 Each page opens with whether VIK is a decision procedure for its fragment: yes for uninterpreted
 functions, integers (branch and bound inside the small-model box), reals, datatypes, bit-vectors and
-flat arrays; no for the higher-order core (sound, no completeness claim). Every answer is
+flat arrays. Every answer is
 within a fuel: any question can also stop at the budget with `unknown`.
 
 Not supported: quantifiers, strings, sets, floating point. A script that uses them is

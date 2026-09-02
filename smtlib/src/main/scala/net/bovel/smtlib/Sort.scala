@@ -1,10 +1,11 @@
 package net.bovel.smtlib
 
-/** A sort, as SMT-LIB writes it. `(-> S1 ... Sn R)` is VIK's function-sort
- *  syntax (lambdas and function symbols as values); `(Array I E)` is read as
- *  written and becomes a function sort in the solver's lowering. `Named` covers
- *  the uninterpreted sorts and the datatypes — which of the two a name is, the
- *  declarations say.
+/** A sort, as SMT-LIB writes it. `(Array I E)` is read as written and becomes a
+ *  function sort in the solver's lowering. `Named` covers the uninterpreted
+ *  sorts and the datatypes — which of the two a name is, the declarations say.
+ *  `Fun` is the sort of a declared function symbol, which the parser keeps to
+ *  type its applications: no script writes it, a function symbol is applied,
+ *  never a value.
  */
 enum Sort:
   case Bool
@@ -35,10 +36,10 @@ enum Sort:
     case _ => None
 
   /** The sort of a term of this sort applied to `n` arguments, `None` when it
-   *  is not a function sort of at least that many.
+   *  is not a function sort of exactly that many.
    */
   def applied(n: scala.Int): Option[Sort] = this match
-    case Fun(args, result) if n <= args.length => Some(Sort.fun(args.drop(n), result))
+    case Fun(args, result) if n == args.length => Some(result)
     case _ => None
 
 object Sort:

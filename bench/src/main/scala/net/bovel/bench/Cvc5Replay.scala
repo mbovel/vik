@@ -169,7 +169,5 @@ object Cvc5Replay:
           case Op.Push(levels) => solver.push(levels)
           case Op.Pop(levels) => solver.pop(levels)
           case Op.Check => answers += solver.checkSat().isSat
-          case Op.Param(_, _, _) | Op.Lambda(_, _, _) =>
-            throw UnsupportedOperationException("lambdas: VIK's replay only")
       answers.toList
     finally solver.deletePointer()

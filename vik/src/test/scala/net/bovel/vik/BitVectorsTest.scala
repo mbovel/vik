@@ -67,9 +67,6 @@ class BitVectorsTest extends munit.FunSuite:
       s"$small (assert (= x #x7)) (assert (= y #x3)) (assert (bvult (bvmul x y) #xf)) (check-sat) (get-value ((bvmul x y) (bvand x y)))"
     ))
     assertEquals(out, List("sat", "(((bvmul x y) 5) ((bvand x y) 3))"))
-    // Under a lambda too: no fresh constants, so the operation can take bound arguments.
-    assert(sat(s"$small (assert (= ((lambda ((z (_ BitVec 4))) (bvmul z z)) x) #x9)) (assert (= x #x3)) (check-sat)"))
-    assert(!sat(s"$small (assert (= ((lambda ((z (_ BitVec 4))) (bvmul z z)) x) #x9)) (assert (= x #x2)) (check-sat)"))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.

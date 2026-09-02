@@ -58,9 +58,6 @@ warm() {
   # A princess operation past the budget (car_6, stack_k20: princess itself, its binary is as slow) lands
   # on bench/timeouts.txt the first time: the fork refuses it in milliseconds after, and the cell reads 🐢.
   chain+=$(seg "$OUT-warm-inc-p.json" "$(group inc)"    "princess" -f 1 -wi 1 -i 2)
-  # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
-  chain+=$(seg "$OUT-warm-ho.json"   "$(group hof)"     "(vik|vikText|z3)")
-  chain+=$(seg "$OUT-warm-ho-c.json" "regress0__define-fun-model.smt2" "cvc5")
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
   # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
@@ -82,7 +79,7 @@ regen() {
   # All dates per group, oldest first: the newest measurement of a cell wins, and an instance
   # only measured on an earlier date keeps its row until a newer run covers it.
   local jsons=() suffix f
-  for suffix in warm warm-p warm-inc warm-inc-p warm-ho warm-ho-c; do
+  for suffix in warm warm-p warm-inc warm-inc-p; do
     for f in $(ls $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # empties skipped (a running run pre-creates its file); names sort chronologically, mtimes lie after checkout
   done
   local cold_tsv; cold_tsv=$(ls $R/*-cold.tsv | tail -1)

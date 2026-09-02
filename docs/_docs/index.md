@@ -10,7 +10,7 @@ extraCSS:
 # Introduction
 
 An SMT solver in Scala 3, small enough to read: equality with uninterpreted functions, linear integer
-arithmetic over integers and reals, algebraic datatypes, arrays, lambdas, and the arithmetic fragment of
+arithmetic over integers and reals, algebraic datatypes, arrays, and the arithmetic fragment of
 bit-vectors, in about 5000 lines of
 solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be embedded — as a
 library, in the process of the tool that asks the questions.
@@ -45,7 +45,6 @@ Each page says what you can write, how it is solved, and first of all whether VI
 | [Real arithmetic](theories/reals.md) | Yes. |
 | [Algebraic datatypes](theories/datatypes.md) | Yes. |
 | [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
-| [Functions as values](theories/lambdas.md) | No: a sound core, with no completeness claim. |
 | [Arrays](theories/arrays.md) | Yes, for flat arrays. |
 
 ## The components

@@ -7,9 +7,6 @@ import net.bovel.smtlib.Datatype
  *  solver, or to show it (`smt2lowered`, `get-assertions`, the models).
  */
 object Printer:
-  /** The number of parameters of the lambdas being printed. */
-  private var lambdaDepth = 0
-
   def print(script: Script): String = script.commands.map(print).mkString("", "\n", "\n")
 
   def print(command: Command): String = command match
@@ -63,14 +60,6 @@ object Printer:
     case Term.Const(name) => name
     case Term.App(fun, args) => args.map(print).mkString(s"(${print(fun)} ", " ", ")")
     case Term.Num(value) => if value.signum < 0 then s"(- ${-value})" else value.toString
-    case Term.Lambda(sorts, body) =>
-      // Parameters named by their de Bruijn level, which is unique across the nesting.
-      val names = sorts.indices.map(i => s"%${lambdaDepth + i}")
-      lambdaDepth += sorts.length
-      val printed = try print(body)
-      finally lambdaDepth -= sorts.length
-      s"(lambda (${names.zip(sorts).map((n, s) => s"($n $s)").mkString(" ")}) $printed)"
-    case Term.Var(index) => s"%${lambdaDepth - 1 - index}"
     case Term.Bool(formula) => print(formula)
     case Term.Linear(terms, constant) =>
       val summands = terms.map((a, t) => if a == 1 then print(t) else s"(* ${print(Term.Num(a))} ${print(t)})") ++

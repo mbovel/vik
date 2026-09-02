@@ -12,23 +12,6 @@ class LoweringTest extends munit.FunSuite:
   def lowered(script: String): List[Formula] =
     Lowering(Parser.parse(script)).commands.collect { case Command.Assert(f) => f }
 
-  test("lambda names become de Bruijn indices"):
-    val printed = Printer.print(Lowering(Parser.parse("""
-      (declare-fun f (Int Int) Int)
-      (declare-const h (-> Int (-> Int Int)))
-      (assert (= h (lambda ((y Int)) (lambda ((z Int)) (f z y)))))""")))
-    assert(printed.contains("(lambda ((%0 Int)) (lambda ((%1 Int)) (f %1 %0)))"), printed)
-
-  test("syntactic redexes are reduced"):
-    val asserts = lowered("""
-      (declare-fun f (Int) Int)
-      (declare-const c Int)
-      (assert (= c ((lambda ((x Int)) (+ (f x) 1)) 3)))
-      (assert (= ((lambda ((g (-> Int Int)) (y Int)) (g (g y))) (lambda ((z Int)) (f z)) c) 7))""")
-    val f = Const("f")
-    assertEquals(asserts(0), IntEq(Const("c"), Term.linear(List((BigInt(1), App(f, List(Num(3))))), 1)))
-    assertEquals(asserts(1), IntEq(App(f, List(App(f, List(Const("c"))))), Num(7)))
-
   test("a term-level ite becomes a defined constant before its assertion"):
     val commands = Lowering(Parser.parse(
       "(declare-const p Bool) (declare-const x Int) (declare-const y Int) (assert (= (ite p x y) 2))"

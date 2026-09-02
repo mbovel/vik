@@ -6,14 +6,14 @@ import net.bovel.sexpr.{SExpr, SExprParser}
 import net.bovel.sexpr.SExpr.{SAtom, SList}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, QF_AX, the bit-vectors and VIK's
- *  lambdas) into a [[Script]], as written: terms of uninterpreted, numeric and
+ *  into a [[Script]], as written: terms of uninterpreted, numeric and
  *  bit-vector sorts become [[Term]]s, Boolean ones [[Formula]]s, and nothing is
- *  rewritten — `let` and `lambda` keep their names, `(= a b c)` stays chained,
- *  `(+ a b c)` n-ary. The solver's `Lowering` compiles the result. The parser's
- *  own work is reading and sorts: sorts of declared and bound symbols decide
- *  which tree a subterm belongs to (`=` on Booleans is equivalence, a Boolean
- *  application a [[Formula.Pred]]) and reject what no theory here speaks
- *  (strings, floats, ...). An unknown symbol is an error.
+ *  rewritten — `let` keeps its names, `(= a b c)` stays chained, `(+ a b c)`
+ *  n-ary. The solver's `Lowering` compiles the result. The parser's own work is
+ *  reading and sorts: sorts of declared and bound symbols decide which tree a
+ *  subterm belongs to (`=` on Booleans is equivalence, a Boolean application a
+ *  [[Formula.Pred]]) and reject what no theory here speaks (strings, floats,
+ *  ...). An unknown symbol is an error.
  */
 /** One parser: it carries the declarations and macros the commands build up, so
  *  the next `parse` reads its input in their scope ([[Parser.parse]] makes a
@@ -88,7 +88,11 @@ final class Parser:
       // An item outside the fragment (another theory's term) leaves the whole command unanswered, as before.
       try
         List(Command.GetValue(items.map(s =>
-          s.toString -> (if sortOf(s, Map.empty) == Sort.Bool then formula(s, Map.empty) else term(s, Map.empty))
+          s.toString ->
+            (s match
+              case SAtom(name) if functions.get(name).flatMap(_.arrow).exists(_._1.nonEmpty) =>
+                Term.Const(name) // a function symbol: its graph in the model
+              case _ => if sortOf(s, Map.empty) == Sort.Bool then formula(s, Map.empty) else term(s, Map.empty))
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))
     case SList(SAtom("set-option") :: SAtom(key) :: value :: Nil) => List(Command.SetOption(key, value.toString))
@@ -141,9 +145,6 @@ final class Parser:
     case SList(SAtom("Array") :: args) if args.length >= 2 =>
       val sorts = args.map(sort)
       sorts.init.foldRight(sorts.last)(Sort.Array(_, _))
-    case SList(SAtom("->") :: args) if args.length >= 2 =>
-      val sorts = args.map(sort)
-      Sort.fun(sorts.init, sorts.last)
     case other => Sort.Named(other.toString) // opaque: rejected by `check` where a symbol is declared
 
   /** Rejects, at a declaration or a binder, the sorts of theories that are not
@@ -160,12 +161,9 @@ final class Parser:
     case Sort.Array(index, element) =>
       check(index)
       check(element)
-    case Sort.Fun(args, result) =>
-      args.foreach(check)
-      check(result)
     case _ => ()
 
-  /** The parameters of a lambda or a macro, `((x S) ...)`, with their sorts.
+  /** The parameters of a macro, `((x S) ...)`, with their sorts.
    */
   private def parameters(params: List[SExpr]): List[(String, Sort)] = params.map {
     case SList(SAtom(p) :: s :: Nil) =>
@@ -189,7 +187,7 @@ final class Parser:
     case _ => false
 
   /** The sort of an expression: what decides between the two trees. `env` binds
-   *  the `let`- and `lambda`-bound names in scope.
+   *  the `let`-bound names in scope.
    */
   private def sortOf(sexpr: SExpr, env: Map[String, Sort]): Sort = sexpr match
     case SAtom("true" | "false") => Sort.Bool
@@ -227,20 +225,16 @@ final class Parser:
     case SList(SAtom("select") :: a :: _ :: Nil) =>
       sortOf(a, env) match
         case Sort.Array(_, element) => element
-        case s => applied(s, 1)
+        case s => throw Smt2Error(s"select on $s")
     case SList(SAtom("store") :: a :: _ :: _ :: Nil) => sortOf(a, env)
     case SList(SAtom("+" | "-" | "*") :: args) =>
       if args.exists(a => sortOf(a, env) == Sort.Real) then Sort.Real else Sort.Int
-    case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
-      val ps = parameters(params)
-      Sort.fun(ps.map(_._2), sortOf(body, env ++ ps))
     case SList(SList(SAtom("_") :: SAtom("is") :: SAtom(_) :: Nil) :: _ :: Nil) => Sort.Bool
     case SList(SAtom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
     case SList(SAtom("let") :: SList(bindings) :: body :: Nil) =>
       sortOf(body, env ++ bindings.map { case SList(SAtom(name) :: value :: Nil) => name -> sortOf(value, env) })
     case SList(SAtom(name) :: args) if macros.contains(name) => macros(name)._2
     case SList(SAtom(name) :: args) => applied(sortOf(SAtom(name), env), args.length)
-    case SList((fun @ SList(_)) :: args) => applied(sortOf(fun, env), args.length)
     case other => throw Smt2Error(s"cannot type $other")
 
   private def width(s: Sort): Int = s match
@@ -301,7 +295,7 @@ final class Parser:
     case SAtom("true") => Term.Bool(True)
     case SAtom("false") => Term.Bool(False)
     case SList(SAtom(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
-    // A formula-shaped tree where a term is expected (an argument, a field, a lambda body).
+    // A formula-shaped tree where a term is expected (an argument, a field).
     case SList(SAtom("not" | "and" | "or" | "=>" | "xor" | "distinct" | "<=" | "<" | ">=" | ">" | "is_int") :: _) =>
       Term.Bool(formula(sexpr, env))
     case SList(SAtom("=") :: _ :: _ :: _) => Term.Bool(formula(sexpr, env))
@@ -317,9 +311,9 @@ final class Parser:
       Term.Bits(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)), width.toInt)
     case SAtom(name) =>
       declared(name, env)
-      macros.get(name).foreach((params, _, _) =>
-        if params.nonEmpty then throw Smt2Error(s"$name expects ${params.length} arguments")
-      )
+      if !env.contains(name) then // a function symbol is applied, never a value
+        val params = macros.get(name).map(_._1.length).orElse(functions.get(name).flatMap(_.arrow).map(_._1.length))
+        params.filter(_ > 0).foreach(n => throw Smt2Error(s"$name expects $n arguments"))
       Term.Const(name)
     case SList(SAtom(op) :: args) if BvOp.named.contains(op) => Term.BvApp(BvOp.named(op), args.map(term(_, env)))
     case SList(SList(SAtom("_") :: SAtom(op) :: indices) :: args)
@@ -340,9 +334,6 @@ final class Parser:
     case SList(SAtom("abs") :: a :: Nil) => Term.ArithApp(ArithOp.Abs, List(term(a, env)))
     case SList(SAtom("to_real") :: a :: Nil) => Term.ArithApp(ArithOp.ToReal, List(term(a, env)))
     case SList(SAtom("to_int") :: a :: Nil) => Term.ArithApp(ArithOp.ToInt, List(term(a, env)))
-    case SList(SAtom("lambda") :: SList(params) :: body :: Nil) =>
-      val ps = parameters(params)
-      Term.Lambda(ps, term(body, env ++ ps))
     case SList(SAtom("ite") :: cond :: thn :: els :: Nil) =>
       Term.Ite(formula(cond, env), term(thn, env), term(els, env))
     case SList(SAtom("let") :: SList(bs) :: body :: Nil) =>
@@ -352,15 +343,12 @@ final class Parser:
     case SList(SAtom(name) :: args) =>
       declared(name, env)
       Term.App(Term.Const(name), args.map(term(_, env)))
-    case SList((fun @ SList(_)) :: args) => Term.App(term(fun, env), args.map(term(_, env)))
     case other => throw Smt2Error(s"not a term: $other")
   end term
 
-  /** Whether `a` is an array or a function: what `select` and `store` accept
-   *  (an array is a function to the solver).
-   */
+  /** Whether `a` is an array: what `select` and `store` accept. */
   private def selectable(a: SExpr, env: Map[String, Sort]): Boolean = sortOf(a, env) match
-    case Sort.Array(_, _) | Sort.Fun(_, _) => true
+    case Sort.Array(_, _) => true
     case _ => false
 
   /** Checks that `name` is declared, bound or a macro. */

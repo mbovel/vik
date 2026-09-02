@@ -108,7 +108,7 @@ s.checkSat() // Some(false)
 ```
 
 Sorts are strings, as in SMT-LIB: `"Int"`, `"Bool"`, an uninterpreted sort you declared, a datatype you
-declared, or a function sort `"(-> Int Int)"`. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
+declared. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
 the companion adds `Lt`, `Ge`, `Gt`, `IntEq`, `Distinct`; the operators `===`, `!==`, `<=`, `<`, `>=`, `>`,
 `+`, `-`, `*` build terms and formulas as they read.
 

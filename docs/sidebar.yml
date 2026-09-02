@@ -15,7 +15,6 @@ subsection:
       - page: theories/reals.md
       - page: theories/datatypes.md
       - page: theories/bit-vectors.md
-      - page: theories/lambdas.md
       - page: theories/arrays.md
   - title: Components
     index: components/index.md

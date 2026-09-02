@@ -1,11 +1,12 @@
 package net.bovel.smtlib
 
-import net.bovel.vik.{Session, Solver, Model}
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters.*
 import scala.util.Try
+
+import net.bovel.vik.{Model, Session, Solver}
 
 /** The corpus of SMT-LIB files (`corpus/`, see its README), one test per file:
  *  the answers must be the statuses in the file, within a fuel per `check-sat`

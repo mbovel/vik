@@ -10,7 +10,7 @@ import scala.util.hashing.MurmurHash3
  *  where the fragment line is drawn, with a message.
  */
 enum Term:
-  /** A declared symbol, or a name bound by an enclosing `let` or `lambda`. */
+  /** A declared symbol, or a name bound by an enclosing `let`. */
   case Const(name: String)
   case Numeral(value: BigInt)
 
@@ -22,7 +22,7 @@ enum Term:
    */
   case Bits(value: BigInt, width: Int)
 
-  /** An uninterpreted application, higher-order as in `((f 1) 2)`. */
+  /** An uninterpreted application. */
   case App(fun: Term, args: List[Term])
   case ArithApp(op: ArithOp, args: List[Term])
   case BvApp(op: BvOp, args: List[Term])
@@ -30,7 +30,6 @@ enum Term:
   case Store(array: Term, index: Term, value: Term)
   case Ite(cond: Formula, thn: Term, els: Term)
   case Let(bindings: List[(String, Term | Formula)], body: Term)
-  case Lambda(params: List[(String, Sort)], body: Term)
 
   /** A formula where a term is expected: a `Bool`-sorted argument, body or
    *  field.

@@ -80,8 +80,6 @@ object VikReplay:
         case Op.BvCmp(dst, cop, l, r) => slots(dst) = Formula.BvCmp(cop, term(l), term(r))
         case Op.IsCtor(dst, ctor, arg) => slots(dst) = Formula.IsConstructor(names(ctor), term(arg))
         case Op.IsInt(dst, a) => slots(dst) = Formula.IsInt(term(a))
-        case Op.Param(dst, name, _) => slots(dst) = Term.Const(name)
-        case Op.Lambda(dst, params, body) => slots(dst) = Term.Lambda(params, term(body))
         case Op.Assert(slot) => s.assert(formula(slot))
         case Op.Push(levels) => for _ <- 1 to levels do s.push()
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()

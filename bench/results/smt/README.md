@@ -9,14 +9,13 @@ The SMT-LIB instances live in the repository's corpus, [smtlib/](../../../smtlib
 (`smtlib/<logic>/smt-lib/`); the benchmarks use the ones listed in `SmtBench` and `OtherSolversBench`, the tests
 play the whole corpus. The table of families, statuses and licenses is in the corpus README.
 
-## Integer and lambda workloads (`UfliaBench`, `LambdaBench`)
+## Integer workloads (`UfliaBench`)
 
 Random instances built with the `vik` API:
 
 | Benchmark | Workload | Exercises |
 |---|---|---|
 | `UfliaBench.solve` | ten sets of `n` random formulas over `n` integer constants in `[-5, 5]` and `f : Int -> Int` (`f(x + 1) <= f(y)`, `f(x) = y - 1`, ...), `n` = 5 and 10 | the combination: shared terms, equality atoms of both theories, disequalities decided by branching; the atoms are quadratic in the shared terms (`n` = 20 takes minutes per set) |
-| `LambdaBench.{sat,unsat}` | a chain of `n` functions defined by lambdas, `g_0 = λx. f(x)`, `g_i = λx. g_{i-1}(x) + 1`, and `g_n(c)` against its unfolding, `n` = 10 and 30 | the beta lemmas to a fixpoint, the sharing of the integers they create |
 
 ## Running
 
@@ -103,8 +102,6 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-08-29, laraserver4, QF_BV comparison](2026-08-29-laraserver4-compare-bv.md) — one process per solver and instance on the 12 QF_BV instances, 60 s limit ([tsv](compare-raw-bv.tsv))
 - [2026-08-29, laraserver4, in process](2026-08-29-laraserver4-inprocess.md) — VIK, z3 (direct AST and parsed), cvc5, princess and SMTInterpol in the same JVM on the 30 instances
 - [2026-08-29, laraserver4, datatypes](2026-08-29-laraserver4-dt.md) — `AdtBench`, the QF_DT instances in process (VIK, z3 direct and parsed, cvc5) and one process per solver ([tsv](compare-raw-dt.tsv))
-- [2026-08-29, laraserver4, lambdas](2026-08-29-laraserver4-lambda.md) — `LambdaBench`: a chain of `n` lambda-defined functions unfolded by the beta lemmas; the `n = 30` cost is the quadratic sharing of the ~95 integer terms the lemmas create
-- [2026-08-29, laraserver4, integers and lambdas](2026-08-29-laraserver4-uflia.md) — `UfliaBench` (n = 5: 1.7 ms, n = 10: 200 ms) and `LambdaBench` again after the sharing was restricted to the pairs that can meet and syntactic redexes normalized: n = 30 from 234–341 ms to 0.23 ms
+- [2026-08-29, laraserver4, integers](2026-08-29-laraserver4-uflia.md) — `UfliaBench` (n = 5: 1.7 ms, n = 10: 200 ms)
 - [2026-08-29, laraserver4, QF_UFLIA comparison](2026-08-29-laraserver4-compare-uflia.md) — one process per solver and instance on the 12 QF_UFLIA instances, 60 s limit ([tsv](compare-raw-uflia.tsv)): VIK 9/12 in 0.2–1.9 s (`xs_38_38` 50 s), z3 and cvc5 0.01–0.4 s, princess 0.5–1.9 s, SMTInterpol 0.1–1.1 s; `hash_sat_09_08` and `hard13` exceed 60 s
 - [2026-08-29, laraserver4, QF_UFLIA instances](2026-08-29-laraserver4-uflia-instances.md) — VIK in process on the eight QF_UFLIA instances of the JMH set (wisas `xs_20_20` 0.73 s, Hash `hash_uns_04_18` 0.37 s)
-- [2026-08-30, laraserver4, higher-order core](2026-08-30-laraserver4-hocore.md) — VIK in process after curried applications, extensionality witnesses and `Bool` as a sort, against the previous records: neutral (QF_UF 0.87–1.13×, QF_DT 0.69–0.83× of which most predates it, LambdaBench 0.78×, UFLIA 1.0×); with the bisect of the blocksworld and NEQ004 differences
