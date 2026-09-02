@@ -33,13 +33,13 @@ OUT=$R/$DATE-$HOST
 
 # The suites of net.bovel.bench.evaluation, every instance of every solver, in one JMH run: the
 # forks and iterations are their annotations (3 forks, 3 warm-up and 3 measurement iterations).
-# -foe false: a fork the Budget watchdog halts must not end the evaluation — JMH prints the
-# failure and moves to the next combo, and the table renders the noted cell as 🐢 (a combo already
-# on bench/timeouts.txt returns at once; the ledger, not its measurement, decides its cell).
+# -foe true: a failure ends the run, JMH's results file included. A fork the Budget watchdog halts
+# is one — the combo is on bench/timeouts.txt by then, so the next run passes it at once (the
+# ledger, not its measurement, decides its cell: 🐢) — and a new one past the budget is rare.
 # No -gc true: a forced GC between iterations measured the JVM solvers 27–51% slower (2026-09-02,
 # VIK and SMTInterpol on icl662 and CAV_2009), and z3's binding needs none (see Z3Replay.check).
 warm() {
-  local chain="bench/Jmh/run -foe false -rf json -rff $OUT-warm.json net.bovel.bench.evaluation.*"
+  local chain="bench/Jmh/run -foe true -rf json -rff $OUT-warm.json net.bovel.bench.evaluation.*"
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
   # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
