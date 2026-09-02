@@ -1,6 +1,6 @@
 package net.bovel.smtlib
 
-import net.bovel.vik.{Player, Solver, Model}
+import net.bovel.vik.{Session, Solver, Model}
 import java.nio.file.{Files, Path}
 
 import scala.jdk.CollectionConverters.*
@@ -25,7 +25,7 @@ class DocsSnippetsTest extends munit.FunSuite:
 
   for page <- markdown; (snippet, i) <- snippets(page).zipWithIndex do
     test(s"${pages.relativize(page)} snippet ${i + 1}"):
-      val answers = Player.answers(Parser.parse(snippet), fuel = fuel)
+      val answers = Session.answers(Parser.parse(snippet), fuel = fuel)
       assert(answers.nonEmpty, "no check-sat")
       // A snippet that sets `:rlimit` is showing what a budget does, and answers `unknown` on purpose.
       // `:rlimit` snippets show what a budget does; an `answers unknown` comment marks a documented

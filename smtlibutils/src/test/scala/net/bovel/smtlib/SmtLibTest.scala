@@ -1,6 +1,6 @@
 package net.bovel.smtlib
 
-import net.bovel.vik.{Player, Solver, Model}
+import net.bovel.vik.{Session, Solver, Model}
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -41,7 +41,7 @@ class SmtLibTest extends munit.FunSuite:
             val text = Corpus.read(file)
             val script = Parser.parse(text)
             val expected = script.expectedStatuses
-            val got = Player.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
+            val got = Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
             val agrees = got.length == expected.length &&
               got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
             // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
@@ -50,7 +50,7 @@ class SmtLibTest extends munit.FunSuite:
               if expects.isEmpty || reason.isDefined ||
                 !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
               then expects
-              else Player.run(script, fuel = fuel)
+              else Session.run(script, fuel = fuel)
             (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")
           },
           Duration(5, "s")

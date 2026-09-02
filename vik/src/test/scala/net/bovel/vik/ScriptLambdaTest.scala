@@ -9,7 +9,7 @@ import net.bovel.smtlib.Term.*
  *  with anything (see [[Term.instantiate]]).
  */
 class ScriptLambdaTest extends munit.FunSuite:
-  def check(script: String): List[Boolean] = Player.play(Parser.parse(script))
+  def check(script: String): List[Boolean] = Session.answers(Parser.parse(script)).map(_.get)
 
   test("parsed to de Bruijn indices, printed back"):
     val script = Parser.parse("""

@@ -4,7 +4,7 @@ import net.bovel.smtlib.{Parser, Printer}
 
 /** `:named` assertions and `get-unsat-core`. */
 class CoresTest extends munit.FunSuite:
-  private def run(text: String): List[String] = Player.run(Parser.parse(text))
+  private def run(text: String): List[String] = Session.run(Parser.parse(text))
 
   test("the core names the guilty assertions"):
     val responses = run("""

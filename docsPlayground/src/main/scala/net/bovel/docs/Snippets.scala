@@ -2,9 +2,8 @@ package net.bovel.docs
 
 import scala.scalajs.js.annotation.JSExportTopLevel
 
-import net.bovel.vik.Solver
 import net.bovel.smtlib.{Parser, Printer}
-import net.bovel.vik.Player
+import net.bovel.vik.Session
 
 /** The solver as a WebAssembly module for the documentation pages: the
  *  snippets of the guide are run by `solve`, in the reader's browser. Linked
@@ -17,7 +16,7 @@ object Snippets:
    */
   @JSExportTopLevel("solve")
   def solve(script: String, fuel: Double): String =
-    try Player.run(Parser.parse(script), Solver(), fuel.toLong).mkString("\n")
+    try Session.run(Parser.parse(script), fuel.toLong).mkString("\n")
     catch case e: Exception => s"error: ${e.getMessage}"
 
   /** The script as VIK plays it: simplified sorts, bit-vectors lowered to

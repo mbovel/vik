@@ -5,7 +5,7 @@ import Formula.*
 
 class Smt2Test extends munit.FunSuite:
 
-  def run(script: String): List[Boolean] = Player.play(Parser.parse(script))
+  def run(script: String): List[Boolean] = Session.answers(Parser.parse(script)).map(_.get)
 
   test("declarations, assertions and check-sat"):
     val s = Parser.parse("""
@@ -22,7 +22,7 @@ class Smt2Test extends munit.FunSuite:
     """)
     assertEquals(s.expectedStatus, Some(false))
     assertEquals(s.commands.collect { case Command.Assert(f) => f }.length, 2)
-    assertEquals(Player.play(s), List(false))
+    assertEquals(Session.run(s), List("unsat"))
 
   test("Boolean sorts: constants, predicates and equality as iff"):
     assertEquals(
@@ -81,7 +81,7 @@ class Smt2Test extends munit.FunSuite:
       },
       List("ite!1")
     )
-    assertEquals(Player.play(s), List(false))
+    assertEquals(Session.run(s), List("unsat"))
 
   test("printing round-trips"):
     val text = """(set-logic QF_UF)
@@ -97,7 +97,7 @@ class Smt2Test extends munit.FunSuite:
 """
     val script = Parser.parse(text)
     assertEquals(Printer.print(script), text)
-    assertEquals(Player.play(Parser.parse(Printer.print(script))), Player.play(script))
+    assertEquals(Session.run(Parser.parse(Printer.print(script))), Session.run(script))
 
   test("errors"):
     intercept[Smt2Error](Parser.parse("(assert (= a unknown!))"))

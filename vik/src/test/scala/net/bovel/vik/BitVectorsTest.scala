@@ -9,12 +9,12 @@ import net.bovel.smtlib.Parser
  *  compared with what the solver accepts.
  */
 class BitVectorsTest extends munit.FunSuite:
-  def sat(script: String): Boolean = Player.play(Parser.parse(script)) == List(true)
+  def sat(script: String): Boolean = Session.answers(Parser.parse(script)) == List(Some(true))
 
   val decls = "(set-logic QF_BV) (declare-const x (_ BitVec 8)) (declare-const y (_ BitVec 8))"
 
   test("get-assertions shows the lowered stack"):
-    val out = Player.run(Parser.parse(s"$decls (assert (bvult x y)) (get-assertions)"))
+    val out = Session.run(Parser.parse(s"$decls (assert (bvult x y)) (get-assertions)"))
     assert(out.last.contains("(<= x 255)"), out.last) // the range of a declared bit-vector
     assert(out.last.contains("(<= (+ x 1) y)"), out.last) // bvult, lowered
 
@@ -45,8 +45,8 @@ class BitVectorsTest extends munit.FunSuite:
     assert(sat(s"$decls (assert (= (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)")) // an identity: sat for every x
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
     // The whole vocabulary parses — the tree holds it — and the lowering draws the fragment line.
-    intercept[net.bovel.smtlib.Unsupported](Player.play(Parser.parse(s"$decls (assert (= (bvmul x y) #x01))")))
-    intercept[net.bovel.smtlib.Unsupported](Player.play(Parser.parse(s"$decls (assert (= (bvor x y) #x01))")))
+    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvmul x y) #x01))")))
+    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvor x y) #x01))")))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.

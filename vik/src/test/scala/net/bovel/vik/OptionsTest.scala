@@ -18,8 +18,8 @@ class OptionsTest extends munit.FunSuite:
       (check-sat)
       (get-info :reason-unknown)""")
     assertEquals(
-      Player.run(script),
+      Session.run(script),
       List("unknown", "((:reason-unknown resourceout))", "sat", "((:reason-unknown incomplete))")
     )
-    assertEquals(Player.answers(script), List(None, Some(true)))
+    assertEquals(Session.answers(script), List(None, Some(true)))
     assertEquals(Parser.parse(Printer.print(script)), script)

@@ -11,7 +11,7 @@ import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import net.bovel.smtlib.{Corpus, Parser}
-import net.bovel.vik.{Lowering, Player, Printer, Script as VikScript, Solver}
+import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
  *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
@@ -119,11 +119,11 @@ class OtherSolversBench:
 
   /** The solver on a problem it already holds, as a tool that builds the terms itself calls it. */
   @Benchmark
-  def vik(): List[Boolean] = Budget.run("vik", file)(Player.play(script, Solver()))
+  def vik(): List[Boolean] = Budget.run("vik", file)(Session().play(script.commands).map(_ == "sat"))
 
   /** The same, from the text of the script: what the solvers that parse below are measured on. */
   @Benchmark
-  def vikText(): List[Boolean] = Budget.run("vikText", file)(Player.play(Parser.parse(text)))
+  def vikText(): List[Boolean] = Budget.run("vikText", file)(Session().run(Parser.parse(text)).map(_ == "sat"))
 
   /** Replays the instance's [[PrincessProgram]] — declarations, terms,
    *  asserts, `push`/`pop` and every `check-sat` through princess's API,

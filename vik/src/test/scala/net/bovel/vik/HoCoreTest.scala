@@ -9,7 +9,7 @@ import net.bovel.smtlib.Term.*
  *  datatype fields and lambda bodies.
  */
 class HoCoreTest extends munit.FunSuite:
-  def check(script: String): List[Boolean] = Player.play(Parser.parse(script))
+  def check(script: String): List[Boolean] = Session.answers(Parser.parse(script)).map(_.get)
 
   test("curried and partial applications"):
     val script = Parser.parse("""

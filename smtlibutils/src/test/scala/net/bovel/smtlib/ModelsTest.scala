@@ -1,13 +1,13 @@
 package net.bovel.smtlib
 
-import net.bovel.vik.{Command, Formula, Lowering, Player, Solver}
+import net.bovel.vik.{Command, Formula, Lowering, Session, Solver}
 
 /** `get-model` and `get-value`, and the models' soundness: the assertions of a
  *  sat script hold under the model the solver reports.
  */
 class ModelsTest extends munit.FunSuite:
   test("constants of every sort, and a function's graph"):
-    val responses = Player.run(Parser.parse("""
+    val responses = Session.run(Parser.parse("""
       (set-logic ALL)
       (declare-sort U 0)
       (declare-const a U)
@@ -63,7 +63,7 @@ class ModelsTest extends munit.FunSuite:
           case _ => ()
 
   test("a datatype constant's value is a constructor term"):
-    val responses = Player.run(Parser.parse("""
+    val responses = Session.run(Parser.parse("""
       (set-logic ALL)
       (declare-datatypes ((Pair 0)) (((pair (first Int) (second Int)))))
       (declare-const q Pair)
@@ -75,7 +75,7 @@ class ModelsTest extends munit.FunSuite:
     assert(responses(1).contains("((first q) 3)"), responses(1))
 
   test("a constant the simplifier defined away is still valued"):
-    val responses = Player.run(Parser.parse("""
+    val responses = Session.run(Parser.parse("""
       (set-logic ALL)
       (declare-sort U 0)
       (declare-const p Bool)

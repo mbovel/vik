@@ -1,6 +1,6 @@
 package net.bovel.smtlib
 
-import net.bovel.vik.{Player, Solver, Model}
+import net.bovel.vik.Session
 import java.nio.file.Files
 
 /** Stamps the corpus files that query values — `get-value`, `get-model`,
@@ -19,7 +19,7 @@ import java.nio.file.Files
     val path = Corpus.root.resolve(file)
     val text = Files.readString(path)
     if List("(get-value", "(get-model", "(get-unsat-core").exists(text.contains) then
-      val responses = Player.run(Parser.parse(text), fuel = fuel)
+      val responses = Session.run(Parser.parse(text), fuel = fuel)
       val kept = text.linesIterator.filterNot(_.startsWith("; EXPECT:")).toList
       val (header, rest) = kept.span(_.startsWith(";"))
       val expects = responses.map(r => s"; EXPECT: $r")

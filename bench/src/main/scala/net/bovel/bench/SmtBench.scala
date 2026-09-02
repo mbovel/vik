@@ -7,7 +7,7 @@ import scala.io.Source
 
 import org.openjdk.jmh.annotations.*
 import net.bovel.smtlib.Parser
-import net.bovel.vik.{Lowering, Player, Script, Solver}
+import net.bovel.vik.{Lowering, Script, Session}
 import net.bovel.smtlib.Corpus
 
 /** Solving SMT-LIB QF_UF, QF_LIA, QF_BV and QF_DT benchmarks (SMT-LIB release
@@ -86,4 +86,4 @@ class SmtBench:
   def parse(): Int = Parser.parse(text).commands.length
 
   @Benchmark
-  def solve(): List[Boolean] = Budget.run("vik", file)(Player.play(script, Solver()))
+  def solve(): List[Boolean] = Budget.run("vik", file)(Session().play(script.commands).map(_ == "sat"))

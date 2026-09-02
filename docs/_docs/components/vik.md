@@ -33,10 +33,9 @@ s.assert(formula)                                    // a `net.bovel.smtlib.Form
 
 A `Session` keeps one parser, one lowering and one `Solver` alive together, so the declarations,
 macros and defined constants of one piece serve the next; `push`, `pop`, `model()` and `unsatCore` are the
-same commands as calls, and an `Smt2Error` names a symbol the text has not declared. `Player.run(script)`
-runs a whole parsed script in a session of its own and returns the responses; `Player.answers(script, fuel =
-...)` gives `Some(true)`, `Some(false)` or `None` per `check-sat`, and `Player.play` is the short form when
-unknown cannot happen.
+same commands as calls, and an `Smt2Error` names a symbol the text has not declared. `Session.run(script)`
+runs a whole parsed script in a session of its own and returns the responses, and `Session.answers(script,
+fuel = ...)` gives `Some(true)`, `Some(false)` or `None` per `check-sat`.
 
 A script can also ask why and what. After an `unsat`, `(get-unsat-core)` names the guilty
 `(assert (! ... :named n))` assertions: re-asserting just those, with the unnamed assertions, stays unsat.

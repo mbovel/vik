@@ -40,7 +40,7 @@ class ReadmeExamplesTest extends munit.FunSuite:
       (assert (= (bvadd x #xFF) #x00))
       (assert (bvult #x00 x))
       (check-sat)""")
-    assertEquals(Player.play(script), List(true))
+    assertEquals(Session.run(script), List("sat"))
 
   test("smt2: parsing, playing, printing"):
     val script = Parser.parse("""
@@ -51,7 +51,7 @@ class ReadmeExamplesTest extends munit.FunSuite:
       (assert (= (f (f a)) a))
       (assert (not (= (f (f (f (f a)))) a)))
       (check-sat)""")
-    assertEquals(Player.play(script), List(false))
+    assertEquals(Session.run(script), List("unsat"))
     assertEquals(Parser.parse(Printer.print(script)), script)
 
   test("cdclt alone"):

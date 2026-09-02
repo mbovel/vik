@@ -9,7 +9,7 @@ private def parseFile(path: String) =
   finally source.close()
 
 /** Solves an SMT-LIB 2 file: prints `sat` or `unsat` for each `check-sat`. */
-@main def smt2(path: String): Unit = Player.run(parseFile(path)).foreach(println)
+@main def smt2(path: String): Unit = Session.run(parseFile(path)).foreach(println)
 
 /** Prints an SMT-LIB 2 file as VIK will play it, after the lowerings:
  *  bit-vectors become bounded integers with their defining equations

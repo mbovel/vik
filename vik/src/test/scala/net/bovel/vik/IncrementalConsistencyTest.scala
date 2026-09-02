@@ -57,11 +57,11 @@ class IncrementalConsistencyTest extends munit.FunSuite:
             commands ++= "(pop)\n"
           case _ => check()
       check()
-      val got = Player.answers(Parser.parse(commands.toString), fuel = fuel)
+      val got = Session.answers(Parser.parse(commands.toString), fuel = fuel)
       assertEquals(got.length, checks.length)
       for (answer, liveAsserts) <- got.zip(checks) do
         val oneShot = declarations + liveAsserts.map(a => s"(assert $a)\n").mkString + "(check-sat)\n"
-        val oracle = Player.answers(Parser.parse(oneShot), fuel = fuel).head
+        val oracle = Session.answers(Parser.parse(oneShot), fuel = fuel).head
         (answer, oracle) match
           case (Some(a), Some(b)) =>
             assert(a == b, s"script $scriptIndex diverges (incremental $a, from scratch $b):\n$commands")

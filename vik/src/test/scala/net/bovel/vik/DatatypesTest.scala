@@ -44,16 +44,16 @@ class DatatypesTest extends munit.FunSuite:
   test("scripts with datatypes are decided"):
     val decls =
       "(declare-sort U 0) (declare-datatype List ((nil) (cons (head U) (tail List)))) (declare-const l List) (declare-const m List) (declare-const a U) (declare-const b U)"
-    def play(script: String) = Player.play(Parser.parse(s"$decls $script (check-sat)"))
-    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is nil) l))"), List(false))
-    assertEquals(play("(assert (= l (cons a m))) (assert (= (head l) b)) (assert (distinct a b))"), List(false))
-    assertEquals(play("(assert (= l (cons a m))) (assert (= (tail l) l))"), List(false))
-    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is cons) l)) (assert (= (head l) a))"), List(true))
-    assertEquals(play("(assert (not ((_ is nil) l))) (assert (not ((_ is cons) l)))"), List(false))
+    def play(script: String) = Session.run(Parser.parse(s"$decls $script (check-sat)"))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is nil) l))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (head l) b)) (assert (distinct a b))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (tail l) l))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is cons) l)) (assert (= (head l) a))"), List("sat"))
+    assertEquals(play("(assert (not ((_ is nil) l))) (assert (not ((_ is cons) l)))"), List("unsat"))
     // Int fields: the datatype rules and the LIA solver combined
     assertEquals(
-      Player.play(Parser.parse(
+      Session.run(Parser.parse(
         "(declare-datatype L ((nil) (cons (head Int) (tail L)))) (declare-const l L) (assert (= l (cons 3 nil))) (assert (< (head l) 2)) (check-sat)"
       )),
-      List(false)
+      List("unsat")
     )

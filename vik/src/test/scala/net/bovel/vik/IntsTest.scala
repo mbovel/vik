@@ -52,9 +52,12 @@ class IntsTest extends munit.FunSuite:
 
   test("solving and printing round trip"):
     val s = Parser.parse(script)
-    assertEquals(Player.play(s), List(true))
+    assertEquals(Session.run(s), List("sat"))
     assertEquals(Parser.parse(Printer.print(s)), s)
-    assertEquals(Player.play(Parser.parse(script.replace("(check-sat)", "(assert (< x 1)) (check-sat)"))), List(false))
+    assertEquals(
+      Session.run(Parser.parse(script.replace("(check-sat)", "(assert (< x 1)) (check-sat)"))),
+      List("unsat")
+    )
 
   test("rejected inputs"):
     intercept[Smt2Error](Lowering(Parser.parse("(declare-const x Int) (assert (<= (* x x) 1))")))

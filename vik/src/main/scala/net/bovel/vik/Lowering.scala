@@ -9,7 +9,7 @@ import Term.*
 
 /** Lowers a surface script (`net.bovel.smtlib`) to the solver's language: the
  *  one function from the language the parser reads to the trees the solver
- *  plays — [[Player.run]] applies it, and `smt2lowered` prints its result. This
+ *  plays — a [[Session]] applies it, and `smt2lowered` prints its result. This
  *  is where the surface language's conveniences are compiled away and where the
  *  fragment line is drawn, with a message:
  *    - `let` and `lambda` names become substitutions and de Bruijn indices;
