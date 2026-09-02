@@ -11,7 +11,7 @@ extraCSS:
 
 `net.bovel.vik` plugs the parts together, starting with its own trees: the solver's term language —
 integers in linear normal form, de Bruijn lambdas — that the surface language of
-[`net.bovel.smt2`](smt2.md) cannot reach except through `Lowering`, one function from script to script.
+[`net.bovel.smtlib`](smtlib.md) cannot reach except through `Lowering`, one function from script to script.
 The lowering is the compiler: names become indices and substitutions, chained atoms become pairwise
 bounds, a term-level `ite` a defined constant, rational literals defined `Real` constants,
 [bit-vectors](../theories/bit-vectors.md) linear integer arithmetic — and what the fragment excludes is
@@ -22,7 +22,7 @@ theory combination, the lemmas of datatypes and lambdas), the theories over
 the player that runs a script — either language — on a solver.
 
 ```scala
-import net.bovel.smt2.Parser
+import net.bovel.smtlib.Parser
 import net.bovel.vik.Player
 
 val script = Parser.parse("(declare-const x Int) (assert (> x 2)) (check-sat)")

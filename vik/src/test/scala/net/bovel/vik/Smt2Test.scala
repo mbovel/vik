@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import net.bovel.smt2.*
+import net.bovel.smtlib.*
 import Formula.*
 
 class Smt2Test extends munit.FunSuite:

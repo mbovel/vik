@@ -1,11 +1,11 @@
 package net.bovel.vik
 
 import net.bovel.sexpr.SExpr
-import net.bovel.smt2.Datatype
+import net.bovel.smtlib.Datatype
 
 /** A command of a lowered script: the player's instruction set, over the
  *  solver's [[Term]]s and [[Formula]]s. [[Lowering]] produces these from the
- *  surface commands of `net.bovel.smt2`.
+ *  surface commands of `net.bovel.smtlib`.
  */
 enum Command:
   case SetLogic(logic: String)

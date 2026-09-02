@@ -1,7 +1,7 @@
 package net.bovel.bench
 
 import com.microsoft.z3.{Context, Status}
-import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.Lowering
 
 /** Checks [[Z3Program]] against the corpus statuses:

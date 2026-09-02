@@ -10,7 +10,7 @@ are kept per module:
 | `cdclt` | `CdcltBench` | [results/cdclt](results/cdclt/README.md) |
 | `lia` | `LiaBench` | [results/lia](results/lia/README.md) |
 | `sexpr` | `SExprBench` | [results/sexpr](results/sexpr/README.md) |
-| `smt2` | `Smt2Bench` | [results/smt2](results/smt2/README.md) |
+| `smtlib` | `Smt2Bench` | [results/smt2](results/smt2/README.md) |
 | `vik` (SMT-LIB instances; princess, SMTInterpol, z3 and cvc5 in process; datatypes) | `SmtBench`, `OtherSolversBench`, `AdtBench`, `SolverCheck` | [results/smt](results/smt/README.md) |
 
 ## The evaluation page

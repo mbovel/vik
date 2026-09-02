@@ -2,7 +2,7 @@ package net.bovel.vik
 
 import scala.util.Random
 
-import net.bovel.smt2.{Constructor, Datatype, Sort}
+import net.bovel.smtlib.{Constructor, Datatype, Sort}
 import Formula.*
 import Term.*
 

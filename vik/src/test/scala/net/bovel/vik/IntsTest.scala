@@ -1,8 +1,8 @@
 package net.bovel.vik
 
-import net.bovel.smt2.*
-import net.bovel.smt2.Formula.*
-import net.bovel.smt2.Term.*
+import net.bovel.smtlib.*
+import net.bovel.smtlib.Formula.*
+import net.bovel.smtlib.Term.*
 
 /** QF_LIA scripts: the `Int` sort, numerals, `+`, `-`, `*`, comparisons,
  *  equality and `distinct` on integers, `ite` on integer terms.

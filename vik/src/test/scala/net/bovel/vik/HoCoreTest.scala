@@ -1,8 +1,8 @@
 package net.bovel.vik
 
-import net.bovel.smt2.*
-import net.bovel.smt2.Formula.*
-import net.bovel.smt2.Term.*
+import net.bovel.smtlib.*
+import net.bovel.smtlib.Formula.*
+import net.bovel.smtlib.Term.*
 
 /** Higher-order core (SMT-LIB 2.7): curried applications, extensionality of
  *  functions, and `Bool` as a sort — formulas as arguments, `ite` branches,

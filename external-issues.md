@@ -93,11 +93,11 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 
 ### 10. The cached test task replays although a generated resource changed (2026-08-31, sbt 2.0.8)
 
-- **Observed**: `smt2utils / Test` is cache-keyed through a managed resource, `corpus-stamp.tsv`, an
+- **Observed**: `smtlibutils / Test` is cache-keyed through a managed resource, `corpus-stamp.tsv`, an
   uncached listing (path, size, mtime) of every file under `corpus/` and `docs/_docs` —
   the documented workaround for the classpath-only cache key. Adding 80
-  files under `corpus/` (nothing else changed) still replays `smt2utils/test` from the
-  cache: `Passed: Total 0`, twice, including right after `smt2utils/clean`. The stamp
+  files under `corpus/` (nothing else changed) still replays `smtlibutils/test` from the
+  cache: `Passed: Total 0`, twice, including right after `smtlibutils/clean`. The stamp
   regenerates with the new content, so the resource's hash should differ; the replay
   suggests the cache key does not see it. `testOnly` is not cached and runs the tests. Not minimized yet.
 

@@ -1,14 +1,14 @@
 package net.bovel.vik
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.smt2 as s2
+import net.bovel.smtlib as s2
 
 /** Runs a script on a [[Solver]]: `assert`, `push`, `pop` and `check-sat`
  *  become calls, and the responses are returned: `sat`, `unsat` or `unknown`
  *  per `check-sat`, and the `:reason-unknown` of `get-info` — `resourceout`
  *  when the fuel is spent (`:rlimit`, or `fuel` here), `timeout` when the
  *  `:timeout` (milliseconds) passed, `canceled` when the caller stopped it. A
- *  surface script (`net.bovel.smt2`) is [[Lowering lowered]] first; a lowered
+ *  surface script (`net.bovel.smtlib`) is [[Lowering lowered]] first; a lowered
  *  [[Script]] plays as it is.
  */
 object Player:

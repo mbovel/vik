@@ -2,7 +2,7 @@ package net.bovel.vik
 
 import scala.collection.immutable.ArraySeq
 
-import net.bovel.smt2.{Parser, Printer}
+import net.bovel.smtlib.{Parser, Printer}
 import Term.{App, Const, Num}
 
 /** The examples of the README's Usage section, as written there. */

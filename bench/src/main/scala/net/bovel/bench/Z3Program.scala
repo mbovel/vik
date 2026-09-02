@@ -4,7 +4,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import com.microsoft.z3.{BoolExpr, Context, Expr, FuncDecl, Sort}
 import net.bovel.vik.{Command, Script}
-import net.bovel.smt2.Datatype
+import net.bovel.smtlib.Datatype
 import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of z3 Java API calls: what

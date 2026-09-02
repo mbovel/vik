@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import net.bovel.smt2.{Parser, Smt2Error, Unsupported}
+import net.bovel.smtlib.{Parser, Smt2Error, Unsupported}
 import Formula.*
 import Term.*
 

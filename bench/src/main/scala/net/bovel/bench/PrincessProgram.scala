@@ -9,7 +9,7 @@ import ap.theories.ADT
 import ap.theories.rationals.Rationals
 import ap.types.Sort
 import net.bovel.vik.{Command, Script}
-import net.bovel.smt2.Datatype
+import net.bovel.smtlib.Datatype
 import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of princess API calls: what

@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, StandardOpenOption}
 
 import scala.jdk.CollectionConverters.*
 
-import net.bovel.smt2.Corpus
+import net.bovel.smtlib.Corpus
 
 /** The five-second budget of the warm benchmarks: a solver that needs more per
  *  operation has nothing to say in a table of milliseconds, and nobody waits

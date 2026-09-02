@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import net.bovel.smt2.Parser
+import net.bovel.smtlib.Parser
 
 /** Random incremental scripts against the one-shot oracle: after every
  *  `check-sat`, a fresh solver given just the live assertions must agree.

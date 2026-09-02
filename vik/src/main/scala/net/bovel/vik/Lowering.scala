@@ -2,15 +2,15 @@ package net.bovel.vik
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
-import net.bovel.smt2.{ArithOp, BvCmpOp, BvOp, Sort}
-import net.bovel.smt2 as s2
+import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, Sort}
+import net.bovel.smtlib as s2
 import Formula.*
 import Term.*
 
-/** Lowers a surface script (`net.bovel.smt2`) to the solver's language: the one
- *  function from the language the parser reads to the trees the solver plays —
- *  [[Player.run]] applies it, and `smt2lowered` prints its result. This is
- *  where the surface language's conveniences are compiled away and where the
+/** Lowers a surface script (`net.bovel.smtlib`) to the solver's language: the
+ *  one function from the language the parser reads to the trees the solver
+ *  plays — [[Player.run]] applies it, and `smt2lowered` prints its result. This
+ *  is where the surface language's conveniences are compiled away and where the
  *  fragment line is drawn, with a message:
  *    - `let` and `lambda` names become substitutions and de Bruijn indices;
  *      `define-fun` macros are expanded at their uses;
@@ -32,7 +32,7 @@ import Term.*
  *      `sign_extend` through the sign bit (`x = u + 2^(n−1) × s`).
  *      Multiplication, division and shifts by a variable, and the other bitwise
  *      operations would need bit-blasting: rejected
- *      ([[net.bovel.smt2.Unsupported]]).
+ *      ([[net.bovel.smtlib.Unsupported]]).
  */
 object Lowering:
   def apply(script: s2.Script): Script = Script(Lowerer().commands(script.commands))

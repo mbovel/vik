@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import net.bovel.smt2.Datatype
+import net.bovel.smtlib.Datatype
 
 /** Prints lowered scripts, formulas and terms back to SMT-LIB 2 text (one
  *  command per line), e.g. to hand the problem the solver plays to another

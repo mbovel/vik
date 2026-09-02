@@ -6,7 +6,7 @@ import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.smt2.{Command, Parser}
+import net.bovel.smtlib.{Command, Parser}
 
 /** Parsing a generated QF_UF script with `n` assertions over a few sorts,
  *  functions and constants, using `let`, `ite`, `distinct`, `=>` and `=`.

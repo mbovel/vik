@@ -6,7 +6,7 @@ import de.uni_freiburg.informatik.ultimate.logic.{Script as ItpScript, Sort as I
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.SMTInterpol
 import net.bovel.vik.{Command, Script}
-import net.bovel.smt2.Datatype
+import net.bovel.smtlib.Datatype
 import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of SMTInterpol API calls —

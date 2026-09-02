@@ -4,7 +4,7 @@ import scala.util.hashing.MurmurHash3
 
 /** The solver's term language — what [[Lowering]] produces and everything
  *  downstream (the simplifier, the encoder, the theories, the models) speaks.
- *  The surface language of SMT-LIB lives in `net.bovel.smt2`; a surface tree
+ *  The surface language of SMT-LIB lives in `net.bovel.smtlib`; a surface tree
  *  cannot reach the solver by type. A term is: of an uninterpreted sort, a
  *  constant or the application of a term (a function symbol, itself a constant)
  *  to arguments, as in the e-graph; of sort `Int`, also a numeral or a linear

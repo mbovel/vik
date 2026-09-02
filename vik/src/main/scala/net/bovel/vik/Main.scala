@@ -1,7 +1,7 @@
 package net.bovel.vik
 import scala.io.Source
 
-import net.bovel.smt2.{Parser, Unsupported}
+import net.bovel.smtlib.{Parser, Unsupported}
 
 private def parseFile(path: String) =
   val source = Source.fromFile(path)

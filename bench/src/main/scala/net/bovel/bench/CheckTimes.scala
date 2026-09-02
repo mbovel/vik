@@ -1,6 +1,6 @@
 package net.bovel.bench
 
-import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Command, Lowering, Solver}
 
 /** Prints the wall time of every `check-sat` of a script, one solver for the

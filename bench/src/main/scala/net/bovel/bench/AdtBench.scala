@@ -9,7 +9,7 @@ import scala.util.Random
 import org.openjdk.jmh.annotations.*
 import net.bovel.vik.* // the formula and term operators
 import net.bovel.vik.{Solver}
-import net.bovel.smt2.{Constructor, Datatype, Sort}
+import net.bovel.smtlib.{Constructor, Datatype, Sort}
 import net.bovel.vik.Formula.*
 import net.bovel.vik.Term.*
 

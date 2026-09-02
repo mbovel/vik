@@ -10,7 +10,7 @@ import com.microsoft.z3.{Context, Status}
 import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
 import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
-import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Lowering, Player, Printer, Script as VikScript, Solver}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process

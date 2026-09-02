@@ -73,7 +73,7 @@ lazy val lia = projectMatrix
 // Terms, formulas and the solver over the theories: subprojects `vik` (JVM), `vikJS` and `vikNative`.
 lazy val vik = projectMatrix
   .in(file("vik"))
-  .dependsOn(cdclt, egraph, lia, smt2)
+  .dependsOn(cdclt, egraph, lia, smtlib)
   .settings(
     name := "vik",
     description := "A minimal, readable SMT solver",
@@ -84,12 +84,12 @@ lazy val vik = projectMatrix
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
 
-// SMT-LIB 2 scripts: subprojects `smt2` (JVM) and `smt2JS`.
-lazy val smt2 = projectMatrix
-  .in(file("smt2"))
+// SMT-LIB 2 scripts: subprojects `smtlib` (JVM) and `smt2JS`.
+lazy val smtlib = projectMatrix
+  .in(file("smtlib"))
   .dependsOn(sexpr)
   .settings(
-    name := "smt2",
+    name := "smtlib",
     description := "SMT-LIB 2 as written: trees, parser, printer",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
@@ -101,10 +101,10 @@ lazy val vikJVM = vik.jvm(scala3Version)
 
 // The corpus on disk and its importer, and the tests that play it (JVM only): forked with a fixed
 // heap, the same memory budget on every machine.
-lazy val smt2utils = (project in file("smt2utils"))
+lazy val smtlibutils = (project in file("smtlibutils"))
   .dependsOn(vikJVM, vikJVM % "test->test")
   .settings(
-    name := "smt2utils",
+    name := "smtlibutils",
     publish / skip := true, // corpus tooling and tests, not a library
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
@@ -114,7 +114,7 @@ lazy val smt2utils = (project in file("smt2utils"))
 // the classpath, not on them (external-issues.md), so their stamp becomes a managed resource: a changed file
 // changes the classpath, and the cache lets the tests run.
 lazy val corpusStamp = taskKey[Seq[File]]("The corpus and docs listing, as a test resource (cache input)")
-smt2utils / Test / corpusStamp := Def.uncached {
+smtlibutils / Test / corpusStamp := Def.uncached {
   import scala.jdk.CollectionConverters.*
   val listing = new StringBuilder
   Seq("corpus", "docs/_docs").foreach { root =>
@@ -127,11 +127,11 @@ smt2utils / Test / corpusStamp := Def.uncached {
       }
     } finally stream.close()
   }
-  val out = (smt2utils / Test / resourceManaged).value / "corpus-stamp.tsv"
+  val out = (smtlibutils / Test / resourceManaged).value / "corpus-stamp.tsv"
   IO.write(out, listing.toString)
   Seq(out)
 }
-smt2utils / Test / resourceGenerators += (smt2utils / Test / corpusStamp).taskValue
+smtlibutils / Test / resourceGenerators += (smtlibutils / Test / corpusStamp).taskValue
 
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
 import org.scalajs.linker.interface.ESVersion
@@ -184,13 +184,13 @@ lazy val bench = project
   .in(file("bench"))
   .enablePlugins(JmhPlugin)
   .dependsOn(
-    smt2utils,
+    smtlibutils,
     egraph.jvm(scala3Version),
     cdclt.jvm(scala3Version),
     lia.jvm(scala3Version),
     sexpr.jvm(scala3Version),
     vik.jvm(scala3Version),
-    smt2.jvm(scala3Version)
+    smtlib.jvm(scala3Version)
   )
   .settings(
     name := "bench",
@@ -219,7 +219,7 @@ lazy val cdcltJS = cdclt.js(scala3Version)
 lazy val sexprJS = sexpr.js(scala3Version)
 lazy val liaJS = lia.js(scala3Version)
 lazy val vikJS = vik.js(scala3Version)
-lazy val smt2JS = smt2.js(scala3Version)
+lazy val smt2JS = smtlib.js(scala3Version)
 egraphJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 cdcltJS / scalaJSLinkerConfig ~=
@@ -249,7 +249,7 @@ lazy val root = (project in file("."))
     sexpr.jvm(scala3Version),
     lia.jvm(scala3Version),
     vik.jvm(scala3Version),
-    smt2.jvm(scala3Version)
+    smtlib.jvm(scala3Version)
   )
   .settings(
     name := "vik-root", // the aggregate; the solver module is `vik`
@@ -260,7 +260,7 @@ lazy val root = (project in file("."))
       sexpr.jvm(scala3Version),
       lia.jvm(scala3Version),
       vik.jvm(scala3Version),
-      smt2.jvm(scala3Version)
+      smtlib.jvm(scala3Version)
     ),
     ScalaUnidoc / unidoc / target := file("target/unidoc"),
     // The solver, linked to WebAssembly into `docs/_assets/js/vik/`, where the pages of the site load it from.

@@ -103,10 +103,10 @@ jobs:
           # JVM rows (for unidoc), so the default `+publishSigned` would miss the JS and Native rows.
           CI_RELEASE:
             "all egraph/publishSigned cdclt/publishSigned sexpr/publishSigned lia/publishSigned
-            smt2/publishSigned vik/publishSigned egraphJS/publishSigned cdcltJS/publishSigned
-            sexprJS/publishSigned liaJS/publishSigned smt2JS/publishSigned vikJS/publishSigned
+            smtlib/publishSigned vik/publishSigned egraphJS/publishSigned cdcltJS/publishSigned
+            sexprJS/publishSigned liaJS/publishSigned smtlibJS/publishSigned vikJS/publishSigned
             egraphNative/publishSigned cdcltNative/publishSigned sexprNative/publishSigned
-            liaNative/publishSigned smt2Native/publishSigned vikNative/publishSigned"
+            liaNative/publishSigned smtlibNative/publishSigned vikNative/publishSigned"
         run: sbt --server ci-release
 
 

@@ -1,6 +1,6 @@
 package net.bovel.bench
 
-import net.bovel.smt2.Corpus
+import net.bovel.smtlib.Corpus
 
 /** Runs every in-process solver of [[OtherSolversBench]] on the SMT-LIB
  *  instances of the corpus taken from SMT-LIB (`smtlib/<logic>/smt-lib`, the
@@ -21,7 +21,7 @@ object SolverCheck:
       val bench = OtherSolversBench()
       bench.file = file
       bench.setup()
-      val expected = net.bovel.smt2.Parser.parse(java.nio.file.Files.readString(Corpus.find(file))).expectedStatus
+      val expected = net.bovel.smtlib.Parser.parse(java.nio.file.Files.readString(Corpus.find(file))).expectedStatus
       val answers = solvers.map { name =>
         val sat = name match
           case "vik" => bench.vik().last

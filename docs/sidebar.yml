@@ -24,7 +24,7 @@ subsection:
       - page: components/cdclt.md
       - page: components/lia.md
       - page: components/sexpr.md
-      - page: components/smt2.md
+      - page: components/smtlib.md
       - page: components/vik.md
   - title: Evaluation
     page: evaluation.md

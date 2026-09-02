@@ -1,8 +1,8 @@
 package net.bovel.vik
 
-import net.bovel.smt2.*
-import net.bovel.smt2.Formula.*
-import net.bovel.smt2.Term.*
+import net.bovel.smtlib.*
+import net.bovel.smtlib.Formula.*
+import net.bovel.smtlib.Term.*
 
 /** Lambdas: `(lambda ((x S) ...) body)`, parsed to de Bruijn indices (equal up
  *  to renaming), printed back; beta-reduction; bound variables never equated

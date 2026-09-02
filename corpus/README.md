@@ -3,7 +3,7 @@
 Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
 `QF_LRA`, `QF_UFLRA`, `HO`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
-test `SmtLibTest` (`smt2utils/src/test`) registers one test per file it finds here: the answers must be the
+test `SmtLibTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
 so the outcome is the same on every machine). `ignore.txt` lists the files the solver is known not to answer
 within that fuel, or to answer wrongly, with the reason: the test expects those to fail, and when one passes it
@@ -23,11 +23,11 @@ their `@Param`s.
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
-`smt2` parses are not imported; the importer reports what it rejected, by error.
+`smtlib` parses are not imported; the importer reports what it rejected, by error.
 
 ## Importing
 
-`sbt "smt2utils/runMain net.bovel.smt2.smt2import <origin> <source root> [files per family]"` copies an origin's
+`sbt "smtlibutils/runMain net.bovel.smtlib.smt2import <origin> <source root> [files per family]"` copies an origin's
 files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
 files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
 reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
@@ -62,7 +62,7 @@ QF_LIA, from `QF_LIA.tar.zst` of the same release, the same way:
 | `convert__convert-tiff2jpg-query-1831.smt2` | convert | unsat | program verification queries |
 | `fft__Sz64_1160.smt2`, `nec-smt__small__int_from_list__prp-2-17.smt2`, `wisa__wisa1.smt2` | fft, nec-smt, wisa | sat, unsat, sat | larger structured instances (VIK 17 s, timeout, timeout: comparison only) |
 
-QF_BV, from `QF_BV.tar.zst` of the same release: instances in the arithmetic fragment that `smt2` lowers to integers
+QF_BV, from `QF_BV.tar.zst` of the same release: instances in the arithmetic fragment that `vik` lowers to integers
 (no bit-blasting; of 188 small files across 43 families, 53 were in the fragment: the others use `bvmul` or `bvand` of
 two variables, `bvor`, `bvxor`, or division and shifts by a variable):
 

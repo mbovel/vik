@@ -21,8 +21,8 @@ tables of the [documentation site](https://matt.bovel.net/vik/) say which).
 | `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
 | `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
 | `vik` | Terms and formulas, the lowering from the surface language, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their combination (QF_UFLIA, datatypes with `Int` fields): integer leaves are LIA variables, applications are e-graph nodes, and an equality atom per pair of shared terms, tied to the bounds on their difference, lets the SAT solver choose an arrangement both theories accept. Higher-order core (SMT-LIB 2.7): function sorts `(-> S T)`, lambdas as terms with de Bruijn indices, beta-reduction at construction and by lemmas, partial applications, extensionality by fresh witnesses, and `Bool` as a sort (formulas as arguments and lambda bodies). Arrays by the read-over-write axioms, reals on the same simplex. Bit-vectors are not bit-blasted: the arithmetic fragment of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts, `bvudiv` and `bvurem` by constants, masks, `extract`, `concat`, extensions, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts; the rest is rejected. The player runs a script on the solver (`sbt "vik/run file.smt2"` prints the answers): `check-sat-assuming`, `push`/`pop`, `get-model`, `get-value`, `get-unsat-core` over `:named` assertions, `reset-assertions`, `reset`; `(set-option :rlimit n)` sets the fuel of each `check-sat` and `:timeout` a deadline in milliseconds, `unknown` then, with `(get-info :reason-unknown)` answering `resourceout` or `timeout`. |
-| `smt2` | SMT-LIB 2 as written: the sorts, terms, formulas and commands of the standard, parsed from and printed to text, faithful to the script — the solver reads them through `vik`'s lowering. |
-| `sexpr` | The S-expression lexer and parser used by `smt2`. |
+| `smtlib` | SMT-LIB 2 as written: the sorts, terms, formulas and commands of the standard, parsed from and printed to text, faithful to the script — the solver reads them through `vik`'s lowering. |
+| `sexpr` | The S-expression lexer and parser used by `smtlib`. |
 | `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
 | `playground` | Two browser pages (Scala.js, linked to WebAssembly): an e-graph playground and an SMT-LIB playground. |
 | `docsPlayground` | The solver as a WebAssembly module (`solve`, `lower`), for the runnable snippets of the documentation site. |
@@ -40,7 +40,7 @@ browser, a page per theory ([first-order logic](https://matt.bovel.net/vik/theor
 and its feature tables ([the e-graph](https://matt.bovel.net/vik/components/egraph.html),
 [the CDCL(T) solver](https://matt.bovel.net/vik/components/cdclt.html),
 [the LIA solver](https://matt.bovel.net/vik/components/lia.html),
-[the language](https://matt.bovel.net/vik/components/smt2.html),
+[the language](https://matt.bovel.net/vik/components/smtlib.html),
 [the solver](https://matt.bovel.net/vik/components/vik.html)), the
 [evaluation](https://matt.bovel.net/vik/evaluation.html) against z3, cvc5, princess and SMTInterpol, and the
 [API documentation](https://matt.bovel.net/vik/api/index.html). Its sources are in [docs/](docs), and
@@ -59,7 +59,7 @@ of the site are checked by [`ReadmeExamplesTest`](vik/src/test/scala/net/bovel/v
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `vik` and `smt2` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, WebAssembly too) and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `sexpr`, `vik` and `smtlib` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, WebAssembly too) and `bench` (the benchmarks, below).
 
 ```sh
 sbt compile   # compiles all subprojects

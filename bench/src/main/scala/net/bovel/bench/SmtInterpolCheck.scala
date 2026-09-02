@@ -1,6 +1,6 @@
 package net.bovel.bench
 
-import net.bovel.smt2.{Corpus, Parser}
+import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.Lowering
 
 /** Checks [[SmtInterpolProgram]] against the corpus statuses, as
