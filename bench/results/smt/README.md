@@ -6,8 +6,8 @@ End-to-end benchmarks of the SMT solver (`smt2` parser, `vik` solver, `cdclt`, `
 ## Instances
 
 The SMT-LIB instances live in the repository's corpus, [smtlib/](../../../smtlib/README.md), by logic and origin
-(`smtlib/<logic>/smt-lib/`); the benchmarks use the ones listed in `SmtBench` and `OtherSolversBench`, the tests
-play the whole corpus. The table of families, statuses and licenses is in the corpus README.
+(`corpus/<logic>/smt-lib/`); the benchmarks use the ones listed in the suites of `net.bovel.bench.evaluation`, the
+tests play the whole corpus. The table of families, statuses and licenses is in the corpus README.
 
 ## Integer workloads (`UfliaBench`)
 
@@ -22,7 +22,7 @@ Random instances built with the `vik` API:
 From the repository root (see [bench/README.md](../../README.md) for the setup of `jmh2md.py`):
 
 ```sh
-sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*SmtBench.solve .*VikBench.api"   # VIK on every instance
+sbt "bench/Jmh/run -rf json -rff target/jmh-result.json .*VikBench.*"   # VIK on every instance of the evaluation
 sbt "bench/Jmh/run -p file=eq_diamond__eq_diamond50.smt2"     # one instance
 bench/.venv/bin/python bench/jmh2md.py target/jmh-result.json
 bench/cold.sh bench/evaluation-instances.txt > bench/results/smt/cold.tsv   # wall clock vs z3, cvc5, princess, SMTInterpol

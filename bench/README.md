@@ -11,7 +11,8 @@ files. The workloads and the results are kept per module:
 | `lia` | `lia.LiaBench` | [results/lia](results/lia/README.md) |
 | `sexpr` | `sexpr.SExprBench` | [results/sexpr](results/sexpr/README.md) |
 | `smtlib` | `smtlib.SmtlibBench` | [results/smtlib](results/smtlib/README.md) |
-| `vik` (SMT-LIB instances, datatypes), `evaluation` (VIK, princess, SMTInterpol, z3 and cvc5 in process) | `vik.SmtBench`, `vik.AdtBench`, `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`, `evaluation.SolverCheck` | [results/smt](results/smt/README.md) |
+| `vik` (random integer and datatype instances through the API) | `vik.UfliaBench`, `vik.AdtBench` | [results/smt](results/smt/README.md) |
+| `evaluation` (VIK, z3, cvc5, princess and SMTInterpol in process on the SMT-LIB instances of the evaluation) | `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`; `SolverCheck`, `replaycheck` | [results/smt](results/smt/README.md) |
 
 ## The evaluation page
 
