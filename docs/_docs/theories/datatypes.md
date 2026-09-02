@@ -46,6 +46,19 @@ finite datatype finite:
 (check-sat)
 ```
 
+`match` is read as testers and selectors: the scrutinee is bound once, each case becomes an `ite` on the
+constructor's tester with the pattern's variables bound to the selectors, the last case is the default, and
+a variable pattern catches everything after it.
+
+```smt2
+(declare-datatype Shape ((circle (radius Int)) (rect (w Int) (h Int)) (point)))
+(define-fun area ((x Shape)) Int (match x ((point 0) ((circle r) (* 3 r)) ((rect a b) (+ a b)))))
+(declare-const s Shape)
+(assert (= (area s) 7))
+(assert (match s ((point false) (other (> (area other) 6)))))
+(check-sat)
+```
+
 Parametric datatypes are refused.
 
 ## Internals

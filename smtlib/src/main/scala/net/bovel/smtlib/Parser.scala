@@ -27,6 +27,8 @@ final class Parser:
    */
   private val functions = HashMap.empty[String, Sort]
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, Term | Formula)]
+  private val constructors = HashMap.empty[String, Constructor] // by name, for the patterns of `match`
+  private var matches = 0 // the `match` scrutinees bound so far, for their names
 
   def parse(input: String): Script = Script(SExprParser.parse(input).flatMap(command))
 
@@ -131,6 +133,7 @@ final class Parser:
     }
     for datatype <- datatypes; constructor <- datatype.constructors do
       val d = Sort.Named(datatype.name)
+      constructors(constructor.name) = constructor
       functions(constructor.name) = Sort.fun(constructor.selectors.map(_._2), d)
       functions(constructor.tester) = Sort.fun(List(d), Sort.Bool)
       for (selector, s) <- constructor.selectors do functions(selector) = Sort.fun(List(d), s)
@@ -233,6 +236,7 @@ final class Parser:
     case SList(SAtom("ite") :: _ :: thn :: _ :: Nil) => sortOf(thn, env)
     case SList(SAtom("let") :: SList(bindings) :: body :: Nil) =>
       sortOf(body, env ++ bindings.map { case SList(SAtom(name) :: value :: Nil) => name -> sortOf(value, env) })
+    case SList(SAtom("match") :: _) => sortOf(matchToIte(sexpr), env)
     case SList(SAtom(name) :: args) if macros.contains(name) => macros(name)._2
     case SList(SAtom(name) :: args) => applied(sortOf(SAtom(name), env), args.length)
     case other => throw Smt2Error(s"cannot type $other")
@@ -272,11 +276,52 @@ final class Parser:
     case SList(SAtom("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
       Let(bound, formula(body, inner))
+    case SList(SAtom("match") :: _) => formula(matchToIte(sexpr), env)
     case SList(SAtom("!") :: body :: _) => formula(body, env) // an annotated term
     case _ => // a Boolean constant or application
       if sortOf(sexpr, env) != Sort.Bool then throw Smt2Error(s"not a formula: $sexpr")
       Formula.Pred(term(sexpr, env))
   end formula
+
+  /** `(match t ((p1 b1) ... (pn bn)))` as the tree the rest of the parser
+   *  reads: the scrutinee bound once by a `let` — so it is shared, as `let`
+   *  bindings are — then an `ite` per case on the constructor's tester, its
+   *  body under a `let` binding the pattern's variables to the selectors; the
+   *  last case is the default (the cases are exhaustive), and a variable
+   *  pattern binds the scrutinee itself and ends the cases. A pattern symbol
+   *  that names a constructor is that constructor; any other is a variable.
+   */
+  private def matchToIte(sexpr: SExpr): SExpr = sexpr match
+    case SList(SAtom("match") :: scrutinee :: SList(cases) :: Nil) if cases.nonEmpty =>
+      matches += 1
+      val name = s"match!$matches"
+      val m = SAtom(name)
+      def binding(name: String, value: SExpr): SExpr = SList(List(SAtom(name), value))
+      def let(bindings: List[SExpr], body: SExpr): SExpr =
+        if bindings.isEmpty then body else SList(List(SAtom("let"), SList(bindings), body))
+      def branch(c: SExpr): (Option[SExpr], SExpr) = c match // the tester, or none for a variable, and the body
+        case SList(SAtom(name) :: body :: Nil) if constructors.contains(name) =>
+          (Some(SList(List(SList(List(SAtom("_"), SAtom("is"), SAtom(name))), m))), body)
+        case SList(SAtom(name) :: body :: Nil) => (None, let(List(binding(name, m)), body))
+        case SList(SList(SAtom(name) :: vars) :: body :: Nil) if constructors.contains(name) =>
+          val selectors = constructors(name).selectors
+          if vars.length != selectors.length then throw Smt2Error(s"$name takes ${selectors.length} arguments: $c")
+          val bound = vars.zip(selectors).map {
+            case (SAtom(v), (selector, _)) => binding(v, SList(List(SAtom(selector), m)))
+            case (other, _) => throw Smt2Error(s"bad pattern variable $other")
+          }
+          (Some(SList(List(SList(List(SAtom("_"), SAtom("is"), SAtom(name))), m))), let(bound, body))
+        case other => throw Smt2Error(s"bad match case $other")
+      val branches = cases.map(branch)
+      // Up to the first variable pattern, which catches everything after it.
+      val reached = branches.indexWhere(_._1.isEmpty) match
+        case -1 => branches
+        case i => branches.take(i + 1)
+      val body = reached.init.foldRight(reached.last._2) { case ((tester, body), rest) =>
+        SList(List(SAtom("ite"), tester.get, body, rest))
+      }
+      let(List(binding(name, scrutinee)), body)
+    case other => throw Smt2Error(s"bad match $other")
 
   /** The bindings of a `let`, each typed by its own sort, and the environment
    *  for the body.
@@ -339,6 +384,7 @@ final class Parser:
     case SList(SAtom("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
       Term.Let(bound, term(body, inner))
+    case SList(SAtom("match") :: _) => term(matchToIte(sexpr), env)
     case SList(SAtom("!") :: body :: _) => term(body, env) // an annotated term
     case SList(SAtom(name) :: args) =>
       declared(name, env)

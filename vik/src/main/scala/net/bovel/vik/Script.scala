@@ -37,7 +37,10 @@ enum Command:
   case GetModel
 
   /** `get-value`: each item as written (for the echo) and as lowered. */
-  case GetValue(items: List[(String, Formula | Term)])
+  /** `definitions`: the defining assertions of the fresh constants the items
+   *  introduced (a term-level `ite`), evaluated under the model, not asserted.
+   */
+  case GetValue(items: List[(String, Formula | Term)], definitions: List[Formula])
   case GetUnsatCore
 
   /** `get-assertions`: the current assertion stack, as the solver holds it —

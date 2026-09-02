@@ -113,8 +113,8 @@ private final class Lowerer:
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
-      // The value of a compound operation would need its defining assertions, which cannot be
-      // asserted after a check: an item is lowered without them (constants and literals need none).
+      // A compound operation's defining assertions (a term-level `ite`'s) cannot be asserted after a
+      // check: they go with the command, for the session to evaluate under the model.
       val lowered = items.map((source, item) =>
         (
           source,
@@ -124,11 +124,12 @@ private final class Lowerer:
           ): Formula | Term
         )
       )
+      val defined = definitions.toList
       introduced.clear()
       definitions.clear()
       rationals.clear() // a constant minted here has no definition: later uses must not find it
       rationalProducts.clear()
-      List(Command.GetValue(lowered))
+      List(Command.GetValue(lowered, defined))
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
     case s2.Command.Exit => List(Command.Exit)

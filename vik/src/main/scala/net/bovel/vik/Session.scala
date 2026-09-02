@@ -81,6 +81,20 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
 
   private def withModel(text: Model => String): String = current.model().map(text).getOrElse("(error \"no model\")")
 
+  /** The model with a fresh constant valued by its definition — `k = t`, or
+   *  `c ⇒ k = t` when `c` holds — the way the lowering states one for a
+   *  term-level `ite`; another shape defines nothing.
+   */
+  private def define(m: Model, definition: Formula): Model =
+    def bind(k: String, t: Term): Model = m.copy(constants = m.constants + (k -> m.value(t)))
+    definition match
+      case Formula.Implies(c, body) => if m.holds(c) then define(m, body) else m
+      case Formula.Eq(Term.Const(k), t) => bind(k, t)
+      case Formula.Eq(t, Term.Const(k)) => bind(k, t)
+      case Formula.And(List(Formula.Le(Term.Const(k), t), Formula.Le(u, Term.Const(k2)))) if k == k2 && t == u =>
+        bind(k, t) // `IntEq`
+      case _ => m
+
   private def valueText(m: Model, item: Formula | Term): String = item match
     case f: Formula => if m.holds(f) then "true" else "false"
     case t: Term => Printer.print(m.value(t))
@@ -119,7 +133,7 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
     val responses = ArrayBuffer.empty[String]
     // Models cost a walk per sat: taken only once the script asks for them.
     if commands.exists {
-        case Command.GetModel | Command.GetValue(_) | Command.SetOption(":produce-models", "true") => true
+        case Command.GetModel | Command.GetValue(_, _) | Command.SetOption(":produce-models", "true") => true
         case _ => false
       }
     then current.produceModels = true
@@ -137,8 +151,11 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
         case Command.GetUnsatCore => responses += current.unsatCore.mkString("(", " ", ")")
         case Command.GetAssertions =>
           responses += asserted.flatten.map(Printer.print).mkString("(", " ", ")")
-        case Command.GetValue(items) =>
-          responses += withModel(m => items.map((src, it) => s"($src ${valueText(m, it)})").mkString("(", " ", ")"))
+        case Command.GetValue(items, definitions) =>
+          responses += withModel { m0 =>
+            val m = definitions.foldLeft(m0)(define)
+            items.map((src, it) => s"($src ${valueText(m, it)})").mkString("(", " ", ")")
+          }
         case Command.GetModel => responses += withModel(modelText)
         case Command.Push(n) =>
           for _ <- 0 until n do
