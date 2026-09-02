@@ -30,8 +30,9 @@ The same on a script you write here — press the play button in its corner:
 (check-sat)
 ```
 
-The front end supports what the theories below support: `declare-sort`, `declare-fun`, `declare-const`,
-`define-fun`, `declare-datatype(s)`, `assert` (with `:named`), `check-sat`, `check-sat-assuming`, `push`,
+The front end supports what the theories below support: `declare-sort`, `declare-sort-parameter`,
+`define-sort`, `declare-fun`, `declare-const`, `define-fun`, `declare-datatype(s)` (`par` included), `match`,
+`as`, `assert` (with `:named`), `check-sat`, `check-sat-assuming`, `push`,
 `pop`, `get-model`, `get-value`, `get-unsat-core`, `get-assertions`, `reset-assertions`, `reset`,
 `set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
 not supported (strings, sets, floating point) are refused rather than read as uninterpreted

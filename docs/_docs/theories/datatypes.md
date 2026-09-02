@@ -9,7 +9,8 @@ extraCSS:
 
 # Algebraic datatypes
 
-Monomorphic datatypes: constructors, selectors and testers, with fields of any supported sort.
+Constructors, selectors, testers and `match`, with fields of any supported sort; parametric datatypes are
+instantiated sort by sort (see [sort parameters](polymorphism.md)).
 
 **Decision procedure: yes.** Injectivity, distinctness, exhaustiveness and acyclicity together decide
 `QF_DT`.
@@ -59,7 +60,8 @@ a variable pattern catches everything after it.
 (check-sat)
 ```
 
-Parametric datatypes are refused.
+A parametric datatype — `(declare-datatype List (par (T) ...))` — is a datatype per instance, `(List Int)`,
+`(List Bool)`: see [sort parameters](polymorphism.md).
 
 ## Internals
 

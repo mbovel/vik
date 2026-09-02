@@ -46,6 +46,7 @@ Each page says what you can write, how it is solved, and first of all whether VI
 | [Algebraic datatypes](theories/datatypes.md) | Yes. |
 | [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
 | [Arrays](theories/arrays.md) | Yes, for flat arrays. |
+| [Sort parameters](theories/polymorphism.md) | As the theory of each instance: polymorphism is compiled away. |
 
 ## The components
 

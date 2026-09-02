@@ -19,8 +19,21 @@ class DatatypesTest extends munit.FunSuite:
     val plural = Parser.parse("(declare-datatypes ((List 0)) (((nil) (cons (head Int) (tail List)))))")
     assertEquals(single.commands, List(Command.DeclareDatatypes(List(list))))
     assertEquals(plural.commands, single.commands)
-    intercept[Smt2Error](
-      Parser.parse("(declare-datatypes ((List 1)) ((par (T) ((nil) (cons (head T) (tail (List T)))))))")
+    // A parametric declaration declares nothing by itself: its instances do, on first use, as datatypes
+    // named as written with their own constructors.
+    val parametric = Parser.parse("""
+      (declare-datatypes ((List 1)) ((par (T) ((nil) (cons (head T) (tail (List T)))))))
+      (declare-const l (List Int))""")
+    val intList = Datatype(
+      "(List Int)",
+      List(
+        Constructor("nil@Int", Nil),
+        Constructor("cons@Int", List(("head@Int", Sort.Int), ("tail@Int", Sort.Named("(List Int)"))))
+      )
+    )
+    assertEquals(
+      parametric.commands,
+      List(Command.DeclareDatatypes(List(intList)), Command.DeclareFun("l", Nil, Sort.Named("(List Int)")))
     )
 
   test("constructors, selectors and testers as terms"):

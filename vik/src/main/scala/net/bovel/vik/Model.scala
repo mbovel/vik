@@ -15,8 +15,15 @@ import net.bovel.lia
  */
 final case class Model(
     constants: Map[String, Term],
-    functions: Map[String, Model.Function]
+    functions: Map[String, Model.Function],
+    datatypes: List[net.bovel.smtlib.Datatype] = Nil
 ):
+  /** A selector's constructor and position, a tester's constructor. */
+  private lazy val selectors: Map[String, (String, Int)] =
+    (for d <- datatypes; c <- d.constructors; ((s, _), i) <- c.selectors.zipWithIndex yield s -> (c.name, i)).toMap
+  private lazy val testers: Map[String, String] =
+    (for d <- datatypes; c <- d.constructors yield c.tester -> c.name).toMap
+
   /** The value of a term under this model: arithmetic is computed, a function
    *  application is looked up in its graph (the default when absent), and an
    *  unknown constant of an uninterpreted sort is itself.
@@ -33,14 +40,28 @@ final case class Model(
         case _ => constants.getOrElse(name, term)
     case Term.App(Term.Const(name), List(a, i, v)) if name.startsWith("store!") =>
       Model.store(value(a), value(i), value(v))
+    case Term.App(Term.Const(name), List(arg)) if selectors.contains(name) => // a selector on a constructor value
+      val (constructor, i) = selectors(name)
+      value(arg) match
+        case Term.App(Term.Const(c), args) if c == constructor => args(i)
+        case v => lookup(name, List(v)) // another constructor's value: unconstrained, the graph's choice
+    case Term.App(Term.Const(name), List(arg)) if testers.contains(name) =>
+      val holds = value(arg) match
+        case Term.App(Term.Const(c), _) => c == testers(name)
+        case Term.Const(c) => c == testers(name)
+        case _ => false
+      Term.boolean(if holds then Formula.True else Formula.False)
     case Term.App(fun, List(index)) if Model.isArray(value(fun)) => Model.select(value(fun), value(index))
-    case Term.App(Term.Const(name), args) =>
-      val values = args.map(value)
-      functions.get(name) match
-        case Some(f) => f.rows.collectFirst { case (a, r) if a == values => r }.getOrElse(f.default)
-        case None => term
+    case Term.App(Term.Const(name), args) => lookup(name, args.map(value))
     case Term.Bool(formula) => Term.boolean(if holds(formula) then Formula.True else Formula.False)
     case _ => term
+
+  /** A function application by the function's graph: the row of the argument
+   *  values, else the default; the application itself for an unknown symbol.
+   */
+  private def lookup(name: String, values: List[Term]): Term = functions.get(name) match
+    case Some(f) => f.rows.collectFirst { case (a, r) if a == values => r }.getOrElse(f.default)
+    case None => Term.App(Term.Const(name), values)
 
   /** Whether a formula holds under this model. */
   def holds(formula: Formula): Boolean = formula match

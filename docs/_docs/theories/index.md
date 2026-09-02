@@ -17,6 +17,8 @@ behind it.
 - [Algebraic datatypes](datatypes.md): constructors, selectors, testers, acyclicity.
 - [Bit-vectors](bit-vectors.md): the arithmetic fragment, lowered to integers, no bit-blasting.
 - [Arrays](arrays.md): `select` as application, `store` by lemmas, extensional.
+- [Sort parameters](polymorphism.md): `declare-sort-parameter`, parametric datatypes, `define-sort`, `as` —
+  compiled away into monomorphic instances.
 
 Each page opens with whether VIK is a decision procedure for its fragment: yes for uninterpreted
 functions, integers (branch and bound inside the small-model box), reals, datatypes, the bit-vector

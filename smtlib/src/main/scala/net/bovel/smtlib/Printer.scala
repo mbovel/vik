@@ -6,6 +6,15 @@ package net.bovel.smtlib
  *  and `declare-const`, which prints as a `declare-fun`.
  */
 object Printer:
+  /** A symbol as SMT-LIB writes it: quoted when it holds a character a simple
+   *  symbol cannot (the instances of polymorphic symbols at applied sorts,
+   *  `cons@(List Int)`); an indexed identifier `(_ is c)` as it is.
+   */
+  def symbol(name: String): String =
+    if name.startsWith("(_ ") || name.startsWith("(as ") || name.startsWith("|") then name
+    else if name.exists(c => c == ' ' || c == '(' || c == ')') then s"|$name|"
+    else name
+
   def print(script: Script): String = script.commands.map(print).mkString("", "\n", "\n")
 
   def print(command: Command): String = command match
@@ -74,7 +83,7 @@ object Printer:
     case Formula.Pred(term) => print(term)
 
   def print(term: Term): String = term match
-    case Term.Const(name) => name
+    case Term.Const(name) => symbol(name)
     case Term.Numeral(value) => if value.signum < 0 then s"(- ${-value})" else value.toString
     case Term.Decimal(unscaled, scale) =>
       val digits = unscaled.toString.reverse.padTo(scale + 1, '0').reverse

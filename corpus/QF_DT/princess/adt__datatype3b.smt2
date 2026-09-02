@@ -1,7 +1,7 @@
 ; From princess: adt/datatype3b.smt2 (BSD, LICENSES/princess.txt)
 ; EXPECT: sat
 ; EXPECT: sat
-; EXPECT: (((data (right x)) 0))
+; EXPECT: (((data (right x)) 42))
 ; EXPECT: unsat
 ; EXPECT: sat
 ; EXPECT: ((y 43) (y2 43))

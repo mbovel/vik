@@ -770,6 +770,11 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         if sortOf(t) == "Real" then realClassValues(eg.find(c)) = liaSolver.realValue(x)
         else classValues(eg.find(c)) = liaSolver.value(x)
       }
+    // A numeral values its class too: a term equated with one by congruence alone (a constructor's
+    // field, say) has no variable of its own.
+    for case (n @ Term.Num(v), c) <- classes do
+      classValues(eg.find(c)) = v
+      realClassValues(eg.find(c)) = lia.Rational(v)
     def elementOf(sort: String, cls: EClassId): Term =
       val root = eg.find(cls)
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$sort!${elements.count(_._1._1 == sort)}"))
@@ -796,8 +801,14 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
     def valueOfTerm(t: Term, sort: String): Term =
       (t, sort) match
         case (Term.Num(_), _) => t // a literal argument of an application
-        case (_, "Int") => intVars.get(t).map(x => Term.Num(liaSolver.value(x))).getOrElse(Term.Num(0))
-        case (_, "Real") => intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x))).getOrElse(Term.Num(0))
+        case (_, "Int") =>
+          intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
+            .orElse(classes.get(t).flatMap(c => classValues.get(eg.find(c))).map(Term.Num(_)))
+            .getOrElse(Term.Num(0))
+        case (_, "Real") =>
+          intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x)))
+            .orElse(classes.get(t).flatMap(c => realClassValues.get(eg.find(c))).map(Model.rationalTerm))
+            .getOrElse(Term.Num(0))
         case _ =>
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)
@@ -835,7 +846,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         }.toList
         val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
         functions += name -> Model.Function(argSorts, sort, rows, default)
-    Model(constants.result(), functions.result())
+    Model(constants.result(), functions.result(), datatypes)
 
 /** Several theories over disjoint sets of atoms, asserted and checked in turn,
  *  without exchange of equalities between them; `owner(v)` is the theory of the
