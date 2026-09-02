@@ -79,8 +79,11 @@ then congruent, for free.
 Beta-reduction happens twice. A redex that is written, or that the simplifier creates when it substitutes a
 lambda for a constant, is reduced when the term is built, so terms are in normal form. A redex that only the
 search creates — `f(args)` where `f` becomes equal to a lambda — is a lemma of the encoder:
-`f ≠ l ∨ f(args) = l(args)`, for every closed application and closed function term of matching sorts,
-repeated to a fixpoint.
+`f ≠ l ∨ f(args) = l(args)`, for every closed application `f(args)` and closed function term `l` of matching
+sorts that the assertions relate — an equality between functions, transitively: `f = l`, or `f = g` and
+`g = l` — repeated to a fixpoint. Without that restriction the lemmas re-apply a function to its own result
+through another's body without end: with `g = λx. f (f x)`, `f = λx. x + 1` and the application `g 0`, the
+lemma for `g 0` and `g`'s lambda yields `f (f 0)`, the one for `f 0` and `g`'s lambda `f (f (f 0))`, and so on.
 
 Extensionality is a lemma too: for every equality between function-sorted terms in the assertions,
 `f = g ∨ f(c) ≠ g(c)` with a fresh witness `c`. So `unsat` and `sat` follow the usual meaning of functions on

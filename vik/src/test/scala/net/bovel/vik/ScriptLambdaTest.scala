@@ -96,6 +96,36 @@ class ScriptLambdaTest extends munit.FunSuite:
       List(false, false)
     )
 
+  test("a composition of defined functions is applied finitely"):
+    // The application lemmas once applied every closed lambda to every closed application: g's lambda
+    // applied to `f 0` gave `f (f 0)`, then `f (f (f 0))`, ... without end.
+    assertEquals(
+      check("""
+        (declare-const f (-> Int Int))
+        (declare-const g (-> Int Int))
+        (assert (= f (lambda ((x Int)) (+ x 3))))
+        (assert (= g (lambda ((x Int)) (f (f x)))))
+        (assert (= (g 0) 6))
+        (check-sat)
+        (push 1)
+        (assert (= (g 1) 6))
+        (check-sat)
+        (pop 1)"""),
+      List(true, false)
+    )
+
+  test("two different lambdas equated through a function answer unknown, never sat"):
+    // p = λx. f x and p = λx. x + 5 with f = λx. x + 1: no rule concludes from the equality of two
+    // lambdas to the equality of their bodies, so a candidate model that equates them proves nothing.
+    val script = Parser.parse("""
+      (declare-const f (-> Int Int))
+      (declare-const p (-> Int Int))
+      (assert (= f (lambda ((x Int)) (+ x 1))))
+      (assert (= p (lambda ((x Int)) (f x))))
+      (assert (= p (lambda ((x Int)) (+ x 5))))
+      (check-sat)""")
+    assertEquals(Session.answers(script), List(None))
+
   test("bound variables are never equated: no unsound unsat"):
     assertEquals(
       check("""

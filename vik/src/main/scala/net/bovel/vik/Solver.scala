@@ -200,7 +200,7 @@ final class Solver(val simplify: Boolean = true):
           if e.entangledLambdas.exists((f, sel) =>
               e.litOf(f).exists(l => model(l.variable) == l.positive)
                 && (sel == null || model(sel.nn.variable) == sel.nn.positive)
-            )
+            ) || e.lambdasEquated
           then result = Result.Unknown(Reason.Stopped)
           else if e.valueLemmas.nonEmpty then
             // The candidate misreads an interpreted symbol: the lemmas say what it is at these
@@ -425,7 +425,16 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       }.toList
       val apps =
         if functions.isEmpty then Nil else classes.keys.collect { case a: Term.App if Term.closed(a) => a }.toList
-      for q <- functions; a <- apps if applicable(a, q) && done.add((a, q)) do
+      // A lambda is applied only where the assertions relate it to the application's function — an
+      // equality between functions, transitively. Applying every closed lambda to every closed
+      // application instead re-applies a function to its own result through another's body without
+      // end: `g = λx. f (f x)`, `f = λx. x + 3` and `g 0` give `f 0`, then `f (f 0)` by g's lambda
+      // applied to `f 0`, then `f (f (f 0))`, ... An applied function term that is not a lambda (a
+      // store, a partial application) builds no new redex, so it keeps every pair: the applications it
+      // adds are what the array lemmas read.
+      val related = relatedFunctions()
+      def wanted(a: Term.App, q: Term): Boolean = !q.isInstanceOf[Term.Lambda] || related(a.fun) == related(q)
+      for q <- functions; a <- apps if applicable(a, q) && wanted(a, q) && done.add((a, q)) do
         require(done.size <= 100000, "too many applications of lambdas: are the terms well sorted?")
         more = true
         val applied = Term.app(q, a.args)
@@ -441,6 +450,21 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         noteInts(a)
         noteInts(b)
         changed = true
+
+  /** The function terms grouped by the equalities between functions of the
+   *  assertions: a representative per group, the term itself when no equality
+   *  mentions it.
+   */
+  private def relatedFunctions(): Term => Term =
+    val parent = HashMap.empty[Term, Term]
+    def find(t: Term): Term = parent.get(t) match
+      case Some(p) if p != t =>
+        val root = find(p)
+        parent(t) = root
+        root
+      case _ => t
+    for case Formula.Eq(l, r) <- functionEqualities do parent(find(l)) = find(r)
+    find
 
   private def applicable(a: Term.App, q: Term): Boolean =
     a != q && // a term is not applied to itself: the lemma would equate it with its own application
@@ -487,6 +511,19 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
               }
               clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
+
+  /** Whether two different closed lambdas share an e-class: a satisfying
+   *  assignment that equates them proves nothing, since no rule concludes from
+   *  the equality of two lambdas to the equality of their bodies, and two
+   *  lambdas with different bodies are different functions as often as not
+   *  (`λx. x + 1` and `λx. x + 5` are; `λx. f x` and `f` are not).
+   */
+  def lambdasEquated: Boolean =
+    val byClass = HashMap.empty[EClassId, Term]
+    classes.keys.exists {
+      case l: Term.Lambda if Term.closed(l) => byClass.put(eg.find(classOf(l)), l).exists(_ != l)
+      case _ => false
+    }
 
   /** Asserts, for every term of a datatype sort seen so far, that one of its
    *  testers holds; for a term of a finite sort, also for its selector terms,
