@@ -71,4 +71,4 @@ class PrincessBench:
   def setup(): Unit = instance = Instance(file)
 
   @Benchmark
-  def api(): List[Boolean] = Budget.run("PrincessBench.api", file)(PrincessReplay.check(instance.replay))
+  def api(): List[Boolean] = Budget.run("PrincessBench.api", file, Nil)(PrincessReplay.check(instance.replay))

@@ -72,8 +72,8 @@ class VikBench:
   def setup(): Unit = instance = Instance(file)
 
   @Benchmark
-  def api(): List[Boolean] = Budget.run("VikBench.api", file)(VikReplay.check(instance.replay))
+  def api(): List[Boolean] = Budget.run("VikBench.api", file, Nil)(VikReplay.check(instance.replay))
 
   @Benchmark
   def text(): List[Boolean] =
-    Budget.run("VikBench.text", file)(Session().run(Parser.parse(instance.text)).map(_ == "sat"))
+    Budget.run("VikBench.text", file, Nil)(Session().run(Parser.parse(instance.text)).map(_ == "sat"))

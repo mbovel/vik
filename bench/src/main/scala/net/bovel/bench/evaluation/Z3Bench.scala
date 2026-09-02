@@ -79,7 +79,7 @@ class Z3Bench:
   def tearDown(): Unit = ctx.close()
 
   @Benchmark
-  def api(): List[Boolean] = Budget.run("Z3Bench.api", file)(Z3Replay.check(instance.replay, ctx))
+  def api(): List[Boolean] = Budget.run("Z3Bench.api", file, Nil)(Z3Replay.check(instance.replay, ctx))
 
 /** z3 parsing the text itself: the parsed assertions go to a fresh solver for
  *  the script's logic (z3's parser does not pass `set-logic` on, and the solver
@@ -153,7 +153,7 @@ class Z3TextBench:
   def tearDown(): Unit = ctx.close()
 
   @Benchmark
-  def text(): Boolean = Budget.run("Z3TextBench.text", file):
+  def text(): Boolean = Budget.run("Z3TextBench.text", file, false):
     val solver = Z3Replay.solver(ctx, instance.logic)
     try
       solver.add(ctx.parseSMTLIB2String(instance.text, null, null, null, null)*)

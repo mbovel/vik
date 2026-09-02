@@ -11,11 +11,13 @@ import net.bovel.smtlib.Corpus
  *  minutes on it again. Every solver operation runs under [[run]]; a watchdog
  *  thread halts the forked VM when the running operation passes the budget —
  *  the solvers run in-process and cannot be interrupted, only outlived — after
- *  noting `solver:instance` on `bench/timeouts.txt`. A noted combination
- *  refuses to start on later runs (a fresh fork reads the ledger, so even the
- *  second fork of the run that discovered it refuses), and its cell in the
- *  table reads 🐢 (`bench/warm2md.py`). The JMH runs pass `-foe false`: a
- *  halted or refusing fork is a recorded fact, not the end of the evaluation.
+ *  noting `solver:instance` on `bench/timeouts.txt`. A noted combination does
+ *  not start on later runs (a fresh fork reads the ledger, so even the second
+ *  fork of the run that discovered it holds back): the operation returns
+ *  `refused` at once, and its cell in the table reads 🐢 whatever that measured
+ *  (`bench/warm2md.py` reads the ledger). The evaluation passes `-foe false` to
+ *  JMH: a halted fork is a recorded fact, not the end of the run; the CI dry
+ *  run passes `-foe true`, since nothing there should fail.
  */
 object Budget:
   /** Ten seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry
@@ -46,13 +48,13 @@ object Budget:
   watchdog.setDaemon(true)
   watchdog.start()
 
-  /** One solver operation under the budget. `solver` must be the benchmark
-   *  method's name: the ledger and the table key cells by it.
+  /** One solver operation under the budget. `solver` must be `Suite.method`:
+   *  the ledger and the table key cells by it. `refused` is the value of a
+   *  combination on the ledger, returned without running.
    */
-  def run[A](solver: String, file: String)(body: => A): A =
+  def run[A](solver: String, file: String, refused: A)(body: => A): A =
     val combo = s"$solver:${file.stripSuffix(".smt2")}"
-    if noted(combo) then
-      throw IllegalStateException(s"$combo timed out on an earlier run (bench/timeouts.txt)")
+    if noted(combo) then return refused
     running = combo
     deadline = System.nanoTime() + budgetNanos
     try body

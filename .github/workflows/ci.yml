@@ -54,13 +54,11 @@ jobs:
       - name: Solver versions
         run: bench/native/bin/z3 --version && bench/native/bin/cvc5 --version
       - name: JMH dry run, every class and method
-        # Everything, one invocation, one fork and one iteration each. The ten-second budget is raised
-        # (-Dvik.bench.budgetMs): a JIT-cold single invocation here is a smoke test, not a measurement.
-        # -foe false, since a combination on bench/timeouts.txt refuses to run by design; every other
-        # failure of a benchmark, or a fork the budget halted, fails the job through the grep below.
-        run: |
-          sbt --server "bench/Jmh/run -foe false -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000" 2>&1 | tee /tmp/jmh-dry.log
-          ! grep -E "Exception:|Forked VM failed|<failure>" /tmp/jmh-dry.log | grep -v "timed out on an earlier run" | grep -q .
+        # Everything, one invocation, one fork and one iteration each, -foe true: any failure fails the
+        # job (a combination on bench/timeouts.txt returns at once, by design). The ten-second budget
+        # is raised (-Dvik.bench.budgetMs): a JIT-cold single invocation here is a smoke test, not a
+        # measurement.
+        run: sbt --server "bench/Jmh/run -foe true -f 1 -wi 0 -i 1 -jvmArgsAppend -Dvik.bench.budgetMs=60000"
       - name: Cold pipeline dry run
         # One instance per theory, one repetition: the script, the binaries and the answer parsing all
         # work; VIK must answer every instance, the other solvers may error on what they do not speak.

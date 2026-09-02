@@ -69,4 +69,4 @@ class SmtInterpolBench:
 
   @Benchmark
   def api(): List[Boolean] =
-    Budget.run("SmtInterpolBench.api", file)(SmtInterpolReplay.check(instance.replay))
+    Budget.run("SmtInterpolBench.api", file, Nil)(SmtInterpolReplay.check(instance.replay))

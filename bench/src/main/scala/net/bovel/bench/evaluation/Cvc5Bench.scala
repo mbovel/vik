@@ -75,11 +75,11 @@ class Cvc5Bench:
   def setup(): Unit = instance = Instance(file)
 
   @Benchmark
-  def api(): List[Boolean] = Budget.run("Cvc5Bench.api", file):
+  def api(): List[Boolean] = Budget.run("Cvc5Bench.api", file, Nil):
     try Cvc5Replay.check(instance.replay)
     finally Cvc5Context.deletePointers()
 
   @Benchmark
-  def text(): List[Boolean] = Budget.run("Cvc5Bench.text", file):
+  def text(): List[Boolean] = Budget.run("Cvc5Bench.text", file, Nil):
     try TextOracle.cvc5(instance.text)
     finally Cvc5Context.deletePointers()

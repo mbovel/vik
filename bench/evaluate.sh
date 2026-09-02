@@ -33,9 +33,9 @@ OUT=$R/$DATE-$HOST
 
 # The suites of net.bovel.bench.evaluation, every instance of every solver, in one JMH run: the
 # forks and iterations are their annotations (3 forks, 3 warm-up and 3 measurement iterations).
-# -foe false: a fork the Budget watchdog halts, or that refuses a combo already on
-# bench/timeouts.txt, must not end the evaluation — JMH prints the failure and moves to the next
-# combo, and the table renders the noted cell as 🐢.
+# -foe false: a fork the Budget watchdog halts must not end the evaluation — JMH prints the
+# failure and moves to the next combo, and the table renders the noted cell as 🐢 (a combo already
+# on bench/timeouts.txt returns at once; the ledger, not its measurement, decides its cell).
 # No -gc true: a forced GC between iterations measured the JVM solvers 27–51% slower (2026-09-02,
 # VIK and SMTInterpol on icl662 and CAV_2009), and z3's binding needs none (see Z3Replay.check).
 warm() {
