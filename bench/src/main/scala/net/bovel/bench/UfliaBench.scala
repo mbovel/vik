@@ -1,15 +1,14 @@
 package net.bovel.bench
 
-import net.bovel.vik.*
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 import scala.util.Random
 
+import net.bovel.vik.*
 import org.openjdk.jmh.annotations.*
-import net.bovel.vik.* // the formula and term operators
-import net.bovel.vik.{Solver}
 import net.bovel.vik.Formula.*
+import net.bovel.vik.Solver
 import net.bovel.vik.Term.*
 
 /** Uninterpreted functions over integers (the combination of the e-graph and

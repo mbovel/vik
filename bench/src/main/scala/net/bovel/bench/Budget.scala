@@ -14,8 +14,8 @@ import net.bovel.smtlib.Corpus
  *  noting `solver:instance` on `bench/timeouts.txt`. A noted combination
  *  refuses to start on later runs (a fresh fork reads the ledger, so even the
  *  second fork of the run that discovered it refuses), and its cell in the
- *  table reads 🐢 (`bench/warm2md.py`). The JMH runs pass `-foe false`:
- *  a halted or refusing fork is a recorded fact, not the end of the evaluation.
+ *  table reads 🐢 (`bench/warm2md.py`). The JMH runs pass `-foe false`: a
+ *  halted or refusing fork is a recorded fact, not the end of the evaluation.
  */
 object Budget:
   /** Ten seconds, unless `-Dvik.bench.budgetMs=…` says otherwise: the CI dry

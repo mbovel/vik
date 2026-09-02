@@ -12,7 +12,7 @@
 # never run again, and shown as 🐢 in the table; a cold run is cut by
 # `timeout 10` (cold.sh) and shown the same way. The instances and their groups
 # are bench/evaluation-instances.txt, in the order of both tables; the solvers
-# of each group, the princess-separated runs and the blanked cells live here.
+# of each group and the princess-separated runs live here.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,12 +33,6 @@ OUT=$R/$DATE-$HOST
 
 # The warm instances of a group of bench/evaluation-instances.txt, comma-separated, as JMH's -p takes them.
 group() { awk -v g="$1" '$2 == g { sub(".*/", "", $1); print $1 }' bench/evaluation-instances.txt | paste -sd, -; }
-
-# Blanked cells: the API columns on the bit-vector instances (the tree is
-# already lowered: not the same question). A solver that is merely too slow is
-# not blanked — it is on bench/timeouts.txt, and its cell says so.
-BLANK_WARM="z3Direct:sage__app7__bench_8505,z3Direct:bmc-bv__adpcm,smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,princess:sage__app7__bench_8505,princess:bmc-bv__adpcm,z3Direct:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,princess:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,smtinterpol:2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max"
-BLANK_COLD="smtinterpol:sage__app7__bench_8505,smtinterpol:bmc-bv__adpcm,smtinterpol:pspace__ndist.a.20000"
 
 # Each group is one `bench/Jmh/run` segment; warm() chains all segments into a single sbt
 # invocation — one client, one server session. Reattaching a fresh client per group wedged twice
@@ -65,8 +59,6 @@ warm() {
   # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
   chain+=$(seg "$OUT-warm-ho.json"   "$(group hof)"     "(vik|vikText|z3)")
   chain+=$(seg "$OUT-warm-ho-c.json" "regress0__define-fun-model.smt2" "cvc5")
-  chain+=$(seg "$OUT-warm-arr.json"  "$(group arr)"     "(vik|vikText|z3|cvc5)")
-  chain+=$(seg "$OUT-warm-arr-i.json" "$(group arr-inc)" "(vik|vikText|cvc5)")
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
   # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
@@ -88,14 +80,14 @@ regen() {
   # All dates per group, oldest first: the newest measurement of a cell wins, and an instance
   # only measured on an earlier date keeps its row until a newer run covers it.
   local jsons=() suffix f
-  for suffix in warm warm-p warm-inc warm-inc-p warm-ho warm-ho-c warm-arr warm-arr-i; do
+  for suffix in warm warm-p warm-inc warm-inc-p warm-ho warm-ho-c; do
     for f in $(ls $R/*-$suffix.json 2>/dev/null || true); do [ -s "$f" ] && jsons+=("$f"); done  # empties skipped (a running run pre-creates its file); names sort chronologically, mtimes lie after checkout
   done
   local cold_tsv; cold_tsv=$(ls $R/*-cold.tsv | tail -1)
   echo "regen from: ${jsons[*]} $cold_tsv"
   local tmp; tmp=$(mktemp -d)
-  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --order bench/evaluation-instances.txt --blank "$BLANK_WARM" --timeouts bench/timeouts.txt > "$tmp/warm.md"
-  bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --order bench/evaluation-instances.txt --blank "$BLANK_COLD" > "$tmp/cold.md"
+  bench/.venv/bin/python bench/warm2md.py "${jsons[@]}" --order bench/evaluation-instances.txt --timeouts bench/timeouts.txt > "$tmp/warm.md"
+  bench/.venv/bin/python bench/cold2md.py "$cold_tsv" --order bench/evaluation-instances.txt > "$tmp/cold.md"
   python3 bench/splice.py "$tmp/warm.md" "$tmp/cold.md"
   # The raw-data links of the page name the files the tables were built from.
   sed -i -E "s|results/smt/[0-9-]+-laraserver4-cold.tsv|results/smt/$(basename "$cold_tsv")|" docs/_docs/evaluation.md

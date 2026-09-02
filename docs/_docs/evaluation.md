@@ -51,7 +51,7 @@ Two families of solvers appear:
 | z3 | 4.14.0 (the binary and, in process, `org.sosy-lab:javasmt-solver-z3:4.14.0`) |
 | cvc5 | 1.2.1 (the binary and, in process, `org.sosy-lab:javasmt-solver-cvc5:1.2.1-g8594a8e4dc`) |
 | princess | `io.github.uuverifiers:princess:2026-05-20` |
-| SMTInterpol | `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-916-ga5843d8b` |
+| SMTInterpol | `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c` |
 
 The machine is shared, so numbers taken hours apart are not comparable; every table here comes from one run,
 and the two tables were taken the same morning.
@@ -123,22 +123,19 @@ The 95% confidence intervals (Student's t over the samples of a cell) average 18
 
 The *(SMT2)* columns — z3 and cvc5 — receive the text of the script and parse it themselves; the *(API)*
 columns receive the problem already built: *VIK (API)* solves its own tree, and *z3 (API)*, *princess (API)*
-and *SMTInterpol (API)* are handed that tree through each solver's API — declarations, terms, asserts,
-`push`, `pop` and every `check-sat` — which is what an embedding verifier pays. That tree is VIK's, after
-its lowering — n-ary `=` and `<` chained, an `ite` on terms replaced by a fresh constant and two
-implications — not the one the solver's own parser builds from the script, and the difference is not
-free: checked against each solver's front end run in process on the same text, z3 pays 3–4× on the
-incremental `MESI_i4` and `list_false`, and princess's minutes on `MESI_i4` came from the shape of what it
-was handed rather than from the problem (see [external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)). The difference between the
+and *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
+asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. Each of the three
+replays is checked against the solver's own front end run in process on the same text
+([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/ReplayCheck.scala)):
+the same answers, and a time within a factor of two — so what the solver receives is what its own parser
+would have built, down to the order in which princess's parser flattens a nested `or` or `+` (handed the
+same operands in another order, it took 27 s on `MESI_i4` where its parser takes 0.2 s; see
+[external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)). The difference between the
 two z3 columns is what parsing costs; measured for the other two before their text columns were dropped,
 parsing cost princess 1.3–2.4× and SMTInterpol 4–6× (exceptions: the arithmetic-heavy `wisas` and
 `MESI_i4`, which SMTInterpol answers 1.6× and 3.7× faster from text — its parser feeds its internal affine
-form more directly than `term` calls do). For a
-bit-vector instance the tree is already lowered to integers, so the *(API)* columns are not the same
-question there and those cells are left out. The arrays rows leave the three replay columns out for the
-same reason in another guise: the replays hand over the tree without the store axioms the solver adds, so
-they would answer a weaker question. The higher-order rows run the solvers that speak lambdas — VIK and
-cvc5. The incremental instances leave one more cell out: z3's text
+form more directly than `term` calls do). The higher-order rows run the solvers that speak lambdas — VIK and
+cvc5. The incremental instances leave one cell out: z3's text
 column flattens the script into one problem — its bindings execute no script — a different question on a
 script of many `check-sat`s. Princess is measured through its API for the same reason in the other
 direction: its own script executor rejects these scripts (a re-declaration after `pop`, see

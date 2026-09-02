@@ -1,16 +1,15 @@
 package net.bovel.bench
 
-import net.bovel.vik.*
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 import scala.util.Random
 
+import net.bovel.vik.*
 import org.openjdk.jmh.annotations.*
-import net.bovel.vik.* // the formula and term operators
-import net.bovel.vik.{Solver}
 import net.bovel.smtlib.{Constructor, Datatype, Sort}
 import net.bovel.vik.Formula.*
+import net.bovel.vik.Solver
 import net.bovel.vik.Term.*
 
 /** Datatypes: random formulas over the finite datatypes `Color` (three
@@ -32,7 +31,10 @@ class AdtBench:
 
   val color = Datatype("Color", List("red", "green", "blue").map(Constructor(_, Nil)))
   val pair = Datatype("Pair", List(Constructor("mk", List(("fst", Sort.Named("Color")), ("snd", Sort.Named("Color"))))))
-  val list = Datatype("List", List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Named("U")), ("tail", Sort.Named("List"))))))
+  val list = Datatype(
+    "List",
+    List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Named("U")), ("tail", Sort.Named("List")))))
+  )
 
   private var finiteFormulas: List[List[Formula]] = uninitialized
   private var listFormulas: List[(List[Formula], Boolean)] = uninitialized

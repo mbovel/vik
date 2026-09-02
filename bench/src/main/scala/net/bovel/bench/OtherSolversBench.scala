@@ -9,28 +9,24 @@ import org.openjdk.jmh.annotations.*
 import com.microsoft.z3.{Context, Status}
 import io.github.cvc5.{InputParser, Solver as Cvc5Solver}
 import io.github.cvc5.modes.InputLanguage
-import de.uni_freiburg.informatik.ultimate.smtinterpol.DefaultLogger
 import net.bovel.smtlib.{Corpus, Parser}
 import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
 
 /** In-process comparison on a parsed script, same JVM, same thread, no process
- *  start-up: VIK solves the tree directly; princess, SMTInterpol, z3 and cvc5
- *  receive the file as it is and parse it themselves
- *  (`print` measures the printing alone), and `z3Direct` builds z3's AST from
- *  the tree through the Java API, the way a program would. z3 and cvc5 run
- *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
- *  native libraries of `fetch-native.sh`. z3 keeps one `Context` for the
- *  trial, as a tool that embeds it does, and takes a fresh solver per
- *  operation: creating a context costs 0.46 ms, more than the small
- *  instances take to solve. cvc5 gets a fresh `Solver` per operation: the
- *  solver itself is cheap (30 µs), and the ~0.4 ms its engine spends
- *  initialising at the first `assert` is what a solver kept in incremental
- *  mode would save — at the price of another engine (24× slower on
- *  `NEQ004_size4`), so the fresh solver stays. `z3Direct` replays a
- *  [[Z3Program]]: only z3 API calls in the operation, compiled from the
- *  instance up front — for a bit-vector instance the tree is lowered to
- *  integers first (as the solver plays it), so that column measures z3 on the
- *  lowered problem.
+ *  start-up: VIK solves the tree directly; z3 and cvc5 receive the file as it
+ *  is and parse it themselves (`print` measures the printing alone); and
+ *  `z3Direct`, `princess` and `smtinterpol` replay the script's own terms
+ *  through each solver's API — a [[Replay]], compiled from the instance up
+ *  front, so an operation is only API calls, and what the solver receives is
+ *  what its own parser would have built (checked by `replaycheck`). z3 and cvc5
+ *  run through their Java bindings as published by SoSy-Lab (JavaSMT) with the
+ *  native libraries of `fetch-native.sh`. z3 keeps one `Context` for the trial,
+ *  as a tool that embeds it does, and takes a fresh solver per operation:
+ *  creating a context costs 0.46 ms, more than the small instances take to
+ *  solve. cvc5 gets a fresh `Solver` per operation: the solver itself is cheap
+ *  (30 µs), and the ~0.4 ms its engine spends initialising at the first
+ *  `assert` is what a solver kept in incremental mode would save — at the price
+ *  of another engine (24× slower on `NEQ004_size4`), so the fresh solver stays.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -117,19 +113,17 @@ class OtherSolversBench:
   private var text: String = uninitialized
   private var ctx: Context = uninitialized // z3's, for the trial
   private var logic: String | Null = uninitialized // the script's `set-logic`, for z3's solver
-  private var z3Program: Z3Program | Null = uninitialized
-  private var princessProgram: PrincessProgram | Null = uninitialized
-  private var smtInterpolProgram: SmtInterpolProgram | Null = uninitialized
+  private var replay: Replay | Null = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit =
     text = java.nio.file.Files.readString(Corpus.find(file)) // the file as it is, for the solvers that parse
-    script = Lowering(Parser.parse(text)) // the tree as the solver plays it: bit-vectors already lowered
-    // A program a replay cannot encode (lambdas, say) stays null; its benchmark is simply not selected
-    // for such instances — the setup must not fail the others.
-    z3Program = try Z3Program.compile(script) catch case _: Exception => null
-    princessProgram = try PrincessProgram.compile(script) catch case _: Exception => null
-    smtInterpolProgram = try SmtInterpolProgram.compile(script) catch case _: Exception => null
+    val parsed = Parser.parse(text)
+    script = Lowering(parsed) // the tree as VIK plays it
+    // A script no replay encodes (lambdas, say) leaves it null; the replays are simply not selected for
+    // such instances — the setup must not fail the others.
+    replay = try Replay.compile(parsed)
+    catch case _: Exception => null
     Natives.z3
     ctx = Context()
     logic = OtherSolversBench.logicOf(text)
@@ -140,36 +134,39 @@ class OtherSolversBench:
   @Benchmark
   def print(): Int = Printer.print(script).length
 
-  /** The solver on a problem it already holds, as a tool that builds the terms itself calls it. */
+  /** The solver on a problem it already holds, as a tool that builds the terms
+   *  itself calls it.
+   */
   @Benchmark
   def vik(): List[Boolean] = Budget.run("vik", file)(Session().play(script.commands).map(_ == "sat"))
 
-  /** The same, from the text of the script: what the solvers that parse below are measured on. */
+  /** The same, from the text of the script: what the solvers that parse below
+   *  are measured on.
+   */
   @Benchmark
   def vikText(): List[Boolean] = Budget.run("vikText", file)(Session().run(Parser.parse(text)).map(_ == "sat"))
 
-  /** Replays the instance's [[PrincessProgram]] — declarations, terms,
-   *  asserts, `push`/`pop` and every `check-sat` through princess's API,
-   *  nothing else.
+  /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
+   *  every `check-sat` through princess's API, nothing else.
    */
   @Benchmark
-  def princess(): List[Boolean] = Budget.run("princess", file)(princessProgram.nn.check())
+  def princess(): List[Boolean] = Budget.run("princess", file)(PrincessReplay.check(replay.nn))
 
-  /** Has z3 parse the text (declarations included); the parsed assertions go
-   *  to a fresh solver for the script's logic — z3's parser does not pass
+  /** Has z3 parse the text (declarations included); the parsed assertions go to
+   *  a fresh solver for the script's logic — z3's parser does not pass
    *  `set-logic` on, and the solver for a logic is what the binary runs.
    */
   @Benchmark
   def z3(): Boolean = Budget.run("z3", file):
-    val solver = Z3Program.solver(ctx, logic)
+    val solver = Z3Replay.solver(ctx, logic)
     solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
     solver.check() == Status.SATISFIABLE
 
-  /** Replays the instance's [[Z3Program]] — declarations, terms, asserts,
-   *  `push`/`pop` and every `check-sat` through z3's Java API, nothing else.
+  /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
+   *  every `check-sat` through z3's Java API, nothing else.
    */
   @Benchmark
-  def z3Direct(): List[Boolean] = Budget.run("z3Direct", file)(z3Program.nn.check(ctx, logic))
+  def z3Direct(): List[Boolean] = Budget.run("z3Direct", file)(Z3Replay.check(replay.nn, ctx))
 
   /** Prints the tree and has cvc5 run the text as a script through its parser,
    *  recording the check-sat answers.
@@ -191,12 +188,12 @@ class OtherSolversBench:
       results.reverse
     finally solver.deletePointer()
 
-  /** Replays the instance's [[SmtInterpolProgram]] — declarations, terms,
-   *  asserts, `push`/`pop` and every `check-sat` through the `Script`
-   *  interface Ultimate embeds, nothing else.
+  /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
+   *  every `check-sat` through the `Script` interface Ultimate embeds, nothing
+   *  else.
    */
   @Benchmark
-  def smtinterpol(): List[Boolean] = Budget.run("smtinterpol", file)(smtInterpolProgram.nn.check())
+  def smtinterpol(): List[Boolean] = Budget.run("smtinterpol", file)(SmtInterpolReplay.check(replay.nn))
 
 object OtherSolversBench:
   /** The logic a script sets, or null. */

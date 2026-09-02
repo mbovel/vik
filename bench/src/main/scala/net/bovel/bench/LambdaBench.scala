@@ -1,13 +1,13 @@
 package net.bovel.bench
 
-import net.bovel.vik.*
 import java.util.concurrent.TimeUnit
 
 import scala.compiletime.uninitialized
 
+import net.bovel.vik.*
 import org.openjdk.jmh.annotations.*
-import net.bovel.vik.{Solver}
 import net.bovel.vik.Formula.*
+import net.bovel.vik.Solver
 import net.bovel.vik.Term.*
 
 /** Lambdas: `n` function symbols defined by lambdas in a chain,

@@ -4,8 +4,7 @@
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the median of the repetitions in seconds, the best of the row highlighted
 (`<span class="best">`, styled by the site's `tables.css`); 🐢 when the solver did not finish, and the
-answer in bold when it disagrees with the file's status. `--blank solver:instance,...` leaves out the cells
-where the measurement would not mean what the column says (see the evaluation page). `--order file`
+answer in bold when it disagrees with the file's status. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
 instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
 repository root, where `corpus/` is.
@@ -30,11 +29,6 @@ def fmt(x):
 
 
 arguments = sys.argv[1:]
-blank = set()
-if "--blank" in arguments:
-    i = arguments.index("--blank")
-    blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
-    arguments = arguments[:i] + arguments[i + 2:]
 order_of = None  # --order file: the instances of the table, in its order
 if "--order" in arguments:
     i = arguments.index("--order")
@@ -72,9 +66,7 @@ for f in (order_of if order_of is not None else list(by)):
     cells = []
     for s in solvers:
         answer, median = answers.get(s, ("missing", 0.0))
-        if (s, f[:-5]) in blank:
-            cells.append("—")
-        elif answer == "timeout":
+        if answer == "timeout":
             cells.append("🐢")
         elif answer in ("error", "missing"):
             cells.append("—")

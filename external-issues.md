@@ -196,21 +196,23 @@ Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.
 
 ## SMTInterpol
 
-Version: `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-916-ga5843d8b` (Maven).
+Version: `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c` (Maven, the newest there,
+February 2025; `2.5-916-ga5843d8b` until 2026-09-02).
 
-### 1. `sat` after failing to read the assertions (2026-08-29, 2026-08-31)
+### 1. `sat` after failing to read the assertions (2026-08-29, 2026-08-31; on 2.5-916)
 
-- **Observed**: on the QF_BV files of the corpus, every
+- **Observed**: on the QF_BV files of the corpus, with `2.5-916-ga5843d8b` — which has no bit-vector theory;
+  `2.5-1388-ga5a4ab0c` has one and answers the same files correctly — every
   `declare-fun` and `assert` that mentions a bit-vector sort fails with `(error "Unsupported internal sort:
-  (_ BitVec 8)")` — SMTInterpol has no bit-vector theory — and the `(check-sat)` that follows answers `sat`
+  (_ BitVec 8)")` and the `(check-sat)` that follows answers `sat`
   on files whose status is `unsat`: the assertions were never made, so the answer is about an empty problem.
   With `-q` the errors are not printed and the output is just `sat`. Recorded on six corpus files
   (`crafted__bv8`, `2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max`,
   `20190311-bv-term-small-rw-Noetzli__bv-term-small-rw_17`, `bruttomesso__core__ext_con_004_001_0016`,
   `fft__Sz128_2823`, `pspace__ndist.a.20000`, see `bench/results/smt/compare-raw-bv.tsv`); the in-process
   `ParseEnvironment` behaves the same.
-- **Consequence here**: the bold `sat` in the cold table of the evaluation page; the warm table leaves the
-  instance out.
+- **Consequence here**: none since the update; before it, the bold `sat` in the cold table of the evaluation
+  page.
 - Arguably permitted by SMT-LIB (a command that fails is skipped, and `check-sat` then speaks of what was
   asserted), but as a default it turns "unsupported" into what reads as a wrong answer.
 

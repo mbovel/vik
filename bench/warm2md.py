@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""A markdown table from a JMH run of OtherSolversBench: warm2md.py results.json [more.json ...] [--blank solver:instance,...]
+"""A markdown table from a JMH run of OtherSolversBench: warm2md.py results.json [more.json ...]
 
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the mean over the samples in milliseconds, the best of the row
 highlighted (`<span class="best">`, styled by the site's `tables.css`). A note after the table summarizes the
-95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--blank` leaves out
-the cells of a solver on an instance where the measurement would not mean what the column says (see the
-evaluation page). `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
+95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
 `solver:instance` per line): those cells say 🐢, whatever an older result file measured. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
 instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
@@ -40,11 +38,6 @@ def fmt(x):
 
 
 arguments = sys.argv[1:]
-blank = set()
-if "--blank" in arguments:
-    i = arguments.index("--blank")
-    blank = {tuple(pair.split(":")) for pair in arguments[i + 1].split(",")}
-    arguments = arguments[:i] + arguments[i + 2:]
 order_of = None  # --order file: the instances of the table, in its order
 if "--order" in arguments:
     i = arguments.index("--order")
@@ -86,11 +79,11 @@ intervals = []  # (ci / mean, solver, instance) of every cell shown
 for instance in (order_of if order_of is not None else list(by)):
     solvers = by.get(instance, {})
     shown = {s: solvers[s] for s in order
-             if s in solvers and (s, instance) not in blank and (s, instance) not in timeouts}
+             if s in solvers and (s, instance) not in timeouts}
     best = min((mean for mean, _ in shown.values()), default=None)
     cells = []
     for s in order:
-        if (s, instance) in timeouts and (s, instance) not in blank:
+        if (s, instance) in timeouts:
             cells.append("🐢")
         elif s not in shown:
             cells.append("—")
