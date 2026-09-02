@@ -40,3 +40,28 @@ class CoresTest extends munit.FunSuite:
     val text = "(set-logic QF_UF)\n(declare-const p Bool)\n(assert (! p :named goal))\n(check-sat)\n"
     val script = Parser.parse(text)
     assertEquals(Parser.parse(Printer.print(script)), script)
+
+  test("a named assertion dies with its level"):
+    val responses = run("""
+      (set-logic QF_UF)
+      (declare-const p Bool)
+      (push 1)
+      (assert (! p :named a))
+      (check-sat)
+      (pop 1)
+      (assert (not p))
+      (check-sat)""")
+    assertEquals(responses, List("sat", "sat"))
+
+  test("a named assertion sees the constants the simplification defined away"):
+    val responses = run("""
+      (set-logic QF_UF)
+      (declare-sort U 0)
+      (declare-const x U)
+      (declare-const y U)
+      (declare-const z U)
+      (assert (and (= x y) (distinct y z)))
+      (assert (! (= x z) :named xz))
+      (check-sat)
+      (get-unsat-core)""")
+    assertEquals(responses, List("unsat", "(xz)"))

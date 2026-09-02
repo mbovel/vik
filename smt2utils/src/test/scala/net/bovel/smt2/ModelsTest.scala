@@ -28,7 +28,7 @@ class ModelsTest extends munit.FunSuite:
     assert(responses(1).contains("((f 1) 5)"), responses(1))
     val model = responses(2)
     assert(model.contains("(define-fun p () Bool true)"), model)
-    assert(model.contains("(define-fun f ((x!0 Int)) Int"), model)
+    assert(model.contains("(define-fun f ((x!0 Int)) Int (ite (= x!0 1) 5 5))"), model)
     assert(model.contains("@U!"), model)
 
   test("the assertions of sat scripts hold under the model"):

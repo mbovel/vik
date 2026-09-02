@@ -32,12 +32,27 @@ Player.run(script)          // List("sat"): the responses, in order
 `Player.answers(script, fuel = ...)` gives `Some(true)`, `Some(false)` or `None` per `check-sat`;
 `Player.play` is the short form when unknown cannot happen.
 
-A script can also ask why and what: after an `unsat`, `(get-unsat-core)` names the guilty
-`(assert (! ... :named n))` assertions — re-asserting just those stays unsat — and after a `sat`,
-`(get-model)` prints a `define-fun` per declared constant and function, and `(get-value (t ...))` evaluates
-terms under that model. In Scala the same is `solver.unsatCore`, `solver.model()`, `model.value(term)` and
-`model.holds(formula)` on a [`net.bovel.vik.Solver`](https://matt.bovel.net/vik/api/net/bovel/vik.html),
-which keeps one engine across the `check-sat`s of a script: what one check learns, the next one keeps.
+A script can also ask why and what. After an `unsat`, `(get-unsat-core)` names the guilty
+`(assert (! ... :named n))` assertions: re-asserting just those, with the unnamed assertions, stays unsat.
+The core is not minimal — it is the set of named assertions the search actually used — only named assertions
+appear in it, it is empty when the unnamed assertions alone are unsat, and a named assertion lives and dies
+with the `push` level that asserted it. After a `sat`, `(get-model)` prints a `define-fun` per declared
+constant and function, and `(get-value (t ...))` evaluates terms under that model (a script that never asks
+pays nothing for models; in Scala, `solver.produceModels` says whether a `Sat` takes one). In Scala the same
+is `solver.unsatCore`, `solver.model()`, `model.value(term)` and `model.holds(formula)` on a
+[`net.bovel.vik.Solver`](https://matt.bovel.net/vik/api/net/bovel/vik.html), which keeps one engine across
+the `check-sat`s of a script: what one check learns, the next one keeps.
+
+What a model holds: every declared constant, of every sort — an integer, a rational `(/ 1 3)`, a Boolean, an
+element `@U!0` of an uninterpreted sort, a constructor term for a datatype; and a finite graph per declared
+function, array or lambda-sorted constant, as an `ite` chain over the applications the assertions mention,
+with a default for the rest. Its edges: a bit-vector constant is printed as its unsigned integer, with sort
+`Int`, since the solver lowered it; a datatype component the assertions never touched is an element
+`@List!0` rather than a constructor term; the constants the lowering introduced (`ite!1`, `floor!2`) are
+printed with the rest; and `get-value` evaluates constants, literals and applications of
+declared symbols, but an operation the lowering defines through an auxiliary constant — `ite`, `div`, `mod`,
+the bit-vector operations — comes back as that constant's name (`ite!3`) rather than a value. After an
+`unsat` or `unknown`, the answer is `(error "no model")`.
 
 ```smt2
 (declare-const x Int)

@@ -84,20 +84,23 @@ final class Solver(val simplify: Boolean = true):
 
   def push(): Unit =
     levels += ArrayBuffer.empty
+    named += ArrayBuffer.empty
     val e = encoder
     if e != null && !dirty then selectors += e.newSelector()
 
   def pop(): Unit =
     require(levels.length > 1, "pop without a matching push")
     levels.remove(levels.length - 1)
+    named.remove(named.length - 1)
     val e = encoder
     if e != null && !dirty && selectors.length >= levels.length then
       e.retire(selectors.remove(selectors.length - 1))
 
-  /** The named assertions (SMT-LIB `:named`): each one's activation literal,
-   *  assumed at every solve, and the names of the last `Unsat`'s core.
+  /** The named assertions (SMT-LIB `:named`) per level — each one's activation
+   *  literal is assumed at every solve while its level is open — and the names
+   *  of the last `Unsat`'s core.
    */
-  private val named = ArrayBuffer.empty[(String, Formula)]
+  private val named = ArrayBuffer(ArrayBuffer.empty[(String, Formula)])
   private var lastCore: List[String] = Nil
 
   /** Whether a `Sat` takes its model (see [[model]]): taking one walks the
@@ -111,14 +114,11 @@ final class Solver(val simplify: Boolean = true):
    *  [[Model]]).
    */
   def model(): Option[Model] =
-    val e = encoder
-    if e == null then None
-    else
-      Option(e.lastModel).map { m =>
-        // The constants the simplification defined away get their definitions' values: the
-        // definitions mention only constants the model already has.
-        m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
-      }
+    Option(encoder).flatMap(e => Option(e.lastModel)).map { m =>
+      // The constants the simplification defined away get their definitions' values: the
+      // definitions mention only constants the model already has.
+      m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
+    }
 
   /** The named assertions among the causes of the last [[solve]]'s `Unsat`:
    *  re-asserting just these (with the unnamed assertions) stays `Unsat`. Empty
@@ -126,21 +126,21 @@ final class Solver(val simplify: Boolean = true):
    */
   def unsatCore: List[String] = lastCore
 
-  /** Asserts `formula` under `name` (`(! formula :named name)`): it takes part
-   *  in [[unsatCore]].
-   */
+  /** Asserts `(! formula :named name)`: a part of [[unsatCore]]. */
   def assert(formula: Formula, name: String): Unit =
-    named += ((name, formula))
-    if encoder != null && !dirty then dirty = true // rebuilt: the activation literals are per encoder
-    ()
+    named.last += ((name, formula))
+    if mentionsEliminated(formula) then dirty = true
 
   def assert(formula: Formula): Unit =
     levels.last += formula
     val e = encoder
-    if e != null && !dirty then
-      if eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated.contains)) then
-        dirty = true // the elimination assumed the constant stayed local: start over
-      else e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
+    if mentionsEliminated(formula) then dirty = true
+    else if e != null && !dirty then
+      e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
+
+  // The elimination assumed the constant stayed local; a mention breaks it: start over.
+  private def mentionsEliminated(formula: Formula): Boolean = encoder != null && !dirty
+    && eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated.contains))
 
   /** Decides the assertions with at most `fuel` steps — a decision or a
    *  conflict of the SAT search, a pivot, a row propagation or a branch of the
@@ -165,7 +165,7 @@ final class Solver(val simplify: Boolean = true):
       val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
       if levels.length == 1 && simplify then
         // One level: the batch is the whole set, so the global simplification is sound to keep.
-        val (simplified, gone) = Simplifier.simplify(levels.head.toList, constructors)
+        val (simplified, gone) = Simplifier.simplify(levels.head.toList, constructors, named.head.map(_._2).toList)
         eliminated = gone
         for formula <- simplified do e.assert(formula, null)
       else
@@ -177,7 +177,7 @@ final class Solver(val simplify: Boolean = true):
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
     e.produceModels = produceModels
-    val activations = named.toList.map((name, formula) => (name, e.activate(formula)))
+    val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
     var emitted = -1
@@ -856,9 +856,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             case _ => elementOf(sort, cls)
     def valueOfTerm(t: Term, sort: String): Term =
-      sort match
-        case "Int" => intVars.get(t).map(x => Term.Num(liaSolver.value(x))).getOrElse(Term.Num(0))
-        case "Real" => intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x))).getOrElse(Term.Num(0))
+      (t, sort) match
+        case (Term.Num(_), _) => t // a literal argument of an application
+        case (_, "Int") => intVars.get(t).map(x => Term.Num(liaSolver.value(x))).getOrElse(Term.Num(0))
+        case (_, "Real") => intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x))).getOrElse(Term.Num(0))
         case _ =>
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)

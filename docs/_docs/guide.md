@@ -104,6 +104,31 @@ that differs from another differs on some argument (extensionality).
 (check-sat)
 ```
 
+## Reals
+
+`Real` is the same simplex without the integrality; `to_real`, `to_int` and `is_int` cross between the two.
+
+```smt2
+(declare-const x Real)
+(assert (< (* 2 x) 3))
+(assert (> (* 2 x) 1))
+(check-sat)
+(get-value (x))
+```
+
+## Arrays
+
+`select` and `store` follow the read-over-write axioms, and two arrays that differ differ at some index.
+
+```smt2
+(declare-const a (Array Int Int))
+(declare-const i Int)
+(declare-const j Int)
+(assert (= (select (store a i 1) j) 2))
+(assert (= i j))
+(check-sat)
+```
+
 ## Bit-vectors, without bit-blasting
 
 The arithmetic fragment of `QF_BV` is lowered to integers: additions modulo, comparisons, masks, `extract`,
@@ -131,6 +156,33 @@ The arithmetic fragment of `QF_BV` is lowered to integers: additions modulo, com
 (check-sat)
 (pop 1)
 (check-sat)
+```
+
+## Models and cores
+
+After `sat`, `get-model` and `get-value` say how; after `unsat`, `get-unsat-core` says why, naming the
+`:named` assertions the proof used (what a model holds, and what it does not, is on
+[the solver's page](components/vik.md)).
+
+```smt2
+(declare-datatype List ((nil) (cons (head Int) (tail List))))
+(declare-fun f (Int) Int)
+(declare-const l List)
+(assert (= (head l) (f 3)))
+(assert (> (f 3) 4))
+(check-sat)
+(get-model)
+(get-value ((f 3) (f 4)))
+```
+
+```smt2
+(declare-const x Int)
+(declare-const y Int)
+(assert (! (<= x 2) :named low))
+(assert (! (<= 4 x) :named high))
+(assert (! (<= 4 y) :named other))
+(check-sat)
+(get-unsat-core)
 ```
 
 ## Budgets

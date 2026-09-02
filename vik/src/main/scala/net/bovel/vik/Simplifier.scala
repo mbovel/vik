@@ -20,14 +20,21 @@ import Term.*
  */
 object Simplifier:
   /** `interpreted` names constants with a meaning of their own (nullary
-   *  constructors of datatypes): they are never eliminated. Returns the
-   *  simplified assertions and the constants eliminated by substitution — an
-   *  elimination is sound only while no other assertion mentions the constant,
-   *  so a caller that keeps the result and later learns of one must start over.
+   *  constructors of datatypes): they are never eliminated; neither is a
+   *  constant of `kept`, formulas asserted alongside but left as they are (the
+   *  named ones). Returns the simplified assertions and the constants
+   *  eliminated by substitution — an elimination is sound only while no other
+   *  assertion mentions the constant, so a caller that keeps the result and
+   *  later learns of one must start over.
    */
-  def simplify(assertions: List[Formula], interpreted: Set[String] = Set.empty): (List[Formula], Map[String, Term]) =
+  def simplify(
+      assertions: List[Formula],
+      interpreted: Set[String] = Set.empty,
+      kept: List[Formula] = Nil
+  ): (List[Formula], Map[String, Term]) =
     val total = HashMap.empty[String, Int]
     for f <- assertions do countConstants(f, total)
+    for f <- kept do countConstants(f, total)
     for name <- interpreted do total(name) = Int.MaxValue // never local to a conjunction
     val defined = HashMap.empty[String, Term]
     val out = assertions.map(f => simplify(f, total, true, defined)).filter(_ != True)

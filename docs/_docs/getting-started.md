@@ -14,7 +14,7 @@ extraCSS:
 VIK reads [SMT-LIB 2](https://smt-lib.org) scripts and answers the `check-sat` commands, one line each:
 
 ```sh
-sbt "smt2/run problem.smt2"
+sbt "vik/run problem.smt2"
 ```
 
 The same on a script you write here — press the play button in its corner:
@@ -31,8 +31,9 @@ The same on a script you write here — press the play button in its corner:
 ```
 
 The front end supports what the theories below support: `declare-sort`, `declare-fun`, `declare-const`,
-`define-fun`, `declare-datatype(s)`, `assert`, `check-sat`, `check-sat-assuming`, `push`, `pop`,
-`reset-assertions`, `reset`, `set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
+`define-fun`, `declare-datatype(s)`, `assert` (with `:named`), `check-sat`, `check-sat-assuming`, `push`,
+`pop`, `get-model`, `get-value`, `get-unsat-core`, `get-assertions`, `reset-assertions`, `reset`,
+`set-logic`, `set-info`, `set-option` and `get-info`. Sorts of theories that are
 not supported (strings, sets, floating point) are refused rather than read as uninterpreted
 sorts, so a script is never answered on a meaning VIK does not implement. `Real` literals — decimals and
 quotients like `(/ 1 3)` — become fresh constants defined by an integer equation (`3 k = 1`), so the
