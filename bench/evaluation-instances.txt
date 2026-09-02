@@ -20,8 +20,8 @@ corpus/QF_UFLIA/smt-lib/mathsat__Wisa__xs-09-05-2-4-4-5.smt2
 corpus/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2
 corpus/QF_LRA/smt-lib/Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2
 corpus/QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_28.smt2
-corpus/QF_BV/smt-lib/sage__app7__bench_8505.smt2
-corpus/QF_BV/smt-lib/bmc-bv__adpcm.smt2
+corpus/QF_BV/smt-lib/bench_ab__a649test0047.smt2
+corpus/QF_BV/smt-lib/sage__app2__bench_512.smt2
 corpus/QF_BV/smt-lib/pspace__ndist.a.20000.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v1__v1l20086.cvc.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2

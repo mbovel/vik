@@ -68,8 +68,8 @@ two variables, `bvor`, `bvxor`, or division and shifts by a variable):
 
 | File | Family | Status | Workload |
 |---|---|---|---|
-| `sage__app7__bench_8505.smt2` | sage | sat | symbolic execution queries (SAGE) |
-| `bench_ab__a97test0001.smt2` | bench_ab | sat | crafted arithmetic |
+| `sage__app7__bench_8505.smt2`, `sage__app2__bench_512.smt2` | sage | sat, unsat | symbolic execution queries (SAGE); the second, for the evaluation, has 176 operations over 8-bit terms — subtractions, additions and comparison chains |
+| `bench_ab__a97test0001.smt2`, `bench_ab__a649test0047.smt2` | bench_ab | sat, sat | crafted arithmetic (Engler's tool via CVC3); the second, for the evaluation, has 116 operations |
 | `bmc-bv__adpcm.smt2`, `bmc-bv__Prim_4.smt2` | bmc-bv | sat, unsat | bounded model checking |
 | `crafted__bitops7.smt2`, `crafted__bv8.smt2` | crafted | sat, unsat | small crafted instances |
 | `2018-Goel-hwbench__QF_BV_bv_bv_swap_two_cc_ref_max.smt2`, `2018-Goel-hwbench__QF_BV_cav14_example_cc_reg_max.smt2` | 2018-Goel-hwbench | sat, unsat | hardware verification |
