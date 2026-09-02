@@ -9,15 +9,11 @@ extraCSS:
 
 # Bit-vectors
 
-`QF_BV` without bit-blasting: a bit-vector is an integer in `[0, 2ⁿ)`, and the operations that are
-arithmetic modulo `2ⁿ` are lowered to linear integer arithmetic. The width costs nothing. The other
-operations — a product, a division, a shift or a bitwise operation of two unknowns — are interpreted
-symbols the search leaves uninterpreted and each candidate model is checked against: a counterexample-guided
-loop, a prototype.
+The arithmetic fragment of `QF_BV`, without bit-blasting: a bit-vector is an integer in `[0, 2ⁿ)`, and the
+operations that are arithmetic modulo `2ⁿ` are lowered to linear integer arithmetic. The width costs nothing.
 
-**Decision procedure: yes.** The lowered problem has bounded variables, which the integer solver decides,
-and the loop over the interpreted symbols ends because their arguments have finitely many values — but
-it can take as many rounds as there are values, and the fuel of a `check-sat` bounds it in practice.
+**Decision procedure: yes, for the fragment it accepts.** Anything outside the fragment is refused up
+front, and the lowered problem has bounded variables, which the integer solver decides.
 
 ## What you can write
 
@@ -45,33 +41,12 @@ pre-renaming spellings `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
 (check-sat)
 ```
 
-Not arithmetic, so not lowered: `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor`, `bvmul`, `bvudiv`,
-`bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`, `bvshl`, `bvlshr`, `bvashr` and `bvcomp` of two unknowns. Each becomes
-an application of an interpreted symbol, `(bvmul!8 x y)` for the product of two 8-bit vectors, a function
-from integers to integers whose result is bounded to the width and about which the search knows nothing
-else. When the search finds a candidate model, the solver evaluates every such application on the values
-the model gives its arguments (`net.bovel.vik.Interpreted` has the SMT-LIB semantics: division by zero is
-all ones, a shift by the width or more all zeros); where the model disagrees, it learns the value lemma
-`x = 3 ∧ y = 5 ⇒ (bvmul!8 x y) = 15` and searches again. The loop stops on the first candidate the
-meanings accept, or on unsat.
+Refused, because they are not arithmetic: `bvand`, `bvor`, `bvxor` of two unknowns, `bvmul` of two unknowns,
+shifts and divisions by an unknown. A script that uses them is rejected rather than answered — the whole
+point of this fragment is that what it answers, it answers by arithmetic.
 
-```smt2
-(set-logic QF_BV)
-(declare-const x (_ BitVec 8))
-(declare-const y (_ BitVec 8))
-(assert (= (bvmul x y) #x01))
-(assert (bvugt x #x01))
-(check-sat)
-(get-value (x y))
-```
-
-This is a prototype of the counterexample-guided loop that recursive functions and quantifiers will
-use, on the simplest possible instance: a total function of finitely many arguments. It is complete but
-not clever — nothing is learned beyond the one point a lemma names, and an assertion `(bvmul x y) = 0` on
-32-bit vectors may take a round per model tried.
-
-Of the small files of `QF_BV` in the library, a bit less than a third are in the arithmetic fragment. Where
-the fragment applies, the width is free: `pspace/ndist.a.20000` is decided in milliseconds here and times out for a
+Of the small files of `QF_BV` in the library, a bit less than a third are in the fragment. Where the fragment
+applies, the width is free: `pspace/ndist.a.20000` is decided in milliseconds here and times out for a
 bit-blasting solver ([evaluation](../evaluation.md)).
 
 ## Internals
@@ -105,12 +80,11 @@ assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit 
 | `ubv_to_int a` | `a` | none: the lowered bit-vector is its unsigned value |
 | `sbv_to_int a` | `a − m·s` | `s, u` as for the sign bit |
 | `(_ int_to_bv n) t` | `r` | `r ∈ [0, m)`, `k` unbounded: `t = r + m·k` |
-| `bvmul a b`, `bvand a b`, ... | `(bvmul!n a b)` | none: the application is bounded to `[0, m)`, its value held to the meaning by lemmas |
 
 The parser reads bit-vector terms as they are written — the tree has them (`Term.BvApp`, `Term.Bits`) —
 and the lowering is one function of the solver, `net.bovel.vik.Lowering`: it takes a script and returns
 the lowered script, declaring the constants each assertion needs and asserting their definitions before
-it, so the script that VIK plays is a `QF_UFLIA` script. The session applies it before playing. Two
+it, so the script that VIK plays is a `QF_LIA` script. The player applies it before playing. Two
 ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and
 `smt2lowered file.smt2` on the command line prints a whole file as VIK will play it.
 

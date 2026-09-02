@@ -15,13 +15,12 @@ behind it.
   the functions.
 - [Real arithmetic](reals.md): the simplex with δ-rationals for strict bounds.
 - [Algebraic datatypes](datatypes.md): constructors, selectors, testers, acyclicity.
-- [Bit-vectors](bit-vectors.md): the arithmetic lowered to integers, no bit-blasting; the rest by a
-  counterexample-guided loop.
+- [Bit-vectors](bit-vectors.md): the arithmetic fragment, lowered to integers, no bit-blasting.
 - [Arrays](arrays.md): `select` as application, `store` by lemmas, extensional.
 
 Each page opens with whether VIK is a decision procedure for its fragment: yes for uninterpreted
-functions, integers (branch and bound inside the small-model box), reals, datatypes, bit-vectors and
-flat arrays. Every answer is
+functions, integers (branch and bound inside the small-model box), reals, datatypes, the bit-vector
+fragment and flat arrays. Every answer is
 within a fuel: any question can also stop at the budget with `unknown`.
 
 Not supported: quantifiers, strings, sets, floating point. A script that uses them is

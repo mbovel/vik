@@ -4,10 +4,9 @@ import scala.util.Random
 
 import net.bovel.smtlib.Parser
 
-/** The lowering of bit-vector arithmetic to integers and the interpreted
- *  symbols of the rest: hand cases, and random 4-bit expressions whose value
- *  under an assignment is computed directly and compared with what the solver
- *  accepts.
+/** The lowering of bit-vector arithmetic to integers: hand cases, and random
+ *  4-bit expressions whose value under an assignment is computed directly and
+ *  compared with what the solver accepts.
  */
 class BitVectorsTest extends munit.FunSuite:
   def sat(script: String): Boolean = Session.answers(Parser.parse(script)) == List(Some(true))
@@ -45,28 +44,9 @@ class BitVectorsTest extends munit.FunSuite:
     )
     assert(sat(s"$decls (assert (= (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)")) // an identity: sat for every x
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
-
-  test("operations of two variables: interpreted symbols, checked against the candidate models"):
-    val small = "(set-logic QF_BV) (declare-const x (_ BitVec 4)) (declare-const y (_ BitVec 4))"
-    assert(sat(s"$small (assert (= (bvmul x y) #x1)) (check-sat)")) // 1 × 1, 3 × 11, ...
-    assert(!sat(s"$small (assert (= x #x2)) (assert (= (bvmul x y) #x7)) (check-sat)")) // 2y is even
-    assert(sat(s"$small (assert (= x #x2)) (assert (= (bvmul x y) #x6)) (assert (= y #x3)) (check-sat)"))
-    assert(!sat(s"$small (assert (= x #x2)) (assert (= (bvmul x y) #x6)) (assert (= y #x4)) (check-sat)"))
-    assert(sat(s"$small (assert (= (bvor x y) #xf)) (assert (= (bvand x y) #x0)) (assert (= x #x5)) (check-sat)"))
-    assert(!sat(
-      s"$small (assert (= (bvor x y) #xf)) (assert (= (bvand x y) #x0)) (assert (= x #x5)) (assert (= y #x8)) (check-sat)"
-    ))
-    assert(
-      !sat(s"$small (assert (= (bvudiv x y) #x3)) (assert (= y #x0)) (assert (= x #x3)) (check-sat)")
-    ) // x ÷ 0 = 15
-    assert(sat(s"$small (assert (= (bvudiv x y) #xf)) (assert (= y #x0)) (check-sat)"))
-    assert(sat(s"$small (assert (= (bvshl x y) #x8)) (assert (= y #x3)) (assert (= x #x1)) (check-sat)"))
-    assert(!sat(s"$small (assert (= (bvshl x y) #x8)) (assert (= y #x4)) (check-sat)")) // a shift by the width: 0
-    // The values are the symbol's meaning, in the model too.
-    val out = Session.run(Parser.parse(
-      s"$small (assert (= x #x7)) (assert (= y #x3)) (assert (bvult (bvmul x y) #xf)) (check-sat) (get-value ((bvmul x y) (bvand x y)))"
-    ))
-    assertEquals(out, List("sat", "(((bvmul x y) 5) ((bvand x y) 3))"))
+    // The whole vocabulary parses — the tree holds it — and the lowering draws the fragment line.
+    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvmul x y) #x01))")))
+    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvor x y) #x01))")))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.
@@ -84,26 +64,7 @@ class BitVectorsTest extends munit.FunSuite:
       val (a, va) = expression(rnd, depth - 1, vx, vy)
       val (b, vb) = expression(rnd, depth - 1, vx, vy)
       val c = rnd.nextInt(16)
-      def signed(v: Int) = if v >= 8 then v - 16 else v
-      rnd.nextInt(21) match
-        case 11 => (s"(bvmul $a $b)", (va * vb) & 15)
-        case 12 => (s"(bvand $a $b)", va & vb)
-        case 13 => (s"(bvor $a $b)", va | vb)
-        case 14 => (s"(bvxor $a $b)", va ^ vb)
-        case 15 => (s"(bvudiv $a $b)", if vb == 0 then 15 else va / vb)
-        case 16 => (s"(bvurem $a $b)", if vb == 0 then va else va % vb)
-        case 17 => (s"(bvshl $a $b)", if vb >= 4 then 0 else (va << vb) & 15)
-        case 18 => (s"(bvlshr $a $b)", if vb >= 4 then 0 else va >>> vb)
-        case 19 => (s"(bvashr $a $b)", (signed(va) >> (vb min 4)) & 15)
-        case 20 =>
-          rnd.nextInt(3) match
-            case 0 => (
-                s"(bvsdiv $a $b)",
-                (if signed(vb) == 0 then (if signed(va) >= 0 then -1 else 1) else signed(va) / signed(vb)) & 15
-              )
-            case 1 => (s"(bvsrem $a $b)", (if signed(vb) == 0 then signed(va) else signed(va) % signed(vb)) & 15)
-            case _ =>
-              (s"(bvsmod $a $b)", (if signed(vb) == 0 then signed(va) else Math.floorMod(signed(va), signed(vb))) & 15)
+      rnd.nextInt(11) match
         case 0 => (s"(bvadd $a $b)", (va + vb) & 15)
         case 1 => (s"(bvsub $a $b)", (va - vb) & 15)
         case 2 => (s"(bvneg $a)", (-va) & 15)
