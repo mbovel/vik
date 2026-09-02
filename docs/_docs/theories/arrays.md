@@ -43,4 +43,23 @@ witnesses included.
 
 Arrays combine with the other theories through their indices and elements: `(Array Int Int)` shares its
 terms with [integer arithmetic](integers.md) like any function over integers. `store` on a nested array
-(an array of arrays) is not supported; models do not value arrays yet.
+(an array of arrays) is not supported.
+
+## Models
+
+A model values an array by a default and the indices the script read or wrote, in SMT-LIB's own form —
+`(store (store ((as const (Array Int Int)) 0) 1 10) 2 20)` — and `get-value` reads through such a value,
+`store`s in the query included. Two arrays the script keeps distinct differ at the witness index the
+solver introduced for them.
+
+```smt2
+(set-logic QF_ALIA)
+(set-option :produce-models true)
+(declare-const a (Array Int Int))
+(declare-const b (Array Int Int))
+(assert (= b (store a 1 10)))
+(assert (= (select a 2) 20))
+(check-sat)
+(get-value ((select b 1) (select b 2) (select (store a 2 0) 2)))
+(get-model)
+```

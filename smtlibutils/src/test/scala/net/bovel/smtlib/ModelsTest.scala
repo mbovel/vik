@@ -36,7 +36,9 @@ class ModelsTest extends munit.FunSuite:
       "TwoSquares__smtlib.598294.smt2",
       "2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max.smt2",
       "20172804-Barrett__tests__v10__v10l20080.cvc.smt2",
-      "dillig__20-4.smt2"
+      "dillig__20-4.smt2",
+      "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2", // arrays: valued extensionally
+      "storeinv__storeinv_invalid_t1_pp_nf_ai_00002_001.cvc.smt2"
     )
     for file <- scripts do
       val script = Lowering(Parser.parse(Corpus.read(Corpus.files.find(_.endsWith(file)).get)))

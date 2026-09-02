@@ -802,8 +802,30 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)
             case None => if sort == "Bool" then Term.boolean(Formula.False) else elementOf(sort, eg.newClass())
+    // An array's value, per e-class: its default and the indices its class was read at — its own
+    // selects, the ones of every array equal to it, the write of a store it equals.
+    val arrayValues = HashMap.empty[EClassId, Term]
+    def arrayValue(array: Term, sort: String): Term =
+      val root = eg.find(classOf(array))
+      arrayValues.getOrElseUpdate(
+        root, {
+          val (indexSort :: _, elementSort) = Sorts.arrow(sort).get: @unchecked
+          val rows = classes.keys.collect {
+            case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
+              (valueOfTerm(j, indexSort), valueOfTerm(app, elementSort))
+          }.toMap
+          val default = valueOfTerm(Term.Const("@default"), elementSort)
+          rows.toList.sortBy(_._1.toString).foldLeft(Model.constArray(Sorts.array(sort), default)) {
+            case (acc, (i, v)) => Model.store(acc, i, v)
+          }
+        }
+      )
     val constants = Map.newBuilder[String, Term]
     val functions = Map.newBuilder[String, Model.Function]
+    for
+      (name, (argSorts, sort)) <- declarations
+      if argSorts.isEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
+    do if classes.contains(Term.Const(name)) then constants += name -> arrayValue(Term.Const(name), sort)
     for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else

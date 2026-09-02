@@ -94,7 +94,7 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
     val interpreted =
       current.datatypes.flatMap(_.constructors).flatMap(c => c.name :: c.tester :: c.selectors.map(_._1)).toSet
     val constants = m.constants.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map((n, v) =>
-      s"(define-fun $n () ${sorts.getOrElse(n, "?")} ${Printer.print(v)})"
+      s"(define-fun $n () ${s2.Sorts.array(sorts.getOrElse(n, "?"))} ${Printer.print(v)})"
     )
     val functions = m.functions.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map { (n, f) =>
       val params = f.parameters.zipWithIndex.map((s, i) => s"(x!$i $s)").mkString(" ")

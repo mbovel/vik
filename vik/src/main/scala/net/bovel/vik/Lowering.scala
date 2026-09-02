@@ -72,11 +72,10 @@ private final class Lowerer:
       List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(range(Const(name), w)))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       functions(name) = Sort.fun(argSorts, sort)
-      // A constant of a function sort (an array) is a function symbol: flattened.
-      val strings = argSorts.map(sortString)
-      s2.Sorts.arrow(s2.Sorts.function(strings, sortString(sort))) match
-        case Some((params, result)) => List(Command.DeclareFun(name, params, result))
-        case None => List(Command.DeclareFun(name, strings, sortString(sort)))
+      // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
+      // not flattened into a function symbol: the solver applies it either way, and the model knows an
+      // array from a function by that.
+      List(Command.DeclareFun(name, argSorts.map(sortString), sortString(sort)))
     case s2.Command.DeclareDatatypes(datatypes) =>
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = Sort.Named(datatype.name)

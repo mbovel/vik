@@ -34,6 +34,14 @@ object Sorts:
     case Some((params, result)) if n <= params.length => function(params.drop(n), result)
     case _ => "?"
 
+  /** The array sort a function sort stands for, as SMT-LIB writes it:
+   *  `(-> I E)` is `(Array I E)`, `(-> I J E)` is `(Array I (Array J E))`; a
+   *  value sort is itself.
+   */
+  def array(sort: String): String = arrow(sort) match
+    case Some((params, result)) => params.foldRight(result)((i, e) => s"(Array $i $e)")
+    case None => sort
+
   /** The items of `s` separated by spaces at parenthesis depth 0. */
   private def split(s: String): List[String] =
     val items = List.newBuilder[String]

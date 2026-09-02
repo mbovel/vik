@@ -7,9 +7,11 @@ import net.bovel.lia
  *  — the applications the problem mentions, and a default.
  *
  *  Values are closed terms: a numeral, `true`/`false` as a [[Term.Bool]], a
- *  constructor application for a datatype, or an abstract element `@Sort!k` for
- *  an uninterpreted sort — distinct constants map to distinct elements exactly
- *  when the e-graph kept them apart.
+ *  constructor application for a datatype, an abstract element `@Sort!k` for an
+ *  uninterpreted sort — distinct constants map to distinct elements exactly
+ *  when the e-graph kept them apart — or, for an array, the SMT-LIB form
+ *  `(store (store ((as const (Array I E)) d) i v) j w)`: a default `d` and the
+ *  indices the problem read or wrote ([[Model.select]], [[Model.store]]).
  */
 final case class Model(
     constants: Map[String, Term],
@@ -29,6 +31,9 @@ final case class Model(
       functions.get(name) match
         case Some(f) if f.parameters.isEmpty => f.default
         case _ => constants.getOrElse(name, term)
+    case Term.App(Term.Const(name), List(a, i, v)) if name.startsWith("store!") =>
+      Model.store(value(a), value(i), value(v))
+    case Term.App(fun, List(index)) if Model.isArray(value(fun)) => Model.select(value(fun), value(index))
     case Term.App(Term.Const(name), args) =>
       val values = args.map(value)
       functions.get(name) match
@@ -47,7 +52,7 @@ final case class Model(
     case Formula.Implies(a, b) => !holds(a) || holds(b)
     case Formula.Iff(a, b) => holds(a) == holds(b)
     case Formula.Ite(c, t, e) => if holds(c) then holds(t) else holds(e)
-    case Formula.Eq(l, r) => value(l) == value(r)
+    case Formula.Eq(l, r) => Model.same(value(l), value(r))
     case Formula.Le(l, r) => rational(value(l)) <= rational(value(r))
     case Formula.Less(l, r) => rational(value(l)) < rational(value(r))
     case Formula.Pred(t) => value(t) == Term.Bool(Formula.True)
@@ -68,3 +73,40 @@ object Model:
    *  else.
    */
   final case class Function(parameters: List[String], result: String, rows: List[(List[Term], Term)], default: Term)
+
+  /** The array of sort `sort` (as SMT-LIB writes it) holding `default`
+   *  everywhere: `((as const (Array I E)) d)`.
+   */
+  def constArray(sort: String, default: Term): Term = Term.App(Term.Const(s"(as const $sort)"), List(default))
+
+  /** `array` with `value` at `index`: `(store array index value)`. */
+  def store(array: Term, index: Term, value: Term): Term = Term.App(Term.Const("store"), List(array, index, value))
+
+  /** Whether a value is an array, in the form above. */
+  def isArray(value: Term): Boolean = value match
+    case Term.App(Term.Const("store"), List(_, _, _)) => true
+    case Term.App(Term.Const(name), List(_)) => name.startsWith("(as const ")
+    case _ => false
+
+  /** The element of an array value at an index: the innermost write to it, else
+   *  the default.
+   */
+  def select(array: Term, index: Term): Term = array match
+    case Term.App(Term.Const("store"), List(a, i, v)) => if same(i, index) then v else select(a, index)
+    case Term.App(Term.Const(name), List(d)) if name.startsWith("(as const ") => d
+    case _ => Term.App(array, List(index))
+
+  /** An array value as its default and the map of the indices written to a
+   *  value other than it.
+   */
+  def graph(array: Term): (Term, Map[Term, Term]) = array match
+    case Term.App(Term.Const("store"), List(a, i, v)) =>
+      val (d, m) = graph(a)
+      (d, if same(v, d) then m - i else m.updated(i, v))
+    case Term.App(Term.Const(_), List(d)) => (d, Map.empty)
+    case _ => (array, Map.empty)
+
+  /** Whether two values are the same: arrays extensionally, the rest as terms.
+   */
+  def same(a: Term, b: Term): Boolean =
+    if isArray(a) && isArray(b) then graph(a) == graph(b) else a == b

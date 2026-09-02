@@ -50,6 +50,5 @@ refused at the declaration, rather than read as uninterpreted sorts.
 - `div`, `mod` and `abs` are refused; see [integers](theories/integers.md).
 - Parametric datatypes (`declare-datatypes` with sort parameters) are refused; see
   [datatypes](theories/datatypes.md).
-- Arrays of arrays (`store` on a nested array) are refused, and models do not value arrays; see
-  [arrays](theories/arrays.md).
+- Arrays of arrays (`store` on a nested array) are refused; see [arrays](theories/arrays.md).
 - `check-sat-using`, z3's tactic form, is read as `check-sat`.
