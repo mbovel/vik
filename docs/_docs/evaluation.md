@@ -59,9 +59,9 @@ and the two tables were taken the same morning.
 ## Warm: the solver as a library
 
 The measurement is JMH in the same JVM: two forks, three warm-up and three measurement iterations of one
-second each, average time per operation, one thread. Every operation is a complete answer — parse the script,
-build the problem, solve it — on a solver built for that call, which is what a verification tool does per
-query.
+second each, a forced GC between iterations, average time per operation, one thread. Every operation is a
+complete answer — parse the script, build the problem, solve it — on a solver built for that call, which
+is what a verification tool does per query.
 
 **Times in milliseconds — lower is better;** the best cell of a row is green. Every measurement here holds
 to a ten-second budget: a solver past it on an instance is halted, noted on
@@ -288,7 +288,8 @@ finish agree on `sat`).
   out of the solver's reach or over the tests' five-second budget.
 - The in-process z3 and cvc5 go through the JavaSMT bindings, which cross the JNI boundary per call; their
   binaries are what the cold table measures. Both are reported. cvc5's binding is a snapshot of its main
-  rather than a release, for the registry above.
+  rather than a release, for the registry above; z3's frees a solver only when the GC collects its wrapper,
+  so the harness resets each solver it is done with — what a program that keeps a context would have to do.
 - VIK's answers are checked against the status of every file, on every run of the test suite; a wrong answer
   would show as such in these tables (none does).
 

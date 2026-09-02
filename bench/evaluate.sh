@@ -42,10 +42,12 @@ group() { awk -v g="$1" '$2 == g { sub(".*/", "", $1); print $1 }' bench/evaluat
 # bench/timeouts.txt, must not end the evaluation — JMH prints the failure and moves to the next
 # combo, and the table renders the noted cell as 🐢. A segment's fork flags stand alone
 # (JMH refuses duplicate options, so defaults and overrides must never be concatenated).
+# -gc true: a System.gc() between iterations, so each starts from the same heap — and, for z3's
+# binding, with the wrappers of the previous iteration's solvers collected (see Z3Replay.check).
 seg() { # seg <rff> <files> <methods regex> [fork flags — replace the defaults entirely]
   local rff=$1 files=$2 methods=$3; shift 3
   local forks="$*"; [ -z "$forks" ] && forks="-f 2 -wi 3 -i 3"
-  printf '%s' "bench/Jmh/run -foe false $forks -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$; "
+  printf '%s' "bench/Jmh/run -foe false -gc true $forks -rf json -rff $rff -p file=$files .*OtherSolversBench.$methods\$; "
 }
 
 warm() {

@@ -34,10 +34,20 @@ object Z3Replay:
     if logic == null then ctx.mkSolver() else ctx.mkSolver(logic)
 
   /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
-   *  `pop` and `check-sat` in script order — and returns the answers.
+   *  `pop` and `check-sat` in script order — and returns the answers. The
+   *  solver is reset on the way out: the binding frees a solver's native side
+   *  only once the GC has collected its wrapper (`Z3ReferenceQueue`; there is
+   *  no release call), and a program that allocates little on the Java side
+   *  collects late — the finished solvers pile up in the context, and each new
+   *  one slows with their number (2 ms to 77 ms per replay of the incremental
+   *  `QF_BV` instance over 2000 replays in one context; flat at 1.3 ms reset).
    */
   def check(program: Replay, ctx: Context): List[Boolean] =
     val solver = Z3Replay.solver(ctx, program.logic)
+    try replay(program, ctx, solver)
+    finally solver.reset()
+
+  private def replay(program: Replay, ctx: Context, solver: com.microsoft.z3.Solver): List[Boolean] =
     val slots = new Array[Expr[?]](program.slotCount)
     val decls = new Array[FuncDecl[?]](program.declCount)
     val testers = new Array[FuncDecl[?]](program.declCount) // by the constructor's id

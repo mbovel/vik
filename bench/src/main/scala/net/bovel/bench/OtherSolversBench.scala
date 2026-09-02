@@ -21,12 +21,12 @@ import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
  *  z3 and cvc5 run through their Java bindings as published by SoSy-Lab
  *  (JavaSMT) with the native libraries of `fetch-native.sh`. z3 keeps one
  *  `Context` for the trial, as a tool that embeds it does, and takes a fresh
- *  solver per operation: creating a context costs 0.46 ms, more than the small
- *  instances take to solve. cvc5 gets a fresh `Solver` per operation: the
- *  solver itself is cheap (30 µs), and the ~0.4 ms its engine spends
- *  initialising at the first `assert` is what a solver kept in incremental mode
- *  would save — at the price of another engine (24× slower on `NEQ004_size4`),
- *  so the fresh solver stays.
+ *  solver per operation, reset on the way out (see [[Z3Replay.check]]):
+ *  creating a context costs 0.46 ms, more than the small instances take to
+ *  solve. cvc5 gets a fresh `Solver` per operation: the solver itself is cheap
+ *  (30 µs), and the ~0.4 ms its engine spends initialising at the first
+ *  `assert` is what a solver kept in incremental mode would save — at the price
+ *  of another engine (24× slower on `NEQ004_size4`), so the fresh solver stays.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
@@ -159,8 +159,10 @@ class OtherSolversBench:
   @Benchmark
   def z3(): Boolean = Budget.run("z3", file):
     val solver = Z3Replay.solver(ctx, logic)
-    solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
-    solver.check() == Status.SATISFIABLE
+    try
+      solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
+      solver.check() == Status.SATISFIABLE
+    finally solver.reset() // see Z3Replay.check
 
   /** Replays the instance — declarations, terms, asserts, `push`/`pop` and
    *  every `check-sat` through z3's Java API, nothing else.

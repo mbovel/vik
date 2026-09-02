@@ -291,3 +291,21 @@ cvc5's main the day after the 1.3.3 tag, four housekeeping commits past it (`1.2
   `cvc5::internal::ResourceManager::spendResource`. The benchmarks free after each operation;
   `replaycheck` only while no run has outlived its budget.
 
+## z3
+
+Version: z3 4.14.0 (the binary) and `org.sosy-lab:javasmt-solver-z3:4.14.0` in process.
+
+### 1. The Java binding frees a solver only when the GC collects its wrapper (2026-09-02)
+
+- **Observed**: the incremental `QF_BV` instance replayed through z3's Java API in one shared `Context`
+  slowed from 2 ms to 77 ms over 2000 replays; a `System.gc()` brought it back to 2 ms. In the JMH
+  table (one context per trial, thousands of operations, nothing allocated on the Java side that would
+  trigger a collection) the cell read 26.6 ms where the same replay measures 1.3 ms alone. The two
+  non-incremental instances probed alongside (`sage`, `wisas`) did not grow.
+- **Cause**: `Z3Object` has no release method. A wrapper's native `dec_ref` runs from
+  `Z3ReferenceQueue` when the GC has enqueued it — `storeReference` clears what the queue holds, nothing
+  more — or at `Context.close()`, which frees everything at once. A program that keeps one context and
+  allocates little on the Java side collects late, and the finished solvers pile up natively.
+- **Workaround**: `Solver.reset()` on the way out of each operation (`Z3Replay.check`) — flat at 1.3 ms
+  over the same 2000 replays; the wrappers still wait for the GC, but they hold nothing then. A context
+  per operation would do too, at 0.46 ms each, more than the small instances take to solve.
