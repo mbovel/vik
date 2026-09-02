@@ -59,8 +59,8 @@ warm() {
   chain+=$(seg "$OUT-warm.json"      "$(group main)"    "(vik|vikText|z3|z3Direct|cvc5|smtinterpol)")
   chain+=$(seg "$OUT-warm-p.json"    "$(group main)"    "princess" -f 1 -wi 1 -i 3)
   chain+=$(seg "$OUT-warm-inc.json"  "$(group inc)"     "(vik|vikText|z3Direct|cvc5|smtinterpol)")
-  # princess on MESI (~96 s per replayed operation, a pathology recorded in external-issues) lands on
-  # bench/timeouts.txt the first time: the fork refuses it in milliseconds after, and the cell reads 🐢.
+  # A princess operation past the budget (car_6, stack_k20: princess itself, its binary is as slow) lands
+  # on bench/timeouts.txt the first time: the fork refuses it in milliseconds after, and the cell reads 🐢.
   chain+=$(seg "$OUT-warm-inc-p.json" "$(group inc)"    "princess" -f 1 -wi 1 -i 2)
   # cvc5's parser rejects regressions__3775 (z3-dialect lambdas), so it gets only the file it speaks.
   chain+=$(seg "$OUT-warm-ho.json"   "$(group hof)"     "(vik|vikText|z3)")

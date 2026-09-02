@@ -9,9 +9,10 @@ import net.bovel.vik.{Formula, Term}
 
 /** An instance compiled to a straight-line program of z3 Java API calls: what
  *  a verifier that builds z3's terms directly executes per query. [[compile]]
- *  reads the parsed script once, up front; [[run]] — the measured operation —
- *  replays the program against a fresh context, so it pays declarations, term
- *  construction and nothing else: no VIK tree is walked, no text is parsed.
+ *  reads the parsed script once, up front; [[check]] — the measured operation
+ *  — replays the program in the trial's context against a fresh solver, so
+ *  it pays declarations, term construction and nothing else: no VIK tree is
+ *  walked, no text is parsed.
  *  Every distinct subterm is built once and kept in a slot, the way a
  *  builder's cache would; sorts and declarations are interned to indices.
  *  `Int` covers the lowered bit-vectors, as the front end lowers while
@@ -20,11 +21,12 @@ import net.bovel.vik.{Formula, Term}
 final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCount: Int, sortCount: Int):
   import Z3Program.Op
 
-  /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
-   *  `pop` and `check-sat` in script order — and returns the answers.
+  /** Replays the program in `ctx` against a fresh solver for `logic` —
+   *  asserts, `push`, `pop` and `check-sat` in script order — and returns
+   *  the answers.
    */
-  def check(ctx: Context): List[Boolean] =
-    val solver = ctx.mkSolver()
+  def check(ctx: Context, logic: String | Null = null): List[Boolean] =
+    val solver = Z3Program.solver(ctx, logic)
     val slots = new Array[Expr[?]](slotCount)
     val decls = new Array[FuncDecl[?]](declCount)
     val sorts = new Array[Sort](sortCount)
@@ -104,6 +106,12 @@ final class Z3Program(instructions: Array[Z3Program.Op], slotCount: Int, declCou
     answers.toList
 
 object Z3Program:
+  /** A fresh solver: z3's for `logic` when the script names one (what the
+   *  binary runs on the file), the default one otherwise.
+   */
+  def solver(ctx: Context, logic: String | Null): com.microsoft.z3.Solver =
+    if logic == null then ctx.mkSolver() else ctx.mkSolver(logic)
+
   enum Op:
     case UninterpretedSort(id: Int, name: String)
     case BoolSort(id: Int)

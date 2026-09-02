@@ -14,11 +14,12 @@ import net.bovel.vik.Lowering
   Natives.z3
   var failures = 0
   for file <- files do
-    val script = Parser.parse(java.nio.file.Files.readString(Corpus.find(file)))
+    val text = java.nio.file.Files.readString(Corpus.find(file))
+    val script = Parser.parse(text)
     val program = Z3Program.compile(Lowering(script))
     val ctx = Context()
     try
-      val answers = program.check(ctx)
+      val answers = program.check(ctx, OtherSolversBench.logicOf(text))
       val expected = script.expectedStatuses
       val ok = answers.length == expected.length
         && answers.zip(expected).forall((a, e) => e.forall(_ == a))

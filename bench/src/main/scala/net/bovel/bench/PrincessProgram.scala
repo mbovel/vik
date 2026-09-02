@@ -4,7 +4,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import ap.api.SimpleAPI
 import ap.basetypes.IdealInt
-import ap.parser.{IAtom, IExpression, IFormula, IFormulaITE, IFunApp, IFunction, ITerm, ITermITE}
+import ap.parser.{IExpression, IFormula, IFormulaITE, IFunApp, IFunction, ITerm, ITermITE}
 import ap.theories.ADT
 import ap.theories.rationals.Rationals
 import ap.types.Sort
@@ -19,7 +19,11 @@ import net.bovel.vik.{Formula, Term}
  *  creation, term construction, asserts, `push`/`pop` and every `check-sat`,
  *  nothing else. The API route also sidesteps the SMT-LIB parser's
  *  environment, which rejects a re-declaration after `pop`
- *  (external-issues.md). `Int` covers the lowered bit-vectors.
+ *  (external-issues.md). `Int` covers the lowered bit-vectors. A function
+ *  with a `Bool` result is a function into princess's `MultipleValueBool`
+ *  sort (0 is true), its application read as a formula by `= 0` — as
+ *  princess's own SMT-LIB parser does; as a relation instead, princess pays
+ *  up to 30× on the `kind` scripts (external-issues.md).
  */
 final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: Int, declCount: Int, sortCount: Int):
   import PrincessProgram.Op
@@ -29,7 +33,7 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
     SimpleAPI.withProver { p =>
       import IExpression.*
       val slots = new Array[AnyRef](slotCount) // ITerm or IFormula
-      val decls = new Array[AnyRef](declCount) // IFunction, or a predicate for a Bool result
+      val decls = new Array[IFunction](declCount)
       val sorts = new Array[Sort](sortCount)
       val adts = new Array[ADT](sortCount) // by the sort id of the first datatype of a group
       val answers = ArrayBuffer.empty[Boolean]
@@ -37,7 +41,9 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
       def rat(x: Int): ITerm = // an integer-sorted slot (a shared literal) lifted into the rationals
         val t = term(x)
         if Sort.sortOf(t) == Rationals.dom then t else Rationals.int2ring(t)
-      def formula(i: Int): IFormula = slots(i).asInstanceOf[IFormula]
+      def formula(i: Int): IFormula = slots(i) match
+        case f: IFormula => f
+        case t: ITerm => eqZero(t) // a Bool function application, read as a formula
       for op <- instructions do
         op match
           case Op.IntSort(id) => sorts(id) = Sort.Integer
@@ -66,11 +72,7 @@ final class PrincessProgram(instructions: Array[PrincessProgram.Op], slotCount: 
           case Op.DeclareBool(dst, name) => slots(dst) = p.createBooleanVariable(name)
           case Op.DeclareFun(id, name, argSorts, result) =>
             decls(id) = p.createFunction(name, argSorts.map(sorts).toSeq, sorts(result))
-          case Op.DeclareRel(id, name, arity) => decls(id) = p.createRelation(name, arity)
-          case Op.MkApp(dst, decl, args) =>
-            slots(dst) = decls(decl) match
-              case f: IFunction => IFunApp(f, args.map(term).toSeq)
-              case r: ap.terfor.preds.Predicate => IAtom(r, args.map(term).toSeq)
+          case Op.MkApp(dst, decl, args) => slots(dst) = IFunApp(decls(decl), args.map(term).toSeq)
           case Op.MkIs(dst, adtSortId, ctor, arg) => slots(dst) = adts(adtSortId).hasCtor(term(arg), ctor)
           case Op.MkNum(dst, value) => slots(dst) = i(IdealInt(value.bigInteger))
           case Op.MkLinear(dst, coefficients, args, constant) =>
@@ -121,7 +123,6 @@ object PrincessProgram:
     case DeclareConst(dst: Int, name: String, sortId: Int)
     case DeclareBool(dst: Int, name: String)
     case DeclareFun(id: Int, name: String, argSorts: Array[Int], result: Int)
-    case DeclareRel(id: Int, name: String, arity: Int)
     case MkApp(dst: Int, decl: Int, args: Array[Int])
     case MkIs(dst: Int, adtSortId: Int, ctor: Int, arg: Int)
     case MkNum(dst: Int, value: BigInt)
@@ -159,7 +160,6 @@ object PrincessProgram:
       case Term.App(Term.Const(name), _) => resultSorts.get(name).contains("Real")
       case Term.Linear(terms, _) => terms.exists((_, u) => realTerm(u))
       case _ => false
-    val boolResult = HashMap.empty[String, Boolean] // functions whose result is Bool: relations
     val testers = HashMap.empty[String, (Int, Int)] // "(_ is C)" to (adt group sort id, ctor index)
     var slotCount = 0
     var declCount = 0
@@ -255,12 +255,6 @@ object PrincessProgram:
           slots(Term.Const(name)) = dst
           resultSorts(name) = result
           out += Op.DeclareConst(dst, name, sortId(result))
-        case Command.DeclareFun(name, args, "Bool") =>
-          val id = freshDecl()
-          declIds(name) = id
-          boolResult(name) = true
-          args.foreach(sortId) // the sorts exist; princess relations are over terms
-          out += Op.DeclareRel(id, name, args.length)
         case Command.DeclareFun(name, args, result) =>
           val id = freshDecl()
           declIds(name) = id

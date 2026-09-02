@@ -19,8 +19,14 @@ import net.bovel.vik.{Lowering, Printer, Script as VikScript, Session}
  *  (`print` measures the printing alone), and `z3Direct` builds z3's AST from
  *  the tree through the Java API, the way a program would. z3 and cvc5 run
  *  through their Java bindings as published by SoSy-Lab (JavaSMT) with the
- *  native libraries of `fetch-native.sh`; every operation creates and closes
- *  its own context, as the other solvers do. `z3Direct` replays a
+ *  native libraries of `fetch-native.sh`. z3 keeps one `Context` for the
+ *  trial, as a tool that embeds it does, and takes a fresh solver per
+ *  operation: creating a context costs 0.46 ms, more than the small
+ *  instances take to solve. cvc5 gets a fresh `Solver` per operation: the
+ *  solver itself is cheap (30 µs), and the ~0.4 ms its engine spends
+ *  initialising at the first `assert` is what a solver kept in incremental
+ *  mode would save — at the price of another engine (24× slower on
+ *  `NEQ004_size4`), so the fresh solver stays. `z3Direct` replays a
  *  [[Z3Program]]: only z3 API calls in the operation, compiled from the
  *  instance up front — for a bit-vector instance the tree is lowered to
  *  integers first (as the solver plays it), so that column measures z3 on the
@@ -109,6 +115,8 @@ class OtherSolversBench:
 
   private var script: VikScript = uninitialized
   private var text: String = uninitialized
+  private var ctx: Context = uninitialized // z3's, for the trial
+  private var logic: String | Null = uninitialized // the script's `set-logic`, for z3's solver
   private var z3Program: Z3Program | Null = uninitialized
   private var princessProgram: PrincessProgram | Null = uninitialized
   private var smtInterpolProgram: SmtInterpolProgram | Null = uninitialized
@@ -122,6 +130,12 @@ class OtherSolversBench:
     z3Program = try Z3Program.compile(script) catch case _: Exception => null
     princessProgram = try PrincessProgram.compile(script) catch case _: Exception => null
     smtInterpolProgram = try SmtInterpolProgram.compile(script) catch case _: Exception => null
+    Natives.z3
+    ctx = Context()
+    logic = OtherSolversBench.logicOf(text)
+
+  @TearDown(Level.Trial)
+  def tearDown(): Unit = ctx.close()
 
   @Benchmark
   def print(): Int = Printer.print(script).length
@@ -141,28 +155,21 @@ class OtherSolversBench:
   @Benchmark
   def princess(): List[Boolean] = Budget.run("princess", file)(princessProgram.nn.check())
 
-  /** Prints the tree and has z3 parse it (declarations included); the parsed
-   *  assertions go to a fresh solver.
+  /** Has z3 parse the text (declarations included); the parsed assertions go
+   *  to a fresh solver for the script's logic — z3's parser does not pass
+   *  `set-logic` on, and the solver for a logic is what the binary runs.
    */
   @Benchmark
   def z3(): Boolean = Budget.run("z3", file):
-    Natives.z3
-    val ctx = Context()
-    try
-      val solver = ctx.mkSolver()
-      solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
-      solver.check() == Status.SATISFIABLE
-    finally ctx.close()
+    val solver = Z3Program.solver(ctx, logic)
+    solver.add(ctx.parseSMTLIB2String(text, null, null, null, null)*)
+    solver.check() == Status.SATISFIABLE
 
   /** Replays the instance's [[Z3Program]] — declarations, terms, asserts,
    *  `push`/`pop` and every `check-sat` through z3's Java API, nothing else.
    */
   @Benchmark
-  def z3Direct(): List[Boolean] = Budget.run("z3Direct", file):
-    Natives.z3
-    val ctx = Context()
-    try z3Program.nn.check(ctx)
-    finally ctx.close()
+  def z3Direct(): List[Boolean] = Budget.run("z3Direct", file)(z3Program.nn.check(ctx, logic))
 
   /** Prints the tree and has cvc5 run the text as a script through its parser,
    *  recording the check-sat answers.
@@ -190,3 +197,8 @@ class OtherSolversBench:
    */
   @Benchmark
   def smtinterpol(): List[Boolean] = Budget.run("smtinterpol", file)(smtInterpolProgram.nn.check())
+
+object OtherSolversBench:
+  /** The logic a script sets, or null. */
+  def logicOf(text: String): String | Null =
+    "\\(set-logic (\\S+)\\)".r.findFirstMatchIn(text).map(_.group(1)).orNull
