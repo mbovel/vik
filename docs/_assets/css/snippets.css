@@ -44,13 +44,14 @@
   outline: none;
 }
 
-/* The site spaces the spans of its own line numbers, and draws the number before each of them; the spans of
-   the highlighting are tokens, not lines. */
-.snippet code[contenteditable] > span {
+/* The site spaces the spans of its own line numbers, and draws the number before each of them. An SMT-LIB
+   block has none: the rule holds from the first paint, by the language class the page carries, not by the
+   `contenteditable` the script adds later — or the numbers flash until the script runs. */
+.snippet code.language-smt2 > span {
   padding-right: 0;
 }
 
-.snippet code[contenteditable] > span::before {
+.snippet code.language-smt2 > span::before {
   content: none;
   display: none;
 }
