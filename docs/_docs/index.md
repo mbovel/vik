@@ -40,12 +40,11 @@ Each page says what you can write, how it is solved, and first of all whether VI
 |---|---|
 | [First-order logic](theories/first-order-logic.md) | Yes. |
 | [Uninterpreted functions](theories/uninterpreted-functions.md) | Yes. |
+| [Sorts](theories/sorts.md) | Yes: datatypes by their rules in the e-graph; a sort parameter as the theory of each instance, polymorphism being compiled away. |
 | [Integer arithmetic](theories/integers.md) | Yes: branch and bound inside the small-model box. |
 | [Real arithmetic](theories/reals.md) | Yes. |
-| [Algebraic datatypes](theories/sorts.md) | Yes. |
 | [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
 | [Arrays](theories/arrays.md) | Yes. |
-| [Sort parameters](theories/sorts.md#sort-parameters) | As the theory of each instance: polymorphism is compiled away. |
 
 ## The components
 
