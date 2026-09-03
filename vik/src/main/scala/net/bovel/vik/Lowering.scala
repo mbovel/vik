@@ -1,6 +1,6 @@
 package net.bovel.vik
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import net.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, Sort}
 import net.bovel.smtlib as s2
@@ -53,6 +53,7 @@ private final class Lowerer:
   private var fresh = 0
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
+  private val rangedApplications = HashSet.empty[Term] // bit-vector applications whose range is asserted
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
@@ -111,10 +112,12 @@ private final class Lowerer:
       // uses mint a fresh one, defined again.
       rationals.clear()
       rationalProducts.clear()
+      rangedApplications.clear()
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
       rationals.clear()
       rationalProducts.clear()
+      rangedApplications.clear()
       List(Command.ResetAssertions)
     case s2.Command.Reset =>
       functions.clear()
@@ -123,6 +126,7 @@ private final class Lowerer:
       rationalProducts.clear()
       rationalValues.clear()
       storeSymbols.clear()
+      rangedApplications.clear()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
@@ -142,6 +146,7 @@ private final class Lowerer:
       definitions.clear()
       rationals.clear() // a constant minted here has no definition: later uses must not find it
       rationalProducts.clear()
+      rangedApplications.clear()
       List(Command.GetValue(lowered, defined))
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
@@ -295,14 +300,12 @@ private final class Lowerer:
     case s2.Term.Decimal(unscaled, scale) => rationalConst(unscaled, BigInt(10).pow(scale))
     case s2.Term.Bits(value, _) => Num(value)
     case s2.Term.App(s2.Term.Const(name), args) if macros.contains(name) => expand(name, args, env)
-    case s2.Term.App(fun, args) => App(term(fun, env), args.map(term(_, env)))
+    case s2.Term.App(fun, args) => ranged(App(term(fun, env), args.map(term(_, env))), sortOf(t, env))
     case s2.Term.ArithApp(op, args) => arith(op, args, env)
     case s2.Term.BvApp(op, args) => bv(op, args, env)
     case s2.Term.Select(array, index) =>
       val a = term(array, env)
-      a match // a store application is a whole array: applying it must not flatten (see the solver)
-        case App(Const(n), _) if n.startsWith("store!") => App(a, List(term(index, env)))
-        case _ => App(a, List(term(index, env)))
+      ranged(App(a, List(term(index, env))), sortOf(t, env))
     case s2.Term.Store(array, index, value) =>
       App(storeSymbol(sortOf(array, env)), List(term(array, env), term(index, env), term(value, env)))
     case s2.Term.Ite(cond, thn, els) =>
@@ -502,6 +505,18 @@ private final class Lowerer:
 
   /** `0 ≤ t < 2^width`. */
   private def range(t: Term, width: Int): Formula = And(List(Ge(t, Num(0)), Le(t, Num(modulus(width) - 1))))
+
+  /** A bit-vector that comes out of an application — of a function, a selector,
+   *  an array — is an integer the solver knows nothing about: its range is
+   *  asserted at its first use, as a declared constant's is at the declaration.
+   *  Once per term since the last pop: the assertion lives at the level of the
+   *  use ([[rangedApplications]] is cleared where the rational caches are).
+   */
+  private def ranged(t: Term, sort: Sort): Term =
+    sort match
+      case Sort.BitVec(w) if rangedApplications.add(t) => definitions += range(t, w)
+      case _ => ()
+    t
 
   private def modulus(width: Int): BigInt = BigInt(2).pow(width)
 

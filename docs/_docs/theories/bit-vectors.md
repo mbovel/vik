@@ -51,15 +51,17 @@ bit-blasting solver ([evaluation](../evaluation.md)).
 
 ## Internals
 
-Every bit-vector term becomes an integer with its range asserted, and every operation becomes its
-arithmetic image (`net.bovel.vik.Lowering`), with fresh bounded constants where the modulus or a
-division needs them — each fresh constant is declared and defined by one linear equation before the
-assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
+Every bit-vector term becomes an integer with its range asserted, every declared sort becomes `Int`
+(a field, an argument, a result, an array's index and element as much as a constant), and every
+operation becomes its arithmetic image (`net.bovel.vik.Lowering`), with fresh bounded constants where
+the modulus or a division needs them — each fresh constant is declared and defined by one linear
+equation before the assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
 `m` below:
 
 | Operation | Integer image | Fresh constants and their defining equation |
 |---|---|---|
 | a declared `(_ BitVec n)` constant `a` | `a` | none; `0 ≤ a ≤ m − 1` asserted |
+| an application of sort `(_ BitVec n)` — a function, a selector, a `select` | the application | none; `0 ≤ t ≤ m − 1` asserted at its first use (once per term and level) |
 | `bvadd a b` | `r` | `r ∈ [0, m)`, `k ∈ {0, 1}`: `a + b = r + m·k` |
 | `bvsub a b` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `a − b = r + m·k` |
 | `bvneg a` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `−a = r + m·k` |

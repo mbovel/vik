@@ -1,0 +1,18 @@
+; Hand-written for VIK (this repository's license): a selector of a bit-vector field is in `[0, 2^n)`
+; even on a datatype constant nothing constructs — the range is asserted at the selector's first use.
+(set-logic QF_UFBVDT)
+(declare-datatypes ((Box 0)) (((new_Box (Box.value@Box (_ BitVec 32))))))
+(declare-fun x0 () Box)
+(assert (not (bvule (Box.value@Box x0) #xFFFFFFFF)))
+(set-info :status unsat)
+(check-sat)
+(reset-assertions)
+(push 1)
+(assert (bvult (bvadd (Box.value@Box x0) (_ bv1 32)) (Box.value@Box x0)))
+(set-info :status sat)
+(check-sat)
+(pop 1)
+(assert (bvult (bvadd (Box.value@Box x0) (_ bv1 32)) (Box.value@Box x0)))
+(assert (not (= (Box.value@Box x0) #xFFFFFFFF)))
+(set-info :status unsat)
+(check-sat)
