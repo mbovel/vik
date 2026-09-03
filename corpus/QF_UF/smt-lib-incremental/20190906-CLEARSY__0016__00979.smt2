@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0016/00979.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status unsat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -205,7 +206,7 @@ Target solver: CVC4, Z3
 (define-fun lh_4 () Bool (= g_s0$1_4 TRUE))
 ; PO 1 in group 1
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4) (= g_s1$1_3 FALSE))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (exit)

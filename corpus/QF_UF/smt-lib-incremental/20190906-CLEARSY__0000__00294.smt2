@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0000/00294.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -916,25 +917,25 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_32 lh_34) (mem TRUE g_s358_453))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_32 lh_34) (mem (bool (and (= (bool (=> (= g_s587_690 TRUE) (= g_s588_691 FALSE))) TRUE) (= TRUE FALSE) (not (and (= g_s558$2_672 TRUE) (= g_s564$2_684 TRUE))))) g_s358_453))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_30 lh_31) (mem (bool (and (= (bool (=> (= g_s587_690 TRUE) (= g_s588_691 FALSE))) TRUE) (= g_s548$1_646 FALSE) (not (and (= g_s558$2_672 TRUE) (= g_s564$2_684 TRUE))))) g_s358_453))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_31 lh_32 lh_33) (mem (bool (and (= (bool (=> (= g_s587_690 TRUE) (= g_s588_691 FALSE))) TRUE) (= g_s548$1_646 FALSE) (not (and (= g_s558$2_672 TRUE) (= g_s564$2_684 TRUE))))) g_s358_453))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (exit)

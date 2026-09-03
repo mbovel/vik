@@ -2,8 +2,9 @@
 ; original path: tests/*-custom-args/qualified-types/fact_unfold_neg.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: (param)9
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFBVDT)
 (declare-fun sk_fact0_2 () (_ BitVec 32))
 (declare-fun fact_unfold_neg$package$.fact ((_ BitVec 32)) (_ BitVec 32))

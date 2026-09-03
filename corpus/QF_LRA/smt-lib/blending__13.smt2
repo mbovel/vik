@@ -1,4 +1,5 @@
 ; From smt-lib: 2019-ezsmt/blending/13.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_LRA)
 (set-info :source |
@@ -12,7 +13,7 @@ Application: SMT-based Constraint Answer Set Solver EZSMT+ for Non-tight Program
 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status unsat)
 ; --- END HEADER ---
 
 ; --- Including necessary SMT functions ---

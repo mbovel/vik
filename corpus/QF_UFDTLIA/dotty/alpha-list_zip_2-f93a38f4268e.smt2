@@ -4,8 +4,9 @@
 ; untyped: (param)20
 ; untyped: SLists.SList[B]
 ; untyped: SLists.SList[A]
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFDTLIA)
 (declare-sort scala.collection.immutable.List_B 0)
 (declare-sort Any 0)

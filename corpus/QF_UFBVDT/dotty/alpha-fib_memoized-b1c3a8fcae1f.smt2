@@ -3,8 +3,9 @@
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: <noprefix>
 ; untyped: (param)109
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFBVDT)
 (declare-sort scala.Function2_scala.Int_scala.Int_scala.Boolean 0)
 (declare-datatypes ((DependentMap_scala.Int_scala.Int 0)) (((new_DependentMap_scala.Int_scala.Int (DependentMap.p@DependentMap_scala.Int_scala.Int scala.Function2_scala.Int_scala.Int_scala.Boolean)))))

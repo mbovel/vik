@@ -2,8 +2,9 @@
 ; original path: tests/*-custom-args/qualified-types/subtyping_objects_neg.scala, dumped with -Yqualified-types-smt-dump
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: <noprefix>
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFDTLIA)
 (declare-sort Str 0)
 (declare-datatypes ((PersonCaseMutable 0)) (((new_PersonCaseMutable (PersonCaseMutable.name@PersonCaseMutable Str) (PersonCaseMutable.age@PersonCaseMutable Int)))))

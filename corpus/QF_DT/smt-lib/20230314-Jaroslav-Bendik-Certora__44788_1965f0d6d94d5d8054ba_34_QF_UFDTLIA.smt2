@@ -1,4 +1,5 @@
 ; From smt-lib: QF_UFDTLIA/20230314-Jaroslav-Bendik-Certora/44788_1965f0d6d94d5d8054ba_34_QF_UFDTLIA.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFDTLIA)
 (set-info :source |
@@ -46,7 +47,7 @@ instances:
 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 (declare-datatypes ((x135 0)) (((x34 (x269 x135) (x103 x135) (x217 Int)) (x310 (x119 x135) (x258 Int)) (x121 (x36 Int)))))
 (declare-fun x18 () Int)
 (declare-fun x300 () Int)

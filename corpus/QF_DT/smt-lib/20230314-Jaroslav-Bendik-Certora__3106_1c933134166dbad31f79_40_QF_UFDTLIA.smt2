@@ -1,4 +1,5 @@
 ; From smt-lib: QF_UFDTLIA/20230314-Jaroslav-Bendik-Certora/3106_1c933134166dbad31f79_40_QF_UFDTLIA.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFDTLIA)
 (set-info :source |
@@ -46,7 +47,7 @@ instances:
 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 (declare-datatypes ((x139 0)) (((x68 (x284 x139) (x254 x139) (x109 x139) (x13 x139) (x80 x139) (x232 x139) (x153 Int)) (x44 (x270 x139) (x183 x139) (x150 x139) (x273 x139) (x278 x139) (x64 x139) (x71 x139) (x179 Int)) (x52 (x122 x139) (x129 x139) (x143 Int)) (x28 (x69 x139) (x262 x139) (x19 x139) (x34 x139) (x276 Int)) (x103 (x233 Int)) (x138 (x99 x139) (x14 x139) (x18 x139) (x173 x139) (x140 x139) (x227 Int)) (x78 (x128 x139) (x193 x139) (x17 x139) (x154 Int)) (x240 (x238 x139) (x209 Int)))))
 (declare-fun x74 () Bool)
 (declare-fun x172 () Int)

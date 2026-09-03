@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0001/00293.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -723,13 +724,13 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (mem (bool (and (= g_s464_505 TRUE) (= g_s465_506 TRUE) (= g_s466_507 TRUE) (= g_s467_508 TRUE) (= g_s468_509 TRUE) (= g_s469_510 TRUE))) g_s285_321))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (mem (bool (and (= g_s470_511 TRUE) (= g_s471_512 TRUE) (= g_s472_513 TRUE) (= g_s473_514 TRUE) (= g_s474_515 TRUE) (= g_s475_516 TRUE) (= g_s476_517 TRUE) (= g_s477_518 TRUE) (= g_s478_519 TRUE) (= g_s479_520 TRUE) (= g_s480_521 TRUE) (= g_s481_522 TRUE) (= g_s482_523 TRUE) (= g_s483_524 TRUE) (= g_s484_525 TRUE) (= g_s485_526 TRUE))) g_s285_321))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -750,7 +751,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s454$2_500 g_s285_321))
 ; PO 1 in group 1
 (assert (not (=> (and lh_1 lh_2) (mem FALSE g_s285_321))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (exit)

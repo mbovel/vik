@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0000/00303.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status unsat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -992,25 +993,25 @@ Target solver: CVC4, Z3
 ; PO 1 in group 1
 (push 1)
 (assert (not (mem e785 INT)))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 1
 (push 1)
 (assert (not (mem g_s685$1_783 g_s179_180)))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 1
 (push 1)
 (assert (not (=> (and lh_1 lh_2) (mem e786 INT))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 1
 (push 1)
 (assert (not (=> (and lh_1 lh_2) (mem g_s686$1_784 g_s179_180))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -1029,7 +1030,7 @@ Target solver: CVC4, Z3
 (assert |def_ass|)
 ; PO 1 in group 2
 (assert (not (mem FALSE g_s404_499)))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO group 3 
@@ -1051,13 +1052,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 3
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3) (mem (bool (or (= (bool (or (= g_s674_770 TRUE) (= (bool (= g_s673_769 FALSE)) TRUE))) TRUE) (= g_s682_778 TRUE))) g_s404_499))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 3
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3) (= (bool (or (= g_s674_770 TRUE) (= g_s673_769 FALSE) (= g_s682_778 TRUE))) (bool (or (= (bool (or (= g_s674_770 TRUE) (= (bool (= g_s673_769 FALSE)) TRUE))) TRUE) (= g_s682_778 TRUE)))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -1079,13 +1080,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 4
 (push 1)
 (assert (not (=> (and lh_1 lh_2) (mem (bool (or (= (bool (or (= g_s650_746 TRUE) (= g_s686$1_784 TRUE))) TRUE) (= g_s679_775 TRUE))) g_s404_499))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 4
 (push 1)
 (assert (not (=> (and lh_1 lh_2) (= (bool (or (= g_s650_746 TRUE) (= g_s686$1_784 TRUE) (= g_s679_775 TRUE))) (bool (or (= (bool (or (= g_s650_746 TRUE) (= g_s686$1_784 TRUE))) TRUE) (= g_s679_775 TRUE)))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)

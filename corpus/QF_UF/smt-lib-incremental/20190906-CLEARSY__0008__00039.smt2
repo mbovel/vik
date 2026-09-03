@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0008/00039.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -225,7 +226,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (or (= g_s18$1_27 g_s18_23) (= g_s18$1_27 TRUE)))
 ; PO 1 in group 1
 (assert (not (=> lh_1 (mem (|+i| g_s17_22 e26) NATURAL))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO group 2 
@@ -243,13 +244,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 2
 (push 1)
 (assert (not (mem g_s18_23 (dom g_s12_17))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 2
 (push 1)
 (assert (not (mem g_s12_17 (|+->| (dom g_s12_17) (ran g_s12_17)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)

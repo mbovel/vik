@@ -2,8 +2,9 @@
 ; original path: tests/*-custom-args/qualified-types/matrices3.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: <noprefix>
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFBVDT)
 (declare-datatypes ((Matrix 0)) (((new_Matrix (Matrix.width@Matrix (_ BitVec 32)) (Matrix.height@Matrix (_ BitVec 32))))))
 (declare-fun x0 () Matrix)

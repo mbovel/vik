@@ -3,8 +3,9 @@
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: T
 ; untyped: (param)20
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFDTLIA)
 (declare-sort scala.Function1_S_scala.Boolean 0)
 (declare-sort Any 0)

@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0003/00060.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -378,31 +379,31 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6) (mem g_s160_168 (seq (ran g_s160_168))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6) (mem g_s161_169 (seq (ran g_s161_169))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (mem g_s164_173 (seq (ran g_s164_173))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12) (mem g_s164_173 (seq (ran g_s164_173))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 6 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12) (mem g_s165_174 (seq (ran g_s165_174))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -422,7 +423,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s174_181 NAT))
 ; PO 1 in group 1
 (assert (not (mem g_s160_168 (|+->| (dom g_s160_168) (ran g_s160_168)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 2 
@@ -441,7 +442,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s174_181 NAT))
 ; PO 1 in group 2
 (assert (not (mem g_s161_169 (|+->| (dom g_s161_169) (ran g_s161_169)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 3 
@@ -461,25 +462,25 @@ Target solver: CVC4, Z3
 ; PO 1 in group 3
 (push 1)
 (assert (not (mem g_s162_171 (|+->| (dom g_s162_171) (ran g_s162_171)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 3
 (push 1)
 (assert (not (mem g_s163_172 (|+->| (dom g_s163_172) (ran g_s163_172)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 3
 (push 1)
 (assert (not (mem g_s173_182 (dom g_s162_171))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 3
 (push 1)
 (assert (not (mem g_s173_182 (dom g_s163_172))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -499,7 +500,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s174_181 NAT))
 ; PO 1 in group 4
 (assert (not (mem g_s164_173 (|+->| (dom g_s164_173) (ran g_s164_173)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 5 
@@ -518,7 +519,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s174_181 NAT))
 ; PO 1 in group 5
 (assert (not (mem g_s165_174 (|+->| (dom g_s165_174) (ran g_s165_174)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 6 
@@ -538,25 +539,25 @@ Target solver: CVC4, Z3
 ; PO 1 in group 6
 (push 1)
 (assert (not (mem g_s166_176 (|+->| (dom g_s166_176) (ran g_s166_176)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 6
 (push 1)
 (assert (not (mem g_s167_177 (|+->| (dom g_s167_177) (ran g_s167_177)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 6
 (push 1)
 (assert (not (mem g_s173_185 (dom g_s166_176))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 6
 (push 1)
 (assert (not (mem g_s173_185 (dom g_s167_177))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)

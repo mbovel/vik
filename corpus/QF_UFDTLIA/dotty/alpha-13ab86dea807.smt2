@@ -2,8 +2,9 @@
 ; original path: tests/*-custom-args/qualified-types/unknown.scala, dumped with -Yqualified-types-smt-dump
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: <notype>
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFDTLIA)
 (declare-sort SafeSeq_T 0)
 (declare-datatypes ((scala.Tuple2_SafeSeq_T__SafeSeq_T_ 0)) (((new_scala.Tuple2_SafeSeq_T__SafeSeq_T_ (Tuple2._1@scala.Tuple2_SafeSeq_T__SafeSeq_T_ SafeSeq_T) (Tuple2._2@scala.Tuple2_SafeSeq_T__SafeSeq_T_ SafeSeq_T)))))

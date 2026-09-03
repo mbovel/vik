@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0002/00171.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -1815,37 +1816,37 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= empty (domain_restriction (dom (range_restriction empty (SET g_s317_318))) empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= empty (domain_restriction (dom (range_restriction empty (SET g_s316_317))) empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= empty (domain_restriction (dom (range_restriction empty (SET g_s317_318))) empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= (dom empty) (ran empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 6 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= (dom empty) (ran empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 7 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11) (= (dom empty) (ran empty)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -1865,43 +1866,43 @@ Target solver: CVC4, Z3
 ; PO 1 in group 1
 (push 1)
 (assert (not (= empty (domain_restriction (dom (range_restriction empty (SET g_s316_317))) empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 1
 (push 1)
 (assert (not (= empty (domain_restriction (dom (range_restriction empty (SET g_s317_318))) empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 1
 (push 1)
 (assert (not (= empty (domain_restriction (dom (range_restriction empty (SET g_s316_317))) empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 1
 (push 1)
 (assert (not (= empty (domain_restriction (dom (range_restriction empty (SET g_s317_318))) empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 1
 (push 1)
 (assert (not (= (dom empty) (ran empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 6 in group 1
 (push 1)
 (assert (not (= (dom empty) (ran empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 7 in group 1
 (push 1)
 (assert (not (= (dom empty) (ran empty))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -1926,7 +1927,7 @@ Target solver: CVC4, Z3
 (define-fun lh_5 () Bool (mem g_s1495$1_1549 g_s663_690))
 ; PO 1 in group 2
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5) (= (apply g_s1489$1_1545 g_s1496_1550) (apply (binary_union g_s1476_1512 g_s1477_1513) g_s1496_1550)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 3 
@@ -1950,7 +1951,7 @@ Target solver: CVC4, Z3
 (define-fun lh_5 () Bool (mem g_s1496_1550 (dom g_s1490$1_1547)))
 ; PO 1 in group 3
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5) (= (apply g_s1490$1_1547 g_s1496_1550) (apply (binary_union g_s1479_1515 g_s1480_1516) g_s1496_1550)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 4 
@@ -1979,13 +1980,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 4
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8) (= g_s1500$2_1555 g_s316_317))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 4
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_9) (= g_s1500$2_1555 g_s317_318))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2014,13 +2015,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 5
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_9) (= g_s1466$2_1557 (set_diff g_s1466$1_1526 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 5
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8) (= g_s1466$2_1557 (binary_union g_s1466$1_1526 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2048,13 +2049,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 6
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1467$2_1559 (set_diff g_s1467$1_1527 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 6
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1467$2_1559 (binary_union g_s1467$1_1527 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2082,13 +2083,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 7
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1468$2_1561 (set_diff g_s1468$1_1528 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 7
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1468$2_1561 (binary_union g_s1468$1_1528 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2116,13 +2117,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 8
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1469$2_1563 (set_diff g_s1469$1_1529 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 8
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1469$2_1563 (binary_union g_s1469$1_1529 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2150,13 +2151,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 9
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1470$2_1565 (set_diff g_s1470$1_1530 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 9
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1470$2_1565 (binary_union g_s1470$1_1530 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2184,13 +2185,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 10
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1471$2_1567 (set_diff g_s1471$1_1531 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 10
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1471$2_1567 (binary_union g_s1471$1_1531 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2218,13 +2219,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 11
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1472$2_1569 (set_diff g_s1472$1_1532 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 11
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1472$2_1569 (binary_union g_s1472$1_1532 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2252,13 +2253,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 12
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1475$2_1571 (set_diff g_s1475$1_1535 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 12
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1475$2_1571 (binary_union g_s1475$1_1535 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2286,13 +2287,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 13
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1486$2_1573 (set_diff g_s1486$1_1543 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 13
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1486$2_1573 (binary_union g_s1486$1_1543 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2328,43 +2329,43 @@ Target solver: CVC4, Z3
 ; PO 1 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (dom (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1521_1575 g_s317_318) (mapplet g_s1520_1574 g_s316_317))))) (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (dom (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1521_1575 g_s1495_1548) (mapplet g_s1520_1574 g_s1495_1548))))) (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (dom (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1521_1575 g_s1522_1576) (mapplet g_s1520_1574 g_s1522_1576))))) (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (|<+| g_s1476_1512 (SET (mapplet g_s1520_1574 g_s1495_1548))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1521_1575 g_s317_318) (mapplet g_s1520_1574 g_s316_317)))) (SET g_s316_317))) (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1521_1575 g_s1495_1548) (mapplet g_s1520_1574 g_s1495_1548)))))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (|<+| g_s1477_1513 (SET (mapplet g_s1521_1575 g_s1495_1548))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1521_1575 g_s317_318) (mapplet g_s1520_1574 g_s316_317)))) (SET g_s317_318))) (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1521_1575 g_s1495_1548) (mapplet g_s1520_1574 g_s1495_1548)))))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 6 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (|<+| g_s1479_1515 (SET (mapplet g_s1520_1574 g_s1522_1576))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1521_1575 g_s317_318) (mapplet g_s1520_1574 g_s316_317)))) (SET g_s316_317))) (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1521_1575 g_s1522_1576) (mapplet g_s1520_1574 g_s1522_1576)))))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 7 in group 14
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (= (|<+| g_s1480_1516 (SET (mapplet g_s1521_1575 g_s1522_1576))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1521_1575 g_s317_318) (mapplet g_s1520_1574 g_s316_317)))) (SET g_s317_318))) (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1521_1575 g_s1522_1576) (mapplet g_s1520_1574 g_s1522_1576)))))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2393,13 +2394,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 15
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_9) (= g_s1465$2_1578 (set_diff g_s1465$1_1537 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 15
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8) (= g_s1465$2_1578 (binary_union g_s1465$1_1537 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2427,13 +2428,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 16
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1482$2_1580 (set_diff g_s1482$1_1539 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 16
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1482$2_1580 (binary_union g_s1482$1_1539 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2461,13 +2462,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 17
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1483$2_1582 (set_diff g_s1483$1_1540 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 17
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1483$2_1582 (binary_union g_s1483$1_1540 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2495,13 +2496,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 18
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_8) (= g_s1484$2_1584 (set_diff g_s1484$1_1541 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 18
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7) (= g_s1484$2_1584 (binary_union g_s1484$1_1541 (SET g_s1496_1550))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2524,7 +2525,7 @@ Target solver: CVC4, Z3
 (define-fun lh_4 () Bool (= g_s1485$2_1586 (|<+| g_s1485$1_1542 (SET (mapplet g_s1496_1550 g_s1532_1585)))))
 ; PO 1 in group 19
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4) (= (|<+| g_s1485$1_1542 (SET (mapplet g_s1496_1550 g_s1532_1585))) g_s1485$2_1586))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO group 20 
@@ -2546,7 +2547,7 @@ Target solver: CVC4, Z3
 (define-fun lh_4 () Bool (= g_s1487$2_1588 (|<+| g_s1487$1_1544 (SET (mapplet g_s1496_1550 g_s1534_1587)))))
 ; PO 1 in group 20
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4) (= (|<+| g_s1487$1_1544 (SET (mapplet g_s1496_1550 g_s1534_1587))) g_s1487$2_1588))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO group 21 
@@ -2590,109 +2591,109 @@ Target solver: CVC4, Z3
 ; PO 1 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (not (mem g_s1536_1589 (dom g_s1489$1_1545))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (not (mem g_s1537_1590 (dom g_s1489$1_1545))))))
-(set-info :status unknown)
+(set-info :status unsat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (not (mem g_s1539_1592 (ran g_s1489$1_1545))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (mem g_s1536_1589 g_s616_643))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16) (mem g_s1537_1590 g_s616_643))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 6 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21) (mem g_s1536_1589 (ran g_s1463$3_1598)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 7 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23) (mem g_s1537_1590 (ran g_s1463$3_1598)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 8 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (mem g_s1463$3_1598 (iseq g_s617_644)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 9 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (mem g_s1463$3_1598 (perm (binary_union (ran g_s1463$1_1524) (SET (mapplet g_s1537_1590 g_s1536_1589))))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 10 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (dom (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1537_1590 g_s317_318) (mapplet g_s1536_1589 g_s316_317))))) (ran g_s1463$3_1598)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 11 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (dom (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1537_1590 g_s1539_1592) (mapplet g_s1536_1589 g_s1539_1592))))) (ran g_s1463$3_1598)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 12 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (dom (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1537_1590 g_s1540_1593) (mapplet g_s1536_1589 g_s1540_1593))))) (ran g_s1463$3_1598)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 13 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1481$1_1538 (set_prod (SET (mapplet g_s1537_1590 g_s1536_1589)) (SET g_s1542_1595))) (|<+| (|<+| g_s1481$1_1538 (SET (mapplet g_s1536_1589 g_s1542_1595))) (SET (mapplet g_s1537_1590 g_s1542_1595)))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 14 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1487$1_1544 (set_prod (SET (mapplet g_s1537_1590 g_s1536_1589)) (SET g_s1543_1596))) g_s1487$3_1599))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 15 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1476_1512 (SET (mapplet (apply (SET (mapplet (mapplet FALSE g_s1537_1590) (mapplet TRUE g_s1536_1589))) (bool (= g_s1538_1591 g_s316_317))) g_s1539_1592))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1537_1590 g_s317_318) (mapplet g_s1536_1589 g_s316_317)))) (SET g_s316_317))) (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1537_1590 g_s1539_1592) (mapplet g_s1536_1589 g_s1539_1592)))))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 16 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1477_1513 (SET (mapplet (apply (SET (mapplet (mapplet FALSE g_s1537_1590) (mapplet TRUE g_s1536_1589))) (bool (not (= g_s1538_1591 g_s316_317)))) g_s1539_1592))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1537_1590 g_s317_318) (mapplet g_s1536_1589 g_s316_317)))) (SET g_s317_318))) (|<+| g_s1489$1_1545 (SET (mapplet (mapplet g_s1537_1590 g_s1539_1592) (mapplet g_s1536_1589 g_s1539_1592)))))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 17 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1479_1515 (SET (mapplet (apply (SET (mapplet (mapplet FALSE g_s1537_1590) (mapplet TRUE g_s1536_1589))) (bool (= g_s1538_1591 g_s316_317))) g_s1540_1593))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1537_1590 g_s317_318) (mapplet g_s1536_1589 g_s316_317)))) (SET g_s316_317))) (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1537_1590 g_s1540_1593) (mapplet g_s1536_1589 g_s1540_1593)))))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 18 in group 21
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25) (= (|<+| g_s1480_1516 (SET (mapplet (apply (SET (mapplet (mapplet FALSE g_s1537_1590) (mapplet TRUE g_s1536_1589))) (bool (not (= g_s1538_1591 g_s316_317)))) g_s1540_1593))) (domain_restriction (dom (range_restriction (|<+| g_s1488$1_1546 (SET (mapplet (mapplet g_s1537_1590 g_s317_318) (mapplet g_s1536_1589 g_s316_317)))) (SET g_s317_318))) (|<+| g_s1490$1_1547 (SET (mapplet (mapplet g_s1537_1590 g_s1540_1593) (mapplet g_s1536_1589 g_s1540_1593)))))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2713,7 +2714,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1546$1_1601 g_s417_420))
 ; PO 1 in group 22
 (assert (not (mem g_s1463$1_1524 (seq (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 23 
@@ -2738,13 +2739,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 23
 (push 1)
 (assert (not (mem g_s1473$1_1533 (|+->| (dom g_s1473$1_1533) (ran g_s1473$1_1533)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 23
 (push 1)
 (assert (not (mem g_s1496_1550 (dom g_s1473$1_1533))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2769,7 +2770,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1496_1550 (dom g_s1481$1_1538)))
 ; PO 1 in group 24
 (assert (not (mem g_s1481$1_1538 (|+->| (dom g_s1481$1_1538) (ran g_s1481$1_1538)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 25 
@@ -2793,7 +2794,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1532$1_1606 g_s731_759))
 ; PO 1 in group 25
 (assert (not (mem g_s1485$1_1542 (|+->| (dom g_s1485$1_1542) (ran g_s1485$1_1542)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 26 
@@ -2818,13 +2819,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 26
 (push 1)
 (assert (not (mem g_s1474$1_1534 (|+->| (dom g_s1474$1_1534) (ran g_s1474$1_1534)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 26
 (push 1)
 (assert (not (mem g_s1496_1550 (dom g_s1474$1_1534))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2850,7 +2851,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s1500$2_1555 g_s315_316))
 ; PO 1 in group 27
 (assert (not (=> lh_1 (mem g_s1488$1_1546 (|+->| (dom g_s1488$1_1546) (ran g_s1488$1_1546))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 28 
@@ -2876,7 +2877,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1543$1_1610 g_s723_751))
 ; PO 1 in group 28
 (assert (not (mem g_s1487$1_1544 (|+->| (dom g_s1487$1_1544) (ran g_s1487$1_1544)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 29 
@@ -2899,13 +2900,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 29
 (push 1)
 (assert (not (mem g_s1463$1_1524 (|+->| (dom g_s1463$1_1524) (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 29
 (push 1)
 (assert (not (mem g_s1559_1611 (dom g_s1463$1_1524))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -2930,7 +2931,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1495$1_1549 g_s663_690))
 ; PO 1 in group 30
 (assert (not (mem g_s1489$1_1545 (|+->| (dom g_s1489$1_1545) (ran g_s1489$1_1545)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 31 
@@ -2954,7 +2955,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1496_1550 (dom g_s1490$1_1547)))
 ; PO 1 in group 31
 (assert (not (mem g_s1490$1_1547 (|+->| (dom g_s1490$1_1547) (ran g_s1490$1_1547)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 32 
@@ -2978,7 +2979,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1563$1_1614 g_s185_186))
 ; PO 1 in group 32
 (assert (not (mem g_s1478$1_1536 (|+->| (dom g_s1478$1_1536) (ran g_s1478$1_1536)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 33 
@@ -2998,7 +2999,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s1565$1_1616 g_s577_603))
 ; PO 1 in group 33
 (assert (not (mem g_s1463$1_1524 (seq (ran g_s1463$1_1524)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 34 
@@ -3029,13 +3030,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 34
 (push 1)
 (assert (not (mem g_s1114_1150 (|+->| (dom g_s1114_1150) (ran g_s1114_1150)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 34
 (push 1)
 (assert (not (mem g_s1567_1617 (dom g_s1114_1150))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)

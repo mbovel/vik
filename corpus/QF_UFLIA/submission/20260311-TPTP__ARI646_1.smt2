@@ -1,4 +1,5 @@
 ; From submission: non-incremental/QF_UFLIA/20260311-TPTP/ARI/ARI646_1.smt2 (see the file's header)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFLIA)
 (set-info :source |
@@ -16,7 +17,7 @@ selection of benchmarks to SMT-LIB.  They were exported from the
 v9.2.1 realease of TPTP.
 |)
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status unsat)
 ; SZS status Success
 (declare-sort $$unsorted 0)
 (declare-fun tptp.a () Int)

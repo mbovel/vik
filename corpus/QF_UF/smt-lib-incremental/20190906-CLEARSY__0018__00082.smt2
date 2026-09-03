@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0018/00082.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -405,7 +406,7 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (mem (mapplet (mapplet (mapplet g_s202_206 g_s203_207) g_s204_208) g_s206_210) (dom g_s187_192))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -425,13 +426,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 1
 (push 1)
 (assert (not (mem g_s194_197 (|+->| (dom g_s194_197) (ran g_s194_197)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 1
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s194_197))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -451,13 +452,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 2
 (push 1)
 (assert (not (mem g_s188_193 (|+->| (dom g_s188_193) (ran g_s188_193)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 2
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s188_193))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -477,13 +478,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 3
 (push 1)
 (assert (not (mem g_s197_202 (|+->| (dom g_s197_202) (ran g_s197_202)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 3
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s197_202))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -503,13 +504,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 4
 (push 1)
 (assert (not (mem g_s198_203 (|+->| (dom g_s198_203) (ran g_s198_203)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 4
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s198_203))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -529,13 +530,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 5
 (push 1)
 (assert (not (mem g_s196_201 (|+->| (dom g_s196_201) (ran g_s196_201)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 5
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s196_201))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -555,13 +556,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 6
 (push 1)
 (assert (not (mem g_s193_195 (|+->| (dom g_s193_195) (ran g_s193_195)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 6
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s193_195))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -581,13 +582,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 7
 (push 1)
 (assert (not (mem g_s195_199 (|+->| (dom g_s195_199) (ran g_s195_199)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 7
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s195_199))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -607,13 +608,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 8
 (push 1)
 (assert (not (mem g_s199_204 (|+->| (dom g_s199_204) (ran g_s199_204)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 8
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s199_204))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -633,13 +634,13 @@ Target solver: CVC4, Z3
 ; PO 1 in group 9
 (push 1)
 (assert (not (mem g_s200_205 (|+->| (dom g_s200_205) (ran g_s200_205)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 2 in group 9
 (push 1)
 (assert (not (mem g_s209_211 (dom g_s200_205))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)

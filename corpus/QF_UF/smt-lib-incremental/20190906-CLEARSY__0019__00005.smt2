@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0019/00005.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -600,25 +601,25 @@ Target solver: CVC4, Z3
 ; PO 2 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_30 lh_31 lh_32 lh_33 lh_34 lh_35 lh_36 lh_37 lh_38 lh_39 lh_40 lh_41 lh_42 lh_43 lh_44 lh_45 lh_46 lh_47 lh_48 lh_49 lh_50 lh_51 lh_52 lh_53 lh_54 lh_55 lh_56 lh_57 lh_58 lh_59 lh_60 lh_61 lh_62 lh_63 lh_64 lh_65 lh_66 lh_67 lh_68 lh_69 lh_70 lh_71 lh_72 lh_73 lh_74 lh_75 lh_76 lh_77 lh_78 lh_79 lh_80 lh_81 lh_82 lh_83 lh_84 lh_85 lh_86 lh_87 lh_88 lh_89 lh_90 lh_91 lh_92 lh_93 lh_94 lh_95 lh_96 lh_97 lh_98 lh_99 lh_100 lh_101 lh_102 lh_103 lh_104 lh_105 lh_106 lh_107 lh_108 lh_109 lh_110 lh_111 lh_112 lh_113 lh_114 lh_115 lh_116 lh_117 lh_118 lh_119 lh_120 lh_121 lh_122 lh_123 lh_124 lh_125 lh_126 lh_127 lh_128 lh_129 lh_130 lh_131 lh_132 lh_133 lh_134 lh_135 lh_136) (mem g_s151_183 (FIN g_s151_183)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 3 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_30 lh_31 lh_32 lh_33 lh_34 lh_35 lh_36 lh_37 lh_38 lh_39 lh_40 lh_41 lh_42 lh_43 lh_44 lh_45 lh_46 lh_47 lh_48 lh_49 lh_50 lh_51 lh_52 lh_53 lh_54 lh_55 lh_56 lh_57 lh_58 lh_59 lh_60 lh_61 lh_62 lh_63 lh_64 lh_65 lh_66 lh_67 lh_68 lh_69 lh_70 lh_71 lh_72 lh_73 lh_74 lh_75 lh_76 lh_77 lh_78 lh_79 lh_80 lh_81 lh_82 lh_83 lh_84 lh_85 lh_86 lh_87 lh_88 lh_89 lh_90 lh_91 lh_92 lh_93 lh_94 lh_95 lh_96 lh_97 lh_98 lh_99 lh_100 lh_101 lh_102 lh_103 lh_104 lh_105 lh_106 lh_107 lh_108 lh_109 lh_110 lh_111 lh_112 lh_113 lh_114 lh_115 lh_116 lh_117 lh_118 lh_119 lh_120 lh_121 lh_122 lh_123 lh_124 lh_125 lh_126 lh_127 lh_128 lh_129 lh_130 lh_131 lh_132 lh_133 lh_134 lh_135 lh_136 lh_137) (mem g_s145_177 (FIN g_s145_177)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 4 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_30 lh_31 lh_32 lh_33 lh_34 lh_35 lh_36 lh_37 lh_38 lh_39 lh_40 lh_41 lh_42 lh_43 lh_44 lh_45 lh_46 lh_47 lh_48 lh_49 lh_50 lh_51 lh_52 lh_53 lh_54 lh_55 lh_56 lh_57 lh_58 lh_59 lh_60 lh_61 lh_62 lh_63 lh_64 lh_65 lh_66 lh_67 lh_68 lh_69 lh_70 lh_71 lh_72 lh_73 lh_74 lh_75 lh_76 lh_77 lh_78 lh_79 lh_80 lh_81 lh_82 lh_83 lh_84 lh_85 lh_86 lh_87 lh_88 lh_89 lh_90 lh_91 lh_92 lh_93 lh_94 lh_95 lh_96 lh_97 lh_98 lh_99 lh_100 lh_101 lh_102 lh_103 lh_104 lh_105 lh_106 lh_107 lh_108 lh_109 lh_110 lh_111 lh_112 lh_113 lh_114 lh_115 lh_116 lh_117 lh_118 lh_119 lh_120 lh_121 lh_122 lh_123 lh_124 lh_125 lh_126 lh_127 lh_128 lh_129 lh_130 lh_131 lh_132 lh_133 lh_134 lh_135 lh_136 lh_137 lh_138) (mem g_s155_188 (FIN g_s155_188)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO 5 in group 0
 (push 1)
 (assert (not (=> (and lh_1 lh_2 lh_3 lh_4 lh_5 lh_6 lh_7 lh_8 lh_9 lh_10 lh_11 lh_12 lh_13 lh_14 lh_15 lh_16 lh_17 lh_18 lh_19 lh_20 lh_21 lh_22 lh_23 lh_24 lh_25 lh_26 lh_27 lh_28 lh_29 lh_30 lh_31 lh_32 lh_33 lh_34 lh_35 lh_36 lh_37 lh_38 lh_39 lh_40 lh_41 lh_42 lh_43 lh_44 lh_45 lh_46 lh_47 lh_48 lh_49 lh_50 lh_51 lh_52 lh_53 lh_54 lh_55 lh_56 lh_57 lh_58 lh_59 lh_60 lh_61 lh_62 lh_63 lh_64 lh_65 lh_66 lh_67 lh_68 lh_69 lh_70 lh_71 lh_72 lh_73 lh_74 lh_75 lh_76 lh_77 lh_78 lh_79 lh_80 lh_81 lh_82 lh_83 lh_84 lh_85 lh_86 lh_87 lh_88 lh_89 lh_90 lh_91 lh_92 lh_93 lh_94 lh_95 lh_96 lh_97 lh_98 lh_99 lh_100 lh_101 lh_102 lh_103 lh_104 lh_105 lh_106 lh_107 lh_108 lh_109 lh_110 lh_111 lh_112 lh_113 lh_114 lh_115 lh_116 lh_117 lh_118 lh_119 lh_120 lh_121 lh_122 lh_123 lh_124 lh_125 lh_126 lh_127 lh_128 lh_129 lh_130 lh_131 lh_132 lh_133 lh_134 lh_135 lh_136 lh_137 lh_138 lh_139) (mem g_s156_189 (FIN g_s156_189)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (pop 1)
@@ -638,7 +639,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s251_279 (dom g_s226_257)))
 ; PO 1 in group 1
 (assert (not (mem g_s226_257 (|+->| (dom g_s226_257) (ran g_s226_257)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 2 
@@ -657,7 +658,7 @@ Target solver: CVC4, Z3
 (assert (mem g_s251_279 (dom g_s227_258)))
 ; PO 1 in group 2
 (assert (not (mem g_s227_258 (|+->| (dom g_s227_258) (ran g_s227_258)))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (exit)

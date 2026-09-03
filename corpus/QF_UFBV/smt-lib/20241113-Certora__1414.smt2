@@ -1,4 +1,5 @@
 ; From smt-lib: QF_UFBV/20241113-Certora/1414.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFBV)
 (set-info :source |
@@ -9,7 +10,7 @@ Application: Web3 security
 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status unsat)
 (declare-fun x536 () (_ BitVec 256))
 (declare-fun x220 () (_ BitVec 256))
 (declare-fun x907 () Bool)

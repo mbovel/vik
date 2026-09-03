@@ -3,8 +3,9 @@
 ; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
 ; untyped: c1.T
 ; untyped: c2.T
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFBVDT)
 (declare-fun x0 () (_ BitVec 32))
 (declare-fun subtyping_unfolding_neg$package$.tp_c1.T () (_ BitVec 32))

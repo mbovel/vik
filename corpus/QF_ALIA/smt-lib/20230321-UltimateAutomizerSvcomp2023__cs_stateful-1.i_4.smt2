@@ -1,4 +1,5 @@
 ; From smt-lib: QF_ALIA/20230321-UltimateAutomizerSvcomp2023/cs_stateful-1.i_4.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_ALIA)
 (set-info :source |
@@ -28,7 +29,7 @@ unsatisfiable cores, and interpolants.
 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 (declare-fun |#funAddr~thread1.base| () Int)
 (declare-fun |#funAddr~thread1.offset| () Int)
 (declare-fun |#funAddr~thread2.base| () Int)

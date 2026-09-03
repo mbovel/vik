@@ -1,4 +1,5 @@
 ; From smt-lib-incremental: QF_UF/20190906-CLEARSY/0015/00270.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UF)
 (set-info :source |
@@ -10,7 +11,7 @@ Target solver: CVC4, Z3
 |)
 (set-info :license "https://creativecommons.org/licenses/by-nc/4.0/")
 (set-info :category "industrial")
-(set-info :status unknown)
+(set-info :status sat)
 ; Prelude
 (declare-sort U 0)
 (declare-fun |*i| (U U) U)
@@ -238,7 +239,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 1
 (assert (not (=> lh_1 (mem g_s23_24 (|+->| (dom g_s23_24) (ran g_s23_24))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 2 
@@ -258,7 +259,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 2
 (assert (not (=> (and lh_1 lh_2) (mem g_s24_25 (|+->| (dom g_s24_25) (ran g_s24_25))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 3 
@@ -278,7 +279,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 3
 (assert (not (=> lh_1 (mem g_s24_25 (|+->| (dom g_s24_25) (ran g_s24_25))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 4 
@@ -298,7 +299,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 4
 (assert (not (=> (and lh_1 lh_2) (mem g_s25_26 (|+->| (dom g_s25_26) (ran g_s25_26))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 5 
@@ -318,7 +319,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 5
 (assert (not (=> lh_1 (mem g_s25_26 (|+->| (dom g_s25_26) (ran g_s25_26))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 6 
@@ -338,7 +339,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 6
 (assert (not (=> (and lh_1 lh_2) (mem g_s26_27 (|+->| (dom g_s26_27) (ran g_s26_27))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 7 
@@ -358,7 +359,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 7
 (assert (not (=> lh_1 (mem g_s26_27 (|+->| (dom g_s26_27) (ran g_s26_27))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 8 
@@ -378,7 +379,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 8
 (assert (not (=> (and lh_1 lh_2) (mem g_s27_28 (|+->| (dom g_s27_28) (ran g_s27_28))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 9 
@@ -398,7 +399,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 9
 (assert (not (=> lh_1 (mem g_s27_28 (|+->| (dom g_s27_28) (ran g_s27_28))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 10 
@@ -418,7 +419,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 10
 (assert (not (=> (and lh_1 lh_2) (mem g_s28_29 (|+->| (dom g_s28_29) (ran g_s28_29))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 11 
@@ -438,7 +439,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 11
 (assert (not (=> lh_1 (mem g_s28_29 (|+->| (dom g_s28_29) (ran g_s28_29))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 12 
@@ -458,7 +459,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 12
 (assert (not (=> (and lh_1 lh_2) (mem g_s29_30 (|+->| (dom g_s29_30) (ran g_s29_30))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 13 
@@ -478,7 +479,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 13
 (assert (not (=> lh_1 (mem g_s29_30 (|+->| (dom g_s29_30) (ran g_s29_30))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 14 
@@ -498,7 +499,7 @@ Target solver: CVC4, Z3
 (define-fun lh_2 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 14
 (assert (not (=> (and lh_1 lh_2) (mem g_s30_31 (|+->| (dom g_s30_31) (ran g_s30_31))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 ; PO group 15 
@@ -518,7 +519,7 @@ Target solver: CVC4, Z3
 (define-fun lh_1 () Bool (mem g_s33$1_33 g_s3_4))
 ; PO 1 in group 15
 (assert (not (=> lh_1 (mem g_s30_31 (|+->| (dom g_s30_31) (ran g_s30_31))))))
-(set-info :status unknown)
+(set-info :status sat)
 (check-sat)
 (pop 1)
 (exit)

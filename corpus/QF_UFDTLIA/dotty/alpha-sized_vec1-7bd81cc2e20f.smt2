@@ -4,8 +4,9 @@
 ; untyped: sized_vec1$package.Vec
 ; untyped: (param)3
 ; untyped: (param)4
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :source |qualified types implication; e-graph: not proved|)
-(set-info :status unknown)
+(set-info :status sat)
 (set-logic QF_UFDTLIA)
 (declare-sort Any 0)
 (declare-fun x0 () Any)

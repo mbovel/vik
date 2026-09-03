@@ -1,3 +1,4 @@
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 (set-info :smt-lib-version 2.6)
 (set-logic QF_DT)
 (set-info :source |
@@ -9,7 +10,7 @@ Target solvers: Algaroba, cvc5, Z3, Princess
 Publications: Shah, Mora and Seshia. An Eager Satisfiability Modulo Theories Solver for Algebraic Datatypes. AAAI ’24 |)
 (set-info :license "https://creativecommons.org/licenses/by/4.0/")
 (set-info :category "industrial")
-(set-info :status unsat) 
+(set-info :status unsat)
 (declare-datatypes ((Enum_A_B_C_D 0)) (((A) (B) (C) (D))))
 (declare-datatypes ((Tower 0)) (((stack (top Enum_A_B_C_D) (rest Tower)) (empty))))
 (declare-datatypes ((Record_left_center_right 0)) (((Record_left_center_right (left Tower) (center Tower) (right Tower)))))
