@@ -39,17 +39,19 @@ class CorpusTest extends munit.FunSuite:
   for file <- Corpus.files do
     val reason = ignored.get(file)
     test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):
-      // The budget, as a wall-clock guard under the fuel, and as the solver's own deadline per check-sat:
-      // a run over it is failed from outside, and the search stops by itself a step later — a thread
-      // left running would keep its memory (the fork ran out of heap on CI before the deadline).
+      // The budget, as a wall-clock guard under the fuel, and as the solver's own deadline for the whole
+      // script: a run over it is failed from outside, and the search stops by itself a step later — a
+      // thread left running keeps its memory, and a script of many check-sats, each with a deadline of
+      // its own, ran on for minutes and exhausted the fork's heap on CI.
       val outcome = Try {
         Await.result(
           Future {
             val text = Corpus.read(file)
             val script = Parser.parse(text)
             val expected = script.expectedStatuses
+            val deadline = Some(System.nanoTime() + budget.toNanos)
             val got =
-              Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel, Some(budget.toMillis))
+              Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel, deadline = deadline)
             val agrees = got.length == expected.length &&
               got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
             // An answer against the status: a soundness bug, whatever the file's standing.
@@ -60,7 +62,7 @@ class CorpusTest extends munit.FunSuite:
               if expects.isEmpty || reason.isDefined ||
                 !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
               then expects
-              else Session.run(script, fuel = fuel, Some(budget.toMillis))
+              else Session.run(script, fuel = fuel, deadline = deadline)
             (agrees && responses == expects, wrong, s"expected ${show(expected)}, got ${show(got)}")
           },
           budget

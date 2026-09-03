@@ -21,7 +21,12 @@ import net.bovel.smtlib as s2
  *  s.checkSat() // Some(true)
  *  }}}
  */
-final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None):
+final class Session(
+    initial: Solver = Solver(),
+    fuel: Long = Long.MaxValue,
+    timeoutMs: Option[Long] = None,
+    deadline: Option[Long] = None // a point in `System.nanoTime`: no check-sat searches past it
+):
   private val parser = s2.Parser()
   private val lowerer = Lowerer()
   private var current = initial
@@ -61,12 +66,13 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue, time
 
   private def answer(): String =
     val s = current
-    val deadline = timeout.map(ms => System.nanoTime() + ms * 1000000)
+    // The check-sat's own timeout, and the session's deadline: whichever comes first.
+    val stop = (timeout.map(ms => System.nanoTime() + ms * 1000000).toList ++ deadline).minOption
     var left = rlimit
     var late = false
     reason = None
     s.solve(() =>
-      left -= 1; late = deadline.exists(_ < System.nanoTime()); left >= 0 && !late
+      left -= 1; late = stop.exists(_ < System.nanoTime()); left >= 0 && !late
     ) match
       case s.Result.Sat => "sat"
       case s.Result.Unsat => "unsat"
@@ -184,18 +190,30 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue, time
 
 object Session:
   /** Runs a whole script in a session of its own: the responses, each
-   *  `check-sat` with `fuel` steps and, when given, `timeoutMs` milliseconds
-   *  (the search stops by itself at either: nothing has to interrupt it).
+   *  `check-sat` with `fuel` steps and, when given, `timeoutMs` milliseconds,
+   *  none of them past `deadline` (a `System.nanoTime` point: the budget of the
+   *  whole script, which a script of many check-sats must not multiply). The
+   *  search stops by itself at any of the three: nothing has to interrupt it.
    */
-  def run(script: s2.Script, fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None): List[String] =
-    Session(fuel = fuel, timeoutMs = timeoutMs).run(script)
+  def run(
+      script: s2.Script,
+      fuel: Long = Long.MaxValue,
+      timeoutMs: Option[Long] = None,
+      deadline: Option[Long] = None
+  ): List[String] =
+    Session(fuel = fuel, timeoutMs = timeoutMs, deadline = deadline).run(script)
 
   /** The answer of each `check-sat` of a script run in a session of its own:
    *  `Some(true)` for sat, `None` for unknown (the `fuel` of the `check-sat` is
-   *  spent, or its `timeoutMs` are, see `Solver.solve`).
+   *  spent, or its time, see `Solver.solve`).
    */
-  def answers(script: s2.Script, fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None): List[Option[Boolean]] =
-    run(script, fuel, timeoutMs).collect {
+  def answers(
+      script: s2.Script,
+      fuel: Long = Long.MaxValue,
+      timeoutMs: Option[Long] = None,
+      deadline: Option[Long] = None
+  ): List[Option[Boolean]] =
+    run(script, fuel, timeoutMs, deadline).collect {
       case "sat" => Some(true)
       case "unsat" => Some(false)
       case "unknown" => None
