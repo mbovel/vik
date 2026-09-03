@@ -7,6 +7,6 @@
 set -eu
 cd "$(dirname "$0")/.."
 mkdir -p target/graal
-sbt --server "vik/nativeImageCopy target/graal/vik"
+sbt --server "graal/nativeImageCopy target/graal/vik"
 target/graal/vik /dev/null > /dev/null
 echo "built target/graal/vik ($(du -h target/graal/vik | cut -f1))"

@@ -87,8 +87,13 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - name: Solver binaries and native libraries (the versions of bench/fetch-native.sh)
-        run: bench/fetch-native.sh
+      - name: Solver binaries and native libraries, cached by the versions in bench/fetch-native.sh
+        # GitHub rate-limits release downloads (403, 429) when three jobs fetch them at once.
+        uses: actions/cache@v4
+        with:
+          path: bench/native
+          key: native-${{ hashFiles('bench/fetch-native.sh') }}
+      - run: bench/fetch-native.sh
       - name: Solver versions
         run: bench/native/bin/z3 --version && bench/native/bin/cvc5 --version
       - name: JMH dry run, every class and method
@@ -136,7 +141,7 @@ jobs:
         env:
           NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
       - name: The corpus on the image
-        run: bench/graal-corpus.sh 20 4
+        run: bench/graal-corpus.sh 60 2 # a minute a file and two at a time: the runner has two cores
   publish:
     # Releases the tag's version (`vX.Y.Z` publishes X.Y.Z) to Maven Central: the six library modules,
     # each on JVM, Scala.js and Scala Native. sbt-ci-release signs with the key of the PGP_SECRET and
