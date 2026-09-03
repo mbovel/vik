@@ -15,6 +15,28 @@ versionScheme := Some("early-semver")
 // Every JVM test suite runs forked with the same fixed heap on every machine, so the sbt server
 // only builds: without this, all modules' tests share the server heap and its classloader caches,
 // which exhausted CI's three gigabytes (HoCoreTest OOMed after the earlier suites filled it).
+// The solver's Scala Native binary in release mode: Scala Native links in `debug` mode unless told otherwise
+// (no optimizer, no link-time optimization), which is what the evaluation measured until 2026-09-03 — release
+// with thin LTO is 3–5× faster where the search takes time (`bench/results/smt/2026-09-03-laraserver4-native-release.md`).
+// Only the `vik` row's main binary gets it, the one cold.sh measures; the test binaries stay quick to link.
+// VIK_NATIVE_FLAGS adds options to the C/C++ compilation and the link, for a toolchain that needs them
+// (laraserver4's user-space LLVM: `-stdlib=libc++ -fuse-ld=lld -Wl,-rpath,<its lib/x86_64-unknown-linux-gnu>`).
+import scala.scalanative.build.{LTO, Mode}
+val nativeFlags = sys.env.get("VIK_NATIVE_FLAGS").toSeq.flatMap(_.split(" ")).filter(_.nonEmpty)
+val nativeRelease = Seq(
+  Compile / nativeConfig ~= { config =>
+    config.withMode(Mode.releaseFull).withLTO(LTO.thin)
+      .withCompileOptions(config.compileOptions ++ nativeFlags)
+      .withLinkingOptions(config.linkingOptions ++ nativeFlags)
+  },
+  // The test binary follows the main one's configuration: back to debug, and the flags alone.
+  Test / nativeConfig ~= { config =>
+    config.withMode(Mode.debug).withLTO(LTO.none)
+      .withCompileOptions(config.compileOptions ++ nativeFlags)
+      .withLinkingOptions(config.linkingOptions ++ nativeFlags)
+  }
+)
+
 val forkedTests = Seq(
   Test / fork := true,
   Test / javaOptions += "-Xmx2g",
@@ -84,7 +106,7 @@ lazy val vik = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeRelease)
 
 // SMT-LIB 2 scripts: subprojects `smtlib` (JVM) and `smt2JS`.
 lazy val smtlib = projectMatrix

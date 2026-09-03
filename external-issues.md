@@ -169,6 +169,21 @@ leaving the server to build only.
   which exits with the step: nothing to race, nothing left behind. (A foreground run coexists with a live
   background server; interactive use keeps the client.)
 
+### 15. `nativeLink` (sbt-scala-native 0.5.12) is served from the cache after its `nativeConfig` changed (2026-09-03)
+
+- **Observed**: with the `vik` row's `nativeConfig` reading extra compile and linking options from an environment
+  variable (`VIK_NATIVE_FLAGS`, laraserver4's user-space LLVM needs `-stdlib=libc++ -fuse-ld=lld`), a second
+  `sbt "vikNative/nativeLink"` with a different value (`-Wl,-rpath,…` added) reported `cache 98%, 2 onsite tasks`
+  and left the previous binary in place: no rpath in it (`readelf -d`), the loader still failing on `libc++abi.so.1`.
+  The task's cache key does not cover `nativeConfig`'s options, or at least not their change through the
+  environment; a source change or `vikNative/clean` relinks.
+- **Reproduce**: `VIK_NATIVE_FLAGS=a sbt vikNative/nativeLink`, then `VIK_NATIVE_FLAGS=b sbt vikNative/nativeLink`:
+  the second is a cache hit.
+- **Workaround**: `vikNative/clean` before a link whose options changed; put option changes in `build.sbt` itself when
+  possible.
+- **Related**: the same session found `Compile / nativeConfig` reaching the `Test` link as well (both binaries linked
+  in release mode until `Test / nativeConfig` was set back to debug explicitly).
+
 ## Scaladoc
 
 Version: the Scaladoc of Scala 3.10.0-RC1, through sbt-unidoc.
