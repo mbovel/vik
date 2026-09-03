@@ -46,7 +46,9 @@ QF_ALIA/smt-lib/qlock2__qlock.base.5.smt2	skip: out of memory at 2 GB before the
 QF_ALIA/smt-lib/qlock2__qlock.induction.5.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_ALIA/smt-lib/qlock2__qlock.induction.6.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_AUFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
+QF_AUFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
 QF_AUFBV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
+QF_AUFBV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	timeout (5 s limit)
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--ppp--ppp_generic.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--wireless--mwifiex--mwifiex_sdio.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--input--misc--atlas_btns.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -88,8 +90,6 @@ QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_floodmax
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_floodmax.4.3.ufo.BOUNDED-8.pals.c.v+nlh-reducer_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_lcr.4.1.ufo.BOUNDED-8.pals_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib/2018-Goel-hwbench__QF_BV_eq_sdp_v6_cc_reg_max.smt2	timeout (5 s limit)
-QF_BV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
-QF_BV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__millionaires__millionaires.t1.i11.38d7c4be.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__millionaires__millionaires.t1.i24.01a5fe45.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__wage__wage.t1.i33.1f0f7856.smt2	timeout (5 s limit)
