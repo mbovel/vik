@@ -7,6 +7,18 @@ on:
   pull_request:
 
 jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
   test:
     # On the JDK the evaluation runs on (26) and the two it may fall back to.
     strategy:
@@ -26,8 +38,6 @@ jobs:
       - uses: actions/setup-node@v4 # the Scala.js tests run on the WebAssembly backend: a recent Node.js
         with:
           node-version: 24
-      - name: Check formatting
-        run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
       - name: Test (JVM and Scala.js)
         # The corpus test's five seconds are for one's own machine, where a file at the edge is
         # caught; on a shared runner the guard is a hard limit only.
