@@ -38,12 +38,15 @@ if "--order" in arguments:
 
 rows = list(csv.DictReader(open(arguments[0]), delimiter="\t"))
 measured = {r["solver"] for r in rows}
+# The columns in an order that puts like next to like: the JVM solvers, then VIK's other platforms, then the
+# native binaries of z3 and cvc5; a column per solver the run measured (the AOT cache and the GraalVM image
+# are built on request).
 solvers = arguments[1].split(",") if len(arguments) > 1 else [s for s in [
-    "vik-jvm", "vik-jvm-aot", "vik-native", "vik-graal", "vik-node", "z3", "cvc5", "princess", "smtinterpol"
-] if s in measured]  # a column per solver the run measured (the GraalVM image and the AOT cache are built on request)
-names = {"vik-jvm": "VIK (JVM)", "vik-jvm-aot": "VIK (JVM AOT)", "vik-native": "VIK (native)",
-         "vik-graal": "VIK (Native Image)", "vik-node": "VIK (Node)",
-         "z3": "z3", "cvc5": "cvc5", "princess": "princess (JVM)", "smtinterpol": "SMTInterpol (JVM)"}
+    "princess", "smtinterpol", "vik-jvm", "vik-jvm-aot", "vik-node", "vik-native", "vik-graal", "z3", "cvc5"
+] if s in measured]
+names = {"princess": "Princess (JVM)", "smtinterpol": "SMTInterpol (JVM)", "vik-jvm": "VIK (JVM)",
+         "vik-jvm-aot": "VIK (JVM AOT)", "vik-node": "VIK (Node)", "vik-native": "VIK (Scala Native)",
+         "vik-graal": "VIK (Native Image)", "z3": "Z3", "cvc5": "CVC5"}
 def agrees(answer, expected):
     """Answer sequences match the statuses; a check whose status is unknown accepts either answer."""
     a, e = answer.split(","), expected.split(",")
