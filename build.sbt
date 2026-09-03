@@ -102,13 +102,19 @@ lazy val smtlib = projectMatrix
 lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
 
 lazy val vikJVM = vik.jvm(scala3Version)
+  .enablePlugins(NativeImagePlugin)
   .settings(
-    // The runtime classpath as real paths, for the tools that run the solver's `smt2` outside sbt: cold.sh, the
-    // GraalVM native image (bench/graal.sh).
+    // The runtime classpath as real paths, for the tools that run the solver's `smt2` outside sbt (cold.sh, aot.sh).
     runtimeClasspath := {
       val converter = fileConverter.value
       (Runtime / fullClasspath).value.map(entry => converter.toPath(entry.data).toString).mkString(":")
-    }
+    },
+    // The solver as a GraalVM native image (bench/graal.sh: `vik/nativeImageCopy target/graal/vik`), a binary
+    // that answers in milliseconds where the JVM takes a third of a second (the evaluation's cold table). The
+    // plugin fetches GraalVM (graalvm-java25) through coursier unless NATIVE_IMAGE_INSTALLED=true names one in
+    // GRAALVM_HOME; --no-fallback: a binary, or a failure.
+    Compile / mainClass := Some("net.bovel.vik.smt2"),
+    nativeImageOptions ++= Seq("--no-fallback", "-O2")
   )
 
 // The corpus on disk and its importer, and the tests that play it (JVM only): forked with a fixed

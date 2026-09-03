@@ -119,8 +119,8 @@ jobs:
           git diff --exit-code docs/_docs/evaluation.md
 
   graal:
-    # The solver as a GraalVM native image (bench/graal.sh): built, then run on one instance per theory,
-    # the answers held to the statuses.
+    # The solver as a GraalVM native image (sbt-native-image, bench/graal.sh), then the whole corpus on it:
+    # every file the corpus test holds VIK to, answered as its statuses — the image is the same solver.
     if: github.ref_type != 'tag'
     name: graal
     runs-on: ubuntu-latest
@@ -133,19 +133,10 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - run: bench/graal.sh
-      - name: One instance per theory
-        run: |
-          for f in corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2 \
-                   corpus/QF_LIA/smt-lib/dillig__20-4.smt2 \
-                   corpus/QF_LRA/smt-lib/keymaera__division_dijkstra-node701.smt2 \
-                   corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2 \
-                   corpus/QF_BV/smt-lib/bmc-bv__adpcm.smt2 \
-                   corpus/QF_UF/smt-lib-incremental/20190906-CLEARSY__0016__00004.smt2; do
-            expected=$(grep -o ':status [a-z]*' "$f" | cut -d' ' -f2 | paste -sd, -)
-            got=$(timeout 20 target/graal/vik "$f" | grep -E '^(sat|unsat|unknown)$' | paste -sd, -)
-            echo "$f: expected $expected, got $got"
-            test "$got" = "$expected"
-          done
+        env:
+          NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
+      - name: The corpus on the image
+        run: bench/graal-corpus.sh 20 4
   publish:
     # Releases the tag's version (`vX.Y.Z` publishes X.Y.Z) to Maven Central: the six library modules,
     # each on JVM, Scala.js and Scala Native. sbt-ci-release signs with the key of the PGP_SECRET and

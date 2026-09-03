@@ -212,7 +212,7 @@ reads 🐢, and a solver that rejects the file (a sort or a dialect it does not 
 
 <div class="table-scroll">
 <table>
-<thead><tr><th>Instance</th><th>Theory</th><th>Incremental</th><th>Status</th><th>VIK (JVM)</th><th>VIK (JVM, AOT cache)</th><th>VIK (native)</th><th>VIK (GraalVM)</th><th>VIK (Node)</th><th>z3</th><th>cvc5</th><th>princess</th><th>SMTInterpol</th></tr></thead>
+<thead><tr><th>Instance</th><th>Theory</th><th>Incremental</th><th>Status</th><th>VIK (JVM)</th><th>VIK (JVM, AOT cache)</th><th>VIK (native)</th><th>VIK (GraalVM Native Image)</th><th>VIK (Node)</th><th>z3</th><th>cvc5</th><th>princess</th><th>SMTInterpol</th></tr></thead>
 <tbody>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2" title="QG-classification__qg5__iso_brn001">QG-classification__<wbr>…</a></td><td>QF_UF</td><td>✗</td><td>sat</td><td align="right">0.32</td><td align="right">0.17</td><td align="right">0.05</td><td align="right">0.01</td><td align="right">0.11</td><td align="right">0.02</td><td align="right"><span class="best">0.01</span></td><td align="right">0.91</td><td align="right">0.15</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib/QG-classification__qg5__iso_icl662.smt2" title="QG-classification__qg5__iso_icl662">QG-classification__<wbr>…</a></td><td>QF_UF</td><td>✗</td><td>unsat</td><td align="right">0.41</td><td align="right">0.21</td><td align="right">0.17</td><td align="right">0.03</td><td align="right">0.15</td><td align="right"><span class="best">0.02</span></td><td align="right">0.02</td><td align="right">1.49</td><td align="right">0.21</td></tr>

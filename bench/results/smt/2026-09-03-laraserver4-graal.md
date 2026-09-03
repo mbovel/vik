@@ -15,7 +15,7 @@ and Scala Native 10–170 ms: over the 39 instances answered by both, the JVM is
 code without the JIT: `NEQ004_size4` 0.36 s against the JVM's 0.61 s and Scala Native's 1.70 s. The
 answers agree with the JVM's everywhere.
 
-| Instance | VIK (JVM) | VIK (native) | VIK (GraalVM) | VIK (Node) | z3 | cvc5 |
+| Instance | VIK (JVM) | VIK (native) | VIK (GraalVM Native Image) | VIK (Node) | z3 | cvc5 |
 |---|---:|---:|---:|---:|---:|---:|
 | `QG-classification__qg5__iso_brn001` | 0.33 | 0.05 | 0.01 | 0.10 | 0.02 | 0.01 |
 | `QG-classification__qg5__iso_icl662` | 0.42 | 0.17 | 0.03 | 0.15 | 0.02 | 0.02 |

@@ -15,7 +15,7 @@ same instances in 6–30 ms, Scala Native in 10–170 ms. The answers agree ever
 for a client that starts a JVM per query; for the compiler, which keeps one JVM, the warm numbers are the
 ones that matter.
 
-| Instance | VIK (JVM) | VIK (JVM, AOT cache) | VIK (GraalVM) | VIK (native) | z3 |
+| Instance | VIK (JVM) | VIK (JVM, AOT cache) | VIK (GraalVM Native Image) | VIK (native) | z3 |
 |---|---:|---:|---:|---:|---:|
 | `QG-classification__qg5__iso_brn001` | 0.33 | 0.17 | 0.01 | 0.05 | 0.02 |
 | `QG-classification__qg5__iso_icl662` | 0.42 | 0.21 | 0.03 | 0.17 | 0.02 |
