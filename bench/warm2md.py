@@ -8,15 +8,17 @@ the 🐢 of a solver past the budget, else the slowest). A note after the table 
 95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
 `solver:instance` per line): those cells say 🐢, whatever an older result file measured. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
-instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
-repository root, where `corpus/` is.
+instance measured but not listed is left out, one listed but not measured gets a row of `—`. `--columns a,b`
+shows those suites (JMH names) instead of the five API ones. Run from the repository root, where `corpus/` is.
 """
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
 # The columns, like next to like as in the cold table: the JVM solvers, VIK among them, then the native ones.
-order = ["PrincessBench.api", "SmtInterpolBench.api", "VikBench.api", "VikBench.text", "Z3Bench.api", "Z3TextBench.text",
-         "Cvc5Bench.api", "Cvc5Bench.text"]
+# The `text` suites (the solver parsing the script itself) are measured and in the results file, not shown:
+# the API is the faster side on nearly every instance, and the page has no room for both. `--columns` names
+# the suites to show instead.
+order = ["PrincessBench.api", "SmtInterpolBench.api", "VikBench.api", "Z3Bench.api", "Cvc5Bench.api"]
 names = {"PrincessBench.api": "Princess (API)", "SmtInterpolBench.api": "SMTInterpol (API)", "VikBench.api": "VIK (API)",
          "VikBench.text": "VIK (SMT2)", "Z3Bench.api": "Z3 (API)", "Z3TextBench.text": "Z3 (SMT2)",
          "Cvc5Bench.api": "CVC5 (API)", "Cvc5Bench.text": "CVC5 (SMT2)"}
@@ -53,6 +55,10 @@ if "--timeouts" in arguments:
     i = arguments.index("--timeouts")
     lines = pathlib.Path(arguments[i + 1]).read_text().splitlines()
     timeouts = {tuple(line.split(":", 1)) for line in lines if line}
+    arguments = arguments[:i] + arguments[i + 2:]
+if "--columns" in arguments:  # the suites to show, by their JMH names, comma-separated
+    i = arguments.index("--columns")
+    order = arguments[i + 1].split(",")
     arguments = arguments[:i] + arguments[i + 2:]
 
 by = collections.defaultdict(dict)
