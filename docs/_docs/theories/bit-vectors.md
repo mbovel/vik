@@ -65,29 +65,29 @@ term are equal only by an integer argument over `2ⁿ`, which branch and bound w
 |---|---|---|
 | a declared `(_ BitVec n)` constant `a` | `a` | none; `0 ≤ a ≤ m − 1` asserted |
 | an application of sort `(_ BitVec n)` — a function, a selector, a `select` | the application | none; `0 ≤ t ≤ m − 1` asserted at its first use (once per term and level) |
-| `bvadd a b` | `r` | `r ∈ [0, m)`, `k ∈ {0, 1}`: `a + b = r + m·k` |
-| `bvsub a b` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `a − b = r + m·k` |
-| `bvneg a` | `r` | `r ∈ [0, m)`, `k ∈ {−1, 0}`: `−a = r + m·k` |
+| `bvadd a b` | `r` | `r ∈ [0, m)`: `a + b = r` or `a + b = r + m` — the overflow is a choice the SAT solver makes, not an unknown with `m` as its coefficient |
+| `bvsub a b` | `r` | `r ∈ [0, m)`: `a − b = r` or `a − b = r − m` |
+| `bvneg a` | `r` | `r ∈ [0, m)`: `−a = r` or `−a = r − m` |
 | `bvnot a` | `m − 1 − a` | none |
-| `bvmul a c`, `c` a constant | `r` | `r ∈ [0, m)`, `k ∈ [0, c − 1]`: `c·a = r + m·k` |
+| `bvmul a c`, `c` a constant | `r` | `r ∈ [0, m)`: `c·a = r + m·k` for one of `k ∈ [0, c − 1]`, a choice up to four counts, else `k` an unknown in that range |
 | `bvshl a c` | as `bvmul a 2ᶜ`; `0` when `c ≥ n` | as `bvmul` |
 | `bvlshr a c` | `q` | `q ∈ [0, m/2ᶜ)`, `r ∈ [0, 2ᶜ)`: `a = 2ᶜ·q + r`; `0` when `c ≥ n` |
 | `bvudiv a c` | `q` | `q ∈ [0, (m−1)/c]`, `r ∈ [0, c)`: `a = c·q + r`; `m − 1` when `c = 0` |
 | `bvurem a c` | `r` | the same division; `a` when `c = 0` |
-| `bvsdiv a c`, `c` of signed value `T ≠ 0` | `±q` mod `m` | `s, u` as for the sign bit; `q`, `r ∈ (−|T|, |T|)`: `a − m·s = |T|·q + r`, `r ∈ [−(|T|−1)·s, (|T|−1)·(1−s)]` — the truncating division, the remainder of the sign of the dividend; negated when `T < 0`; `m − 1` for `s = 0` and `1` for `s = 1` when `c = 0` |
+| `bvsdiv a c`, `c` of signed value `T ≠ 0` | `±q` mod `m` | `q`, `r ∈ (−|T|, |T|)`: `v = |T|·q + r` for the signed value `v` of `a`, `r ≤ 0` when `a ≥ m/2` and `r ≥ 0` otherwise — the truncating division, the remainder of the sign of the dividend; negated when `T < 0`; `1` when `a ≥ m/2` and `m − 1` otherwise when `c = 0` |
 | `bvsrem a c` | `r` mod `m` | the same division; `a` when `c = 0` |
 | `bvsmod a c` | `r + T·z` mod `m` | the same division; `z ∈ {0, 1}`, one exactly when the signs differ and `r ≠ 0`: the remainder of the sign of the divisor; `a` when `c = 0` |
-| `bvashr a c` | `q` mod `m` | `q`, `r ∈ [0, 2ᶜ)`: `a − m·s = 2ᶜ·q + r` — the floor of the signed value over `2ᶜ`; `−s` mod `m` when `c ≥ n` |
+| `bvashr a c` | `q` mod `m` | `q`, `r ∈ [0, 2ᶜ)`: `v = 2ᶜ·q + r` for the signed value `v` — the floor of it over `2ᶜ`; all ones or zero by the sign when `c ≥ n` |
 | `bvand a c`, `c = 2ᵏ − 1` | `r` | `q, r` of `a = 2ᵏ·q + r`: the low bits are the remainder |
 | `bvand a c`, `c = m − 2ᵏ` | `a − r` | the same division: the high bits are what remains |
 | `extract i j a` | `r₂` | `a = 2ʲ·q₁ + r₁`, then `q₁ = 2^(i−j+1)·q₂ + r₂` |
 | `concat a b`, `b` of width `k` | `2ᵏ·a + b` | none |
 | `zero_extend k a` | `a` | none |
-| `sign_extend k a` | `a + (2^(n+k) − m)·s` | `s ∈ {0, 1}`, `u ∈ [0, m/2)`: `a = u + (m/2)·s` |
+| `sign_extend k a` | `e` | `e = a + (2^(n+k) − m)` when `a ≥ m/2`, `e = a` otherwise: the sign of `a` is the atom `a ≥ m/2`, never an unknown |
 | `bvult`, `bvule`, `bvugt`, `bvuge` | `<`, `≤`, `>`, `≥` directly | none |
-| `bvslt`, `bvsle`, `bvsgt`, `bvsge` | the same on `a − m·s` per side | per side `s, u` as for the sign bit |
+| `bvslt a b` (and `sle`, `sgt`, `sge`) | `(a ≥ m/2 ∧ b < m/2) ∨ ((a ≥ m/2 ↔ b ≥ m/2) ∧ a < b)` | none: Boolean structure over the two top bits and the unsigned comparison |
 | `ubv_to_int a` | `a` | none: the lowered bit-vector is its unsigned value |
-| `sbv_to_int a` | `a − m·s` | `s, u` as for the sign bit |
+| `sbv_to_int a` | `v` | `v = a − m` when `a ≥ m/2`, `v = a` otherwise |
 | `(_ int_to_bv n) t` | `r` | `r ∈ [0, m)`, `k` unbounded: `t = r + m·k` |
 
 The parser reads bit-vector terms as they are written — the tree has them (`Term.BvApp`, `Term.Bits`) —

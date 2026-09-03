@@ -67,7 +67,7 @@ private final class Lowerer:
    */
   private val loweredOperations = HashMap.empty[(String, List[Term], List[BigInt]), Term]
   private val loweredDivisions = HashMap.empty[(Term, BigInt, BigInt), (Term, Term)]
-  private val loweredSignedDivisions = HashMap.empty[(Term, Int, BigInt, Boolean), (Term, Term, Term)]
+  private val loweredSignedDivisions = HashMap.empty[(Term, Int, BigInt, Boolean), (Term, Term)]
 
   private def clearLowered(): Unit =
     loweredOperations.clear()
@@ -590,7 +590,8 @@ private final class Lowerer:
         Num(((if v >= m / 2 then v - m else v) >> c.min(width).toInt).mod(m))
       case (BvOp.Ashr, a :: Num(c) :: Nil) => // the floor of the signed value over 2^c: all ones or zero past the width
         val q =
-          if c >= width then signBit(a, width) * -1 else divideSigned(a, width, BigInt(2).pow(c.toInt), floor = true)._1
+          if c >= width then cases("sign", negative(a, width), Num(-1), Num(0), -1, 0)
+          else divideSigned(a, width, BigInt(2).pow(c.toInt), floor = true)._1
         modulo(q, width, -1, 0)
       case (BvOp.And, a :: b :: Nil) =>
         (a, b) match
@@ -610,11 +611,43 @@ private final class Lowerer:
       loweredOperations.getOrElseUpdate(
         ("modulo", List(value), List(width, lo, hi)), {
           val r = freshInt("bv", 0, modulus(width) - 1)
-          val k = freshInt("k", lo, hi)
-          definitions += IntEq(value, r + k * modulus(width))
+          // A few overflow counts are a choice for the SAT solver — `value = r`, or `value = r + 2^width` —
+          // rather than an integer unknown `k` with `2^width` as its coefficient, on which the simplex
+          // pivots into huge rationals and walks; a wide range of counts stays an unknown.
+          if hi - lo < splitCases then
+            definitions += Or((lo to hi).toList.map(k => IntEq(value, r + Num(k * modulus(width)))))
+          else
+            val k = freshInt("k", lo, hi)
+            definitions += IntEq(value, r + k * modulus(width))
           r
         }
       )
+
+  /** Up to this many overflow counts, [[modulo]] is a disjunction of
+   *  equalities.
+   */
+  private val splitCases = 4
+
+  /** Whether the `width`-bit term is negative as a signed value: its top bit,
+   *  as the atom `t ≥ 2^(width−1)` — a bound the solver decides, not an unknown
+   *  of the simplex.
+   */
+  private def negative(t: Term, width: Int): Formula = t match
+    case Num(v) => if v >= modulus(width - 1) then True else False
+    case _ => Ge(t, Num(modulus(width - 1)))
+
+  /** A constant defined by cases: `thn` when `cond`, `els` otherwise, within
+   *  `[lo, hi]`; once per distinct case split at a level.
+   */
+  private def cases(tag: String, cond: Formula, thn: Term, els: Term, lo: BigInt, hi: BigInt): Term =
+    loweredOperations.getOrElseUpdate(
+      (tag, List(Term.boolean(cond), thn, els), List(lo, hi)), {
+        val k = freshInt(tag, lo, hi)
+        definitions += Implies(cond, IntEq(k, thn))
+        definitions += Implies(Not(cond), IntEq(k, els))
+        k
+      }
+    )
 
   /** `value = divisor × q + r` with `0 ≤ r < divisor` and `q ≤ quotientMax`:
    *  the pair `(q, r)`.
@@ -653,47 +686,47 @@ private final class Lowerer:
             val r = if t.signum == 0 then sv else sv % t
             if r.signum == 0 || t.signum == 0 || r.signum == t.signum then r else r + t
         Num(result.mod(m))
-      case (_, BvOp.Sdiv) if t.signum == 0 => Term.linear(List((2 - m, signBit(a, width))), m - 1)
+      case (_, BvOp.Sdiv) if t.signum == 0 => cases("sdiv0", negative(a, width), Num(1), Num(m - 1), 1, m - 1)
       case (_, _) if t.signum == 0 => a
       case _ =>
-        val (q, r, s) = divideSigned(a, width, t.abs)
+        val (q, r) = divideSigned(a, width, t.abs)
         op match
           case BvOp.Sdiv => modulo(if t.signum > 0 then q else q * -1, width, -1, 0)
           case BvOp.Srem => modulo(r, width, -1, 0)
           case _ =>
-            val differ = if t.signum > 0 then s else Term.linear(List((BigInt(-1), s)), 1) // the signs differ
+            val differ = if t.signum > 0 then negative(a, width) else Not(negative(a, width)) // the signs differ
             val z = freshInt("z", 0, 1)
-            definitions += Le(z, differ)
-            definitions += Or(List(IntEq(r, Num(0)), IntEq(z, differ)))
-            definitions += Or(List(Not(IntEq(r, Num(0))), IntEq(z, Num(0))))
+            definitions += Implies(Not(differ), IntEq(z, Num(0)))
+            definitions += Implies(IntEq(r, Num(0)), IntEq(z, Num(0)))
+            definitions += Implies(And(List(differ, Not(IntEq(r, Num(0))))), IntEq(z, Num(1)))
             modulo(r + z * t, width, -1, 0)
 
   /** The signed value `S` of `t` divided by `d > 0`: `S = d × q + r` with
-   *  `|r| < d`, truncating — `r` of the sign of `S`, which for the sign bit `s`
-   *  is `r ∈ [−(d−1) × s, (d−1) × (1−s)]` — or, with `floor`, `r ∈ [0, d)`.
-   *  Either determines `q` and `r`. The triple `(q, r, s)`.
+   *  `|r| < d`, truncating — `r` of the sign of `S` (`r ≤ 0` when `t` is
+   *  negative, `r ≥ 0` otherwise) — or, with `floor`, `r ∈ [0, d)`. Either
+   *  determines `q` and `r`. The pair `(q, r)`.
    */
-  private def divideSigned(t: Term, width: Int, d: BigInt, floor: Boolean = false): (Term, Term, Term) =
+  private def divideSigned(t: Term, width: Int, d: BigInt, floor: Boolean = false): (Term, Term) =
     loweredSignedDivisions.getOrElseUpdate(
       (t, width, d, floor), {
         val half = modulus(width - 1)
-        val s = signBit(t, width)
         val q = freshInt("q", -(half / d) - 1, (half - 1) / d)
         val r = freshInt("r", if floor then 0 else -(d - 1), d - 1)
-        definitions += IntEq(t - s * modulus(width), q * d + r)
+        definitions += IntEq(signed(t, width), q * d + r)
         if !floor then
-          definitions += Ge(r, s * -(d - 1))
-          definitions += Le(r, Term.linear(List((-(d - 1), s)), d - 1))
-        (q, r, s)
+          definitions += Implies(negative(t, width), Le(r, Num(0)))
+          definitions += Implies(Not(negative(t, width)), Ge(r, Num(0)))
+        (q, r)
       }
     )
 
-  /** The signed value of an `width`-bit term: `t − 2^width × s` for its sign
-   *  bit `s` ([[signBit]]).
+  /** The signed value of an `width`-bit term: `t − 2^width` when its top bit is
+   *  set, `t` otherwise — a constant defined by the two cases.
    */
   private def signed(t: Term, width: Int): Term = t match
     case Num(v) => Num(if v >= modulus(width - 1) then v - modulus(width) else v)
-    case _ => t - signBit(t, width) * modulus(width)
+    case _ =>
+      cases("signed", negative(t, width), t - Num(modulus(width)), t, -modulus(width - 1), modulus(width - 1) - 1)
 
   /** `(_ int_to_bv width) t`: `t mod 2^width` — a fresh result `r` in
    *  `[0, 2^width)` and an unbounded overflow count `k` with
@@ -737,30 +770,32 @@ private final class Lowerer:
     val q = if j == 0 then t else divide(t, BigInt(2).pow(j), modulus(width - j) - 1)._1
     if i == width - 1 then q else divide(q, modulus(i - j + 1), modulus(width - i - 1) - 1)._2
 
-  /** `t` extended by `k` copies of its sign bit:
-   *  `t + s × (2^(width+k) − 2^width)`.
+  /** `t` extended by `k` copies of its sign bit: `t + (2^(width+k) − 2^width)`
+   *  when it is negative, `t` otherwise.
    */
   private def signExtend(k: Int, t: Term, width: Int): Term =
     if k == 0 then t
-    else Term.linear(List((BigInt(1), t), (modulus(width + k) - modulus(width), signBit(t, width))))
+    else
+      t match
+        case Num(v) => Num(if v >= modulus(width - 1) then v + modulus(width + k) - modulus(width) else v)
+        case _ =>
+          val extended = modulus(width + k) - modulus(width)
+          cases("ext", negative(t, width), t + Num(extended), t, 0, modulus(width + k) - 1)
 
-  /** The sign bit `s` of an `width`-bit term: `t = u + 2^(width−1) × s`. */
-  private def signBit(t: Term, width: Int): Term = t match
-    case Num(v) => Num(if v >= modulus(width - 1) then 1 else 0)
-    case _ =>
-      loweredOperations.getOrElseUpdate(
-        ("sign", List(t), List(width)), {
-          val s = freshInt("s", 0, 1)
-          val u = freshInt("u", 0, modulus(width - 1) - 1)
-          definitions += IntEq(t, u + s * modulus(width - 1))
-          s
-        }
-      )
-
+  /** A comparison as the solver decides it: the unsigned ones are the bounds as
+   *  they stand; a signed one is Boolean structure over the two top bits and
+   *  the unsigned comparison — `a <ₛ b` is `a` negative and `b` not, or both
+   *  the same sign and `a < b` — with no unknown for a sign.
+   */
   private def compare(op: BvCmpOp, a: Term, b: Term, width: Int): Formula =
-    val (l, r) = if op.signed then (signed(a, width), signed(b, width)) else (a, b)
-    op match
-      case BvCmpOp.Ult | BvCmpOp.Slt => Lt(l, r)
-      case BvCmpOp.Ule | BvCmpOp.Sle => Le(l, r)
-      case BvCmpOp.Ugt | BvCmpOp.Sgt => Gt(l, r)
-      case BvCmpOp.Uge | BvCmpOp.Sge => Ge(l, r)
+    val (strict, flipped) = op match
+      case BvCmpOp.Ult | BvCmpOp.Slt => (true, false)
+      case BvCmpOp.Ule | BvCmpOp.Sle => (false, false)
+      case BvCmpOp.Ugt | BvCmpOp.Sgt => (true, true)
+      case BvCmpOp.Uge | BvCmpOp.Sge => (false, true)
+    val (l, r) = if flipped then (b, a) else (a, b)
+    val unsigned = if strict then Lt(l, r) else Le(l, r)
+    if !op.signed then unsigned
+    else
+      val (nl, nr) = (negative(l, width), negative(r, width))
+      Or(List(And(List(nl, Not(nr))), And(List(Iff(nl, nr), unsigned))))
