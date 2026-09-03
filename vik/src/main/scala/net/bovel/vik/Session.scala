@@ -21,7 +21,7 @@ import net.bovel.smtlib as s2
  *  s.checkSat() // Some(true)
  *  }}}
  */
-final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
+final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None):
   private val parser = s2.Parser()
   private val lowerer = Lowerer()
   private var current = initial
@@ -34,7 +34,7 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
   private val asserted = ArrayBuffer(ArrayBuffer.empty[Formula])
   private val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
   private var rlimit = fuel
-  private var timeout = Option.empty[Long] // milliseconds
+  private var timeout = timeoutMs // milliseconds per check-sat, as `(set-option :timeout ...)` sets it
   private var reason = Option.empty[String]
 
   /** Runs SMT-LIB text, any commands, and answers it. */
@@ -184,16 +184,18 @@ final class Session(initial: Solver = Solver(), fuel: Long = Long.MaxValue):
 
 object Session:
   /** Runs a whole script in a session of its own: the responses, each
-   *  `check-sat` with `fuel` steps.
+   *  `check-sat` with `fuel` steps and, when given, `timeoutMs` milliseconds
+   *  (the search stops by itself at either: nothing has to interrupt it).
    */
-  def run(script: s2.Script, fuel: Long = Long.MaxValue): List[String] = Session(fuel = fuel).run(script)
+  def run(script: s2.Script, fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None): List[String] =
+    Session(fuel = fuel, timeoutMs = timeoutMs).run(script)
 
   /** The answer of each `check-sat` of a script run in a session of its own:
    *  `Some(true)` for sat, `None` for unknown (the `fuel` of the `check-sat` is
-   *  spent, see `Solver.solve`).
+   *  spent, or its `timeoutMs` are, see `Solver.solve`).
    */
-  def answers(script: s2.Script, fuel: Long = Long.MaxValue): List[Option[Boolean]] =
-    run(script, fuel).collect {
+  def answers(script: s2.Script, fuel: Long = Long.MaxValue, timeoutMs: Option[Long] = None): List[Option[Boolean]] =
+    run(script, fuel, timeoutMs).collect {
       case "sat" => Some(true)
       case "unsat" => Some(false)
       case "unknown" => None

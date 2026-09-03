@@ -39,15 +39,17 @@ class CorpusTest extends munit.FunSuite:
   for file <- Corpus.files do
     val reason = ignored.get(file)
     test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):
-      // The five-second budget, as a wall-clock guard under the fuel: the solver cannot be
-      // interrupted, so a run over it is failed from outside and its thread left to the JVM's end.
+      // The budget, as a wall-clock guard under the fuel, and as the solver's own deadline per check-sat:
+      // a run over it is failed from outside, and the search stops by itself a step later — a thread
+      // left running would keep its memory (the fork ran out of heap on CI before the deadline).
       val outcome = Try {
         Await.result(
           Future {
             val text = Corpus.read(file)
             val script = Parser.parse(text)
             val expected = script.expectedStatuses
-            val got = Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
+            val got =
+              Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel, Some(budget.toMillis))
             val agrees = got.length == expected.length &&
               got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
             // An answer against the status: a soundness bug, whatever the file's standing.
@@ -58,7 +60,7 @@ class CorpusTest extends munit.FunSuite:
               if expects.isEmpty || reason.isDefined ||
                 !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
               then expects
-              else Session.run(script, fuel = fuel)
+              else Session.run(script, fuel = fuel, Some(budget.toMillis))
             (agrees && responses == expects, wrong, s"expected ${show(expected)}, got ${show(got)}")
           },
           budget
