@@ -55,7 +55,10 @@ Every bit-vector term becomes an integer with its range asserted, every declared
 (a field, an argument, a result, an array's index and element as much as a constant), and every
 operation becomes its arithmetic image (`net.bovel.vik.Lowering`), with fresh bounded constants where
 the modulus or a division needs them — each fresh constant is declared and defined by one linear
-equation before the assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
+equation before the assertion that uses it, and once per distinct operation at a level: the second
+`bvmul 4 (bvadd 1 x)` of a script reuses the constants of the first (two chains of constants for one
+term are equal only by an integer argument over `2ⁿ`, which branch and bound walked for minutes on
+`x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`). Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
 `m` below:
 
 | Operation | Integer image | Fresh constants and their defining equation |

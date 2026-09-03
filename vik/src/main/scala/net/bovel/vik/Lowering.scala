@@ -55,6 +55,25 @@ private final class Lowerer:
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
   private val rangedApplications = HashSet.empty[Term] // bit-vector applications whose range is asserted
 
+  /** The lowering of a bit-vector operation, once per level: the second
+   *  occurrence of `bvmul 4 (bvadd 1 x)` in an assertion gets the constants of
+   *  the first, not fresh ones defined the same way. Two chains of fresh
+   *  constants are the same value only by an integer argument over `2^n` (`x +
+   *  1 = r + 2^32 k` with `r` in `[0, 2^32)` pins `r`, but the solver has to
+   *  see it), which branch and bound walked for minutes on
+   *  `x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`; one chain makes the equality syntactic. Keyed
+   *  on the operation and its lowered operands; cleared with the rational
+   *  caches, since the definitions live at the level of the use.
+   */
+  private val loweredOperations = HashMap.empty[(String, List[Term], List[BigInt]), Term]
+  private val loweredDivisions = HashMap.empty[(Term, BigInt, BigInt), (Term, Term)]
+  private val loweredSignedDivisions = HashMap.empty[(Term, Int, BigInt, Boolean), (Term, Term, Term)]
+
+  private def clearLowered(): Unit =
+    loweredOperations.clear()
+    loweredDivisions.clear()
+    loweredSignedDivisions.clear()
+
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
   /** A sort as the solver writes it: a string, arrays as function sorts. */
@@ -113,11 +132,13 @@ private final class Lowerer:
       rationals.clear()
       rationalProducts.clear()
       rangedApplications.clear()
+      clearLowered()
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
       rationals.clear()
       rationalProducts.clear()
       rangedApplications.clear()
+      clearLowered()
       List(Command.ResetAssertions)
     case s2.Command.Reset =>
       functions.clear()
@@ -127,6 +148,7 @@ private final class Lowerer:
       rationalValues.clear()
       storeSymbols.clear()
       rangedApplications.clear()
+      clearLowered()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
@@ -147,6 +169,7 @@ private final class Lowerer:
       rationals.clear() // a constant minted here has no definition: later uses must not find it
       rationalProducts.clear()
       rangedApplications.clear()
+      clearLowered()
       List(Command.GetValue(lowered, defined))
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
@@ -310,21 +333,26 @@ private final class Lowerer:
       App(storeSymbol(sortOf(array, env)), List(term(array, env), term(index, env), term(value, env)))
     case s2.Term.Ite(cond, thn, els) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the
-      // current assertion.
+      // current assertion; one per distinct `ite`, like the bit-vector operations.
       val sort = sortOf(thn, env)
-      fresh += 1
-      val name = s"ite!$fresh"
-      val k = Const(name)
-      sort match
-        case Sort.BitVec(w) => // introduced as the lowering of its declaration would
-          introduced += ((name, "Int"))
-          definitions += range(k, w)
-        case _ => introduced += ((name, sortString(sort)))
-      functions(name) = sort
       val c = formula(cond, env)
-      definitions += Implies(c, equal(sort, k, term(thn, env)))
-      definitions += Implies(Not(c), equal(sort, k, term(els, env)))
-      k
+      val (t, e) = (term(thn, env), term(els, env))
+      loweredOperations.getOrElseUpdate(
+        ("ite", List(Term.boolean(c), t, e), Nil), {
+          fresh += 1
+          val name = s"ite!$fresh"
+          val k = Const(name)
+          sort match
+            case Sort.BitVec(w) => // introduced as the lowering of its declaration would
+              introduced += ((name, "Int"))
+              definitions += range(k, w)
+            case _ => introduced += ((name, sortString(sort)))
+          functions(name) = sort
+          definitions += Implies(c, equal(sort, k, t))
+          definitions += Implies(Not(c), equal(sort, k, e))
+          k
+        }
+      )
     case s2.Term.Let(bindings, body) => term(body, bind(bindings, env))
     case s2.Term.Bool(f) => Term.boolean(formula(f, env))
 
@@ -579,10 +607,14 @@ private final class Lowerer:
   private def modulo(value: Term, width: Int, lo: BigInt, hi: BigInt): Term = value match
     case Num(v) => Num(v.mod(modulus(width)))
     case _ =>
-      val r = freshInt("bv", 0, modulus(width) - 1)
-      val k = freshInt("k", lo, hi)
-      definitions += IntEq(value, r + k * modulus(width))
-      r
+      loweredOperations.getOrElseUpdate(
+        ("modulo", List(value), List(width, lo, hi)), {
+          val r = freshInt("bv", 0, modulus(width) - 1)
+          val k = freshInt("k", lo, hi)
+          definitions += IntEq(value, r + k * modulus(width))
+          r
+        }
+      )
 
   /** `value = divisor × q + r` with `0 ≤ r < divisor` and `q ≤ quotientMax`:
    *  the pair `(q, r)`.
@@ -590,10 +622,14 @@ private final class Lowerer:
   private def divide(value: Term, divisor: BigInt, quotientMax: BigInt): (Term, Term) = value match
     case Num(v) => (Num(v / divisor), Num(v.mod(divisor)))
     case _ =>
-      val q = freshInt("q", 0, quotientMax)
-      val r = freshInt("r", 0, divisor - 1)
-      definitions += IntEq(value, q * divisor + r)
-      (q, r)
+      loweredDivisions.getOrElseUpdate(
+        (value, divisor, quotientMax), {
+          val q = freshInt("q", 0, quotientMax)
+          val r = freshInt("r", 0, divisor - 1)
+          definitions += IntEq(value, q * divisor + r)
+          (q, r)
+        }
+      )
 
   /** `bvsdiv`, `bvsrem` and `bvsmod` of `a` by the constant `c`, of signed
    *  value `T`: the truncating division of the signed value of `a` by `|T|`,
@@ -638,26 +674,26 @@ private final class Lowerer:
    *  Either determines `q` and `r`. The triple `(q, r, s)`.
    */
   private def divideSigned(t: Term, width: Int, d: BigInt, floor: Boolean = false): (Term, Term, Term) =
-    val half = modulus(width - 1)
-    val s = signBit(t, width)
-    val q = freshInt("q", -(half / d) - 1, (half - 1) / d)
-    val r = freshInt("r", if floor then 0 else -(d - 1), d - 1)
-    definitions += IntEq(t - s * modulus(width), q * d + r)
-    if !floor then
-      definitions += Ge(r, s * -(d - 1))
-      definitions += Le(r, Term.linear(List((-(d - 1), s)), d - 1))
-    (q, r, s)
+    loweredSignedDivisions.getOrElseUpdate(
+      (t, width, d, floor), {
+        val half = modulus(width - 1)
+        val s = signBit(t, width)
+        val q = freshInt("q", -(half / d) - 1, (half - 1) / d)
+        val r = freshInt("r", if floor then 0 else -(d - 1), d - 1)
+        definitions += IntEq(t - s * modulus(width), q * d + r)
+        if !floor then
+          definitions += Ge(r, s * -(d - 1))
+          definitions += Le(r, Term.linear(List((-(d - 1), s)), d - 1))
+        (q, r, s)
+      }
+    )
 
   /** The signed value of an `width`-bit term: `t − 2^width × s` for its sign
-   *  bit `s`, `t = u + 2^(width−1) × s`.
+   *  bit `s` ([[signBit]]).
    */
   private def signed(t: Term, width: Int): Term = t match
     case Num(v) => Num(if v >= modulus(width - 1) then v - modulus(width) else v)
-    case _ =>
-      val s = freshInt("s", 0, 1)
-      val u = freshInt("u", 0, modulus(width - 1) - 1)
-      definitions += IntEq(t, u + s * modulus(width - 1))
-      t - s * modulus(width)
+    case _ => t - signBit(t, width) * modulus(width)
 
   /** `(_ int_to_bv width) t`: `t mod 2^width` — a fresh result `r` in
    *  `[0, 2^width)` and an unbounded overflow count `k` with
@@ -666,13 +702,17 @@ private final class Lowerer:
   private def intToBv(t: Term, width: Int): Term = t match
     case Num(v) => Num(v.mod(modulus(width)))
     case _ =>
-      val r = freshInt("bv", 0, modulus(width) - 1)
-      fresh += 1
-      val name = s"k!$fresh"
-      introduced += ((name, "Int"))
-      val k = Const(name)
-      definitions += IntEq(t, r + k * modulus(width))
-      r
+      loweredOperations.getOrElseUpdate(
+        ("int_to_bv", List(t), List(width)), {
+          val r = freshInt("bv", 0, modulus(width) - 1)
+          fresh += 1
+          val name = s"k!$fresh"
+          introduced += ((name, "Int"))
+          val k = Const(name)
+          definitions += IntEq(t, r + k * modulus(width))
+          r
+        }
+      )
 
   /** `c × t` modulo `2^width`, for `0 ≤ c < 2^width`. */
   private def times(t: Term, c: BigInt, width: Int): Term =
@@ -704,13 +744,18 @@ private final class Lowerer:
     if k == 0 then t
     else Term.linear(List((BigInt(1), t), (modulus(width + k) - modulus(width), signBit(t, width))))
 
+  /** The sign bit `s` of an `width`-bit term: `t = u + 2^(width−1) × s`. */
   private def signBit(t: Term, width: Int): Term = t match
     case Num(v) => Num(if v >= modulus(width - 1) then 1 else 0)
     case _ =>
-      val s = freshInt("s", 0, 1)
-      val u = freshInt("u", 0, modulus(width - 1) - 1)
-      definitions += IntEq(t, u + s * modulus(width - 1))
-      s
+      loweredOperations.getOrElseUpdate(
+        ("sign", List(t), List(width)), {
+          val s = freshInt("s", 0, 1)
+          val u = freshInt("u", 0, modulus(width - 1) - 1)
+          definitions += IntEq(t, u + s * modulus(width - 1))
+          s
+        }
+      )
 
   private def compare(op: BvCmpOp, a: Term, b: Term, width: Int): Formula =
     val (l, r) = if op.signed then (signed(a, width), signed(b, width)) else (a, b)
