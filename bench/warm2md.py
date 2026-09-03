@@ -14,11 +14,12 @@ repository root, where `corpus/` is.
 import collections, json, pathlib, re, statistics, sys
 from scipy.stats import t
 
-order = ["VikBench.api", "VikBench.text", "Z3Bench.api", "Z3TextBench.text", "Cvc5Bench.api", "Cvc5Bench.text",
-         "PrincessBench.api", "SmtInterpolBench.api"]
-names = {"VikBench.api": "VIK (API)", "VikBench.text": "VIK (SMT2)", "Z3Bench.api": "z3 (API)",
-         "Z3TextBench.text": "z3 (SMT2)", "Cvc5Bench.api": "cvc5 (API)", "Cvc5Bench.text": "cvc5 (SMT2)",
-         "PrincessBench.api": "princess (API)", "SmtInterpolBench.api": "SMTInterpol (API)"}
+# The columns, like next to like as in the cold table: the JVM solvers, VIK among them, then the native ones.
+order = ["PrincessBench.api", "SmtInterpolBench.api", "VikBench.api", "VikBench.text", "Z3Bench.api", "Z3TextBench.text",
+         "Cvc5Bench.api", "Cvc5Bench.text"]
+names = {"PrincessBench.api": "Princess (API)", "SmtInterpolBench.api": "SMTInterpol (API)", "VikBench.api": "VIK (API)",
+         "VikBench.text": "VIK (SMT2)", "Z3Bench.api": "Z3 (API)", "Z3TextBench.text": "Z3 (SMT2)",
+         "Cvc5Bench.api": "CVC5 (API)", "Cvc5Bench.text": "CVC5 (SMT2)"}
 
 
 def corpus(base):
