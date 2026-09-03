@@ -21,8 +21,9 @@
 /* ---- The runnable snippets (see js/snippets.js). ---- */
 
 /* The theme's `.snippet` forces a horizontal scrollbar (`overflow-x: scroll`, its components bundle):
-   one only when the block is wider than its box. */
-.snippet {
+   one only when the block is wider than its box. The page loads this sheet before the theme's, so the
+   rule needs the specificity, not the order, to win. */
+#content .snippet {
   overflow-x: auto;
 }
 
