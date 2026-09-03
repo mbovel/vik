@@ -89,6 +89,7 @@ object Rational:
   /** `n / d` normalized, for `d ≠ 0`, both far from overflow. */
   private def small(n: Long, d: Long): Rational =
     if n == Long.MinValue || d == Long.MinValue then Rational(BigInt(n), BigInt(d))
+    else if d == 1 then Small(n, 1) // integers, the common case: no gcd to take
     else
       val g = gcd(Math.abs(n), Math.abs(d)) * java.lang.Long.signum(d)
       Small(n / g, d / g)

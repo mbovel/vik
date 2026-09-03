@@ -1,0 +1,299 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.evaluation.VikBench.api",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "/localhome/bovel/.coursier-archive-cache/https/github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%252B9/OpenJDK25U-jdk_x64_linux_hotspot_25.0.3_9.tar.gz/jdk-25.0.3+9/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native"
+        ],
+        "jdkVersion" : "25.0.3",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.3+9-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "CAV_2009_benchmarks__20-vars__problem__001.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 2.0459188924462164,
+            "scoreError" : 0.15620719689420384,
+            "scoreConfidence" : [
+                1.8897116955520126,
+                2.20212608934042
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1.994046452191235,
+                "50.0" : 2.0243581762333966,
+                "90.0" : 2.1391946602564103,
+                "95.0" : 2.1391946602564103,
+                "99.0" : 2.1391946602564103,
+                "99.9" : 2.1391946602564103,
+                "99.99" : 2.1391946602564103,
+                "99.999" : 2.1391946602564103,
+                "99.9999" : 2.1391946602564103,
+                "100.0" : 2.1391946602564103
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    2.1391946602564103,
+                    2.0186024112903227,
+                    1.994046452191235
+                ],
+                [
+                    2.0863168416666666,
+                    2.0301139411764706,
+                    2.0072390480961926
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.evaluation.VikBench.api",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "/localhome/bovel/.coursier-archive-cache/https/github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%252B9/OpenJDK25U-jdk_x64_linux_hotspot_25.0.3_9.tar.gz/jdk-25.0.3+9/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native"
+        ],
+        "jdkVersion" : "25.0.3",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.3+9-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "dillig__20-4.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 8.968963723750361,
+            "scoreError" : 2.9381854350357166,
+            "scoreConfidence" : [
+                6.030778288714645,
+                11.907149158786078
+            ],
+            "scorePercentiles" : {
+                "0.0" : 8.376054275,
+                "50.0" : 8.499785666144422,
+                "90.0" : 11.065002879120879,
+                "95.0" : 11.065002879120879,
+                "99.0" : 11.065002879120879,
+                "99.9" : 11.065002879120879,
+                "99.99" : 11.065002879120879,
+                "99.999" : 11.065002879120879,
+                "99.9999" : 11.065002879120879,
+                "100.0" : 11.065002879120879
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    8.954190267857143,
+                    8.473582789915966,
+                    8.376054275
+                ],
+                [
+                    11.065002879120879,
+                    8.52598854237288,
+                    8.418963588235295
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.evaluation.VikBench.api",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "/localhome/bovel/.coursier-archive-cache/https/github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%252B9/OpenJDK25U-jdk_x64_linux_hotspot_25.0.3_9.tar.gz/jdk-25.0.3+9/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native"
+        ],
+        "jdkVersion" : "25.0.3",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.3+9-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "wisas__xs_8_8.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 24.440192284291523,
+            "scoreError" : 1.249715566016402,
+            "scoreConfidence" : [
+                23.19047671827512,
+                25.689907850307925
+            ],
+            "scorePercentiles" : {
+                "0.0" : 23.962895976190477,
+                "50.0" : 24.28531580952381,
+                "90.0" : 25.16090415,
+                "95.0" : 25.16090415,
+                "99.0" : 25.16090415,
+                "99.9" : 25.16090415,
+                "99.99" : 25.16090415,
+                "99.999" : 25.16090415,
+                "99.9999" : 25.16090415,
+                "100.0" : 25.16090415
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    24.779345341463415,
+                    23.962895976190477,
+                    24.16737661904762
+                ],
+                [
+                    25.16090415,
+                    24.35013442857143,
+                    24.22049719047619
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.evaluation.VikBench.api",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "/localhome/bovel/.coursier-archive-cache/https/github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%252B9/OpenJDK25U-jdk_x64_linux_hotspot_25.0.3_9.tar.gz/jdk-25.0.3+9/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native"
+        ],
+        "jdkVersion" : "25.0.3",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.3+9-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "sage__app2__bench_512.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 1035.067663,
+            "scoreError" : 12.00190269747914,
+            "scoreConfidence" : [
+                1023.0657603025209,
+                1047.0695656974792
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1028.687949,
+                "50.0" : 1036.007625,
+                "90.0" : 1039.761492,
+                "95.0" : 1039.761492,
+                "99.0" : 1039.761492,
+                "99.9" : 1039.761492,
+                "99.99" : 1039.761492,
+                "99.999" : 1039.761492,
+                "99.9999" : 1039.761492,
+                "100.0" : 1039.761492
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    1036.267261,
+                    1031.300612,
+                    1028.687949
+                ],
+                [
+                    1035.747989,
+                    1038.640675,
+                    1039.761492
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "net.bovel.bench.evaluation.VikBench.api",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 2,
+        "jvm" : "/localhome/bovel/.coursier-archive-cache/https/github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.3%252B9/OpenJDK25U-jdk_x64_linux_hotspot_25.0.3_9.tar.gz/jdk-25.0.3+9/bin/java",
+        "jvmArgs" : [
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native",
+            "-Djava.library.path=/localhome/bovel/vik-lia/bench/native"
+        ],
+        "jdkVersion" : "25.0.3",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.3+9-LTS",
+        "warmupIterations" : 3,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "file" : "alpha-093dddceea58.smt2"
+        },
+        "primaryMetric" : {
+            "score" : 0.18332169119481004,
+            "scoreError" : 0.050097468868147504,
+            "scoreConfidence" : [
+                0.13322422232666253,
+                0.23341916006295754
+            ],
+            "scorePercentiles" : {
+                "0.0" : 0.1723676770635878,
+                "50.0" : 0.1759512925397997,
+                "90.0" : 0.21899694702276706,
+                "95.0" : 0.21899694702276706,
+                "99.0" : 0.21899694702276706,
+                "99.9" : 0.21899694702276706,
+                "99.99" : 0.21899694702276706,
+                "99.999" : 0.21899694702276706,
+                "99.9999" : 0.21899694702276706,
+                "100.0" : 0.21899694702276706
+            },
+            "scoreUnit" : "ms/op",
+            "rawData" : [
+                [
+                    0.17781522204444444,
+                    0.1740873630351549,
+                    0.21899694702276706
+                ],
+                [
+                    0.18267433911614317,
+                    0.1739885988867629,
+                    0.1723676770635878
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

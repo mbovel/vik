@@ -53,6 +53,74 @@ object Solver:
       strict: Boolean = false // a real disequality splits into strict sides
   )
 
+  /** A row of the tableau: the non-basic variables it mentions, in increasing
+   *  order, with their coefficients — parallel arrays, so that a variable is
+   *  found by a binary search and a row is walked by index, with no boxing of
+   *  the variables and no hash nodes. Rows are short (a dozen entries on the
+   *  evaluation's instances) over hundreds of variables, so a sparse row over a
+   *  dense one, and a shift on insertion over a merge. `slots(i)` is where the
+   *  row's owner sits in the column of `vars(i)`, so that leaving the column
+   *  costs nothing (see [[Column]]).
+   */
+  private final class Row(capacity: Int = 4):
+    var vars: Array[Var] = new Array[Var](capacity)
+    var coefs: Array[Rational] = new Array[Rational](capacity)
+    var slots: Array[Int] = new Array[Int](capacity)
+    var size: Int = 0
+    def varAt(i: Int): Var = vars(i)
+    def coefAt(i: Int): Rational = coefs(i)
+
+    /** The index of `x`, or the insertion point as `-(i + 1)`. */
+    def indexOf(x: Var): Int = java.util.Arrays.binarySearch(vars, 0, size, x)
+    def apply(x: Var): Rational = coefs(indexOf(x))
+    def existsVar(p: Var => Boolean): Boolean =
+      var i = 0
+      while i < size do
+        if p(vars(i)) then return true
+        i += 1
+      false
+    def insertAt(i: Int, x: Var, c: Rational): Unit =
+      if size == vars.length then
+        vars = java.util.Arrays.copyOf(vars, 2 * size)
+        coefs = java.util.Arrays.copyOf(coefs, 2 * size)
+        slots = java.util.Arrays.copyOf(slots, 2 * size)
+      System.arraycopy(vars, i, vars, i + 1, size - i)
+      System.arraycopy(coefs, i, coefs, i + 1, size - i)
+      System.arraycopy(slots, i, slots, i + 1, size - i)
+      vars(i) = x
+      coefs(i) = c
+      size += 1
+    def removeAt(i: Int): Rational =
+      val c = coefs(i)
+      System.arraycopy(vars, i + 1, vars, i, size - i - 1)
+      System.arraycopy(coefs, i + 1, coefs, i, size - i - 1)
+      System.arraycopy(slots, i + 1, slots, i, size - i - 1)
+      size -= 1
+      coefs(size) = null.asInstanceOf[Rational] // no reference kept
+      c
+
+  /** The basic variables whose rows mention a variable, in no order: an array
+   *  grown by doubling. An owner leaves by the last one taking its slot
+   *  ([[Solver.leave]]), which its row is told of: no search, no hash set, no
+   *  boxing — on a wide bit-vector instance a column runs to hundreds of owners
+   *  and a pivot empties dozens of them.
+   */
+  private final class Column:
+    var owners: Array[Var] = new Array[Var](4)
+    var size: Int = 0
+    def apply(i: Int): Var = owners(i)
+
+    /** Adds `b` and returns its slot. */
+    def add(b: Var): Int =
+      if size == owners.length then owners = java.util.Arrays.copyOf(owners, 2 * size)
+      owners(size) = b
+      size += 1
+      size - 1
+    def clear(): Unit = size = 0
+
+    /** A copy, for a walk that changes the column. */
+    def snapshot: Array[Var] = java.util.Arrays.copyOf(owners, size)
+
 /** A solver for conjunctions of bounds on integer linear expressions
  *  (quantifier-free linear integer arithmetic), after Dutertre and de Moura, "A
  *  Fast Linear-Arithmetic Solver for DPLL(T)" (CAV 2006): a general simplex
@@ -95,10 +163,10 @@ final class Solver:
   /** The row of each basic variable (`null` for a non-basic one): the
    *  coefficients of the non-basic variables whose combination it equals.
    */
-  private val rows = ArrayBuffer.empty[HashMap[Var, Rational] | Null]
+  private val rows = ArrayBuffer.empty[Row | Null]
 
   /** For each variable, the basic variables whose rows mention it. */
-  private val columns = ArrayBuffer.empty[HashSet[Var]]
+  private val columns = ArrayBuffer.empty[Column]
 
   /** Whether the variable stands for an expression, and then the gcd of the
    *  expression's coefficients: the variable holds the expression divided by
@@ -142,7 +210,7 @@ final class Solver:
     values += Rational.zero
     valuesD += Rational.zero
     rows += null
-    columns += HashSet.empty
+    columns += Column()
     isSlack += false
     scale += 1
     isInt += integer
@@ -160,29 +228,53 @@ final class Solver:
     val s = newVar(integer)
     isSlack(s) = true
     scale(s) = g
-    val row = HashMap.empty[Var, Rational]
+    val row = Row()
     for (a, x) <- terms do
       val c = Rational(a / g)
       val r = rows(x)
-      if r == null then add(s, row, x, c) else for (y, b) <- r do add(s, row, y, c * b)
+      if r == null then add(s, row, x, c)
+      else
+        var i = 0
+        while i < r.size do
+          add(s, row, r.varAt(i), c * r.coefAt(i))
+          i += 1
     rows(s) = row
-    values(s) = row.iterator.map((x, c) => values(x) * c).foldLeft(Rational.zero)(_ + _)
-    if anyReal then valuesD(s) = row.iterator.map((x, c) => valuesD(x) * c).foldLeft(Rational.zero)(_ + _)
+    var v = Rational.zero
+    var vD = Rational.zero
+    var i = 0
+    while i < row.size do
+      v = v + values(row.varAt(i)) * row.coefAt(i)
+      if anyReal then vD = vD + valuesD(row.varAt(i)) * row.coefAt(i)
+      i += 1
+    values(s) = v
+    if anyReal then valuesD(s) = vD
     s
 
   /** Adds `c × x` to the row of `owner`, keeping `columns` up to date. */
-  private def add(owner: Var, row: HashMap[Var, Rational], x: Var, c: Rational): Unit =
-    row.get(x) match
-      case None =>
-        if !c.isZero then
-          row(x) = c
-          columns(x) += owner
-      case Some(d) =>
-        val e = d + c
-        if e.isZero then
-          row.remove(x)
-          columns(x) -= owner
-        else row(x) = e
+  private def add(owner: Var, row: Row, x: Var, c: Rational): Unit =
+    val i = row.indexOf(x)
+    if i < 0 then
+      if !c.isZero then
+        row.insertAt(-i - 1, x, c)
+        row.slots(-i - 1) = columns(x).add(owner)
+    else
+      val e = row.coefAt(i) + c
+      if e.isZero then
+        leave(x, row.slots(i))
+        row.removeAt(i)
+      else row.coefs(i) = e
+
+  /** Empties slot `slot` of the column of `x`: the last owner moves in, and its
+   *  row learns the new slot.
+   */
+  private def leave(x: Var, slot: Int): Unit =
+    val column = columns(x)
+    column.size -= 1
+    if slot < column.size then
+      val moved = column.owners(column.size)
+      column.owners(slot) = moved
+      val row = rows(moved).nn
+      row.slots(row.indexOf(x)) = slot
 
   /** The value of `x` (of the expression it stands for): a solution after a
    *  `Sat` [[check]].
@@ -306,17 +398,21 @@ final class Solver:
       val x = tightened(i)
       i += 1
       // The rows mentioning `x`: those of the basic variables of its column, and its own if it is basic.
-      val owners = if rows(x) == null then columns(x).toList else x :: columns(x).toList
-      for b <- owners if visits(b) < 1 do
-        visits(b) += 1
-        if !keepGoing() then
-          tightened.clear()
-          break(Result.Unknown)
-        propagateRow(b) match
-          case Result.Sat => ()
-          case unsat =>
+      val column = columns(x)
+      var k = if rows(x) == null then 0 else -1 // -1: its own row first
+      while k < column.size do
+        val b = if k < 0 then x else column(k)
+        k += 1
+        if visits(b) < 1 then
+          visits(b) += 1
+          if !keepGoing() then
             tightened.clear()
-            break(unsat)
+            break(Result.Unknown)
+          propagateRow(b) match
+            case Result.Sat => ()
+            case unsat =>
+              tightened.clear()
+              break(unsat)
     tightened.clear()
     Result.Sat
 
@@ -330,7 +426,10 @@ final class Solver:
     var highMissing = 0
     val lowPremises = ArrayBuffer.empty[Bound]
     val highPremises = ArrayBuffer.empty[Bound]
-    for (j, a) <- row do
+    var i = 0
+    while i < row.size do
+      val j = row.varAt(i)
+      val a = row.coefAt(i)
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       if forLow == null then lowMissing += 1
@@ -341,6 +440,7 @@ final class Solver:
       else
         high = high + forHigh.value * a
         highPremises += forHigh
+      i += 1
     def derive(x: Var, c: Delta, premises: Array[Bound], isUpper: Boolean): Unit =
       val rounded = if isInt(x) then Delta(Rational(if isUpper then c.floor else c.ceil)) else c
       assertBound(x, Bound(rounded, -1, premises), isUpper) match
@@ -353,7 +453,10 @@ final class Solver:
     val l = lower(b)
     val withUpper = if u != null then (lowPremises += u).toArray else Array.empty[Bound]
     val withLower = if l != null then (highPremises += l).toArray else Array.empty[Bound]
-    for (j, a) <- row do
+    i = 0
+    while i < row.size do
+      val j = row.varAt(i)
+      val a = row.coefAt(i)
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
       // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
@@ -361,16 +464,21 @@ final class Solver:
         derive(j, (u.value - low + forLow.nn.value * a) / a, withUpper, a.signum > 0)
       if l != null && highMissing == 0 then
         derive(j, (l.value - high + forHigh.nn.value * a) / a, withLower, a.signum < 0)
+      i += 1
     Result.Sat
 
   /** Sets the non-basic `x` to `v`, updating the basic variables. */
   private def update(x: Var, v: Delta): Unit =
     val moved = v.r - values(x)
     val movedD = if anyReal then v.d - valuesD(x) else Rational.zero
-    for b <- columns(x) do
+    val column = columns(x)
+    var i = 0
+    while i < column.size do
+      val b = column(i)
       val a = rows(b).nn(x)
       values(b) = values(b) + moved * a
       if anyReal then valuesD(b) = valuesD(b) + movedD * a
+      i += 1
     values(x) = v.r
     if anyReal then valuesD(x) = v.d
 
@@ -386,10 +494,15 @@ final class Solver:
     if anyReal then
       valuesD(b) = v.d
       valuesD(n) = valuesD(n) + thetaD
-    for k <- columns(n) if k != b do
-      val c = rows(k).nn(n)
-      values(k) = values(k) + theta * c
-      if anyReal then valuesD(k) = valuesD(k) + thetaD * c
+    val column = columns(n)
+    var i = 0
+    while i < column.size do
+      val k = column(i)
+      if k != b then
+        val c = rows(k).nn(n)
+        values(k) = values(k) + theta * c
+        if anyReal then valuesD(k) = valuesD(k) + thetaD * c
+      i += 1
     pivot(b, n)
 
   /** Swaps the basic `b` and the non-basic `n` of its row: solves the row for
@@ -399,17 +512,28 @@ final class Solver:
     val rowB = rows(b).nn
     val a = rowB(n)
     rows(b) = null
-    for j <- rowB.keys do columns(j) -= b
+    var i = 0
+    while i < rowB.size do
+      leave(rowB.varAt(i), rowB.slots(i))
+      i += 1
     // n = (b - Σ_{j ≠ n} a_j x_j) / a
-    val rowN = HashMap.empty[Var, Rational]
+    val rowN = Row(rowB.size + 1)
     add(n, rowN, b, Rational.one / a)
-    for (j, aj) <- rowB if j != n do add(n, rowN, j, -aj / a)
+    i = 0
+    while i < rowB.size do
+      val j = rowB.varAt(i)
+      if j != n then add(n, rowN, j, -rowB.coefAt(i) / a)
+      i += 1
     rows(n) = rowN
-    for k <- columns(n).toList do
+    val ks = columns(n).snapshot
+    columns(n).clear() // `rowN` does not mention `n`: the substitutions below leave its column alone
+    for k <- ks do
       val rowK = rows(k).nn
-      val c = rowK.remove(n).get
-      columns(n) -= k
-      for (j, aj) <- rowN do add(k, rowK, j, c * aj)
+      val c = rowK.removeAt(rowK.indexOf(n))
+      i = 0
+      while i < rowN.size do
+        add(k, rowK, rowN.varAt(i), c * rowN.coefAt(i))
+        i += 1
 
   /** Decides the bounds: `Sat`, and [[value]] is an integer solution, or
    *  `Unsat` with its explanation. Bound propagation first tightens the bounds
@@ -448,8 +572,15 @@ final class Solver:
       if row != null then
         m += 1
         var l = BigInt(1)
-        for (_, c) <- row do l = l / (l gcd c.den) * c.den
-        for (_, c) <- row do a = a.max((c.num * (l / c.den)).abs)
+        var i = 0
+        while i < row.size do
+          l = l / (l gcd row.coefAt(i).den) * row.coefAt(i).den
+          i += 1
+        i = 0
+        while i < row.size do
+          val c = row.coefAt(i)
+          a = a.max((c.num * (l / c.den)).abs)
+          i += 1
         a = a.max(l)
       val lo = lower(x)
       val hi = upper(x)
@@ -582,7 +713,7 @@ final class Solver:
     var b = 0
     while b < numVars && !mixed do
       val row = rows(b)
-      mixed = row != null && row.keysIterator.exists(x => isInt(x) != isInt(b))
+      mixed = row != null && row.existsVar(x => isInt(x) != isInt(b))
       b += 1
     if !mixed then break(Result.Sat)
     // The system: every bound as `Σ c·x ≤ d` with its reasons, every row touching a real as an equation.
@@ -592,8 +723,12 @@ final class Solver:
     b = 0
     while b < numVars do
       val row = rows(b)
-      if row != null && (!isInt(b) || row.keysIterator.exists(x => !isInt(x))) then
-        val eq = row.clone()
+      if row != null && (!isInt(b) || row.existsVar(x => !isInt(x))) then
+        val eq = HashMap.empty[Var, Rational]
+        var i = 0
+        while i < row.size do
+          eq(row.varAt(i)) = row.coefAt(i)
+          i += 1
         eq(b) = Rational(-1)
         equations += eq
         for x <- eq.keys if !isInt(x) do reals += x
@@ -673,12 +808,20 @@ final class Solver:
       val bound = if tooLow then l.nn else u.nn
       // To raise `b`, raise a non-basic variable with a positive coefficient or lower one with a negative coefficient (the converse to lower `b`).
       var n = -1
-      for (j, a) <- row do
-        val canMove = if a.signum > 0 == tooLow then canRaise(j) else canLower(j)
-        if canMove && (n == -1 || j < n) then n = j
+      var i = 0
+      while i < row.size do // sorted: the first that can move is the smallest (Bland's rule)
+        val j = row.varAt(i)
+        val a = row.coefAt(i)
+        if n == -1 && (if a.signum > 0 == tooLow then canRaise(j) else canLower(j)) then n = j
+        i += 1
       if n == -1 then
-        val reasons = row.iterator.map((j, a) => (if a.signum > 0 == tooLow then upper(j) else lower(j)).nn.reasons)
-        return Result.Unsat(reasons.foldLeft(bound.reasons)(_ ++ _))
+        var reasons = bound.reasons
+        i = 0
+        while i < row.size do
+          val j = row.varAt(i)
+          reasons = reasons ++ (if row.coefAt(i).signum > 0 == tooLow then upper(j) else lower(j)).nn.reasons
+          i += 1
+        return Result.Unsat(reasons)
       if !keepGoing() then return Result.Unknown
       pivotAndUpdate(b, n, bound.value)
     throw AssertionError("unreachable")
