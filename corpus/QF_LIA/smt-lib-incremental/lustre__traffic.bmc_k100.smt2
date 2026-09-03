@@ -1,4 +1,4 @@
-; From smt-lib-incremental: lustre/traffic.bmc_k100.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; From smt-lib-incremental: QF_LIA/lustre/traffic.bmc_k100.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_LIA)
 (set-info :source |

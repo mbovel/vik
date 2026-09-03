@@ -1,4 +1,4 @@
-; From smt-lib: swap/swap_t2_np_nf_ai_00002_001.cvc.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; From smt-lib: QF_AX/swap/swap_t2_np_nf_ai_00002_001.cvc.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_AX)
 (set-info :source |

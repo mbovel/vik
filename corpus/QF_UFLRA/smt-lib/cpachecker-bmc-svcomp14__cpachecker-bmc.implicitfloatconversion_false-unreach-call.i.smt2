@@ -1,4 +1,4 @@
-; From smt-lib: cpachecker-bmc-svcomp14/cpachecker-bmc.implicitfloatconversion_false-unreach-call.i.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; From smt-lib: QF_UFLRA/cpachecker-bmc-svcomp14/cpachecker-bmc.implicitfloatconversion_false-unreach-call.i.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFLRA)
 (set-info :source |CPAchecker with bounded model checking on SV-COMP14 program using MathSAT5, submitted by Philipp Wendler, http://cpachecker.sosy-lab.org|)

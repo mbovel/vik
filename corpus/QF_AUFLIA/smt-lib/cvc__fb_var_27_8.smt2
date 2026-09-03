@@ -1,4 +1,4 @@
-; From smt-lib: cvc/fb_var_27_8.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; From smt-lib: QF_AUFLIA/cvc/fb_var_27_8.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_AUFLIA)
 (set-info :source |

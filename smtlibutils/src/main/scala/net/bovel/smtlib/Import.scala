@@ -43,11 +43,12 @@ object Import:
   def classify(text: String): String =
     val logic = "\\(set-logic ([A-Za-z_]+)\\)".r.findFirstMatchIn(text).map(_.group(1).nn).getOrElse("ALL")
     logic match
-      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" | "QF_AX" | "QF_ALIA" | "QF_AUFLIA" | "QF_LIRA" =>
-        logic
+      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" | "QF_AX" | "QF_ALIA" | "QF_AUFLIA" | "QF_LIRA"
+          | "QF_ABV" | "QF_AUFBV" | "QF_UFBV" | "QF_UFBVLIA" | "QF_AUFBVLIA" | "QF_BVLRA" | "QF_IDL" | "QF_UFIDL" =>
+        logic // difference logic keeps its directory: integers to the solver, but its own fragment
       case "QF_UFLIRA" => "QF_LIRA"
-      case "QF_UFDT" | "QF_UFDTLIA" | "QF_DTLIA" => "QF_DT"
-      case "QF_UFBV" | "BV" => "QF_BV"
+      case "QF_UFDT" | "QF_UFDTLIA" | "QF_DTLIA" | "QF_UFDTLIRA" => "QF_DT"
+      case "BV" => "QF_BV"
       case _ if text.contains("declare-datatype") => "QF_DT"
       case _ if "\\(_ bv\\d+ \\d+\\)|\\(_ BitVec".r.findFirstIn(text).isDefined => "QF_BV"
       case _ if "\\bInt\\b".r.findFirstIn(text).isDefined =>

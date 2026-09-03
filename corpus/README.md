@@ -1,7 +1,8 @@
 # The corpus of SMT-LIB files
 
-Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_BV`, `QF_DT`,
-`QF_LRA`, `QF_UFLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
+Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_UFIDL`, `QF_BV`,
+`QF_UFBV`, `QF_ABV`, `QF_AUFBV`, `QF_DT`, `QF_LRA`, `QF_LIRA`, `QF_UFLRA`, `QF_AX`, `QF_ALIA`, `QF_AUFLIA`, and the
+verifiers' mixed logics `QF_UFBVLIA`, `QF_AUFBVLIA`, `QF_BVLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
@@ -14,8 +15,8 @@ their `@Param`s.
 
 | Origin | Directory | What | License |
 |---|---|---|---|
-| SMT-LIB release 2025, non-incremental ([Zenodo 16740866](https://zenodo.org/records/16740866)) | `<logic>/smt-lib/` | the instances the benchmarks use, plus the three smallest files of every family in our fragment | CC BY 4.0 for the release; a family may state its own license in its header (Rodin and CLEARSY: CC BY-NC 4.0 — kept out of new imports) |
-| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the three smallest QF_UF and QF_UFLIA files of every family, the small QF_LIA `lustre` and QF_BV files (several `check-sat` per file, `push`/`pop`), plus, for the evaluation, the two mid-size `kind` instances, the two `safari` QF_AUFLIA scripts (arrays of integers) and two `cpachecker` QF_UFLRA ones (k-induction: reals, one with uninterpreted functions) — renamed short, their headers name the originals (the multi-check QF_BV picks tried were outside the fragment: variable shifts and products; QF_ALIA nests arrays in arrays, QF_LRA's `hybrid_networks` nests s-expressions eight thousand deep) | CC BY 4.0 |
+| SMT-LIB release 2025, non-incremental ([Zenodo 16740866](https://zenodo.org/records/16740866)) | `<logic>/smt-lib/` | a representative sample per logic (see below): up to fourteen files per family spread over the sizes, run under the suite's budget, then about two thirds that VIK answers — the fastest of each family where the files are alike, one slower one for the spread — and one third it does not, on `ignore.txt` with the reason; plus the instances the evaluation uses | CC BY 4.0 for the release; a family may state its own license in its header (Rodin and CLEARSY: CC BY-NC 4.0 — kept out of new imports) |
+| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the same sampling per logic (several `check-sat` per file, `push`/`pop`), plus the evaluation's `kind`, `safari` and `cpachecker` picks | CC BY 4.0 |
 | [SMT-LIB benchmark submission](https://github.com/SMT-LIB/benchmark-submission), the staging repository for the 2026 release | `<logic>/submission/` | the files in our fragment (a snapshot: not the final 2026 release) | as stated in each file's `:license` header |
 | [cvc5](https://github.com/cvc5/cvc5) regression tests, `test/regress/cli` | `<logic>/cvc5/` | every regression file in our fragment with `; EXPECT:` answers (options in `; COMMAND-LINE:` are ignored) | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3test](https://github.com/Z3Prover/z3test), `regressions/smt2` | `<logic>/z3test/` | every file in our fragment whose `.expected.out` is made of answers | MIT, [LICENSES/z3test.txt](LICENSES/z3test.txt) |
@@ -32,6 +33,46 @@ Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and
 files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
 files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
 reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
+
+## The release samples, per logic
+
+Taken on 2026-09-02 and 2026-09-03 from the release archives (every file up to 200 KB was parsed and lowered;
+the fragment line is the lowering's). *Answered*: VIK answers within the suite's budget. *Out of reach*: on
+`ignore.txt` as a timeout or a fuel-out, run with a thousand steps so that a solver change that reaches one
+shows. *Skipped*: on `ignore.txt` as `skip:`, never run — the encoding exhausts the heap or runs past the
+guard, which the fuel does not bound; each is a solver weakness the file documents. Not imported: files that
+overflow the parser's stack (deep `let`/`and` nests: `fft`, `bmc-bv`), and `QF_UFLRA`'s
+`cpachecker-induction` family, whose lowering takes minutes (one is kept, skipped, as the bug's reproduction).
+Mixed logics: `QF_UFBVLIA`, `QF_AUFBVLIA` and `QF_BVLRA` (bit-vectors with integer or real arithmetic) exist
+only in the incremental release, from the software verifiers; there is no `QF_AUFLIRA` in SMT-LIB 2025, and
+`QF_LIRA` has two files.
+
+| Logic | Origin | Files | Families | Answered | Out of reach | Skipped |
+|---|---|---|---|---|---|---|
+| `QF_ABV` | smt-lib | 70 | 8 | 36 | 5 | 29 |
+| `QF_ALIA` | smt-lib | 18 | 6 | 5 | 5 | 8 |
+| `QF_AUFBV` | smt-lib | 2 | 2 | 0 | 0 | 2 |
+| `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 3 | 10 |
+| `QF_AUFLIA` | smt-lib | 17 | 7 | 8 | 6 | 3 |
+| `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
+| `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
+| `QF_BV` | smt-lib | 133 | 22 | 89 | 44 | 0 |
+| `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
+| `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
+| `QF_DT` | smt-lib | 76 | 11 | 40 | 12 | 24 |
+| `QF_LIA` | smt-lib | 30 | 23 | 29 | 1 | 0 |
+| `QF_LIA` | smt-lib-incremental | 5 | 1 | 3 | 2 | 0 |
+| `QF_LIRA` | smt-lib | 2 | 1 | 2 | 0 | 0 |
+| `QF_LRA` | smt-lib | 157 | 34 | 137 | 20 | 0 |
+| `QF_UF` | smt-lib | 66 | 25 | 64 | 2 | 0 |
+| `QF_UF` | smt-lib-incremental | 90 | 2 | 90 | 0 | 0 |
+| `QF_UFBV` | smt-lib | 29 | 4 | 5 | 23 | 1 |
+| `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 6 | 7 | 0 |
+| `QF_UFIDL` | smt-lib | 84 | 10 | 46 | 33 | 5 |
+| `QF_UFLIA` | smt-lib | 76 | 7 | 42 | 25 | 9 |
+| `QF_UFLIA` | smt-lib-incremental | 19 | 1 | 15 | 3 | 1 |
+| `QF_UFLRA` | smt-lib | 50 | 6 | 37 | 12 | 1 |
+| `QF_UFLRA` | smt-lib-incremental | 2 | 1 | 2 | 0 | 0 |
 
 ## The SMT-LIB instances of the benchmarks
 

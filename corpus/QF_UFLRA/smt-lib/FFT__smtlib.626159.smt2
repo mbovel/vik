@@ -1,4 +1,4 @@
-; From smt-lib: FFT/smtlib.626159.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; From smt-lib: QF_UFLRA/FFT/smtlib.626159.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_UFLRA)
 (set-info :source |Benchmarks from the paper: "Extending Sledgehammer with SMT Solvers" by Jasmin Blanchette, Sascha Bohme, and Lawrence C. Paulson, CADE 2011.  Translated to SMT2 by Andrew Reynolds and Morgan Deters.|)

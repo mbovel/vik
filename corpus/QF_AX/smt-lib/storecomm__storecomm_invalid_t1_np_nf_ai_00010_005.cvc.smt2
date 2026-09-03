@@ -1,4 +1,4 @@
-; From smt-lib: storecomm/storecomm_invalid_t1_np_nf_ai_00010_005.cvc.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
+; From smt-lib: QF_AX/storecomm/storecomm_invalid_t1_np_nf_ai_00010_005.cvc.smt2 (CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_AX)
 (set-info :source |

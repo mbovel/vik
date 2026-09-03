@@ -1,4 +1,4 @@
-; From smt-lib-incremental: 20190307-CPAchecker_kInduction-SoSy_Lab/globalVariableInitialValue_false-unreach-label.c.files_smt-query.0.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
+; From smt-lib-incremental: QF_BV/20190307-CPAchecker_kInduction-SoSy_Lab/globalVariableInitialValue_false-unreach-label.c.files_smt-query.0.smt2 (CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096))
 (set-info :smt-lib-version 2.6)
 (set-logic QF_BV)
 (set-info :source |
