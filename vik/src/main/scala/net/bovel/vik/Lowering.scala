@@ -57,7 +57,18 @@ private final class Lowerer:
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
   /** A sort as the solver writes it: a string, arrays as function sorts. */
-  private def sortString(s: Sort): String = s match
+  /** A sort as the lowered script declares it: a bit-vector is an `Int`, in a
+   *  field, an argument, a result or an array as much as in a constant — the
+   *  solver ties a selector to its constructor's argument by the field's sort,
+   *  and every bit-vector term is an integer to it.
+   */
+  private def lowered(s: Sort): Sort = s match
+    case Sort.BitVec(_) => Sort.Int
+    case Sort.Fun(args, result) => Sort.Fun(args.map(lowered), lowered(result))
+    case Sort.Array(index, element) => Sort.Array(lowered(index), lowered(element))
+    case other => other
+
+  private def sortString(s: Sort): String = lowered(s) match
     case Sort.Fun(args, result) => s2.Sorts.function(args.map(sortString), sortString(result))
     case Sort.Array(index, element) => s2.Sorts.function(List(sortString(index)), sortString(element))
     case other => other.text
@@ -82,7 +93,9 @@ private final class Lowerer:
         functions(constructor.name) = Sort.fun(constructor.selectors.map(_._2), d)
         functions(constructor.tester) = Sort.fun(List(d), Sort.Bool)
         for (selector, s) <- constructor.selectors do functions(selector) = Sort.fun(List(d), s)
-      List(Command.DeclareDatatypes(datatypes))
+      List(Command.DeclareDatatypes(datatypes.map(d =>
+        d.copy(constructors = d.constructors.map(c => c.copy(selectors = c.selectors.map((n, s) => (n, lowered(s))))))
+      )))
     case s2.Command.DefineFun(name, params, sort, body) =>
       macros(name) = (params, sort, body) // expanded at each use; the definition itself vanishes
       Nil

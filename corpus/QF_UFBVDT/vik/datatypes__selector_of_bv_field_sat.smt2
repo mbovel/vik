@@ -1,0 +1,13 @@
+; Hand-written for VIK (this repository's license): the same selector, consistent with the argument.
+(set-logic QF_UFBVDT)
+(declare-datatypes ((Box 0)) (((new_Box (Box.value@Box (_ BitVec 32))))))
+(declare-fun x0 () Box)
+(declare-fun y () Box)
+(assert (= (new_Box (_ bv1 32)) x0))
+(assert (= (_ bv1 32) (Box.value@Box x0)))
+(assert (not (= (Box.value@Box y) (Box.value@Box x0))))
+(set-info :status sat)
+(check-sat)
+(assert (= y (new_Box (bvadd (_ bv0 32) (_ bv1 32)))))
+(set-info :status unsat)
+(check-sat)
