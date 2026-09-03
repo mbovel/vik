@@ -11,10 +11,9 @@ subsection:
     subsection:
       - page: theories/first-order-logic.md
       - page: theories/uninterpreted-functions.md
+      - page: theories/sorts.md
       - page: theories/integers.md
       - page: theories/reals.md
-      - page: theories/datatypes.md
-      - page: theories/polymorphism.md
       - page: theories/bit-vectors.md
       - page: theories/arrays.md
   - title: Non-features

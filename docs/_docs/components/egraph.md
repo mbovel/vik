@@ -11,7 +11,7 @@ extraCSS:
 
 Congruence closure with backtracking, explanations and disequalities: the data structure under the
 [theory of uninterpreted functions](../theories/uninterpreted-functions.md), and the one the
-[datatype rules](../theories/datatypes.md) hang on. It is a module of its own — `net.bovel.egraph` — with no
+[datatype rules](../theories/sorts.md) hang on. It is a module of its own — `net.bovel.egraph` — with no
 dependency on the rest.
 
 ## Using it

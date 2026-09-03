@@ -43,10 +43,10 @@ Each page says what you can write, how it is solved, and first of all whether VI
 | [Uninterpreted functions](theories/uninterpreted-functions.md) | Yes. |
 | [Integer arithmetic](theories/integers.md) | Yes: branch and bound inside the small-model box. |
 | [Real arithmetic](theories/reals.md) | Yes. |
-| [Algebraic datatypes](theories/datatypes.md) | Yes. |
+| [Algebraic datatypes](theories/sorts.md) | Yes. |
 | [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
 | [Arrays](theories/arrays.md) | Yes. |
-| [Sort parameters](theories/polymorphism.md) | As the theory of each instance: polymorphism is compiled away. |
+| [Sort parameters](theories/sorts.md#sort-parameters) | As the theory of each instance: polymorphism is compiled away. |
 
 ## The components
 
