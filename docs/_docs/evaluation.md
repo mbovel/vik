@@ -122,7 +122,7 @@ cell deliberately left out, for the reasons below.
 The 95% confidence intervals (Student's t over the samples of a cell) average 5% of the mean; every cell is within 20% of its mean except VIK (API) on `20190906-CLEARSY__0016__00003` (33%), z3 (API) on 5 instances (21–27%, from 9 samples per cell).
 
 The *(SMT2)* columns — z3 and cvc5 — receive the text of the script and parse it themselves; the *(API)*
-columns receive the problem already built: *VIK (API)*, *z3 (API)*, *cvc5 (API)*, *princess (API)* and
+columns receive the problem already built: *VIK (API)*, *Z3 (API)*, *CVC5 (API)*, *Princess (API)* and
 *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
 asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. Each of the five
 replays is checked against the solver's own front end run in process on the same text
