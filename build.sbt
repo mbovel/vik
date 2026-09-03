@@ -99,7 +99,17 @@ lazy val smtlib = projectMatrix
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(scala3Version))
 
+lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
+
 lazy val vikJVM = vik.jvm(scala3Version)
+  .settings(
+    // The runtime classpath as real paths, for the tools that run the solver's `smt2` outside sbt: cold.sh, the
+    // GraalVM native image (bench/graal.sh).
+    runtimeClasspath := {
+      val converter = fileConverter.value
+      (Runtime / fullClasspath).value.map(entry => converter.toPath(entry.data).toString).mkString(":")
+    }
+  )
 
 // The corpus on disk and its importer, and the tests that play it (JVM only): forked with a fixed
 // heap, the same memory budget on every machine.
@@ -179,8 +189,6 @@ lazy val playground = project
   )
 
 // The runtime classpath of a project as real paths, for scripts (sbt 2 exports virtual file references).
-lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
-
 // JMH benchmarks of every module (JVM only), and the comparison with other solvers: `sbt "bench/Jmh/run"`.
 lazy val bench = project
   .in(file("bench"))

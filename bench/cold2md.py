@@ -37,11 +37,12 @@ if "--order" in arguments:
     arguments = arguments[:i] + arguments[i + 2:]
 
 rows = list(csv.DictReader(open(arguments[0]), delimiter="\t"))
-solvers = arguments[1].split(",") if len(arguments) > 1 else [
-    "vik-jvm", "vik-native", "vik-node", "z3", "cvc5", "princess", "smtinterpol"
-]
-names = {"vik-jvm": "VIK (JVM)", "vik-native": "VIK (native)", "vik-node": "VIK (Node)", "z3": "z3",
-         "cvc5": "cvc5", "princess": "princess", "smtinterpol": "SMTInterpol"}
+measured = {r["solver"] for r in rows}
+solvers = arguments[1].split(",") if len(arguments) > 1 else [s for s in [
+    "vik-jvm", "vik-native", "vik-graal", "vik-node", "z3", "cvc5", "princess", "smtinterpol"
+] if s in measured]  # a column per solver the run measured (the GraalVM image is built on request)
+names = {"vik-jvm": "VIK (JVM)", "vik-native": "VIK (native)", "vik-graal": "VIK (GraalVM)", "vik-node": "VIK (Node)",
+         "z3": "z3", "cvc5": "cvc5", "princess": "princess", "smtinterpol": "SMTInterpol"}
 def agrees(answer, expected):
     """Answer sequences match the statuses; a check whose status is unknown accepts either answer."""
     a, e = answer.split(","), expected.split(",")

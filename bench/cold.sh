@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cold-start comparison, as a competition measures it: a new process per instance and solver, the whole
-# answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets.
+# answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets, and as
+# a GraalVM native image when bench/graal.sh has built one.
 #
 # Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
@@ -21,6 +22,7 @@ CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | ta
 java -cp "$CP" net.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
 NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.vik.smt2" -type f 2>/dev/null | head -1)
+GRAAL=target/graal/vik
 MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
@@ -53,7 +55,7 @@ printf "file\texpected\tsolver\tanswer\tmedian\tmin\tmax\n"
 while read -r f _; do
   [ -z "$f" ] || [ "${f:0:1}" = "#" ] && continue
   [ -r "$f" ] || { echo "cold.sh: no such instance: $f" >&2; exit 1; }
-  expected=$(grep -o ':status [a-z]*' "$f" | cut -d' ' -f2 | paste -sd, -)
+  expected=$(grep -o '(set-info :status [a-z]*)' "$f" | cut -d' ' -f3 | tr -d ')' | paste -sd, -)
   # More than one check-sat, with or without push: cvc5 and princess answer only the first otherwise.
   inc=""; pinc=""
   CHECKS=$(grep -c "(check-sat" "$f")
@@ -62,6 +64,7 @@ while read -r f _; do
   {
     measure vik-jvm java -cp "$CP" net.bovel.vik.smt2 "$f"
     [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
+    [ -x "$GRAAL" ] && measure vik-graal "$GRAAL" "$f"
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"

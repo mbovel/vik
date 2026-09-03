@@ -33,7 +33,7 @@ competition's hard tail, where VIK does not compete (see [limitations](#limitati
 Two families of solvers appear:
 
 - **VIK** on its three platforms: the JVM, a native binary (Scala Native, LLVM), and Node.js (Scala.js,
-  linked to WebAssembly).
+  linked to WebAssembly); and, when `bench/graal.sh` has built one, as a GraalVM native image.
 - **Others**: z3 and cvc5 (the binaries, and in process through the JavaSMT bindings — from text and
   through their APIs), princess and SMTInterpol (JVM solvers, in process and from the command line).
 
