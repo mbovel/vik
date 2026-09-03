@@ -1,0 +1,15 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `member_qualifiers_neg.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/member_qualifiers_neg.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-sort Params 0)
+(declare-fun c1 () Params)
+(declare-fun Params.a@Params (Params) (_ BitVec 32))
+(declare-fun Params.b@Params (Params) (_ BitVec 32))
+(declare-fun x0 () (_ BitVec 32))
+(assert (bvslt (Params.a@Params c1) (Params.b@Params c1)))
+(assert true)
+(assert (not (bvslt x0 (Params.b@Params c1))))
+(check-sat)

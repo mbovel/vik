@@ -1,0 +1,16 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `unstable_prefix_neg.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/unstable_prefix_neg.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-sort test$.P 0)
+(declare-fun sk_foo_8 () test$.P)
+(declare-fun P.c@test$.P (test$.P) (_ BitVec 32))
+(declare-fun x0 () (_ BitVec 32))
+(declare-fun sk_foo_7 () test$.P)
+(assert (= (P.c@test$.P sk_foo_8) x0))
+(assert (= x0 (_ bv42 32)))
+(assert (= x0 (P.c@test$.P sk_foo_7)))
+(assert (not false))
+(check-sat)

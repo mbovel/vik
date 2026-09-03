@@ -1,0 +1,16 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `list_map.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/list_map.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-fun x () (_ BitVec 32))
+(declare-fun sk_inc_0 () (_ BitVec 32))
+(declare-fun x0 () (_ BitVec 32))
+(declare-fun Predef$.runtimeChecked_scala.Int ((_ BitVec 32)) (_ BitVec 32))
+(assert (bvslt (_ bv0 32) x))
+(assert (= sk_inc_0 x0))
+(assert (= sk_inc_0 x0))
+(assert (= x0 (Predef$.runtimeChecked_scala.Int (bvadd (_ bv1 32) x))))
+(assert (not (bvslt (_ bv0 32) x0)))
+(check-sat)

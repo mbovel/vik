@@ -1,0 +1,27 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `list_zip_2.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/list_zip_2.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)119
+; untyped: SLists.SList[A]
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-sort scala.collection.immutable.List_A 0)
+(declare-fun x0 () scala.collection.immutable.List_A)
+(declare-fun list_zip_2$package$.size_A (scala.collection.immutable.List_A) (_ BitVec 32))
+(declare-fun sk_zip_106 () scala.collection.immutable.List_A)
+(declare-fun bound0 () scala.collection.immutable.List_A)
+(declare-fun xs () scala.collection.immutable.List_A)
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A x0)))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A sk_zip_106)))
+(assert (bvslt (_ bv0 32) (list_zip_2$package$.size_A sk_zip_106)))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A bound0)))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A x0)))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A xs)))
+(assert (bvslt (_ bv0 32) (list_zip_2$package$.size_A xs)))
+(assert (not (= (_ bv0 32) (list_zip_2$package$.size_A xs))))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A xs)))
+(assert (bvsle (_ bv0 32) (list_zip_2$package$.size_A xs)))
+(assert (= (list_zip_2$package$.size_A x0) (bvadd (_ bv4294967295 32) (list_zip_2$package$.size_A sk_zip_106))))
+(assert (not (= (list_zip_2$package$.size_A x0) (bvadd (_ bv4294967295 32) (list_zip_2$package$.size_A xs)))))
+(check-sat)

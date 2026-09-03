@@ -236,6 +236,36 @@ QF_UFBV/smt-lib/20241113-Certora__1977.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__1999.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2007.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2053.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-binary_search_neg-3faf8d39783c.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-binary_search_neg-d7a8ef9fc866.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-binary_search_neg-f9aeccb48d07.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-fib_memoized-123b78d18a80.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized-288c37306917.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized-68ec19b4609d.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized-ba80dde9e272.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized-bf3272460e44.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized-d58787dd0c7e.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_memoized2-af745873ef16.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-fib_selfify-04a20d6a75ae.smt2	timeout (5 s limit)
+QF_UFBVDT/dotty/alpha-intarray-c35dd95930c9.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices3-ed51cfc736b5.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices4-06558b5c1e60.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices4-509f3cf21279.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices4-57da5555e3f7.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices4-7a871379d291.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices4-dcb8320d07a9.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-matrices5-c91119ea1063.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-maxAbstract-5577d798cade.smt2	skip: bvsrem of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-maxAbstract-97623988ed16.smt2	skip: bvsrem of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-maxAbstract-98888bf9442c.smt2	skip: bvsrem of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-maxAbstract-b33d93cb163b.smt2	skip: bvsrem of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-mergeSortBounds2-beed69a33f4e.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-purity_cc-36fafbe07bd4.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-range-54cec765e157.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-range-b42828472715.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-subtyping_normalization-2855607370bf.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBVDT/dotty/alpha-subtyping_normalization-aefd11751e2a.smt2	wrong: answers sat, z3 and cvc5 unsat — a datatype with a bit-vector field, the selector of a constructor application is not tied to its argument
+QF_UFBVDT/dotty/alpha-unstable_prefix_neg-0fc6bee9a7a1.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
 QF_UFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__email_spec0_product26.cil_smt-query.1.smt2	timeout (5 s limit)
 QF_UFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__email_spec1_product21.cil_smt-query.1.smt2	timeout (5 s limit)
 QF_UFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__email_spec27_product27.cil_smt-query.1.smt2	timeout (5 s limit)

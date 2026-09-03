@@ -1,0 +1,17 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `matrices.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/matrices.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-sort scala.collection.immutable.List_scala.collection.immutable.List_T 0)
+(declare-fun cols () (_ BitVec 32))
+(declare-fun rows () (_ BitVec 32))
+(declare-fun x0 () scala.collection.immutable.List_scala.collection.immutable.List_T)
+(declare-fun matrices$package$.width_T (scala.collection.immutable.List_scala.collection.immutable.List_T) (_ BitVec 32))
+(declare-fun matrices$package$.height_T (scala.collection.immutable.List_scala.collection.immutable.List_T) (_ BitVec 32))
+(assert (bvsle (_ bv0 32) cols))
+(assert (bvsle (_ bv0 32) rows))
+(assert true)
+(assert (not (and (= cols (matrices$package$.width_T x0)) (= rows (matrices$package$.height_T x0)))))
+(check-sat)

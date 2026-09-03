@@ -1,0 +1,17 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `fact_unfold_neg.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/fact_unfold_neg.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)10
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-fun sk_fact1_2 () (_ BitVec 32))
+(declare-fun fact_unfold_neg$package$.fact ((_ BitVec 32)) (_ BitVec 32))
+(declare-fun mul ((_ BitVec 32) (_ BitVec 32)) (_ BitVec 32))
+(declare-fun x0 () (_ BitVec 32))
+(declare-fun sk_fact1_1 () (_ BitVec 32))
+(declare-fun sk_fact1_0 () (_ BitVec 32))
+(assert (= (fact_unfold_neg$package$.fact (bvadd (_ bv4294967295 32) sk_fact1_2)) (ite (= (_ bv0 32) (bvadd (_ bv4294967295 32) sk_fact1_2)) (_ bv1 32) (mul (bvadd (_ bv4294967295 32) sk_fact1_2) (fact_unfold_neg$package$.fact (bvadd (_ bv4294967294 32) sk_fact1_2))))))
+(assert (= x0 (ite (= (_ bv0 32) sk_fact1_0) (_ bv1 32) (mul (fact_unfold_neg$package$.fact (bvadd (_ bv4294967295 32) sk_fact1_2)) sk_fact1_1))))
+(assert (not (= (_ bv1 32) x0)))
+(check-sat)

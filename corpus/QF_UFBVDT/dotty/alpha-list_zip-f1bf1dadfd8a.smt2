@@ -1,0 +1,15 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `list_zip.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/list_zip.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status unknown)
+(set-logic QF_UFBVDT)
+(declare-sort scala.collection.immutable.List_B 0)
+(declare-sort scala.collection.immutable.List_A 0)
+(declare-fun x0 () scala.collection.immutable.List_B)
+(declare-fun SeqOps.size@scala.collection.immutable.List_B (scala.collection.immutable.List_B) (_ BitVec 32))
+(declare-fun xs () scala.collection.immutable.List_A)
+(declare-fun SeqOps.size@scala.collection.immutable.List_A (scala.collection.immutable.List_A) (_ BitVec 32))
+(assert true)
+(assert (not (= (SeqOps.size@scala.collection.immutable.List_B x0) (SeqOps.size@scala.collection.immutable.List_A xs))))
+(check-sat)
