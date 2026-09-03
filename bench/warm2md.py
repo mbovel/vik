@@ -3,7 +3,8 @@
 
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the mean over the samples in milliseconds, the best of the row
-highlighted (`<span class="best">`, styled by the site's `tables.css`). A note after the table summarizes the
+highlighted (`<span class="best">`, styled by the site's `tables.css`) and the worst too (`<span class="worst">`:
+the 🐢 of a solver past the budget, else the slowest). A note after the table summarizes the
 95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
 `solver:instance` per line): those cells say 🐢, whatever an older result file measured. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
@@ -84,17 +85,21 @@ for instance in (order_of if order_of is not None else list(by)):
     shown = {s: solvers[s] for s in order
              if s in solvers and (s, instance) not in timeouts}
     best = min((mean for mean, _ in shown.values()), default=None)
+    # The worst of the row: a timeout when there is one, else the slowest.
+    timed_out = any((s, instance) in timeouts for s in order)
+    worst = None if timed_out else max((mean for mean, _ in shown.values()), default=None)
     cells = []
     for s in order:
         if (s, instance) in timeouts:
-            cells.append("🐢")
+            cells.append('<span class="worst">🐢</span>')
         elif s not in shown:
             cells.append("—")
         else:
             mean, ci = shown[s]
             intervals.append((ci / mean, s, instance))
             text = fmt(mean)
-            cells.append(f'<span class="best">{text}</span>' if mean == best else text)
+            cells.append(f'<span class="best">{text}</span>' if mean == best
+                         else f'<span class="worst">{text}</span>' if mean == worst and best != worst else text)
     path, logic, incremental, status = corpus(instance + ".smt2")
     short = instance if len(instance) <= 20 else instance[:19] + "…"  # the link's title carries the full name
     label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there

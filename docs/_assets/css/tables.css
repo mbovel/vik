@@ -1,5 +1,5 @@
 /* The tables of the evaluation: compact, the solver headers vertical and sticky, the best cell of a
-   row in green (the `best` spans of cold2md.py and warm2md.py). */
+   row in green and the worst in red (the `best` and `worst` spans of cold2md.py and warm2md.py). */
 #content table { font-size: 14px; }
 #content table th { /* every header: vertical, read bottom-up; outranks site.css's cell padding */
   writing-mode: vertical-rl;
@@ -21,6 +21,7 @@
   word-break: break-all;
 }
 #content .best { background: rgba(46, 160, 67, 0.22); padding: 0 0.25em; border-radius: 0.25em; }
+#content .worst { background: rgba(248, 81, 73, 0.22); padding: 0 0.25em; border-radius: 0.25em; }
 
 @media (max-width: 1100px) {
   /* Narrow screens scroll each generated table's wrapper; the table stays native (iOS inflates the

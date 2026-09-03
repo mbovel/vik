@@ -3,8 +3,9 @@
 
 One row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the median of the repetitions in seconds, the best of the row highlighted
-(`<span class="best">`, styled by the site's `tables.css`); 🐢 when the solver did not finish, and the
-answer in bold when it disagrees with the file's status. `--order file`
+(`<span class="best">`, styled by the site's `tables.css`) and the worst too (`<span class="worst">`: the 🐢
+of a solver that did not finish, else the slowest correct answer); the answer in bold when it disagrees
+with the file's status. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
 instance measured but not listed is left out, one listed but not measured gets a row of `—`. Run from the
 repository root, where `corpus/` is.
@@ -67,17 +68,22 @@ print("<tbody>")
 for f in (order_of if order_of is not None else list(by)):
     answers = by.get(f, {})
     expected = status.get(f, "")
-    best = min((median for answer, median in answers.values() if agrees(answer, expected)), default=None)
+    correct = [median for answer, median in answers.values() if agrees(answer, expected)]
+    best = min(correct, default=None)
+    # The worst of the row: a timeout when there is one, else the slowest correct answer.
+    timed_out = any(answer == "timeout" for answer, _ in answers.values())
+    worst = None if timed_out else max(correct, default=None)
     cells = []
     for s in solvers:
         answer, median = answers.get(s, ("missing", 0.0))
         if answer == "timeout":
-            cells.append("🐢")
+            cells.append('<span class="worst">🐢</span>')
         elif answer in ("error", "missing"):
             cells.append("—")
         elif agrees(answer, expected):
             text = fmt(median)
-            cells.append(f'<span class="best">{text}</span>' if median == best else text)
+            cells.append(f'<span class="best">{text}</span>' if median == best
+                         else f'<span class="worst">{text}</span>' if median == worst and best != worst else text)
         elif "," in answer or "," in expected:
             cells.append(f"<strong>wrong</strong> {fmt(median)}")
         else:
