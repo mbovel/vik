@@ -20,7 +20,7 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
   test:
-    # On the JDK the evaluation runs on (26) and the two it may fall back to.
+    # The JVM suites and the corpus, on the JDK the evaluation runs on (26) and the two it may fall back to.
     strategy:
       fail-fast: false
       matrix:
@@ -35,15 +35,39 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - uses: actions/setup-node@v4 # the Scala.js tests run on the WebAssembly backend: a recent Node.js
-        with:
-          node-version: 24
-      - name: Test (JVM and Scala.js)
+      - name: Test (JVM, with the corpus)
         # The corpus test's five seconds are for one's own machine, where a file at the edge is
         # caught; on a shared runner the guard is a hard limit only.
-        run: sbt --server test
+        run: sbt --server testJVM
         env:
           VIK_CORPUS_BUDGET_MS: 30000
+  test-js:
+    name: test (Scala.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/setup-node@v4 # the tests run on the WebAssembly backend: a recent Node.js
+        with:
+          node-version: 24
+      - run: sbt --server testJS
+  test-native:
+    name: test (Scala Native)
+    runs-on: ubuntu-latest # clang comes with the runner image
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - run: sbt --server testNative
   bench:
     # The whole benchmark surface, dry: every JMH class and every solver method in quick mode with
     # -foe true — an error in any benchmark fails the job — then the cold pipeline against the real

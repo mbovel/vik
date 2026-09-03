@@ -252,6 +252,15 @@ lazy val docsAssets = taskKey[Unit]("The solver as a WebAssembly module for the 
 // The documentation site: the solver linked for the snippets, then the pages of `docs/` and the API documentation.
 addCommandAlias("site", "docsAssets; unidoc")
 
+// The test suites by platform, one CI job each: the six modules on the JVM with the corpus, then the same six on
+// Scala.js (Node.js, the WebAssembly backend) and on Scala Native (clang). `sbt test` at the root is the JVM rows.
+addCommandAlias("testJVM", "egraph/test; cdclt/test; sexpr/test; lia/test; vik/test; smtlib/test; smtlibutils/test")
+addCommandAlias("testJS", "egraphJS/test; cdcltJS/test; sexprJS/test; liaJS/test; vikJS/test; smtlibJS/test")
+addCommandAlias(
+  "testNative",
+  "egraphNative/test; cdcltNative/test; sexprNative/test; liaNative/test; vikNative/test; smtlibNative/test"
+)
+
 lazy val root = (project in file("."))
   .enablePlugins(ScalaUnidocPlugin)
   .aggregate(
