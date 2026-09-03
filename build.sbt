@@ -1,7 +1,4 @@
-val scala3Version = "3.10.0-RC1"
-
-// Scala Native has no compiler plugin for 3.10 yet: its rows stay on the previous release.
-val nativeScalaVersion = "3.9.0"
+val scala3Version = "3.9.0" // Scaladoc's navigation script needs the rewrite in `docsNavigationFix` below
 
 // In sbt 2, bare settings are common settings injected into all subprojects.
 organization := "net.bovel"
@@ -37,7 +34,7 @@ lazy val egraph = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 // Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
 lazy val cdclt = projectMatrix
@@ -49,7 +46,7 @@ lazy val cdclt = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 // S-expression parser: subprojects `sexpr` (JVM) and `sexprJS`.
 lazy val sexpr = projectMatrix
@@ -61,7 +58,7 @@ lazy val sexpr = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 // Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
 lazy val lia = projectMatrix
@@ -73,7 +70,7 @@ lazy val lia = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 // Terms, formulas and the solver over the theories: subprojects `vik` (JVM), `vikJS` and `vikNative`.
 lazy val vik = projectMatrix
@@ -87,7 +84,7 @@ lazy val vik = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 // SMT-LIB 2 scripts: subprojects `smtlib` (JVM) and `smt2JS`.
 lazy val smtlib = projectMatrix
@@ -100,7 +97,7 @@ lazy val smtlib = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(nativeScalaVersion))
+  .nativePlatform(scalaVersions = Seq(scala3Version))
 
 lazy val vikJVM = vik.jvm(scala3Version)
 
@@ -249,8 +246,14 @@ smt2JS / scalaJSLinkerConfig ~=
 // The API documentation of the six modules (their JVM rows) as one site: `sbt unidoc`, in `target/unidoc`.
 lazy val docsAssets = taskKey[Unit]("The solver as a WebAssembly module for the runnable snippets of the site")
 
-// The documentation site: the solver linked for the snippets, then the pages of `docs/` and the API documentation.
-addCommandAlias("site", "docsAssets; unidoc")
+// The documentation site: the solver linked for the snippets, then the pages of `docs/` and the API documentation,
+// then the fix below.
+addCommandAlias("site", "docsAssets; unidoc; docsNavigationFix")
+
+// Scaladoc 3.9's navigation script loads a page with jQuery's `$.get`, and the theme ships no jQuery: every link
+// clicked threw `$ is not defined` and did nothing. The call is rewritten to `fetch` in the generated script.
+// (3.10 fixes it upstream; the downgrade is for a release on a stable compiler.)
+lazy val docsNavigationFix = taskKey[Unit]("Rewrites `$.get` to `fetch` in Scaladoc's generated ux.js")
 
 // The test suites by platform, one CI job each: the six modules on the JVM with the corpus, then the same six on
 // Scala.js (Node.js, the WebAssembly backend) and on Scala Native (clang). `sbt test` at the root is the JVM rows.
@@ -283,6 +286,14 @@ lazy val root = (project in file("."))
       smtlib.jvm(scala3Version)
     ),
     ScalaUnidoc / unidoc / target := file("target/unidoc"),
+    docsNavigationFix := {
+      val script = file("target/unidoc/scripts/ux.js")
+      val call = "$.get(href, function (data) {"
+      val text = IO.read(script)
+      require(text.contains(call), s"$script: Scaladoc's `$$.get` call not found; the fix may no longer be needed")
+      IO.write(script, text.replace(call, "fetch(href).then(response => response.text()).then(function (data) {"))
+      streams.value.log.info(s"$script: the page loads go through fetch")
+    },
     // The solver, linked to WebAssembly into `docs/_assets/js/vik/`, where the pages of the site load it from.
     docsAssets := Def.uncached { // the linker's report has no hash for sbt's cache; the linker caches by itself
       val linked = (docsPlayground / Compile / fullLinkJS).value.data.publicModules.head

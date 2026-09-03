@@ -45,7 +45,7 @@ Two families of solvers appear:
 | System | Ubuntu 24.04.4 LTS, Linux 6.8.0 |
 | JVM | OpenJDK 17.0.20 (Temurin build of the distribution) |
 | Node.js | 26.5.0 |
-| Scala | 3.10.0-RC1 (3.9.0 for the native build), Scala.js 1.22.0, Scala Native 0.5.12, LLVM 18.1.8 |
+| Scala | 3.9.0, Scala.js 1.22.0, Scala Native 0.5.12, LLVM 18.1.8 |
 | Build | sbt 2.0.8, JMH through sbt-jmh 0.4.8 |
 | VIK | this repository, commit of the run |
 | z3 | 4.14.0 (the binary and, in process, `org.sosy-lab:javasmt-solver-z3:4.14.0`) |
