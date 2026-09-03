@@ -529,6 +529,13 @@ private final class Lowerer:
         if c >= width then Num(0) else divide(a, BigInt(2).pow(c.toInt), m / BigInt(2).pow(c.toInt) - 1)._1
       case (BvOp.Udiv, a :: Num(c) :: Nil) => if c.signum == 0 then Num(m - 1) else divide(a, c, (m - 1) / c)._1
       case (BvOp.Urem, a :: Num(c) :: Nil) => if c.signum == 0 then a else divide(a, c, (m - 1) / c)._2
+      case (BvOp.Sdiv | BvOp.Srem | BvOp.Smod, a :: Num(c) :: Nil) => signedDivision(op, a, c, width)
+      case (BvOp.Ashr, Num(v) :: Num(c) :: Nil) =>
+        Num(((if v >= m / 2 then v - m else v) >> c.min(width).toInt).mod(m))
+      case (BvOp.Ashr, a :: Num(c) :: Nil) => // the floor of the signed value over 2^c: all ones or zero past the width
+        val q =
+          if c >= width then signBit(a, width) * -1 else divideSigned(a, width, BigInt(2).pow(c.toInt), floor = true)._1
+        modulo(q, width, -1, 0)
       case (BvOp.And, a :: b :: Nil) =>
         (a, b) match
           case (Num(u), Num(v)) => Num(u & v)
@@ -559,6 +566,59 @@ private final class Lowerer:
       val r = freshInt("r", 0, divisor - 1)
       definitions += IntEq(value, q * divisor + r)
       (q, r)
+
+  /** `bvsdiv`, `bvsrem` and `bvsmod` of `a` by the constant `c`, of signed
+   *  value `T`: the truncating division of the signed value of `a` by `|T|`,
+   *  `S = |T| × q + r` with `r` of the sign of `S` ([[divideSigned]]), then the
+   *  quotient negated when `T < 0`, the remainder as it is, or the remainder
+   *  moved to the sign of `T` (`r + T` when the signs differ and `r ≠ 0`, a
+   *  choice bit `z` for the latter), each reduced modulo `2^width`. By zero, as
+   *  the standard says: the quotient is all ones for `S ≥ 0` and one for
+   *  `S < 0`, the remainders are `a`.
+   */
+  private def signedDivision(op: BvOp, a: Term, c: BigInt, width: Int): Term =
+    val m = modulus(width)
+    val t = if c >= m / 2 then c - m else c
+    (a, op) match
+      case (Num(v), _) =>
+        val sv = if v >= m / 2 then v - m else v
+        val result = op match
+          case BvOp.Sdiv => if t.signum == 0 then (if sv.signum >= 0 then BigInt(-1) else BigInt(1)) else sv / t
+          case BvOp.Srem => if t.signum == 0 then sv else sv % t
+          case _ =>
+            val r = if t.signum == 0 then sv else sv % t
+            if r.signum == 0 || t.signum == 0 || r.signum == t.signum then r else r + t
+        Num(result.mod(m))
+      case (_, BvOp.Sdiv) if t.signum == 0 => Term.linear(List((2 - m, signBit(a, width))), m - 1)
+      case (_, _) if t.signum == 0 => a
+      case _ =>
+        val (q, r, s) = divideSigned(a, width, t.abs)
+        op match
+          case BvOp.Sdiv => modulo(if t.signum > 0 then q else q * -1, width, -1, 0)
+          case BvOp.Srem => modulo(r, width, -1, 0)
+          case _ =>
+            val differ = if t.signum > 0 then s else Term.linear(List((BigInt(-1), s)), 1) // the signs differ
+            val z = freshInt("z", 0, 1)
+            definitions += Le(z, differ)
+            definitions += Or(List(IntEq(r, Num(0)), IntEq(z, differ)))
+            definitions += Or(List(Not(IntEq(r, Num(0))), IntEq(z, Num(0))))
+            modulo(r + z * t, width, -1, 0)
+
+  /** The signed value `S` of `t` divided by `d > 0`: `S = d × q + r` with
+   *  `|r| < d`, truncating — `r` of the sign of `S`, which for the sign bit `s`
+   *  is `r ∈ [−(d−1) × s, (d−1) × (1−s)]` — or, with `floor`, `r ∈ [0, d)`.
+   *  Either determines `q` and `r`. The triple `(q, r, s)`.
+   */
+  private def divideSigned(t: Term, width: Int, d: BigInt, floor: Boolean = false): (Term, Term, Term) =
+    val half = modulus(width - 1)
+    val s = signBit(t, width)
+    val q = freshInt("q", -(half / d) - 1, (half - 1) / d)
+    val r = freshInt("r", if floor then 0 else -(d - 1), d - 1)
+    definitions += IntEq(t - s * modulus(width), q * d + r)
+    if !floor then
+      definitions += Ge(r, s * -(d - 1))
+      definitions += Le(r, Term.linear(List((-(d - 1), s)), d - 1))
+    (q, r, s)
 
   /** The signed value of an `width`-bit term: `t − 2^width × s` for its sign
    *  bit `s`, `t = u + 2^(width−1) × s`.

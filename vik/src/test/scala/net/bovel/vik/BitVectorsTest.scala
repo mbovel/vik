@@ -43,6 +43,26 @@ class BitVectorsTest extends munit.FunSuite:
       sat(s"$decls (assert (= (bvand x #x0F) #x07)) (assert (= (bvlshr x #x04) #x0A)) (assert (= x #xA7)) (check-sat)")
     )
     assert(sat(s"$decls (assert (= (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)")) // an identity: sat for every x
+    // Signed divisions by a constant: -7 / 2 = -3, -7 rem 2 = -1, -7 mod 2 = 1, -7 / -2 = 3, 7 / -2 = -3, 7 mod -2 = -1
+    assert(
+      sat(s"$decls (assert (= x #xF9)) (assert (= (bvsdiv x #x02) #xFD)) (assert (= (bvsrem x #x02) #xFF)) (check-sat)")
+    )
+    assert(
+      sat(s"$decls (assert (= x #xF9)) (assert (= (bvsmod x #x02) #x01)) (assert (= (bvsdiv x #xFE) #x03)) (check-sat)")
+    )
+    assert(
+      sat(s"$decls (assert (= x #x07)) (assert (= (bvsdiv x #xFE) #xFD)) (assert (= (bvsmod x #xFE) #xFF)) (check-sat)")
+    )
+    assert(!sat(s"$decls (assert (= x #xF9)) (assert (= (bvsdiv x #x02) #xFC)) (check-sat)")) // not the floor
+    assert(
+      sat(s"$decls (assert (= x #x80)) (assert (= (bvsdiv x #xFF) #x80)) (assert (= (bvashr x #x03) #xF0)) (check-sat)")
+    )
+    assert(sat(
+      s"$decls (assert (bvslt x #x00)) (assert (= (bvsdiv x #x00) #x01)) (assert (= (bvsrem x #x00) x)) (check-sat)"
+    ))
+    assert(sat(
+      s"$decls (assert (bvsge x #x00)) (assert (= (bvsdiv x #x00) #xFF)) (assert (= (bvsmod x #x00) x)) (check-sat)"
+    ))
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
     // The whole vocabulary parses — the tree holds it — and the lowering draws the fragment line.
     intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvmul x y) #x01))")))
@@ -64,7 +84,13 @@ class BitVectorsTest extends munit.FunSuite:
       val (a, va) = expression(rnd, depth - 1, vx, vy)
       val (b, vb) = expression(rnd, depth - 1, vx, vy)
       val c = rnd.nextInt(16)
-      rnd.nextInt(11) match
+      def signed(v: Int) = if v >= 8 then v - 16 else v
+      val (sa, sc) = (signed(va), signed(c))
+      rnd.nextInt(15) match
+        case 11 => (s"(bvsdiv $a ${lit(c)})", (if sc == 0 then (if sa >= 0 then -1 else 1) else sa / sc) & 15)
+        case 12 => (s"(bvsrem $a ${lit(c)})", (if sc == 0 then sa else sa % sc) & 15)
+        case 13 => (s"(bvsmod $a ${lit(c)})", (if sc == 0 then sa else Math.floorMod(sa, sc)) & 15)
+        case 14 => (s"(bvashr $a ${lit(c % 5)})", (sa >> (c % 5)) & 15)
         case 0 => (s"(bvadd $a $b)", (va + vb) & 15)
         case 1 => (s"(bvsub $a $b)", (va - vb) & 15)
         case 2 => (s"(bvneg $a)", (-va) & 15)

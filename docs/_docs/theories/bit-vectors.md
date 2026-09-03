@@ -26,8 +26,8 @@ front, and the lowered problem has bounded variables, which the integer solver d
 (check-sat)
 ```
 
-Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvshl`, `bvlshr` by
-constants, `bvand`/`bvor` with a mask that is a power of two minus one, `concat`, `extract`, `zero_extend`,
+Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`,
+`bvshl`, `bvlshr`, `bvashr` by constants, `bvand`/`bvor` with a mask that is a power of two minus one, `concat`, `extract`, `zero_extend`,
 `sign_extend`, the unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`,
 and the integer conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the
 pre-renaming spellings `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
@@ -69,6 +69,10 @@ assertion that uses it. Constant arguments fold in the lowering. For an `n`-bit 
 | `bvlshr a c` | `q` | `q ∈ [0, m/2ᶜ)`, `r ∈ [0, 2ᶜ)`: `a = 2ᶜ·q + r`; `0` when `c ≥ n` |
 | `bvudiv a c` | `q` | `q ∈ [0, (m−1)/c]`, `r ∈ [0, c)`: `a = c·q + r`; `m − 1` when `c = 0` |
 | `bvurem a c` | `r` | the same division; `a` when `c = 0` |
+| `bvsdiv a c`, `c` of signed value `T ≠ 0` | `±q` mod `m` | `s, u` as for the sign bit; `q`, `r ∈ (−|T|, |T|)`: `a − m·s = |T|·q + r`, `r ∈ [−(|T|−1)·s, (|T|−1)·(1−s)]` — the truncating division, the remainder of the sign of the dividend; negated when `T < 0`; `m − 1` for `s = 0` and `1` for `s = 1` when `c = 0` |
+| `bvsrem a c` | `r` mod `m` | the same division; `a` when `c = 0` |
+| `bvsmod a c` | `r + T·z` mod `m` | the same division; `z ∈ {0, 1}`, one exactly when the signs differ and `r ≠ 0`: the remainder of the sign of the divisor; `a` when `c = 0` |
+| `bvashr a c` | `q` mod `m` | `q`, `r ∈ [0, 2ᶜ)`: `a − m·s = 2ᶜ·q + r` — the floor of the signed value over `2ᶜ`; `−s` mod `m` when `c ≥ n` |
 | `bvand a c`, `c = 2ᵏ − 1` | `r` | `q, r` of `a = 2ᵏ·q + r`: the low bits are the remainder |
 | `bvand a c`, `c = m − 2ᵏ` | `a − r` | the same division: the high bits are what remains |
 | `extract i j a` | `r₂` | `a = 2ʲ·q₁ + r₁`, then `q₁ = 2^(i−j+1)·q₂ + r₂` |
