@@ -1,5 +1,7 @@
 ; From z3guide: 01 - logic/02 - basiccommands.md (block 3) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun a () Int 0) (define-fun f ((x!0 Int) (x!1 Bool)) Int (ite (and (= x!0 0) (= x!1 false)) 151 (ite (and (= x!0 0) (= x!1 true)) 101 151))))
 (declare-const a Int)
 (declare-fun f (Int Bool) Int)
 (assert (< a 10))

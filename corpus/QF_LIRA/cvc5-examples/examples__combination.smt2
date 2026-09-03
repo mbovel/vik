@@ -1,5 +1,8 @@
 ; From cvc5-examples: combination.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; statuses: the `unknown` ones answered by This is cvc5 version 1.2.1 (statusstamp, 2026-09-03)
+; EXPECT: unsat
+; EXPECT: sat
+; EXPECT: (((f x) 0) ((f y) 1) ((+ (f x) (f y)) 1) ((p 0) false) ((p (f y)) true))
 (set-logic QF_UFLIRA)
 (set-option :produce-models true)
 (set-option :incremental true)

@@ -76,6 +76,9 @@ a timeout to under two.
 
 The [combination with uninterpreted functions](uninterpreted-functions.md) is an arrangement decided by the
 SAT solver: for every pair of shared integer terms that congruence could relate, their equality atom is an
-atom of both theories — a merge or a disequality for the e-graph, two bounds or a disequality for the
-simplex. Both theories are stably infinite, so a model of both, on the same arrangement, is a model of the
-combination (Nelson and Oppen).
+atom of both theories — a merge or a disequality for the e-graph, two bounds for the simplex when true,
+and when false a clause between the two sides, `a ≤ b − 1` or `a ≥ b + 1`, each a bound atom the SAT
+solver decides (its first decision the side the relaxation already satisfies, so it moves nothing; the
+simplex branching on the disequality itself, without learning, was three times slower on `wisas`). Both
+theories are stably infinite, so a model of both, on the same arrangement, is a model of the combination
+(Nelson and Oppen).

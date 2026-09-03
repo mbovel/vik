@@ -1,7 +1,7 @@
 package net.bovel.vik
 
 import scala.collection.immutable.ArraySeq
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.boundary
 import scala.util.boundary.break
 
@@ -344,14 +344,21 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
         if k.args.length > i then pair(s, k.args(i))
     for (a, b) <- pairs do
       val e = lit(Formula.Eq(a, b))
+      // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
+      // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
+      // disequality the LIA solver decides by branching, without learning, at every value the
+      // relaxation lands on (hundreds of them on `wisas`).
+      def equalOrApart(x: lia.Var, c: BigInt): Unit =
+        liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
+        val (below, above) = (bound(x, c - 1, false), bound(x, c, false))
+        clauses += Array(e, below, above.neg)
+        guidedAtoms += below.variable
+        guidedAtoms += above.variable
+        anySharedAtom = true
       Term.linear(List((1, a), (-1, b))) match
         case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
-        case Term.Linear(terms, c) =>
-          liaAtoms(e.variable) = LiaTheory.Atom.Equal(slack(terms), -c)
-          anySharedAtom = true
-        case difference =>
-          liaAtoms(e.variable) = LiaTheory.Atom.Equal(intVar(difference), 0)
-          anySharedAtom = true
+        case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
+        case difference => equalOrApart(intVar(difference), 0)
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
     // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
@@ -464,6 +471,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private val clauses = ArrayBuffer.empty[Array[Lit]]
   private val atoms = ArrayBuffer.empty[(EClassId, EClassId) | Null] // per variable, its UF atom `t = u`
   private val liaAtoms = ArrayBuffer.empty[LiaTheory.Atom | Null] // per variable, its LIA atom, if any
+  private val guidedAtoms = HashSet.empty[cdclt.Var] // the sides of the disequality clauses (see LiaTheory.phase)
   private val lits = HashMap.empty[Formula, Lit]
   private val trueLit = freshVar() // a variable asserted true, for `True`
   clauses += Array(trueLit)
@@ -721,7 +729,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
    */
   private var anySharedAtom = false
 
-  private val theories = List(UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses), LiaTheory(liaSolver, liaAtoms))
+  private val theories =
+    List(UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses), LiaTheory(liaSolver, liaAtoms, guidedAtoms))
   private val sat = cdclt.Solver(
     0,
     Theories(
@@ -872,6 +881,7 @@ private final class Theories(
   def propagate(): Theory.Result = combine(_.propagate())
   override def finalCheck(): Theory.Result = combine(_.finalCheck())
   def explain(lit: Lit): ArrayBuffer[Lit] = implier.getOrElse(lit.variable, owner(lit.variable)).explain(lit)
+  override def phase(v: cdclt.Var): Option[Boolean] = owner(v).phase(v)
   def push(): Unit = theories.foreach(_.push())
   def pop(): Unit = theories.foreach(_.pop())
 

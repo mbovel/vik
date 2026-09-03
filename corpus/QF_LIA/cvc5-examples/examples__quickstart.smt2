@@ -1,6 +1,10 @@
 ; From cvc5-examples: quickstart.smt2 (modified BSD, LICENSES/cvc5.txt)
 ;! [docs-smt2-quickstart-1 start]
 ; statuses: the `unknown` ones answered by This is cvc5 version 1.2.1 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((x (/ 1 3)) (y (/ 1 3)) ((- x y) 0))
+; EXPECT: unsat
+; EXPECT: ()
 (set-logic ALL)
 ;! [docs-smt2-quickstart-1 end]
 ;! [docs-smt2-quickstart-2 start]

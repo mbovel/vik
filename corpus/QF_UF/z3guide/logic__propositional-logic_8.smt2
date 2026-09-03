@@ -1,5 +1,7 @@
 ; From z3guide: 01 - logic/03 - propositional-logic.md (block 8) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: unsat
+; EXPECT: (+p -p-or-q)
 (set-option :produce-unsat-cores true)
 (declare-const p Bool)
 (declare-const q Bool)

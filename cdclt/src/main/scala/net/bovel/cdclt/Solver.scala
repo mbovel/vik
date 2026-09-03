@@ -106,6 +106,13 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    */
   private var phase = new Array[Boolean](numVars)
 
+  /** Whether the variable has been decided or assigned before: its first
+   *  decision may take the theory's phase, the later ones keep the saved one (a
+   *  theory phase at every decision loses phase saving's locality, measured ten
+   *  times slower on an unsat bit-vector file).
+   */
+  private var seen = new Array[Boolean](numVars)
+
   /** Adds a variable — unassigned, false phase, last in the decision order —
    *  and returns it. Solving between two [[newVar]]s is fine: the arrays grow,
    *  the trail is untouched.
@@ -119,6 +126,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       level = java.util.Arrays.copyOf(level, n / 2)
       reason = java.util.Arrays.copyOf(reason, n / 2)
       phase = java.util.Arrays.copyOf(phase, n / 2)
+      seen = java.util.Arrays.copyOf(seen, n / 2)
       vmtfPrev = java.util.Arrays.copyOf(vmtfPrev, n / 2)
       vmtfNext = java.util.Arrays.copyOf(vmtfNext, n / 2)
       vmtfStamp = java.util.Arrays.copyOf(vmtfStamp, n / 2)
@@ -359,7 +367,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     decisions += 1
     trailLim += trail.length
     theory.push()
-    enqueue(Lit(v, phase(v)), Decision)
+    val value = if seen(v) then phase(v) else theory.phase(v).getOrElse(phase(v))
+    seen(v) = true
+    enqueue(Lit(v, value), Decision)
 
   /** Learns the clause of a conflict and backjumps, or reports level 0. Returns
    *  whether the search can go on. A theory conflict may involve no literal of

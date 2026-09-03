@@ -1,5 +1,7 @@
 ; From z3guide: 01 - logic/04 - Uninterpreted-functions-and-constants.md (block 2) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun x () A @A!1) (define-fun y () A @A!0) (define-fun f ((x!0 A)) A (ite (= x!0 @A!0) @A!1 (ite (= x!0 @A!1) @A!0 @A!1))))
 (declare-sort A)
 (declare-const x A)
 (declare-const y A)

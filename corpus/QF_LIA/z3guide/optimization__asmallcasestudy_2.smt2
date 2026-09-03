@@ -1,5 +1,7 @@
 ; From z3guide: 04 - optimization/06 - asmallcasestudy.md (block 2) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun x11 () Int 0) (define-fun x12 () Int 0) (define-fun x13 () Int 1) (define-fun x21 () Int 0) (define-fun x22 () Int 0) (define-fun x23 () Int 1) (define-fun x31 () Int 0) (define-fun x32 () Int 0) (define-fun x33 () Int 1) (define-fun y1 () Int 0) (define-fun y2 () Int 0) (define-fun y3 () Int 1))
 (declare-const x11 Int)
 (declare-const x12 Int)
 (declare-const x13 Int)

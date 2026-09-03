@@ -1,5 +1,9 @@
 ; From z3guide: 03 - strategies/03 - tactics.md (block 7) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun bv!1 () Int 12) (define-fun x () Int 12) (define-fun y () Int 12) (define-fun z () Int 9223372036854775814))
+; EXPECT: sat
+; EXPECT: ((define-fun bv!1 () Int 12) (define-fun x () Int 12) (define-fun y () Int 12) (define-fun z () Int 9223372036854775814))
 (declare-const x (_ BitVec 64))
 (declare-const y (_ BitVec 64))
 (declare-const z (_ BitVec 64))

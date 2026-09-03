@@ -2,24 +2,29 @@ package net.bovel.vik
 
 import scala.collection.mutable.ArrayBuffer
 
-import net.bovel.cdclt.{Lit, Theory}
+import net.bovel.cdclt.{Lit, Theory, Var}
 import net.bovel.lia
 
 /** Linear integer arithmetic as a theory of the CDCL(T) solver: the atom of
  *  variable `v` is `atoms(v)`, on a variable `x` of the LIA solver standing for
  *  an `Int` term or a linear combination: `Bound(x, c)` is `x ≤ c`, its
- *  negation `x ≥ c + 1`; `Equal(x, c)` is `x = c`, its negation `x ≠ c` (an
- *  equality of shared terms is such an atom, of the UF theory as well); or none
- *  when `null`. A literal asserts its bounds with the literal (its index) as
- *  reason; `propagate` decides the rational relaxation (bound propagation and
- *  simplex) and `finalCheck` the integers and the disequalities (branch and
- *  bound), both reporting a conflict as the literals whose bounds are
- *  inconsistent. What the bounds already decide is implied rather than left to
- *  the search: an atom whose bounds force it, or forbid it, is propagated with
- *  those bounds as its explanation — which is what keeps the arrangement of the
- *  shared terms of a combination out of the decisions.
+ *  negation `x ≥ c + 1`; `Equal(x, c)` is `x = c`, its negation the clause of
+ *  `Solver.shareIntegers` (an equality of shared terms is such an atom, of the
+ *  UF theory as well); or none when `null`. A literal asserts its bounds with
+ *  the literal (its index) as reason; `propagate` decides the rational
+ *  relaxation (bound propagation and simplex) and `finalCheck` the integers and
+ *  the disequalities (branch and bound), both reporting a conflict as the
+ *  literals whose bounds are inconsistent. What the bounds already decide is
+ *  implied rather than left to the search: an atom whose bounds force it, or
+ *  forbid it, is propagated with those bounds as its explanation — which is
+ *  what keeps the arrangement of the shared terms of a combination out of the
+ *  decisions.
  */
-final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Null]) extends Theory:
+final class LiaTheory(
+    solver: lia.Solver,
+    atoms: ArrayBuffer[LiaTheory.Atom | Null],
+    guided: scala.collection.Set[Var] = Set.empty
+) extends Theory:
   /** A conflict found while asserting, reported by the next `propagate`. */
   private var conflict: ArrayBuffer[Lit] | Null = null
 
@@ -60,7 +65,9 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
           if lit.positive then solver.assertUpper(x, c, strict, lit.index)
           else solver.assertLower(x, c, !strict, lit.index) // not (x ≤ c) is x > c; not (x < c) is x ≥ c
         case LiaTheory.Atom.Equal(x, c) =>
-          if !lit.positive then solver.assertDistinct(x, c, lit.index)
+          // False, the atom asserts nothing: the clause of `Solver.shareIntegers` makes the search take
+          // one of the two sides, each a bound atom.
+          if !lit.positive then lia.Solver.Result.Sat
           else
             solver.assertUpper(x, c, lit.index) match
               case lia.Solver.Result.Sat => solver.assertLower(x, c, lit.index)
@@ -77,6 +84,24 @@ final class LiaTheory(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
       report(solver.checkRelaxation())
 
   override def finalCheck(): Theory.Result = report(solver.check())
+
+  /** A bound atom as the relaxation stands to it, for its first decision, on a
+   *  problem whose search is an arrangement of shared terms (`guided` holds the
+   *  sides of its disequality clauses): the side of a clause the search takes
+   *  is the one already true, and the other bounds start where the relaxation
+   *  is. Nothing on a problem without shared terms, where the conflicts of an
+   *  unsat search would then all wait for the final check (measured 200× slower
+   *  on a bit-vector file); nothing past the first decision, where phase
+   *  saving's locality matters more (measured on `Hash`).
+   */
+  override def phase(v: Var): Option[Boolean] =
+    if guided.nonEmpty && v < atoms.length then
+      atoms(v) match
+        case LiaTheory.Atom.Bound(x, c, strict) =>
+          val value = solver.value(x)
+          Some(if strict then value < c else value <= c)
+        case _ => None
+    else None
 
   /** The atoms the bounds decide, and not yet assigned. */
   private def implied(): ArrayBuffer[Lit] =

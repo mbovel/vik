@@ -26,6 +26,12 @@ trait Theory:
    */
   def finalCheck(): Theory.Result = propagate()
 
+  /** The value the theory would give the atom of `v` now, when it has one — an
+   *  arithmetic bound as the current relaxation stands to it — so that a
+   *  decision on it moves nothing; `None` leaves the solver its saved phase.
+   */
+  def phase(v: Var): Option[Boolean] = None
+
   /** The asserted literals that implied `lit`, a literal returned by
    *  [[propagate]] or [[finalCheck]]; they were asserted before it.
    */

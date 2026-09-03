@@ -1,5 +1,7 @@
 ; From z3guide: 04 - optimization/05 - combiningobjectives.md (block 2) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun a () Bool false) (define-fun b () Bool false) (define-fun c () Bool false))
 (declare-const a Bool)
 (declare-const b Bool)
 (declare-const c Bool)

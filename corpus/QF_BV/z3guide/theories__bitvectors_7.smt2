@@ -1,5 +1,7 @@
 ; From z3guide: 02 - theories/02 - Bitvectors.md (block 7) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun a () Int 8) (define-fun b () Int 0))
 (declare-const a (_ BitVec 4))
 (declare-const b (_ BitVec 4))
 (assert (not (= (bvule a b) (bvsle a b))))

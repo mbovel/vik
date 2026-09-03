@@ -44,6 +44,6 @@ carries the reasons of the bounds that are inconsistent, which is the explanatio
 | Branching on the most fractional unknown | ✗ | [mixed](https://github.com/mbovel/vik/blob/main/bench/results/lia/2026-08-29-laraserver4-experiments.md) |
 | Cuts | ✗ | not yet (`cut_lemmas`, `wisa`) |
 | Theory propagation of bounds as literals | ✓ | [1.4–1.7× on the instances of the combination](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-08-31-laraserver4-bound-propagation.md); implying the equalities of the arrangement as well was measured and rejected |
-| Combination with `egraph` | ✓ | arrangement by SAT: an equality atom per pair of shared integer terms, watched by both theories (a merge or a disequality for UF, two bounds or a disequality for LIA), in `vik`'s encoder; the solvers stay independent |
+| Combination with `egraph` | ✓ | arrangement by SAT: an equality atom per pair of shared integer terms, watched by both theories (a merge or a disequality for UF, two bounds for LIA, and when false a clause between the two sides as bound atoms), in `vik`'s encoder; the solvers stay independent |
 
 Results: [lia benchmarks](https://github.com/mbovel/vik/tree/main/bench/results/lia).

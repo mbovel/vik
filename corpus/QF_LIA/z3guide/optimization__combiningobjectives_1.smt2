@@ -1,5 +1,7 @@
 ; From z3guide: 04 - optimization/05 - combiningobjectives.md (block 1) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun x () Int 1) (define-fun y () Int 0) (define-fun z () Int 2))
 (declare-const x Int)
 (declare-const y Int)
 (declare-const z Int)

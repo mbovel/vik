@@ -1,5 +1,7 @@
 ; From z3guide: 02 - theories/01 - Arithmetic.md (block 6) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun t11 () Int 0) (define-fun t12 () Int 2) (define-fun t21 () Int 4) (define-fun t22 () Int 7) (define-fun t31 () Int 2) (define-fun t32 () Int 4))
 (set-logic QF_IDL) ; optional in Z3
 (declare-fun t11 () Int)
 (declare-fun t12 () Int)

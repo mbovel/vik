@@ -1,5 +1,7 @@
 ; From z3guide: 02 - theories/01 - Arithmetic.md (block 5) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; EXPECT: sat
+; EXPECT: ((define-fun a () Int (- 1)) (define-fun x () Int 0) (define-fun xR () Real (/ (- 2) 3)) (define-fun y () Int 0) (define-fun yR () Real (/ (- 2) 3)))
 (declare-const xR Real)
 (declare-const yR Real)
 (declare-const x Int)
