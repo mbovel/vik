@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Cold-start comparison, as a competition measures it: a new process per instance and solver, the whole
 # answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets, and as
-# a GraalVM native image when bench/graal.sh has built one.
+# a GraalVM native image when bench/graal.sh has built one, and on the JVM with the AOT cache of bench/aot.sh
+# when it has trained one.
 #
 # Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
@@ -23,6 +24,8 @@ java -cp "$CP" net.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
 NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.vik.smt2" -type f 2>/dev/null | head -1)
 GRAAL=target/graal/vik
+AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
+AOT_CP=$(cat target/aot/classpath.txt 2>/dev/null || true)
 MODULE=docs/_assets/js/vik/main.js
 NODE_RUNNER=bench/vik-node.mjs
 
@@ -65,6 +68,7 @@ while read -r f _; do
     measure vik-jvm java -cp "$CP" net.bovel.vik.smt2 "$f"
     [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
     [ -x "$GRAAL" ] && measure vik-graal "$GRAAL" "$f"
+    [ -f "$AOT" ] && measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" net.bovel.vik.smt2 "$f"
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"

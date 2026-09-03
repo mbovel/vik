@@ -8,8 +8,12 @@ private def parseFile(path: String) =
   try Parser.parse(source.mkString)
   finally source.close()
 
-/** Solves an SMT-LIB 2 file: prints `sat` or `unsat` for each `check-sat`. */
-@main def smt2(path: String): Unit = Session.run(parseFile(path)).foreach(println)
+/** Solves SMT-LIB 2 files, one after the other in one process: prints `sat` or
+ *  `unsat` for each `check-sat`. One file is the usual call; several make one
+ *  process solve them all — what a training run for a JVM's AOT cache needs
+ *  (bench/aot.sh).
+ */
+@main def smt2(paths: String*): Unit = for path <- paths do Session.run(parseFile(path)).foreach(println)
 
 /** Prints an SMT-LIB 2 file as VIK will play it, after the lowerings:
  *  bit-vectors become bounded integers with their defining equations
