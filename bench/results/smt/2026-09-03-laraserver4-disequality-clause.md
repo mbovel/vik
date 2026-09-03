@@ -44,7 +44,32 @@ loses three times (0.8 to 2.7 ms each): many pairs, none of which they need, eac
 carries on every path, where the branching paid only for the pairs the relaxation hit. 323 queries are
 more than 20% slower, 191 more than 20% faster.
 
-**Kept, with that trade, on the strength of the other benchmarks.** The fix that removes it is the lazy
-side: keep a false pair out of the simplex, and when the final check finds the relaxation on the
-forbidden value, hand the SAT solver the clause with its two side atoms created then — atoms and clauses
-added during a search, the mechanism model-based combination needs as well. Next.
+**Kept, with that trade, on the strength of the other benchmarks.**
+
+## The lazy side, tried after (branch `lazy-sides`, not kept)
+
+The fix expected to remove the compiler's regression: a false pair asserts nothing and mints nothing;
+when the relaxation lands on the forbidden value — checked after every relaxation in `propagate` and
+around branch and bound in `finalCheck` — the theory returns the clause with its two side atoms created
+then (`Theory.Result.Lemmas`; the SAT solver adds the clauses during the search, watches them, bumps
+their fresh variables to the front of the decision order). Every split of a round at once: one per round
+was too slow, and a first cut that only looked in `finalCheck` never answered `xs_8_8`, branch and bound
+wandering a relaxation with no disequality in it. Cold, laraserver4, the compiler's 2 031 queries warm
+as above:
+
+| Variant | `xs_24_44` | `xs_38_38` | `hash_sat_09_08` | Certora `65782_6` | `bvrewrite-extract` | compiler set |
+|---|---:|---:|---:|---:|---:|---:|
+| branching (before) | 10.3 s | 7.9 s | 3.0 s | 11.5 s | 0.34 s | 156 ms |
+| eager sides, phase at first decision (kept) | 4.5 | 4.3 | 0.96 | 4.7 | 0.36 | 185 |
+| lazy sides, phase at first decision | 9.9 | 7.7 | 0.88 | 9.3 | 0.36 | 178 |
+| lazy sides, no phase | 22.6 | > 60 | 1.9 | 12.9 | — | 152 |
+| lazy sides, phase on the sides only | 10.1 | 11.6 | 3.0 | 13.6 | — | 158 |
+
+Two things the eager variant's numbers hid. The compiler's regression is the phase guidance, not the
+bounds: the lazy sides with the same guidance still cost 178 ms (the `fib_memoized2` family 2.7 ms as
+before), and without it the set is back at 152 — but `wisas` then needs the guidance on every bound, the
+sides alone give it nothing, as the eager experiment had found. And the laziness itself costs `wisas`
+2× against the eager sides: an eager side is decided at its first decision on the side the relaxation
+already satisfies, and nothing moves; a lazy side is born when the relaxation is on the forbidden value,
+so taking either side moves it. The eager variant stays. What would give the compiler its 30 ms back is
+a guidance that leaves the unsat search's conflicts early, and no variant of "which atoms" does that.
