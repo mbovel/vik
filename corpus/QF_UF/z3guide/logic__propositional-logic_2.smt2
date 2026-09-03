@@ -1,0 +1,9 @@
+; From z3guide: 01 - logic/03 - propositional-logic.md (block 2) (MIT, LICENSES/z3guide.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+(declare-const a Bool)
+(declare-const b Bool)
+(define-fun demorgan () Bool
+    (= (and a b) (not (or (not a) (not b)))))
+(assert (not demorgan))
+(set-info :status unsat)
+(check-sat)

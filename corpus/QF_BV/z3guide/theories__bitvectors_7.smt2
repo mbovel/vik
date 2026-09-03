@@ -1,0 +1,8 @@
+; From z3guide: 02 - theories/02 - Bitvectors.md (block 7) (MIT, LICENSES/z3guide.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+(declare-const a (_ BitVec 4))
+(declare-const b (_ BitVec 4))
+(assert (not (= (bvule a b) (bvsle a b))))
+(set-info :status sat)
+(check-sat)
+(get-model)

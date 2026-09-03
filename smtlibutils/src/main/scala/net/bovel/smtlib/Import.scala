@@ -11,11 +11,14 @@ import scala.util.Try
  *  Origins: `cvc5` (`test/regress/cli`, answers in `; EXPECT:` lines), `z3test`
  *  (`regressions/smt2`, answers in `.expected.out` files), `princess`
  *  (`testcases`, answers in each directory's `Answers` log), `submission` and
- *  `smt-lib`/`smt-lib-incremental` (statuses in the files). Every candidate is
+ *  `smt-lib`/`smt-lib-incremental` (statuses in the files), `cvc5-examples`
+ *  (`examples/api/smtlib` of the cvc5 repository) and `z3guide` (`website/docs-smtlib`
+ *  of the z3 guide's repository: every `z3` code block of its pages), the last
+ *  two without answers — `statusstamp` supplies them. Every candidate is
  *  parsed: only the files in the supported fragment are copied, into
  *  `<logic>/<origin>/<family>__<file>.smt2`, with a header naming the origin,
  *  the original path and the license, and a `(set-info :status ...)` before
- *  each `check-sat`.
+ *  each `check-sat` when the answers are known.
  */
 @main def smt2import(origin: String, root: String, perFamily: Int = 0): Unit =
   Import.run(origin, Path.of(root), perFamily)
@@ -23,6 +26,8 @@ import scala.util.Try
 object Import:
   private val licenses = Map(
     "cvc5" -> "modified BSD, LICENSES/cvc5.txt",
+    "cvc5-examples" -> "modified BSD, LICENSES/cvc5.txt",
+    "z3guide" -> "MIT, LICENSES/z3guide.txt",
     "z3test" -> "MIT, LICENSES/z3test.txt",
     "princess" -> "BSD, LICENSES/princess.txt",
     "submission" -> "see the file's header",
@@ -33,9 +38,16 @@ object Import:
   private val answers = Set("sat", "unsat", "unknown")
 
   /** A file to import: its text, the expected answers when they come from
-   *  outside it, and its family.
+   *  outside it, its family, and its file name when not the original's (a
+   *  block cut out of a page).
    */
-  final case class Candidate(rel: String, text: String, expected: Option[List[String]], family: String)
+  final case class Candidate(
+      rel: String,
+      text: String,
+      expected: Option[List[String]],
+      family: String,
+      name: String = ""
+  )
 
   /** The directory of the corpus for a file: its `set-logic`, or what it uses
    *  when that is `ALL`.
@@ -56,18 +68,36 @@ object Import:
         else "QF_LIA"
       case _ => "QF_UF"
 
+  /** The `z3` code blocks of a page of the z3 guide (not the `z3-duo`,
+   *  `z3-py`, `z3-js` ones), each a script of its own.
+   */
+  private def guideBlocks(page: String): List[String] =
+    "(?ms)^```z3(?: [^\n]*)?\n(.*?)^```".r.findAllMatchIn(page).map(_.group(1).nn).toList
+
+  /** `02 - basiccommands.md` as `basiccommands`: the guide numbers its pages and sections. */
+  private def guideSlug(file: String): String =
+    file.stripSuffix(".md").replaceFirst("^\\d+ - ", "").replace(" ", "-").toLowerCase
+
   def candidates(origin: String, root: Path): List[Candidate] =
+    val extension = if origin == "z3guide" then ".md" else ".smt2"
     val stream = Files.walk(root)
     val paths =
-      try stream.iterator().asScala.filter(p => Files.isRegularFile(p) && p.toString.endsWith(".smt2")).toList.sorted
+      try stream.iterator().asScala.filter(p => Files.isRegularFile(p) && p.toString.endsWith(extension)).toList.sorted
       finally stream.close()
     paths.flatMap { path =>
       val rel = root.relativize(path).toString
       val parts = rel.split("/").toList
-      Try(Files.readString(path)).toOption.filter(_ => Files.size(path) <= maxSize).flatMap { text =>
-        if !text.contains("check-sat") then None
+      Try(Files.readString(path)).toOption.filter(_ => Files.size(path) <= maxSize).toList.flatMap { text =>
+        if origin == "z3guide" then
+          val family = guideSlug(parts.head)
+          guideBlocks(text).zipWithIndex.collect {
+            case (block, i) if block.contains("check-sat") =>
+              Candidate(s"$rel (block ${i + 1})", block, None, family, s"${guideSlug(parts.last)}_${i + 1}.smt2")
+          }
+        else if !text.contains("check-sat") then None
         else
           origin match
+            case "cvc5-examples" => Some(Candidate(rel, text, None, "examples"))
             case "cvc5" =>
               val options = "(?m)^; COMMAND-LINE: (.*)$".r.findAllMatchIn(text).flatMap(_.group(1).nn.split(" ")).toList
               val harmless = List(
@@ -155,7 +185,8 @@ object Import:
         case scala.util.Success(_) =>
           val dir = Corpus.root.resolve(classify(c.text)).resolve(origin)
           Files.createDirectories(dir)
-          val name = s"${c.family}__${Path.of(c.rel).getFileName}".replace("/", "_")
+          val file = if c.name.nonEmpty then c.name else Path.of(c.rel).getFileName.toString
+          val name = s"${c.family}__$file".replace("/", "_")
           Files.writeString(dir.resolve(name), content)
           copied += 1
         case scala.util.Failure(e) =>

@@ -1,0 +1,8 @@
+; From z3guide: 01 - logic/02 - basiccommands.md (block 2) (MIT, LICENSES/z3guide.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+(declare-const a Int)
+(declare-fun f (Int Bool) Int)
+(assert (< a 10))
+(assert (< (f a true) 100))
+(set-info :status sat)
+(check-sat)

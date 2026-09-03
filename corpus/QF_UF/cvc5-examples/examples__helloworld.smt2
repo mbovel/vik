@@ -1,0 +1,7 @@
+; From cvc5-examples: helloworld.smt2 (modified BSD, LICENSES/cvc5.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+(set-logic QF_UF)
+(declare-const |Hello World!| Bool)
+(assert (not |Hello World!|))
+(set-info :status sat)
+(check-sat)

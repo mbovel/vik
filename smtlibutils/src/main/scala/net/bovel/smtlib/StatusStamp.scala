@@ -22,7 +22,7 @@ import scala.jdk.CollectionConverters.*
   val seconds = args.lift(1).map(_.toInt).getOrElse(20)
   val prefixes = args.drop(2)
   val files = Corpus.files.filter(f => prefixes.isEmpty || prefixes.exists(f.startsWith))
-  val version = run(List(solver, "--version"), 10).mkString(" ").trim.replace(" - 64 bit", "")
+  val version = run(List(solver, "--version"), 10).headOption.getOrElse("").trim.replace(" - 64 bit", "")
   println(s"$version on ${files.length} files, $seconds s each")
 
   val pool = Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors() min 16)

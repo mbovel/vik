@@ -1,0 +1,6 @@
+; From z3guide: 04 - optimization/07 - advancedtopics.md (block 4) (MIT, LICENSES/z3guide.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+(declare-const x Bool)
+(assert-soft (not x))
+(set-info :status sat)
+(check-sat)
