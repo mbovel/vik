@@ -15,14 +15,14 @@ STAMP="z3 $Z3, cvc5 $CVC5, cvc5 binding $CVC5_BINDING"
 mkdir -p native/bin
 fetch() { # url, file
   [ -s "native/$2" ] && { echo "native/$2 present"; return; }
-  echo "fetching $2"; curl -sSfL --max-time 600 -o "native/$2" "$1"
+  echo "fetching $2"; curl -sSfL --retry 5 --retry-all-errors --retry-delay 15 --max-time 600 -o "native/$2" "$1"
 }
 fetch "$BASE/javasmt-solver-z3/$Z3/javasmt-solver-z3-$Z3-libz3-x64.so" libz3.so
 fetch "$BASE/javasmt-solver-z3/$Z3/javasmt-solver-z3-$Z3-libz3java-x64.so" libz3java.so
 fetch "$BASE/javasmt-solver-cvc5/$CVC5_BINDING/javasmt-solver-cvc5-$CVC5_BINDING-libcvc5jni-x64.so" libcvc5jni.so
 binary() { # url, member, file: one executable out of a release archive
   [ -x "native/bin/$3" ] && { echo "native/bin/$3 present"; return; }
-  echo "fetching $3"; curl -sSfL --max-time 600 -o native/bin/archive.zip "$1"
+  echo "fetching $3"; curl -sSfL --retry 5 --retry-all-errors --retry-delay 15 --max-time 600 -o native/bin/archive.zip "$1"
   unzip -p native/bin/archive.zip "$2" > "native/bin/$3" && chmod +x "native/bin/$3"
   rm native/bin/archive.zip
 }
