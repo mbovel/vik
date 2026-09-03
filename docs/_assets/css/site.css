@@ -20,6 +20,12 @@
 
 /* ---- The runnable snippets (see js/snippets.js). ---- */
 
+/* The theme's `.snippet` forces a horizontal scrollbar (`overflow-x: scroll`, its components bundle):
+   one only when the block is wider than its box. */
+.snippet {
+  overflow-x: auto;
+}
+
 .snippet {
   position: relative;
 }
