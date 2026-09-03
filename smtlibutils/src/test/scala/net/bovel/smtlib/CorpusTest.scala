@@ -45,6 +45,8 @@ class CorpusTest extends munit.FunSuite:
             val got = Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel)
             val agrees = got.length == expected.length &&
               got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
+            // An answer against the status: a soundness bug, whatever the file's standing.
+            val wrong = got.zip(expected).exists((g, e) => g.isDefined && e.isDefined && g != e)
             // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
             val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
             val responses =
@@ -52,12 +54,16 @@ class CorpusTest extends munit.FunSuite:
                 !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
               then expects
               else Session.run(script, fuel = fuel)
-            (agrees && responses == expects, s"expected ${show(expected)}, got ${show(got)}")
+            (agrees && responses == expects, wrong, s"expected ${show(expected)}, got ${show(got)}")
           },
           Duration(5, "s")
         )
       }
       reason match
-        case None => assert(outcome.get._1, outcome.get._2)
+        case None => assert(outcome.get._1, outcome.get._3)
         case Some(why) =>
+          // An ignored file may run out of fuel or time, or fail as its `wrong:` line says; it may not
+          // answer against its status under another reason — that is a wrong answer filed as a timeout.
+          for (_, wrong, message) <- outcome.toOption do
+            assert(!wrong || why.startsWith("wrong"), s"$message: a wrong answer, not what ignore.txt says ($why)")
           assert(outcome.toOption.forall(!_._1), s"passes now: remove it from corpus/ignore.txt (was: $why)")
