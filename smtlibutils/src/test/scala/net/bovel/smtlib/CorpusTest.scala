@@ -21,6 +21,11 @@ class CorpusTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
   private val fuel = 2000000L
   private val ignoredFuel = 1000L // enough to notice a file that became easy
+  /** The wall-clock guard: five seconds, the budget of the benchmarks, where the machine is
+   *  one's own; CI sets a hard limit above it (`VIK_CORPUS_BUDGET_MS`, see build.sbt), since a
+   *  file at the edge of the budget is caught here, not on a shared runner.
+   */
+  private val budget = Duration(Option(System.getProperty("vik.corpus.budgetMs")).map(_.toLong).getOrElse(5000L), "ms")
   private val ignored = Corpus.ignored
 
   private def show(answers: List[Option[Boolean]]): String =
@@ -56,7 +61,7 @@ class CorpusTest extends munit.FunSuite:
               else Session.run(script, fuel = fuel)
             (agrees && responses == expects, wrong, s"expected ${show(expected)}, got ${show(got)}")
           },
-          Duration(5, "s")
+          budget
         )
       }
       reason match

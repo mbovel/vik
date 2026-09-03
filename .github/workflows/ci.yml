@@ -29,7 +29,11 @@ jobs:
       - name: Check formatting
         run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
       - name: Test (JVM and Scala.js)
+        # The corpus test's five seconds are for one's own machine, where a file at the edge is
+        # caught; on a shared runner the guard is a hard limit only.
         run: sbt --server test
+        env:
+          VIK_CORPUS_BUDGET_MS: 30000
   bench:
     # The whole benchmark surface, dry: every JMH class and every solver method in quick mode with
     # -foe true — an error in any benchmark fails the job — then the cold pipeline against the real

@@ -18,7 +18,12 @@ versionScheme := Some("early-semver")
 // Every JVM test suite runs forked with the same fixed heap on every machine, so the sbt server
 // only builds: without this, all modules' tests share the server heap and its classloader caches,
 // which exhausted CI's three gigabytes (HoCoreTest OOMed after the earlier suites filled it).
-val forkedTests = Seq(Test / fork := true, Test / javaOptions += "-Xmx2g")
+val forkedTests = Seq(
+  Test / fork := true,
+  Test / javaOptions += "-Xmx2g",
+  // The corpus test's wall-clock guard, when the environment raises it (CI: a hard limit, not the budget).
+  Test / javaOptions ++= sys.env.get("VIK_CORPUS_BUDGET_MS").map(ms => s"-Dvik.corpus.budgetMs=$ms").toSeq
+)
 scalaVersion := scala3Version
 scalacOptions += "-Yexplicit-nulls"
 
