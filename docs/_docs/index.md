@@ -9,8 +9,8 @@ extraCSS:
 # Introduction
 
 An SMT solver in Scala 3, small enough to read: equality with uninterpreted functions, linear integer
-arithmetic over integers and reals, algebraic datatypes, arrays, and the arithmetic fragment of
-bit-vectors, in about 5000 lines of
+arithmetic over integers and reals, algebraic datatypes, arrays, and bit-vectors as integers, in about
+5000 lines of
 solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be embedded — as a
 library, in the process of the tool that asks the questions.
 

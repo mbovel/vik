@@ -50,6 +50,13 @@ Mixed logics: `QF_UFBVLIA`, `QF_AUFBVLIA` and `QF_BVLRA` (bit-vectors with integ
 only in the incremental release, from the software verifiers; there is no `QF_AUFLIRA` in SMT-LIB 2025, and
 `QF_LIRA` has two files.
 
+The bitwise operations (2026-09-03 evening, "Bitwise operations, as bits") opened `QF_BV` further: of the five
+smallest files per family the old lowering refused, 103 lower now, in twelve new families (`log-slicing`,
+`stp_samples`, `brummayerbiere`, `spear`, `uum`, `RWS`, `uclid_contrib_smtcomp09`, …); 38 answer within the budget
+and 65 do not — a bit-blaster with a simplex behind it — of which the two smallest per family are kept on
+`ignore.txt`. Not imported: `20230221-oisc-gurtner` and most of `20210219-Sydr`, whose nested `define-fun`s the
+lowering expands by substitution, exponentially (queued).
+
 | Logic | Origin | Files | Families | Answered | Out of reach | Skipped |
 |---|---|---|---|---|---|---|
 | `QF_ABV` | smt-lib | 70 | 8 | 36 | 5 | 29 |
@@ -59,7 +66,7 @@ only in the incremental release, from the software verifiers; there is no `QF_AU
 | `QF_AUFLIA` | smt-lib | 17 | 7 | 8 | 6 | 3 |
 | `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
-| `QF_BV` | smt-lib | 133 | 22 | 89 | 44 | 0 |
+| `QF_BV` | smt-lib | 194 | 34 | 127 | 67 | 0 |
 | `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
 | `QF_DT` | smt-lib | 76 | 11 | 40 | 12 | 24 |

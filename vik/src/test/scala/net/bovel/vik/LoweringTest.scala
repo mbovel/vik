@@ -35,7 +35,7 @@ class LoweringTest extends munit.FunSuite:
     intercept[Smt2Error](lowered("(declare-const x Int) (assert (<= (* x x) 1))"))
     intercept[Unsupported](lowered("(declare-const x Int) (assert (= (div x 2) 1))"))
     intercept[Unsupported](lowered(
-      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvor a b) a))"
+      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvshl a b) a))"
     ))
 
   test("to_real is the identity, to_int the pinned floor"):

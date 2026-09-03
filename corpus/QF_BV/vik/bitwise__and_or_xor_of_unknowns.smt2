@@ -1,0 +1,17 @@
+; Hand-written for VIK (this repository's license): the three bitwise operations of two unknowns, each bit
+; of the result a case on the operands' bits, and their consistency with each other (2026-09-03).
+(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(declare-const y (_ BitVec 8))
+(assert (= (bvand x y) #x0f))
+(assert (= (bvor x y) #xff))
+(assert (= (bvxor x y) #xf0))
+(assert (bvult x y))
+(set-info :status sat)
+(check-sat)
+(assert (= ((_ extract 7 4) x) #x5))
+(set-info :status sat)
+(check-sat)
+(assert (= ((_ extract 3 0) y) #xe))
+(set-info :status unsat)
+(check-sat)

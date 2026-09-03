@@ -1,0 +1,16 @@
+; Hand-written for VIK (this repository's license): a constant operand — a run of low or high bits is one
+; division, any other mask is the bits of the unknown summed — for `bvand`, `bvor` and `bvxor` (2026-09-03).
+(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(assert (= (bvand x #x0f) #x05))
+(assert (= (bvor x #xf0) #xf5))
+(assert (= (bvxor x #x0f) #x5a))
+(assert (= (bvand x #x5a) #x50))
+(set-info :status sat)
+(check-sat)
+(assert (= (bvor x #x33) #x77))
+(set-info :status sat)
+(check-sat)
+(assert (= (bvxor x #x55) #x01))
+(set-info :status unsat)
+(check-sat)

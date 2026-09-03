@@ -36,6 +36,11 @@ class CorpusTest extends munit.FunSuite:
       .filter(l => l.nonEmpty && !l.startsWith("#"))
     assertEquals(lines, lines.sorted, "corpus/ignore.txt: keep the lines sorted (byte order)")
 
+  test("ignore.txt names files of the corpus"):
+    val files = Corpus.files.toSet
+    val stale = ignored.keys.filterNot(files).toList.sorted
+    assert(stale.isEmpty, s"corpus/ignore.txt: no such files: ${stale.mkString(", ")}")
+
   for file <- Corpus.files do
     val reason = ignored.get(file)
     test(if reason.exists(_.startsWith("skip")) then file.ignore else munit.TestOptions(file)):

@@ -8,8 +8,9 @@ extraCSS:
 
 # Bit-vectors
 
-The arithmetic fragment of `QF_BV`, without bit-blasting: a bit-vector is an integer in `[0, 2ⁿ)`, and the
-operations that are arithmetic modulo `2ⁿ` are lowered to linear integer arithmetic. The width costs nothing.
+A bit-vector is an integer in `[0, 2ⁿ)`: the operations that are arithmetic modulo `2ⁿ` are lowered to linear
+integer arithmetic, where the width costs nothing, and the bitwise ones to the bits of their operands, each a
+Boolean the SAT solver decides, tied to the integer by one equation.
 
 **Decision procedure: yes, for the fragment it accepts.** Anything outside the fragment is refused up
 front, and the lowered problem has bounded variables, which the integer solver decides.
@@ -26,10 +27,11 @@ front, and the lowered problem has bounded variables, which the integer solver d
 ```
 
 Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`,
-`bvshl`, `bvlshr`, `bvashr` by constants, `bvand`/`bvor` with a mask that is a power of two minus one, `concat`, `extract`, `zero_extend`,
-`sign_extend`, the unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`,
-and the integer conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the
-pre-renaming spellings `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
+`bvshl`, `bvlshr`, `bvashr` by constants, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and `bvcomp` of
+anything, `concat`, `extract`, `zero_extend`, `sign_extend`, `repeat`, `rotate_left`, `rotate_right`, the
+unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`, and the integer
+conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the pre-renaming spellings
+`bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
 
 ```smt2
 (set-logic QF_BV)
@@ -40,13 +42,13 @@ pre-renaming spellings `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
 (check-sat)
 ```
 
-Refused, because they are not arithmetic: `bvand`, `bvor`, `bvxor` of two unknowns, `bvmul` of two unknowns,
-shifts and divisions by an unknown. A script that uses them is rejected rather than answered — the whole
-point of this fragment is that what it answers, it answers by arithmetic.
+Refused, for now: `bvmul` of two unknowns, shifts and divisions by an unknown. A script that uses them is
+rejected rather than answered.
 
-Of the small files of `QF_BV` in the library, a bit less than a third are in the fragment. Where the fragment
-applies, the width is free: `pspace/ndist.a.20000` is decided in milliseconds here and times out for a
-bit-blasting solver ([evaluation](../evaluation.md)).
+Of the small files of `QF_BV` in the library, about a third are arithmetic and the bitwise operations bring
+the fragment to nearly two thirds. Where the arithmetic applies, the width is free: `pspace/ndist.a.20000`
+is decided in milliseconds here and times out for a bit-blasting solver ([evaluation](../evaluation.md)).
+Where bits are needed, VIK is a bit-blaster with a small SAT solver behind a simplex, and slow next to one.
 
 ## Internals
 
@@ -79,6 +81,12 @@ term are equal only by an integer argument over `2ⁿ`, which branch and bound w
 | `bvashr a c` | `q` mod `m` | `q`, `r ∈ [0, 2ᶜ)`: `v = 2ᶜ·q + r` for the signed value `v` — the floor of it over `2ᶜ`; all ones or zero by the sign when `c ≥ n` |
 | `bvand a c`, `c = 2ᵏ − 1` | `r` | `q, r` of `a = 2ᵏ·q + r`: the low bits are the remainder |
 | `bvand a c`, `c = m − 2ᵏ` | `a − r` | the same division: the high bits are what remains |
+| `bvor a c`, `bvxor a c`, `c` such a run of bits | `a − r + c`, `a − r + (c − r)` (low run); `r + c`, `r + (c − a + r)` (high run) | the same division |
+| `bvand a b`, `bvor a b`, `bvxor a b` | `Σ 2ⁱ·rᵢ` | the bits of `a` and `b`, once per term: `aᵢ ∈ {0, 1}` with `a = Σ 2ⁱ·aᵢ`, bit `i` the atom `aᵢ ≥ 1`; each result bit `rᵢ ∈ {0, 1}` a case on the formula `aᵢ ∧ bᵢ`, `aᵢ ∨ bᵢ`, `aᵢ ⊕ bᵢ` — a literal bit of an operand folds, a constant operand costs no result bit |
+| `bvnand`, `bvnor`, `bvxnor` | `m − 1 − r` | as the operation, complemented; the bits of a complement are the negated bits |
+| `bvcomp a b` | `k` | `k ∈ {0, 1}`: `k = 1` when `a = b`, `k = 0` otherwise — an equality of two terms with known bits is bit by bit, a conjunction of `aᵢ ↔ bᵢ`, and so is `distinct` |
+| `repeat k a` | `Σⱼ 2^(j·n)·a` | none |
+| `rotate_left k a` (`k` taken mod `n`) | `2ᵏ·r + q` | `a = 2^(n−k)·q + r`; `rotate_right k` is `rotate_left (n − k)` |
 | `extract i j a` | `r₂` | `a = 2ʲ·q₁ + r₁`, then `q₁ = 2^(i−j+1)·q₂ + r₂` |
 | `concat a b`, `b` of width `k` | `2ᵏ·a + b` | none |
 | `zero_extend k a` | `a` | none |

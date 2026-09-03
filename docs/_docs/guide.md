@@ -107,10 +107,11 @@ Constructors are injective and distinct, selectors and testers follow them, and 
 (check-sat)
 ```
 
-## Bit-vectors, without bit-blasting
+## Bit-vectors, as integers
 
-The arithmetic fragment of `QF_BV` is lowered to integers: additions modulo, comparisons, masks, `extract`,
-`concat`, extensions. Wide vectors cost no more than narrow ones.
+`QF_BV` is lowered to integers: additions modulo, comparisons, masks, `extract`, `concat`, extensions as
+arithmetic, where wide vectors cost no more than narrow ones, and `bvand`, `bvor`, `bvxor` as the bits of
+their operands, Booleans the SAT solver decides.
 
 ```smt2
 (set-logic QF_BV)

@@ -1,0 +1,18 @@
+; Hand-written for VIK (this repository's license): bits and arithmetic on the same terms — the bits of a
+; sum, a sum of a bitwise result — and a chain of bitwise operations (2026-09-03).
+(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(declare-const y (_ BitVec 8))
+(declare-const z (_ BitVec 8))
+(assert (= (bvand (bvadd x y) (bvmul x #x03)) #x06))
+(assert (= (bvadd (bvxor x y) (bvor y z)) #xe2))
+(assert (= (bvand (bvor x y) z) #x14))
+(assert (bvugt z #x80))
+(set-info :status sat)
+(check-sat)
+(assert (= (bvand (bvadd x y) (bvmul x #x03)) (bvand (bvmul x #x03) (bvadd x y))))
+(set-info :status sat)
+(check-sat)
+(assert (distinct (bvor (bvand x y) (bvand x z)) (bvand x (bvor y z))))
+(set-info :status unsat)
+(check-sat)
