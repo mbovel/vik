@@ -43,6 +43,12 @@ private class SExprParser(input: String):
         SExpr.SList(items.toList)
       case ")" => throw SyntaxError("unexpected ')'")
       case EOF => throw SyntaxError("unexpected end of input")
+      // A quoted symbol whose text is a symbol on its own is that symbol: `|p1|` and `p1` are one
+      // (SMT-LIB 2.6, 3.1). `|286|` keeps its bars — the numeral 286 is another token.
+      case atom
+          if atom.length >= 2 && atom.startsWith("|") && atom.endsWith("|")
+            && SExpr.simple(atom.substring(1, atom.length - 1)) =>
+        SExpr.SAtom(atom.substring(1, atom.length - 1))
       case atom => SExpr.SAtom(atom)
 
   /** Reads all the S-expressions of the input. */
