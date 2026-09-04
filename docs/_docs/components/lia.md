@@ -8,13 +8,13 @@ extraCSS:
 
 # The LIA solver
 
-A simplex over the integers: `net.bovel.lia`. It decides systems of bounds on linear combinations, and is
+A simplex over the integers: `io.bovel.lia`. It decides systems of bounds on linear combinations, and is
 what answers the [arithmetic](../theories/integers.md) atoms.
 
 ## Using it
 
 ```scala
-import net.bovel.lia.Solver
+import io.bovel.lia.Solver
 
 val solver = Solver()
 val x = solver.newVar()

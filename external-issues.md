@@ -357,7 +357,7 @@ Version: `pl.project13.scala:sbt-jmh:0.4.8`.
 ### 1. The generated benchmark classes of a removed or recompiled benchmark stay in `target` (2026-09-02)
 
 - **Observed**: after a benchmark class was removed (`OtherSolversBench`), `bench/Jmh/run` failed in
-  `generateJmhSourcesAndResources` with `NoClassDefFoundError: net/bovel/bench/evaluation/OtherSolversBench`;
+  `generateJmhSourcesAndResources` with `NoClassDefFoundError: io/bovel/bench/evaluation/OtherSolversBench`;
   after a build on JDK 26 followed by one on JDK 25, with `UnsupportedClassVersionError ... class file
   version 70.0` on a `jmh_generated` class. The generator scans the whole class directory, where its
   own output of the previous run still is, and loads it.

@@ -11,7 +11,7 @@ three together and then takes them apart:
   last one taking its slot.
 - **Linked** — rows, and the columns as `Int` arrays where each row entry remembers its slot in the column
   (`Row.slots`), so an owner leaves without a search: the last owner takes the slot and its row is told
-  ([`Solver.leave`](../../../lia/src/main/scala/net/bovel/lia/Solver.scala)). **Kept.**
+  ([`Solver.leave`](../../../lia/src/main/scala/io/bovel/lia/Solver.scala)). **Kept.**
 
 Measured against the parent (`c8be007`, hash-map rows and hash-set columns), same JVM, same machine, one
 configuration after the other in a worktree, the corpus suite of the main checkout running on other cores

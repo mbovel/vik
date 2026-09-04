@@ -20,9 +20,9 @@ TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nob
 # background server answered with empty stdout on three of four CI runs.
 CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
 # A broken classpath must fail here, loudly — not as thirty silent `error` rows.
-java -cp "$CP" net.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
+java -cp "$CP" io.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
-NATIVE=$(find target/out/native0.5 -path "*/native/net.bovel.vik.smt2" -type f 2>/dev/null | head -1)
+NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.smt2" -type f 2>/dev/null | head -1)
 GRAAL=target/graal/vik
 AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
 AOT_CP=$(cat target/aot/classpath.txt 2>/dev/null || true)
@@ -65,10 +65,10 @@ while read -r f _; do
   if [ "$CHECKS" -gt 1 ]; then inc=--incremental; pinc=+incremental; fi
   base=$(basename "$f")
   {
-    measure vik-jvm java -cp "$CP" net.bovel.vik.smt2 "$f"
+    measure vik-jvm java -cp "$CP" io.bovel.vik.smt2 "$f"
     [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
     [ -x "$GRAAL" ] && measure vik-graal "$GRAAL" "$f"
-    [ -f "$AOT" ] && measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" net.bovel.vik.smt2 "$f"
+    [ -f "$AOT" ] && measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.smt2 "$f"
     [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"

@@ -1,6 +1,6 @@
 # Benchmarks
 
-One [JMH](https://github.com/openjdk/jmh) project for all the modules, in [src/main/scala/net/bovel/bench](src/main/scala/net/bovel/bench):
+One [JMH](https://github.com/openjdk/jmh) project for all the modules, in [src/main/scala/io/bovel/bench](src/main/scala/io/bovel/bench):
 a package per module with its benchmark class, and `evaluation` for the comparison with other solvers on SMT-LIB
 files. The workloads and the results are kept per module:
 
@@ -17,7 +17,7 @@ files. The workloads and the results are kept per module:
 
 [evaluate.sh](evaluate.sh) reproduces the two tables of
 [the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place. The warm table is one
-JMH run of the suites of `net.bovel.bench.evaluation` — one per solver, `VikBench`, `Z3Bench` and `Z3TextBench`,
+JMH run of the suites of `io.bovel.bench.evaluation` — one per solver, `VikBench`, `Z3Bench` and `Z3TextBench`,
 `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`, each listing the instances it takes and, commented, the ones
 it does not and why:
 
@@ -29,7 +29,7 @@ bench/evaluate.sh regen   # only regenerate the page from the newest dated resul
 ```
 
 Every single measurement holds to a ten-second budget. A warm operation past it is halted by a watchdog
-([Budget.scala](src/main/scala/net/bovel/bench/evaluation/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
+([Budget.scala](src/main/scala/io/bovel/bench/evaluation/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
 committed, so the combination is refused on every later run and its cell reads 🐢. A solver that answers
 neither `sat` nor `unsat` is noted the same way — reporting its `unknown` as `unsat` made a solver that
 gave up look like one that decided — so the mark means "did not answer in ten seconds", either way; a fixed solver

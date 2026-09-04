@@ -1,6 +1,6 @@
 # S-expression reader benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.smtlib.sexpr.SExprParser`, in [SExprBench.scala](../../src/main/scala/net/bovel/bench/smtlib/SExprBench.scala). The reader was its own module, `sexpr`, until 2026-09-04, and its results keep this directory.
+[JMH](https://github.com/openjdk/jmh) benchmarks for `io.bovel.smtlib.sexpr.SExprParser`, in [SExprBench.scala](../../src/main/scala/io/bovel/bench/smtlib/SExprBench.scala). The reader was its own module, `sexpr`, until 2026-09-04, and its results keep this directory.
 
 ## Workloads
 

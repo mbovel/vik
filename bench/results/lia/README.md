@@ -1,6 +1,6 @@
 # LIA solver benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.lia.Solver`, in [LiaBench.scala](../../src/main/scala/net/bovel/bench/lia/LiaBench.scala).
+[JMH](https://github.com/openjdk/jmh) benchmarks for `io.bovel.lia.Solver`, in [LiaBench.scala](../../src/main/scala/io/bovel/bench/lia/LiaBench.scala).
 
 ## Workloads
 

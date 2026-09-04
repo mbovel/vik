@@ -1,0 +1,72 @@
+package io.bovel.vik
+
+import io.bovel.smtlib.*
+import io.bovel.smtlib.Formula.*
+import io.bovel.smtlib.Term.*
+
+/** Datatype declarations: parsed, represented, printed; refused at `check-sat`
+ *  until the theory exists.
+ */
+class DatatypesTest extends munit.FunSuite:
+  val list =
+    Datatype(
+      "List",
+      List(Constructor("nil", Nil), Constructor("cons", List(("head", Sort.Int), ("tail", Sort.Named("List")))))
+    )
+
+  test("declare-datatype and declare-datatypes"):
+    val single = Parser.parse("(declare-datatype List ((nil) (cons (head Int) (tail List))))")
+    val plural = Parser.parse("(declare-datatypes ((List 0)) (((nil) (cons (head Int) (tail List)))))")
+    assertEquals(single.commands, List(Command.DeclareDatatypes(List(list))))
+    assertEquals(plural.commands, single.commands)
+    // A parametric declaration declares nothing by itself: its instances do, on first use, as datatypes
+    // named as written with their own constructors.
+    val parametric = Parser.parse("""
+      (declare-datatypes ((List 1)) ((par (T) ((nil) (cons (head T) (tail (List T)))))))
+      (declare-const l (List Int))""")
+    val intList = Datatype(
+      "(List Int)",
+      List(
+        Constructor("nil@Int", Nil),
+        Constructor("cons@Int", List(("head@Int", Sort.Int), ("tail@Int", Sort.Named("(List Int)"))))
+      )
+    )
+    assertEquals(
+      parametric.commands,
+      List(Command.DeclareDatatypes(List(intList)), Command.DeclareFun("l", Nil, Sort.Named("(List Int)")))
+    )
+
+  test("constructors, selectors and testers as terms"):
+    val script = Parser.parse("""
+      (declare-datatype List ((nil) (cons (head Int) (tail List))))
+      (declare-const l List)
+      (assert (= l (cons 1 nil)))
+      (assert (= (head l) 1))
+      (assert ((_ is cons) l))
+      (assert (not ((_ is nil) (tail l))))""")
+    val asserts = script.commands.collect { case Command.Assert(f) => f }
+    val l = Const("l")
+    assertEquals(asserts(0), Eq(List(l, App(Const("cons"), List(Numeral(1), Const("nil"))))))
+    assertEquals(asserts(1), Eq(List(App(Const("head"), List(l)), Numeral(1))))
+    assertEquals(asserts(2), IsConstructor("cons", l))
+    assertEquals(asserts(3), Not(IsConstructor("nil", App(Const("tail"), List(l)))))
+    assertEquals(Parser.parse(Printer.print(script)), script)
+    assert(Printer.print(script).contains("(declare-datatypes ((List 0)) (((nil) (cons (head Int) (tail List)))))"))
+    assert(Printer.print(script).contains("((_ is cons) l)"))
+
+  test("scripts with datatypes are decided"):
+    val decls =
+      "(declare-sort U 0) (declare-datatype List ((nil) (cons (head U) (tail List)))) (declare-const l List) (declare-const m List) (declare-const a U) (declare-const b U)"
+    def play(script: String) = Session.run(Parser.parse(s"$decls $script (check-sat)"))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is nil) l))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (head l) b)) (assert (distinct a b))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert (= (tail l) l))"), List("unsat"))
+    assertEquals(play("(assert (= l (cons a m))) (assert ((_ is cons) l)) (assert (= (head l) a))"), List("sat"))
+    assertEquals(play("(assert (not ((_ is nil) l))) (assert (not ((_ is cons) l)))"), List("unsat"))
+    // Int fields: the datatype rules and the LIA solver combined
+    assertEquals(
+      Session.run(Parser.parse(
+        "(declare-datatype L ((nil) (cons (head Int) (tail L)))) (declare-const l L) (assert (= l (cons 3 nil))) (assert (< (head l) 2)) (check-sat)"
+      )),
+      List("unsat")
+    )

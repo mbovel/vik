@@ -8,13 +8,13 @@ extraCSS:
 
 # The CDCL(T) solver
 
-A CDCL SAT solver with a theory interface: `net.bovel.cdclt`. It decides the propositional structure of the
+A CDCL SAT solver with a theory interface: `io.bovel.cdclt`. It decides the propositional structure of the
 [formulas](../theories/first-order-logic.md), and asks a theory about the atoms.
 
 ## Using it
 
 ```scala
-import net.bovel.cdclt.{Lit, Solver, Theory}
+import io.bovel.cdclt.{Lit, Solver, Theory}
 
 val solver = Solver(numVars = 3)
 solver.addClause(Lit(0), Lit(1))

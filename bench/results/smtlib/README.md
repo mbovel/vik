@@ -1,6 +1,6 @@
 # SMT-LIB parser benchmarks
 
-[JMH](https://github.com/openjdk/jmh) benchmarks for `net.bovel.smt2.Parser`, in [SmtlibBench.scala](../../src/main/scala/net/bovel/bench/smtlib/SmtlibBench.scala). The parsing of real benchmark files, and their solving, is measured in [the smt results](../smt/README.md).
+[JMH](https://github.com/openjdk/jmh) benchmarks for `io.bovel.smt2.Parser`, in [SmtlibBench.scala](../../src/main/scala/io/bovel/bench/smtlib/SmtlibBench.scala). The parsing of real benchmark files, and their solving, is measured in [the smt results](../smt/README.md).
 
 ## Workloads
 

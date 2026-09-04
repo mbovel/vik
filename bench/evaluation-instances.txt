@@ -1,5 +1,5 @@
 # The instances of the evaluation page, in the order of both its tables — the list the cold run
-# (cold.sh) and the table generators read. The warm suites (bench/src/main/scala/net/bovel/bench/
+# (cold.sh) and the table generators read. The warm suites (bench/src/main/scala/io/bovel/bench/
 # evaluation) list the same instances, each solver the ones it takes.
 corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2
 corpus/QF_UF/smt-lib/QG-classification__qg5__iso_icl662.smt2

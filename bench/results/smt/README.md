@@ -6,7 +6,7 @@ End-to-end benchmarks of the SMT solver (`smt2` parser, `vik` solver, `cdclt`, `
 ## Instances
 
 The SMT-LIB instances live in the repository's corpus, [smtlib/](../../../smtlib/README.md), by logic and origin
-(`corpus/<logic>/smt-lib/`); the benchmarks use the ones listed in the suites of `net.bovel.bench.evaluation`, the
+(`corpus/<logic>/smt-lib/`); the benchmarks use the ones listed in the suites of `io.bovel.bench.evaluation`, the
 tests play the whole corpus. The table of families, statuses and licenses is in the corpus README.
 
 ## Integer workloads (`UfliaBench`)
@@ -33,11 +33,11 @@ The other benchmarks are recorded on subsets (`-p file=...`): `parse` and `smtin
 
 Configuration (annotations in the benchmark class): 3 forks, 5 warmup and 5 measurement iterations of 1 s each, average time per operation, which gives 95% confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call.
 
-In process, the suites of `net.bovel.bench.evaluation` run princess and SMTInterpol (JVM libraries) and z3 and cvc5 through their Java bindings
+In process, the suites of `io.bovel.bench.evaluation` run princess and SMTInterpol (JVM libraries) and z3 and cvc5 through their Java bindings
 as published by SoSy-Lab (the JavaSMT project) on Maven Central: the Java parts are dependencies of `bench`, the native
 libraries are downloaded by `bench/fetch-native.sh` into `bench/native/` (Linux x86-64) and found through
 `java.library.path`. `Z3TextBench.text` has z3 parse the script, `Z3Bench.api` builds z3's terms through the API (the
-counterpart of `VikBench.api`). `sbt "bench/runMain net.bovel.bench.evaluation.SolverCheck"` runs every in-process
+counterpart of `VikBench.api`). `sbt "bench/runMain io.bovel.bench.evaluation.SolverCheck"` runs every in-process
 solver on every instance and reports disagreements with the expected status.
 
 `cold.sh` runs each solver as a separate process on the instances of a file list, with a timeout, and records the

@@ -8,7 +8,7 @@ extraCSS:
 
 # The language
 
-`net.bovel.smtlib` is the language: SMT-LIB 2 as written, with precise types — a `Sort` enum, `Term` and
+`io.bovel.smtlib` is the language: SMT-LIB 2 as written, with precise types — a `Sort` enum, `Term` and
 `Formula` trees whose operations are enums per theory (`ArithOp`, `BvOp`, the comparisons), n-ary where the
 standard's `:left-assoc` and `:chainable` make applications n-ary, `let` with its names, `match` read as testers and selectors. The
 parser reads and sorts; it rewrites nothing — the solver's
@@ -22,13 +22,13 @@ decimal, a hexadecimal or binary literal, a string, a list — each carrying wha
 was written, and writing itself back the way SMT-LIB reads it. It is usable alone:
 
 ```scala
-import net.bovel.smtlib.sexpr.SExprParser
+import io.bovel.smtlib.sexpr.SExprParser
 
 SExprParser.parse("(a (b c)) (d)") // List(SList(...), SList(...))
 ```
 
 ```scala
-import net.bovel.smtlib.{Parser, Printer}
+import io.bovel.smtlib.{Parser, Printer}
 
 val script = Parser.parse("(declare-const x Int) (assert (> x 2)) (check-sat)")
 Printer.print(script)       // the script as written: nothing is rewritten at parse time

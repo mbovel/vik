@@ -1,7 +1,7 @@
 val scala3Version = "3.9.0" // Scaladoc's navigation script needs the rewrite in `docsNavigationFix` below
 
 // In sbt 2, bare settings are common settings injected into all subprojects.
-organization := "net.bovel"
+organization := "io.bovel"
 
 // Publishing to Maven Central (through the Sonatype Central Portal): the version comes from the git
 // tag (sbt-dynver: pushing `v0.1.0` publishes 0.1.0), signing and upload are sbt-ci-release in the
@@ -89,7 +89,7 @@ lazy val vik = projectMatrix
   .settings(
     name := "vik",
     description := "A minimal, readable SMT solver",
-    Compile / mainClass := Some("net.bovel.vik.smt2"), // the command line, also as a native binary
+    Compile / mainClass := Some("io.bovel.vik.smt2"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -131,10 +131,10 @@ lazy val graal = project
   .settings(
     name := "graal",
     publish / skip := true,
-    Compile / mainClass := Some("net.bovel.vik.smt2"),
+    Compile / mainClass := Some("io.bovel.vik.smt2"),
     // The suites of `vik`, in a native image of their own (`graal/nativeImageTestRun`): the runner
-    // lists them, since the image carries no test framework (graal/src/test, `net.bovel.vik.graal.TestMain`).
-    Test / mainClass := Some("net.bovel.vik.graal.TestMain"),
+    // lists them, since the image carries no test framework (graal/src/test, `io.bovel.vik.graal.TestMain`).
+    Test / mainClass := Some("io.bovel.vik.graal.TestMain"),
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
     nativeImageOptions ++= Seq("--no-fallback", "-O2")
   )

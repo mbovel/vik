@@ -52,10 +52,10 @@ Two runs per configuration, sum over the queries of the best of 20 (and of the m
 ## The change, for the record
 
 ```diff
-diff --git a/lia/src/main/scala/net/bovel/lia/Solver.scala b/lia/src/main/scala/net/bovel/lia/Solver.scala
+diff --git a/lia/src/main/scala/io/bovel/lia/Solver.scala b/lia/src/main/scala/io/bovel/lia/Solver.scala
 index 68d4f63..2a345dc 100644
---- a/lia/src/main/scala/net/bovel/lia/Solver.scala
-+++ b/lia/src/main/scala/net/bovel/lia/Solver.scala
+--- a/lia/src/main/scala/io/bovel/lia/Solver.scala
++++ b/lia/src/main/scala/io/bovel/lia/Solver.scala
 @@ -194,6 +194,26 @@ final class Solver:
     */
    private val distinct = ArrayBuffer.empty[(Var, BigInt, Int)] // in the caller's units (see `scale`)

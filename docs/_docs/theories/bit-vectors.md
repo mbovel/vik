@@ -54,7 +54,7 @@ Where bits are needed, VIK is a bit-blaster with a small SAT solver behind a sim
 
 Every bit-vector term becomes an integer with its range asserted, every declared sort becomes `Int`
 (a field, an argument, a result, an array's index and element as much as a constant), and every
-operation becomes its arithmetic image (`net.bovel.vik.Lowering`), with fresh bounded constants where
+operation becomes its arithmetic image (`io.bovel.vik.Lowering`), with fresh bounded constants where
 the modulus or a division needs them — each fresh constant is declared and defined by one linear
 equation before the assertion that uses it, and once per distinct operation at a level: the second
 `bvmul 4 (bvadd 1 x)` of a script reuses the constants of the first (two chains of constants for one
@@ -102,7 +102,7 @@ term are equal only by an integer argument over `2ⁿ`, which branch and bound w
 | `(_ int_to_bv n) t` | `r` | `r ∈ [0, m)`, `k` unbounded: `t = r + m·k` |
 
 The parser reads bit-vector terms as they are written — the tree has them (`Term.BvApp`, `Term.Bits`) —
-and the lowering is one function of the solver, `net.bovel.vik.Lowering`: it takes a script and returns
+and the lowering is one function of the solver, `io.bovel.vik.Lowering`: it takes a script and returns
 the lowered script, declaring the constants each assertion needs and asserting their definitions before
 it, so the script that VIK plays is a `QF_LIA` script. The player applies it before playing. Two
 ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and

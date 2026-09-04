@@ -4,13 +4,14 @@
 
 A release is a git tag: `git tag v0.1.0 && git push origin v0.1.0`. The CI's `publish` job then signs
 and uploads the six library modules (JVM, Scala.js and Scala Native rows) to Maven Central under
-`net.bovel`, with the tag's version (sbt-ci-release; the version between tags is a snapshot and is
+`io.bovel`, with the tag's version (sbt-ci-release; the version between tags is a snapshot and is
 never published by the CI).
 
 One-time setup, done once by the owner:
 
-1. A [Central Portal](https://central.sonatype.com) account with the `net.bovel` namespace verified
-   (a DNS TXT record on `bovel.net`), and a user token (Account → Generate User Token).
+1. A [Central Portal](https://central.sonatype.com) account with the `io.bovel` namespace verified
+   (a DNS TXT record on `bovel.io`, the domain the namespace is read from), and a user token
+   (Account → Generate User Token).
 2. A signing key: `gpg --gen-key`, then publish the public key
    (`gpg --keyserver keyserver.ubuntu.com --send-keys <id>`).
 3. The four repository secrets:

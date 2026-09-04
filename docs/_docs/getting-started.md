@@ -65,9 +65,9 @@ three.
 The solver is a library first. Terms and formulas are built directly, and the answers come back as values:
 
 ```scala
-import net.bovel.vik.*
-import net.bovel.vik.Formula.*
-import net.bovel.vik.Term.*
+import io.bovel.vik.*
+import io.bovel.vik.Formula.*
+import io.bovel.vik.Term.*
 
 val solver = Solver()
 solver.declare("f", List("Int"), "Int")
@@ -96,7 +96,7 @@ solver.pop()   // back to what was asserted before the push
 `solve(fuel)` bounds the search in steps and answers `Result.Unknown(Reason.Fuel)` beyond it;
 `solve(keepGoing)` takes the decision itself, so a deadline or a cancellation is a function you write.
 
-The same with the language attached — a `Session` reads SMT-LIB text or `net.bovel.smtlib` trees piece by
+The same with the language attached — a `Session` reads SMT-LIB text or `io.bovel.smtlib` trees piece by
 piece, each in the scope the earlier pieces declared, and keeps the solver across them:
 
 ```scala

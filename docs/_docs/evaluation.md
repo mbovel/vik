@@ -130,7 +130,7 @@ results file linked above, and in the table on request: `bench/warm2md.py result
 columns are not shown, the API being the faster side on nearly every instance, and the gap being the
 parser. Each of the five
 replays is checked against the solver's own front end run in process on the same text
-([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/net/bovel/bench/evaluation/ReplayCheck.scala)):
+([`ReplayCheck.scala`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/io/bovel/bench/evaluation/ReplayCheck.scala)):
 the same answers, and a time within a factor of two — so what the solver receives is what its own parser
 would have built, down to the order in which princess's parser flattens a nested `or` or `+` (handed the
 same operands in another order, it took 27 s on `MESI_i4` where its parser takes 0.2 s; see
@@ -310,7 +310,7 @@ sbt "vikNative/nativeLink; docsAssets"   # the native binary and the WebAssembly
 ```
 
 `bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per
-solver in `bench/src/main/scala/net/bovel/bench/evaluation`, list the instances each solver takes and,
+solver in `bench/src/main/scala/io/bovel/bench/evaluation`, list the instances each solver takes and,
 commented, the ones it does not and why (the blanked cells); `bench/timeouts.txt` is the ledger of the warm
 combinations past the ten-second budget, never run again.
 

@@ -12,7 +12,7 @@
 # never run again, and shown as 🐢 in the table; a cold run is cut by
 # `timeout 10` (cold.sh) and shown the same way. The instances are
 # bench/evaluation-instances.txt, in the order of both tables; which solver
-# runs on which is in the suites (bench/src/main/scala/net/bovel/bench/evaluation).
+# runs on which is in the suites (bench/src/main/scala/io/bovel/bench/evaluation).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,7 +31,7 @@ DATE=$(date +%F)
 HOST=$(hostname -s)
 OUT=$R/$DATE-$HOST
 
-# The suites of net.bovel.bench.evaluation, every instance of every solver, in one JMH run: the
+# The suites of io.bovel.bench.evaluation, every instance of every solver, in one JMH run: the
 # forks and iterations are their annotations (3 forks, 3 warm-up and 3 measurement iterations).
 # -foe true: a failure ends the run, JMH's results file included. A fork the Budget watchdog halts
 # is one — the combo is on bench/timeouts.txt by then, so the next run passes it at once (the
@@ -39,7 +39,7 @@ OUT=$R/$DATE-$HOST
 # No -gc true: a forced GC between iterations measured the JVM solvers 27–51% slower (2026-09-02,
 # VIK and SMTInterpol on icl662 and CAV_2009), and z3's binding needs none (see Z3Replay.check).
 warm() {
-  local chain="bench/Jmh/run -foe true -rf json -rff $OUT-warm.json net.bovel.bench.evaluation.*"
+  local chain="bench/Jmh/run -foe true -rf json -rff $OUT-warm.json io.bovel.bench.evaluation.*"
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives.
   # --server: the whole chain in one foreground JVM, no thin client, no background server left.
   # --foreground: keep sbt in the terminal's process group. Put in its own group (the default),
