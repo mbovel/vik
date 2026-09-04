@@ -59,13 +59,15 @@ private class SExprParser(input: String):
       SExpr.SBits(BigInt(atom.drop(2), 16), 4 * (atom.length - 2), hexadecimal = true)
     else if atom.startsWith("#b") && atom.length > 2 && atom.drop(2).forall(c => c == '0' || c == '1') then
       SExpr.SBits(BigInt(atom.drop(2), 2), atom.length - 2, hexadecimal = false)
-    else if atom.forall(_.isDigit) && atom.nonEmpty then SExpr.SNumeral(BigInt(atom))
-    else
-      val dot = atom.indexOf('.')
-      if dot > 0 && atom.length > dot + 1 && atom.count(_ == '.') == 1
-        && atom.take(dot).forall(_.isDigit) && atom.drop(dot + 1).forall(_.isDigit)
-      then SExpr.SDecimal(BigInt(atom.take(dot) + atom.drop(dot + 1)), atom.length - dot - 1)
-      else SExpr.SSymbol(atom)
+    // A token that opens with a digit is a number, since a symbol may not: `BigDecimal` reads the digits
+    // and their point in one pass, and says by its scale which of the two numbers it is.
+    else if atom.head.isDigit then
+      try
+        val number = java.math.BigDecimal(atom)
+        if number.scale > 0 then SExpr.SDecimal(BigInt(number.unscaledValue.nn), number.scale)
+        else SExpr.SNumeral(BigInt(number.toBigIntegerExact.nn))
+      catch case _: NumberFormatException => SExpr.SSymbol(atom)
+    else SExpr.SSymbol(atom)
 
   private def isHexDigit(c: Char): Boolean = c.isDigit || (c.toLower >= 'a' && c.toLower <= 'f')
 

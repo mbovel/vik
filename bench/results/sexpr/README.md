@@ -32,3 +32,4 @@ laraserver4 (AMD EPYC 9254, shared machine), OpenJDK 17.0.20, 2026-08-29. Setup 
 
 One file per run, named by date and host (plus a tag when a day has several runs), with the raw JMH JSON next to it:
 - [2026-08-29, laraserver4](2026-08-29-laraserver4.md) — First full run of `SExprBench` (regex lexer, tree construction)
+- [2026-09-04, laraserver4, numbers read by `BigDecimal`](2026-09-04-laraserver4-bigdecimal.md) — the lexer telling a numeral from a decimal in one pass instead of five (kept for the reading): 0.98× and 1.03×, a wash
