@@ -25,7 +25,13 @@ class CorpusTest extends munit.FunSuite:
    *  one's own; CI sets a hard limit above it (`VIK_CORPUS_BUDGET_MS`, see build.sbt), since a
    *  file at the edge of the budget is caught here, not on a shared runner.
    */
-  private val budget = Duration(Option(System.getProperty("vik.corpus.budgetMs")).map(_.toLong).getOrElse(5000L), "ms")
+  // The wall a file may take. The property is how the forked JVM tests carry it; the variable is how a
+  // run with no JVM to configure gets it — the suites in the native image (`graal/nativeImageTestRun`).
+  private val budget = Duration(
+    Option(System.getProperty("vik.corpus.budgetMs")).orElse(sys.env.get("VIK_CORPUS_BUDGET_MS"))
+      .map(_.toLong).getOrElse(5000L),
+    "ms"
+  )
   private val ignored = Corpus.ignored
 
   private def show(answers: List[Option[Boolean]]): String =

@@ -3,39 +3,22 @@ package io.bovel.vik.graal
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-/** The solver's own test suites, run by the native image the tests are built
- *  into (`graal/nativeImageTestRun`): the same munit suites the JVM runs, so
- *  that what the binary answers is checked, not only that it starts. munit's
- *  runner is a test framework the image does not carry, so the suites are
- *  listed here and their tests called directly — `munitTests()` is the same
- *  list sbt runs, in the same order.
+/** Every suite the JVM runs, run again by the native image they are built into
+ *  (`graal/nativeImageTest`, then `graal/nativeImageTestRun`): what the binary
+ *  answers, not only that it starts. The image carries no test framework, so
+ *  the suites come from [[Suites]], which the build generates from what sbt
+ *  discovers, and their tests are called here — `munitTests()` is the list sbt
+ *  runs, in its order.
  */
 object TestMain:
-  private def suites: List[munit.FunSuite] =
-    List(
-      io.bovel.vik.AdtTest(),
-      io.bovel.vik.BitVectorsTest(),
-      io.bovel.vik.CoresTest(),
-      io.bovel.vik.DatatypesTest(),
-      io.bovel.vik.IncrementalConsistencyTest(),
-      io.bovel.vik.IntsTest(),
-      io.bovel.vik.LiaSolverTest(),
-      io.bovel.vik.LoweringTest(),
-      io.bovel.vik.OptionsTest(),
-      io.bovel.vik.ReadmeExamplesTest(),
-      io.bovel.vik.SessionTest(),
-      io.bovel.vik.Smt2Test(),
-      io.bovel.vik.SolverTest(),
-      io.bovel.vik.UfliaTest()
-    )
-
   def main(args: Array[String]): Unit =
     var run = 0
     val failures = List.newBuilder[String]
-    for suite <- suites do
-      val name = suite.getClass.getSimpleName.stripSuffix("$")
+    for suite <- Suites.all do
+      val name = suite.getClass.getName.stripSuffix("$")
       suite.beforeAll()
-      for test <- suite.munitTests() do
+      // The tests munit marks ignored are the ones the JVM run skips too (corpus/ignore.txt).
+      for test <- suite.munitTests() if !test.tags.contains(munit.Ignore) do
         run += 1
         try
           Await.result(test.body(), Duration.Inf)

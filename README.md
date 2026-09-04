@@ -64,12 +64,13 @@ sbt compile   # compiles all subprojects
 sbt test      # runs the tests on the JVM, on Scala.js (WebAssembly) and on Scala Native
 ```
 
-The solver also builds as a GraalVM native image (`graal`, sbt-native-image), and its own suites build into
-one and run there — what the binary answers, not only that it starts:
+The solver also builds as a GraalVM native image (`graal`, sbt-native-image), and every suite the JVM runs
+builds into an image of its own and runs there, the corpus among them — what the binary answers, not only
+that it starts. The list of suites is generated from what sbt discovers, so it cannot fall behind:
 
 ```sh
-bench/graal.sh                                    # target/graal/vik, the solver as a native binary
-sbt graal/nativeImageTest graal/nativeImageTestRun  # the suites of `vik` as a native image, run
+bench/graal.sh                                        # target/graal/vik, the solver as a native binary
+sbt "graal/nativeImageTest; graal/nativeImageTestRun"  # every suite as a native image, run
 ```
 
 > [!NOTE]
