@@ -2,8 +2,8 @@
 ; Copyright (c) 2018 Microsoft Corporation
 ; GitHub issue
 ; EXPECT: sat
-; EXPECT: ((m 0))
-; EXPECT: ((x 0))
+; EXPECT: ((m #b00000000))
+; EXPECT: ((x #b00000000))
 
 (set-logic QF_BV)
 (set-option :produce-models true)

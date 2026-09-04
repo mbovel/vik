@@ -44,7 +44,32 @@ final class Session(
 
   /** Runs SMT-LIB text, any commands, and answers it. */
   def run(text: String): List[String] = run(parser.parse(text))
-  def run(script: s2.Script): List[String] = play(lowerer.commands(script.commands))
+  def run(script: s2.Script): List[String] =
+    // Models cost a walk per sat, and the script says up front whether it will ask for one.
+    if script.commands.exists {
+        case s2.Command.GetModel | s2.Command.GetValue(_) => true
+        case s2.Command.SetOption(":produce-models", "true") => true
+        case _ => false
+      }
+    then current.produceModels = true
+    script.commands.flatMap(command)
+
+  /** One surface command, lowered and played. `get-value` is answered here and
+   *  not by the lowered command: the value of a term the lowering gives fresh
+   *  constants — every bit-vector operation — is not in the model, which knows
+   *  the declared symbols; the lowering computes it from them instead
+   *  ([[Lowerer.evaluate]]), and the lowered command answers what it cannot.
+   */
+  private def command(c: s2.Command): List[String] = c match
+    case s2.Command.GetValue(items) =>
+      val lowered = lowerer.commands(List(c))
+      val computed =
+        current.model().map(m => items.map((source, item) => (source, item, lowerer.evaluate(item, m))))
+      computed match
+        case Some(values) if values.forall(_._3.isDefined) =>
+          List(values.map((source, _, value) => s"($source ${value.get})").mkString("(", " ", ")"))
+        case _ => play(lowered)
+    case _ => play(lowerer.commands(List(c)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   def push(): Unit = play(List(Command.Push(1)))

@@ -80,6 +80,76 @@ private final class Lowerer:
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
+  /** The value of a surface term or formula under `model`, as SMT-LIB writes
+   *  it: every declared symbol replaced by what the model gives it, and the
+   *  lowering folded — an operation of literals is a literal, so the value of
+   *  `(bvadd x y)` is computed by the same code that lowers it, with no second
+   *  reading of what the operations mean. `None` where the model has no value
+   *  to put in (an uninterpreted sort, an array, a datatype), and the caller
+   *  falls back to the lowered term under the model.
+   */
+  def evaluate(item: s2.Term | s2.Formula, model: Model): Option[String] =
+    item match
+      case f: s2.Formula => valued(f, model).map(g => if model.holds(formula(g, Map.empty)) then "true" else "false")
+      case t: s2.Term =>
+        valued(t, model).flatMap { v =>
+          val folded = term(v, Map.empty)
+          (folded, sortOf(t, Map.empty)) match
+            // As z3 and cvc5 write a bit-vector value, in binary: `(_ bv1 4)` says the same and reads oddly.
+            case (Num(value), Sort.BitVec(w)) =>
+              Some(net.bovel.sexpr.SExpr.SBits(value.mod(modulus(w)), w, hexadecimal = false).toString)
+            case (Num(value), Sort.Int | Sort.Real) => Some(s2.Printer.print(s2.Term.Numeral(value)))
+            case (Bool(f), Sort.Bool) => Some(if model.holds(f) then "true" else "false")
+            case _ => None
+        }
+
+  /** A surface term with every declared symbol replaced by its value in
+   *  `model`, as a literal of its sort.
+   */
+  private def valued(t: s2.Term, model: Model): Option[s2.Term] = t match
+    case s2.Term.Numeral(_) | s2.Term.Decimal(_, _) | s2.Term.Bits(_, _) => Some(t)
+    case s2.Term.Const(name) if functions.contains(name) =>
+      literal(model.value(Const(name)), functions(name))
+    case s2.Term.App(s2.Term.Const(name), args) if functions.contains(name) && !macros.contains(name) =>
+      for
+        values <- traverse(args.map(valued(_, model)))
+        result <- literal(model.value(App(Const(name), values.map(term(_, Map.empty)))), sortOf(t, Map.empty))
+      yield result
+    case s2.Term.App(fun, args) =>
+      traverse((fun :: args).map(valued(_, model))).map(vs => s2.Term.App(vs.head, vs.tail))
+    case s2.Term.ArithApp(op, args) => traverse(args.map(valued(_, model))).map(s2.Term.ArithApp(op, _))
+    case s2.Term.BvApp(op, args) => traverse(args.map(valued(_, model))).map(s2.Term.BvApp(op, _))
+    case s2.Term.Ite(c, thn, els) =>
+      for c <- valued(c, model); t <- valued(thn, model); e <- valued(els, model) yield s2.Term.Ite(c, t, e)
+    case s2.Term.Bool(f) => valued(f, model).map(s2.Term.Bool(_))
+    case _ => None
+
+  private def valued(f: s2.Formula, model: Model): Option[s2.Formula] = f match
+    case s2.Formula.True | s2.Formula.False => Some(f)
+    case s2.Formula.Not(a) => valued(a, model).map(s2.Formula.Not(_))
+    case s2.Formula.And(as) => traverse(as.map(valued(_, model))).map(s2.Formula.And(_))
+    case s2.Formula.Or(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Or(_))
+    case s2.Formula.Eq(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Eq(_))
+    case s2.Formula.Distinct(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Distinct(_))
+    case s2.Formula.Cmp(op, as) => traverse(as.map(valued(_, model))).map(s2.Formula.Cmp(op, _))
+    case s2.Formula.BvCmp(op, l, r) =>
+      for l <- valued(l, model); r <- valued(r, model) yield s2.Formula.BvCmp(op, l, r)
+    case s2.Formula.Pred(t) => valued(t, model).map(s2.Formula.Pred(_))
+    case _ => None
+
+  private def traverse[A](options: List[Option[A]]): Option[List[A]] =
+    if options.forall(_.isDefined) then Some(options.map(_.get)) else None
+
+  /** A model's value as a surface literal of `sort`: the sorts whose values are
+   *  numbers, which is what a `get-value` of an arithmetic term needs.
+   */
+  private def literal(value: Term, sort: Sort): Option[s2.Term] = (value, sort) match
+    case (Num(v), Sort.BitVec(w)) => Some(s2.Term.Bits(v.mod(modulus(w)), w))
+    case (Num(v), Sort.Int) => Some(s2.Term.Numeral(v))
+    case (Bool(True), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.True))
+    case (Bool(False), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.False))
+    case _ => None
+
   /** A sort as the solver writes it: a string, arrays as function sorts. */
   /** What a declaration of `name` at `sort` asserts about it, beyond the
    *  declaration itself: a bit-vector constant is an integer of its range, and
