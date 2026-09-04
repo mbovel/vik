@@ -201,14 +201,18 @@ final class Parser:
       functions(name) = Sort.fun(argSorts, result)
       List(Command.DeclareFun(name, argSorts, result))
 
-  /** Whether the symbol `p` occurs in a sort as written. */
+  /** Whether the symbol `p` occurs in a sort as written. A sort holds numerals
+   *  as well as symbols — `(_ BitVec 8)` — and a numeral is no symbol.
+   */
   private def mentions(s: SExpr, p: String): Boolean = s match
     case SSymbol(name) => name == p
     case SList(items) => items.exists(mentions(_, p))
+    case _ => false
 
   private def substitute(s: SExpr, subst: Map[String, SExpr]): SExpr = s match
     case SSymbol(name) => subst.getOrElse(name, s)
     case SList(items) => SList(items.map(substitute(_, subst)))
+    case _ => s
 
   /** Binds the parameters of `pattern` so that it reads as `actual` (a
    *  monomorphic sort), on top of `subst`; `None` when the two disagree.

@@ -214,6 +214,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: sbt
       - uses: sbt/setup-sbt@v1
       - name: Documentation (the guide, with runnable snippets, and the API of the six modules)
         run: sbt --server site
