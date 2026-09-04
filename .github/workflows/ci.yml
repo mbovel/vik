@@ -28,6 +28,12 @@ jobs:
         java: [17, 26]
     name: test (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
+    # The corpus test's five seconds are for one's own machine, where a file at the edge is caught; on a
+    # shared runner the guard is a hard limit only. It is the job's, not the step's: the sbt server starts
+    # with the first step that calls sbt and outlives it, so a variable set on a later step never reaches
+    # it (eleven corpus files timed out at five seconds in the graal job that way).
+    env:
+      VIK_CORPUS_BUDGET_MS: 30000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
@@ -39,11 +45,7 @@ jobs:
       - name: Compile (JVM)
         run: sbt --server compileJVM
       - name: Test (JVM, with the corpus)
-        # The corpus test's five seconds are for one's own machine, where a file at the edge is
-        # caught; on a shared runner the guard is a hard limit only.
         run: sbt --server testJVM
-        env:
-          VIK_CORPUS_BUDGET_MS: 30000
   test-js:
     name: test (Scala.js)
     runs-on: ubuntu-latest
@@ -84,6 +86,9 @@ jobs:
     if: github.ref_type != 'tag'
     name: test (Graal Native Image)
     runs-on: ubuntu-latest
+    env:
+      VIK_CORPUS_BUDGET_MS: 30000 # the job's, not the step's: see the test job
+      NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
     steps:
       - uses: actions/checkout@v4
       - uses: graalvm/setup-graalvm@v1
@@ -97,12 +102,8 @@ jobs:
         # them in about four minutes where the JVM takes two and a half; the optimization level makes no
         # difference to that (measured 2026-09-04, `-Ob` 4m15 against `-O2` 4m19).
         run: sbt "graal/nativeImageTest"
-        env:
-          NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
       - name: Test (Graal Native Image, with the corpus)
         run: sbt "graal/nativeImageTestRun"
-        env:
-          VIK_CORPUS_BUDGET_MS: 30000 # the wall a corpus file may take, as the JVM jobs give it
   bench:
     # The whole benchmark surface, dry: every JMH class and every solver method in quick mode with
     # -foe true — an error in any benchmark fails the job — then the cold pipeline against the real
@@ -114,6 +115,8 @@ jobs:
         java: [25] # one JDK: the benchmarks are dry runs, and the tests cover 17 and 26
     name: bench (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
+    env:
+      NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
     steps:
       - uses: actions/checkout@v4
       - uses: graalvm/setup-graalvm@v1
@@ -137,8 +140,6 @@ jobs:
         run: sbt --server "bench/Jmh/compile"
       - name: The solver as a GraalVM native image
         run: bench/graal.sh
-        env:
-          NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
       - name: JMH dry run, every class and method
         # Everything, one invocation, one fork and one iteration each, -foe true: any failure fails the
         # job (a combination on bench/timeouts.txt returns at once, by design). The ten-second budget
