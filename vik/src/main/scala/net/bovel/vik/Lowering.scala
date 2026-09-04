@@ -625,6 +625,7 @@ private final class Lowerer:
           if c >= width then cases("sign", negative(a, width), Num(-1), Num(0), -1, 0)
           else divideSigned(a, width, BigInt(2).pow(c.toInt), floor = true)._1
         modulo(q, width, -1, 0)
+      case (BvOp.Shl | BvOp.Lshr | BvOp.Ashr, a :: b :: Nil) => shifted(op, a, b, width)
       case (BvOp.And | BvOp.Or | BvOp.Xor, _) => args.reduceLeft((a, b) => bitwise(op, a, b, width))
       case (BvOp.Nand, a :: b :: Nil) => not(bitwise(BvOp.And, a, b, width), width)
       case (BvOp.Nor, a :: b :: Nil) => not(bitwise(BvOp.Or, a, b, width), width)
@@ -652,6 +653,43 @@ private final class Lowerer:
             case _ => cases("part", bit, kept * modulus(i), Num(0), 0, modulus(i) * (m - 1))
         )
         modulo(Term.linear(partials.toList.map(p => (BigInt(1), p))), width, 0, m - 2)
+      }
+    )
+
+  /** A shift by an unknown amount: a barrel shifter over the amount's bits —
+   *  stage `j` shifts by `2^j` or not, on bit `j` of the amount — so `log n`
+   *  cases and not `n`, and zero (or the sign, for `bvashr`) when the amount
+   *  reaches the width.
+   */
+  private def shifted(op: BvOp, a: Term, amount: Term, width: Int): Term =
+    loweredOperations.getOrElseUpdate(
+      (op.name, List(a, amount), List(width)), {
+        val stages = Iterator.iterate(1)(_ * 2).takeWhile(_ < width).length // ⌈log₂ width⌉
+        val bs = bits(amount, width)
+        val shifted = (0 until stages).foldLeft(a) { (t, j) =>
+          val by = modulus(1 << j)
+          val step = op match
+            case BvOp.Shl => times(t, by, width)
+            case BvOp.Lshr => divide(t, by, modulus(width) / by - 1)._1
+            case _ => modulo(divideSigned(t, width, by, floor = true)._1, width, -1, 0)
+          bs(j) match
+            case True => step
+            case False => t
+            case bit => cases(op.name, bit, step, t, 0, modulus(width) - 1)
+        }
+        // The amount reaches the width exactly when a bit above the stages is set, or the stages'
+        // bits spell a value the width does not hold.
+        val far = Or(
+          bs.drop(stages).toList.filter(_ != False) ++
+            (if (1 << stages) == width then Nil else List(Ge(amount, Num(width))))
+        )
+        val past = op match
+          case BvOp.Ashr => cases("sign", negative(a, width), Num(modulus(width) - 1), Num(0), 0, modulus(width) - 1)
+          case _ => Num(0)
+        far match
+          case False => shifted
+          case True => past
+          case _ => cases(op.name + "!far", far, past, shifted, 0, modulus(width) - 1)
       }
     )
 

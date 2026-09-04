@@ -27,7 +27,7 @@ front, and the lowered problem has bounded variables, which the integer solver d
 ```
 
 Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`,
-`bvshl`, `bvlshr`, `bvashr` by constants, `bvmul`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
+`bvshl`, `bvlshr`, `bvashr`, `bvmul`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
 `bvcomp` of anything, `concat`, `extract`, `zero_extend`, `sign_extend`, `repeat`, `rotate_left`, `rotate_right`, the
 unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`, and the integer
 conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the pre-renaming spellings
@@ -42,8 +42,7 @@ conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, wi
 (check-sat)
 ```
 
-Refused, for now: shifts and divisions by an unknown. A script that uses them is rejected rather than
-answered.
+Refused, for now: divisions by an unknown. A script that uses one is rejected rather than answered.
 
 Of the small files of `QF_BV` in the library, about a third are arithmetic, the bitwise operations bring the
 fragment to nearly two thirds, and the products of two unknowns a little further. Where the arithmetic applies, the width is free: `pspace/ndist.a.20000`
@@ -73,6 +72,7 @@ term are equal only by an integer argument over `2ⁿ`, which branch and bound w
 | `bvmul a c`, `c` a constant | `r` | `r ∈ [0, m)`: `c·a = r + m·k` for one of `k ∈ [0, c − 1]`, a choice up to four counts, else `k` an unknown in that range |
 | `bvmul a b`, neither a constant | `r` | shift-and-add over the bits of `b`: a partial product `pᵢ ∈ [0, 2ⁱ(m−1)]` per bit, `pᵢ = 2ⁱ·a` when bit `i` is set and `0` otherwise, then `Σ pᵢ` reduced modulo `m`; the operand whose bits are already known is the one blasted |
 | `bvshl a c` | as `bvmul a 2ᶜ`; `0` when `c ≥ n` | as `bvmul` |
+| `bvshl a s`, `bvlshr a s`, `bvashr a s`, `s` unknown | `r` | a barrel shifter over the bits of `s`: stage `j` shifts by `2ʲ` or not, on bit `j` — `⌈log₂ n⌉ ` cases, each the constant shift above — and `0` (the sign, for `bvashr`) when a bit of `s` at or above the width is set |
 | `bvlshr a c` | `q` | `q ∈ [0, m/2ᶜ)`, `r ∈ [0, 2ᶜ)`: `a = 2ᶜ·q + r`; `0` when `c ≥ n` |
 | `bvudiv a c` | `q` | `q ∈ [0, (m−1)/c]`, `r ∈ [0, c)`: `a = c·q + r`; `m − 1` when `c = 0` |
 | `bvurem a c` | `r` | the same division; `a` when `c = 0` |
