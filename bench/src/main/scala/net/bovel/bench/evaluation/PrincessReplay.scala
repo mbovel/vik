@@ -205,6 +205,10 @@ object PrincessReplay:
           case Op.Assert(slot) => p.addAssertion(formula(slot))
           case Op.Push(levels) => for _ <- 1 to levels do p.push()
           case Op.Pop(levels) => for _ <- 1 to levels do p.pop()
-          case Op.Check => answers += (p.checkSat(true) == SimpleAPI.ProverStatus.Sat)
+          case Op.Check =>
+            answers += (p.checkSat(true) match
+              case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true
+              case SimpleAPI.ProverStatus.Unsat | SimpleAPI.ProverStatus.Invalid => false
+              case status => throw Replay.Undecided("princess", status.toString))
       answers.toList
     }

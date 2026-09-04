@@ -15,7 +15,7 @@ import net.bovel.vik.Session
  *  of the operation, as it is of every call through this API.
  */
 object VikReplay:
-  import Replay.Op
+  import Replay.{Op, decided}
 
   /** Replays the program and returns the `check-sat` answers. */
   def check(program: Replay): List[Boolean] =
@@ -83,5 +83,5 @@ object VikReplay:
         case Op.Assert(slot) => s.assert(formula(slot))
         case Op.Push(levels) => for _ <- 1 to levels do s.push()
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()
-        case Op.Check => answers += (s.checkSat() == Some(true))
+        case Op.Check => answers += decided(s.checkSat(), "VIK")
     answers.toList

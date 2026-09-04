@@ -183,5 +183,9 @@ object Z3Replay:
         case Op.Assert(slot) => solver.add(bool(slot))
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)
-        case Op.Check => answers += (solver.check() == Status.SATISFIABLE)
+        case Op.Check =>
+          answers += (solver.check() match
+            case Status.SATISFIABLE => true
+            case Status.UNSATISFIABLE => false
+            case status => throw Replay.Undecided("z3", status.toString))
     answers.toList

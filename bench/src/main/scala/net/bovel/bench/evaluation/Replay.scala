@@ -37,6 +37,19 @@ final class Replay(
   def slotCount: Int = slotSorts.length
 
 object Replay:
+  /** A solver that answered neither `sat` nor `unsat`: reporting `unknown` as
+   *  `unsat` made a solver that gave up look like one that decided, so the
+   *  replay stops instead. [[Budget]] treats it as it treats a solver past its
+   *  budget — the combination is noted and its cell marked — and the check
+   *  tools report it.
+   */
+  final class Undecided(val solver: String, answer: String)
+      extends RuntimeException(s"$solver answered $answer"):
+    override def fillInStackTrace(): Throwable = this
+
+  def decided(answer: Option[Boolean], solver: String): Boolean =
+    answer.getOrElse(throw Undecided(solver, "unknown"))
+
   enum Op:
     /** A built-in sort: `Bool`, `Int`, `Real` or `(_ BitVec w)`. */
     case MkSort(id: Int, sort: Sort)

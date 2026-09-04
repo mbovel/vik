@@ -25,7 +25,7 @@ object SolverCheck:
       val instance = Instance(file)
       val expected = Parser.parse(instance.text).expectedStatus
       val answers = solvers.map { name =>
-        val sat = name match
+        val sat = try name match
           case "vik" => VikReplay.check(instance.replay).last
           case "z3" =>
             val ctx = Context()
@@ -40,11 +40,18 @@ object SolverCheck:
             finally Cvc5Context.deletePointers()
           case "princess" => PrincessReplay.check(instance.replay).last
           case "smtinterpol" => SmtInterpolReplay.check(instance.replay).last
+        catch case error: Throwable => error.getMessage // a solver that gave up or broke: reported, not fatal
         (name, sat)
       }
-      val wrong = answers.filter((_, sat) => expected.exists(_ != sat))
+      val wrong = answers.filter {
+        case (_, sat: Boolean) => expected.exists(_ != sat)
+        case _ => true
+      }
       if wrong.nonEmpty then
         disagreements += wrong.length
         println(s"$file: expected ${expected.map(if _ then "sat" else "unsat").getOrElse("?")}, " +
-          wrong.map((n, s) => s"$n says ${if s then "sat" else "unsat"}").mkString(", "))
+          wrong.map {
+            case (n, sat: Boolean) => s"$n says ${if sat then "sat" else "unsat"}"
+            case (n, message) => s"$n: $message"
+          }.mkString(", "))
     println(s"${files.length} files, $disagreements disagreements")

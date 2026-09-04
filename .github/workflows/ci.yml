@@ -140,6 +140,10 @@ jobs:
       - run: bench/graal.sh
         env:
           NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
+      - name: The test suites as a native image
+        # The suites of `vik` built into an image of their own and run there (graal/src/test): what the
+        # binary answers, not only that it starts.
+        run: sbt graal/nativeImageTest graal/nativeImageTestRun
       - name: The corpus on the image
         run: bench/graal-corpus.sh 60 2 # a minute a file and two at a time: the runner has two cores
   publish:

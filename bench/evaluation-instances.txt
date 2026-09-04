@@ -23,6 +23,8 @@ corpus/QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_28.smt2
 corpus/QF_BV/smt-lib/bench_ab__a649test0047.smt2
 corpus/QF_BV/smt-lib/sage__app2__bench_512.smt2
 corpus/QF_BV/smt-lib/pspace__ndist.a.20000.smt2
+corpus/QF_BV/smt-lib/spear__cvs_v1.11.22__cvs_vc71402.smt2
+corpus/QF_BV/smt-lib/20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v1__v1l20086.cvc.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2
 corpus/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2

@@ -65,6 +65,14 @@ sbt compile   # compiles all subprojects
 sbt test      # runs the tests on the JVM, on Scala.js (WebAssembly) and on Scala Native
 ```
 
+The solver also builds as a GraalVM native image (`graal`, sbt-native-image), and its own suites build into
+one and run there — what the binary answers, not only that it starts:
+
+```sh
+bench/graal.sh                                    # target/graal/vik, the solver as a native binary
+sbt graal/nativeImageTest graal/nativeImageTestRun  # the suites of `vik` as a native image, run
+```
+
 > [!NOTE]
 > sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
 

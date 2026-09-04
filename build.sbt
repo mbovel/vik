@@ -140,11 +140,15 @@ lazy val vikJVM = vik.jvm(scala3Version)
 lazy val graal = project
   .in(file("graal"))
   .enablePlugins(NativeImagePlugin)
-  .dependsOn(vikJVM)
+  .dependsOn(vikJVM, vikJVM % "test->test")
   .settings(
     name := "graal",
     publish / skip := true,
     Compile / mainClass := Some("net.bovel.vik.smt2"),
+    // The suites of `vik`, in a native image of their own (`graal/nativeImageTestRun`): the runner
+    // lists them, since the image carries no test framework (graal/src/test, `net.bovel.vik.graal.TestMain`).
+    Test / mainClass := Some("net.bovel.vik.graal.TestMain"),
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
     nativeImageOptions ++= Seq("--no-fallback", "-O2")
   )
 

@@ -17,7 +17,7 @@ import net.bovel.smtlib.Sort as SmtSort
  *  the run: it would pull the objects from under a run still going elsewhere.
  */
 object Cvc5Replay:
-  import Replay.Op
+  import Replay.{Op, decided}
 
   /** Replays the program against a fresh solver — asserts, `push`, `pop` and
    *  `check-sat` in script order — and returns the answers.
@@ -168,6 +168,8 @@ object Cvc5Replay:
           case Op.Assert(slot) => solver.assertFormula(slots(slot))
           case Op.Push(levels) => solver.push(levels)
           case Op.Pop(levels) => solver.pop(levels)
-          case Op.Check => answers += solver.checkSat().isSat
+          case Op.Check =>
+            val result = solver.checkSat()
+            answers += decided(if result.isSat then Some(true) else if result.isUnsat then Some(false) else None, "cvc5")
       answers.toList
     finally solver.deletePointer()

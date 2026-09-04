@@ -57,4 +57,11 @@ object Budget:
     running = combo
     deadline = System.nanoTime() + budgetNanos
     try body
+    catch
+      case undecided: Replay.Undecided =>
+        // A solver that answers neither way has nothing to say in a table of milliseconds either: noted
+        // like one past its budget, so later runs and forks hold it back and its cell carries the mark.
+        Files.writeString(ledger, combo + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+        System.err.println(s"Budget: ${undecided.getMessage} on $file, noted on $ledger")
+        refused
     finally deadline = Long.MaxValue

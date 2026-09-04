@@ -96,5 +96,9 @@ object SmtInterpolReplay:
         case Op.Assert(slot) => s.assertTerm(slots(slot))
         case Op.Push(levels) => s.push(levels)
         case Op.Pop(levels) => s.pop(levels)
-        case Op.Check => answers += (s.checkSat() == ItpScript.LBool.SAT)
+        case Op.Check =>
+          answers += (s.checkSat() match
+            case ItpScript.LBool.SAT => true
+            case ItpScript.LBool.UNSAT => false
+            case answer => throw Replay.Undecided("SMTInterpol", answer.toString))
     answers.toList
