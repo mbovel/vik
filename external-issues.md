@@ -231,6 +231,18 @@ February 2025; `2.5-916-ga5843d8b` until 2026-09-02).
 - Arguably permitted by SMT-LIB (a command that fails is skipped, and `check-sat` then speaks of what was
   asserted), but as a default it turns "unsupported" into what reads as a wrong answer.
 
+### 2. `unknown` on the bit-vector files with a product or a division of unknowns (2026-09-04)
+
+- **Observed**: `2.5-1388-ga5a4ab0c` answers `unknown` on every corpus file whose bit-vector operations
+  include a `bvmul`, `bvudiv`, `bvurem` or `bvsdiv` of two unknowns (`bmc-bv__fermat`,
+  `brummayerbiere2__smulov1bw04`, `wienand-cav2008__Distrib__distrib04.sf`, the `spear` division files,
+  `20170531-Hansen-Check__division_by_zero`), through its own command line as much as through the API;
+  the bitwise files it decides.
+- **Consequence here**: the evaluation takes no instance of that shape, and a solver that answers neither
+  way is noted like one past its budget (`Budget`, `bench/timeouts.txt`), its cell carrying the mark. Until
+  2026-09-04 the replays reported `unknown` as `unsat`, which made a solver that gave up look like one that
+  decided.
+
 ## princess
 
 Version: `io.github.uuverifiers:princess:2026-05-20` (Maven, for3Use2_13).
@@ -324,6 +336,19 @@ Version: z3 4.14.0 (the binary) and `org.sosy-lab:javasmt-solver-z3:4.14.0` in p
 - **Workaround**: `Solver.reset()` on the way out of each operation (`Z3Replay.check`) — flat at 1.3 ms
   over the same 2000 replays; the wrappers still wait for the GC, but they hold nothing then. A context
   per operation would do too, at 0.46 ms each, more than the small instances take to solve.
+
+## Scala Native
+
+Version: `0.5.x`, as the build uses it.
+
+### 1. The test binary dies with signal 11 now and then on the CI (2026-09-03, 2026-09-04)
+
+- **Observed**: the `test (Scala Native)` job fails with `Process ... vik-test finished with non-zero value
+  11 (0xb)` after some suites have passed, the suites that had not finished counting as errors
+  (`DatatypesTest`, `UfliaTest`, `LoweringTest` on 2026-09-04). The same commit's other jobs pass, the run
+  before and the run after pass, and the same tests pass locally: the crash follows no test.
+- **Workaround**: re-run the job. Not reproduced locally, so nothing is filed upstream; noted here so the
+  next red job is recognized.
 
 ## sbt-jmh
 
