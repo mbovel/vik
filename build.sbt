@@ -339,6 +339,23 @@ addCommandAlias(
   "egraphNative/test; cdcltNative/test; liaNative/test; vikNative/test; smtlibNative/test"
 )
 
+// The same three, compiled and not run: the CI compiles in one step and runs in the next, so a red job
+// says which of the two it was, and how long each took.
+addCommandAlias(
+  "compileJVM",
+  "egraph/Test/compile; cdclt/Test/compile; lia/Test/compile; vik/Test/compile; smtlib/Test/compile; " +
+    "smtlibutils/Test/compile"
+)
+addCommandAlias(
+  "compileJS",
+  "egraphJS/Test/compile; cdcltJS/Test/compile; liaJS/Test/compile; vikJS/Test/compile; smtlibJS/Test/compile"
+)
+addCommandAlias(
+  "compileNative",
+  "egraphNative/Test/compile; cdcltNative/Test/compile; liaNative/Test/compile; vikNative/Test/compile; " +
+    "smtlibNative/Test/compile"
+)
+
 lazy val root = (project in file("."))
   .enablePlugins(ScalaUnidocPlugin)
   .aggregate(
