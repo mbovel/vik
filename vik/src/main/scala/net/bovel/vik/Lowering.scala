@@ -81,6 +81,17 @@ private final class Lowerer:
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
   /** A sort as the solver writes it: a string, arrays as function sorts. */
+  /** What a declaration of `name` at `sort` asserts about it, beyond the
+   *  declaration itself: a bit-vector constant is an integer of its range, and
+   *  nothing else says so. Said at the declaration and again after a
+   *  `reset-assertions`, which drops the assertions but keeps the declarations
+   *  — one list, so that a second kind of fact is not forgotten in one of the
+   *  two places.
+   */
+  private def facts(name: String, sort: Sort): List[Command] = sort match
+    case Sort.BitVec(w) => List(Command.Assert(range(Const(name), w)))
+    case _ => Nil
+
   /** A sort as the lowered script declares it: a bit-vector is an `Int`, in a
    *  field, an argument, a result or an array as much as in a constant — the
    *  solver ties a selector to its constructor's argument by the field's sort,
@@ -104,7 +115,7 @@ private final class Lowerer:
     case s2.Command.DeclareSort(name, arity) => List(Command.DeclareSort(name, arity))
     case s2.Command.DeclareFun(name, Nil, Sort.BitVec(w)) =>
       functions(name) = Sort.BitVec(w)
-      List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(range(Const(name), w)))
+      Command.DeclareFun(name, Nil, "Int") +: facts(name, Sort.BitVec(w))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       functions(name) = Sort.fun(argSorts, sort)
       // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
@@ -143,11 +154,9 @@ private final class Lowerer:
       rationalProducts.clear()
       rangedApplications.clear()
       clearLowered()
-      // A declared bit-vector constant's range is an assertion, and `reset-assertions` drops the
-      // assertions: it is asserted again here, or the constant would be an integer of any size.
-      Command.ResetAssertions +: functions.toList.sortBy(_._1).collect {
-        case (name, Sort.BitVec(w)) => Command.Assert(range(Const(name), w))
-      }
+      // What a declaration says is asserted, and `reset-assertions` drops the assertions: said again
+      // here, or a bit-vector constant would be an integer of any size (a wrong `sat`, fixed 2026-09-04).
+      Command.ResetAssertions +: functions.toList.sortBy(_._1).flatMap(facts)
     case s2.Command.Reset =>
       functions.clear()
       macros.clear()

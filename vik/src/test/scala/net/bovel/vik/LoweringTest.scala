@@ -31,6 +31,21 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(asserts(1), And(List(Lt(Num(0), x), Lt(x, y)))) // chained, pairwise
     assertEquals(asserts(2), IntDistinct(List(x, y, Num(7))))
 
+  test("reset-assertions keeps what the declarations assert"):
+    // The range of a bit-vector constant is an assertion, and reset-assertions drops the assertions:
+    // without it said again, the constants are integers of any size and an unsat script answers sat.
+    val commands = Lowering(Parser.parse(
+      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 4)) (reset-assertions) (assert (= a b))"
+    )).commands
+    val after = commands.dropWhile(_ != Command.ResetAssertions).tail
+    assertEquals(
+      after.takeWhile(_ != Command.Assert(IntEq(Const("a"), Const("b")))),
+      List(
+        Command.Assert(And(List(Le(Num(0), Const("a")), Le(Const("a"), Num(255))))),
+        Command.Assert(And(List(Le(Num(0), Const("b")), Le(Const("b"), Num(15)))))
+      )
+    )
+
   test("outside the fragment: nonlinear multiplication, integer division"):
     intercept[Smt2Error](lowered("(declare-const x Int) (assert (<= (* x x) 1))"))
     intercept[Unsupported](lowered("(declare-const x Int) (assert (= (div x 2) 1))"))
