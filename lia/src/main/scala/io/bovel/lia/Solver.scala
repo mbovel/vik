@@ -238,6 +238,7 @@ final class Solver:
         while i < r.size do
           add(s, row, r.varAt(i), c * r.coefAt(i))
           i += 1
+    tableau += 1
     rows(s) = row
     var v = Rational.zero
     var vD = Rational.zero
@@ -376,6 +377,7 @@ final class Solver:
       return Result.Unsat(bound.reasons ++ opposite.reasons)
     if levels.nonEmpty then trail += Undo(x, isUpper, same)
     if isUpper then upper(x) = bound else lower(x) = bound
+    moved += x
     if rows(x) == null && (if isUpper then compareValue(x, c) > 0 else compareValue(x, c) < 0) then update(x, c)
     tightened += x
     Result.Sat
@@ -392,7 +394,11 @@ final class Solver:
    *  well: simpler, and still sound).
    */
   private def propagateBounds(): Result = boundary:
-    val visits = new Array[Int](numVars) // rows visited per basic variable, to bound the work
+    // Each row is propagated once per call. The mark of the call says which, in an array kept between
+    // calls: allocating and zeroing one per variable at every call was a fifth of the time of a script
+    // that checks often over a problem that stays (bench/results/lia).
+    visitedIn = growVisited(visitedIn)
+    visitMark += 1
     var i = 0
     while i < tightened.length do
       val x = tightened(i)
@@ -403,8 +409,8 @@ final class Solver:
       while k < column.size do
         val b = if k < 0 then x else column(k)
         k += 1
-        if visits(b) < 1 then
-          visits(b) += 1
+        if visitedIn(b) != visitMark then
+          visitedIn(b) = visitMark
           if !keepGoing() then
             tightened.clear()
             break(Result.Unknown)
@@ -415,6 +421,36 @@ final class Solver:
               break(unsat)
     tightened.clear()
     Result.Sat
+
+  private var moved = ArrayBuffer.empty[Var]
+  private var movedSpare = ArrayBuffer.empty[Var]
+
+  /** The variables whose bounds have been written since this was last called: a
+   *  bound asserted, derived, or undone by a pop. A client that watches the
+   *  bounds — the theory looking for the atoms they decide — takes them instead
+   *  of walking every variable at every call.
+   *
+   *  Taking them empties the list, so there is one such client: a second would
+   *  find what the first had already taken, or nothing. The two lists are
+   *  swapped and reused, so a call allocates nothing, and the list handed out
+   *  stays the caller's until the call after next.
+   */
+  def takeMoved(): ArrayBuffer[Var] =
+    val taken = moved
+    moved = movedSpare
+    movedSpare = taken
+    moved.clear()
+    taken
+
+  /** The call of [[propagateBounds]] each row was last propagated in, and that
+   *  call's mark: a row is propagated once per call, and the array outlives the
+   *  call so that no call pays for the variables it never looks at.
+   */
+  private var visitedIn = new Array[Int](0)
+  private var visitMark = 0
+
+  private def growVisited(a: Array[Int]): Array[Int] =
+    if a.length >= numVars then a else java.util.Arrays.copyOf(a, math.max(8, 2 * numVars))
 
   /** Derives the bounds the row of `b` implies (see [[propagateBounds]]). */
   private def propagateRow(b: Var): Result = boundary:
@@ -511,6 +547,7 @@ final class Solver:
   private def pivot(b: Var, n: Var): Unit =
     val rowB = rows(b).nn
     val a = rowB(n)
+    tableau += 1
     rows(b) = null
     var i = 0
     while i < rowB.size do
@@ -563,6 +600,24 @@ final class Solver:
    *  makes [[check]] a decision procedure for pure integers, fuel allowing: no
    *  solution lives past the box, so exhausting it is a sound unsat.
    */
+  /** The version of the tableau: every row written bumps it, so a value read
+   *  from the rows can say which tableau it was read from.
+   */
+  private var tableau = 0
+
+  /** [[smallModelBoxBits]] of the tableau it was computed from: the box walks
+   *  every row and multiplies its coefficients, which a check that pivots
+   *  nothing would pay again for the same answer.
+   */
+  private var boxBits = -1L
+  private var boxBitsOf = -1
+
+  private def cachedBoxBits(): Long =
+    if boxBitsOf != tableau then
+      boxBits = smallModelBoxBits()
+      boxBitsOf = tableau
+    boxBits
+
   private def smallModelBoxBits(): Long =
     var a = BigInt(2)
     var m = 0
@@ -614,7 +669,7 @@ final class Solver:
     val boxBits: Long =
       if anyReal then -1L
       else if boxBitsOverride >= 0 then boxBitsOverride
-      else smallModelBoxBits()
+      else cachedBoxBits()
     var boxPruned = false
     def pastBox(c: BigInt): Boolean =
       val past = boxBits >= 0 && c.abs.bitLength > boxBits
@@ -860,4 +915,5 @@ final class Solver:
     while trail.length > mark do
       val undo = trail.remove(trail.length - 1)
       if undo.isUpper then upper(undo.x) = undo.old else lower(undo.x) = undo.old
+      moved += undo.x
     tightened.clear() // popping only loosens bounds

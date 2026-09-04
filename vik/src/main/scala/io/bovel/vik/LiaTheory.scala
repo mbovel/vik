@@ -41,8 +41,18 @@ final class LiaTheory(
 
   private def grown(): Unit =
     while assigned.length < atoms.length do
+      val v = assigned.length
       assigned += false
       reasonsOf += null
+      // A bound atom is indexed by its variable, and looked at when that variable's bounds move; a new
+      // one is looked at once, whether they moved or not.
+      atoms(v) match
+        case LiaTheory.Atom.Bound(x, _, false) =>
+          while watchers.length <= x do watchers += null
+          if watchers(x) == null then watchers(x) = ArrayBuffer.empty
+          watchers(x).nn += v
+          fresh += v
+        case _ => ()
 
   private def lits(reasons: Set[Int]): ArrayBuffer[Lit] = ArrayBuffer.from(reasons.map(Lit.fromIndex))
 
@@ -103,25 +113,39 @@ final class LiaTheory(
         case _ => None
     else None
 
-  /** The atoms the bounds decide, and not yet assigned. */
+  /** The bound atoms of a variable, and the atoms not yet looked at. Only the
+   *  bounds are implied: implying an equality of the arrangement was measured
+   *  to be far worse (the results of 2026-08-31), because it merges classes the
+   *  search then has to take apart again.
+   */
+  private val watchers = ArrayBuffer.empty[ArrayBuffer[Var] | Null]
+  private val fresh = ArrayBuffer.empty[Var]
+
+  /** The atoms the bounds decide, and not yet assigned: those of the variables
+   *  whose bounds moved since the last call, and the ones that are new. Walking
+   *  every atom at every call cost the same whether anything had changed or
+   *  not, which a script that checks often over a problem that stays pays at
+   *  every check (bench/results/lia).
+   */
   private def implied(): ArrayBuffer[Lit] =
     grown()
     val out = ArrayBuffer.empty[Lit]
-    var v = 0
-    while v < atoms.length do
-      val atom = atoms(v)
-      if atom != null && !assigned(v) then
-        // Only the bounds: implying an equality of the arrangement was measured to be far worse (see the
-        // results of 2026-08-31), because it merges classes that the search then has to take apart again.
-        val decided = atom match
-          case LiaTheory.Atom.Bound(x, c, false) => solver.decidesUpper(x, c)
-          case _ => None
-        decided match
-          case Some((holds, reasons)) =>
-            reasonsOf(v) = reasons
-            out += Lit(v, holds)
-          case None => ()
-      v += 1
+    def look(v: Var): Unit =
+      if !assigned(v) then
+        atoms(v) match
+          case LiaTheory.Atom.Bound(x, c, false) =>
+            solver.decidesUpper(x, c) match
+              case Some((holds, reasons)) =>
+                reasonsOf(v) = reasons
+                out += Lit(v, holds)
+              case None => ()
+          case _ => ()
+    for v <- fresh do look(v)
+    fresh.clear()
+    for x <- solver.takeMoved() do
+      if x < watchers.length then
+        val watching = watchers(x)
+        if watching != null then for v <- watching do look(v)
     out
 
   private def report(check: => lia.Solver.Result): Theory.Result =
