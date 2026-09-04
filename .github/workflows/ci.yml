@@ -173,10 +173,10 @@ jobs:
           # Every public module on every platform, listed explicitly: the root only aggregates the
           # JVM rows (for unidoc), so the default `+publishSigned` would miss the JS and Native rows.
           CI_RELEASE:
-            "all egraph/publishSigned cdclt/publishSigned sexpr/publishSigned lia/publishSigned
+            "all egraph/publishSigned cdclt/publishSigned lia/publishSigned
             smtlib/publishSigned vik/publishSigned egraphJS/publishSigned cdcltJS/publishSigned
-            sexprJS/publishSigned liaJS/publishSigned smtlibJS/publishSigned vikJS/publishSigned
-            egraphNative/publishSigned cdcltNative/publishSigned sexprNative/publishSigned
+            liaJS/publishSigned smtlibJS/publishSigned vikJS/publishSigned
+            egraphNative/publishSigned cdcltNative/publishSigned
             liaNative/publishSigned smtlibNative/publishSigned vikNative/publishSigned"
         run: sbt --server ci-release
 

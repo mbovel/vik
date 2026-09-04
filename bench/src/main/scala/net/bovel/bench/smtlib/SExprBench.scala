@@ -1,4 +1,4 @@
-package net.bovel.bench.sexpr
+package net.bovel.bench.smtlib
 
 import java.util.concurrent.TimeUnit
 
@@ -6,7 +6,7 @@ import scala.compiletime.uninitialized
 import scala.util.Random
 
 import org.openjdk.jmh.annotations.*
-import net.bovel.sexpr.SExprParser
+import net.bovel.smtlib.sexpr.SExprParser
 
 /** Parsing a generated text of `n` S-expressions, each a nested application
  *  with symbols, numerals, a comment and a quoted symbol now and then.

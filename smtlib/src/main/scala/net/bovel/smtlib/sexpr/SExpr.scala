@@ -1,4 +1,4 @@
-package net.bovel.sexpr
+package net.bovel.smtlib.sexpr
 
 /** An S-expression: a list, or one of the lexical classes SMT-LIB defines in
  *  3.1 — a symbol, a keyword, and the literals, which are the numeral, the

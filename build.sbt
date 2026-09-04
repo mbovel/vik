@@ -70,18 +70,6 @@ lazy val cdclt = projectMatrix
   .jsPlatform(scalaVersions = Seq(scala3Version))
   .nativePlatform(scalaVersions = Seq(scala3Version))
 
-// S-expression parser: subprojects `sexpr` (JVM) and `sexprJS`.
-lazy val sexpr = projectMatrix
-  .in(file("sexpr"))
-  .settings(
-    name := "sexpr",
-    description := "An S-expression parser and printer",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
-  )
-  .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
-  .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
-
 // Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
 lazy val lia = projectMatrix
   .in(file("lia"))
@@ -111,7 +99,6 @@ lazy val vik = projectMatrix
 // SMT-LIB 2 scripts: subprojects `smtlib` (JVM) and `smt2JS`.
 lazy val smtlib = projectMatrix
   .in(file("smtlib"))
-  .dependsOn(sexpr)
   .settings(
     name := "smtlib",
     description := "SMT-LIB 2 as written: trees, parser, printer",
@@ -239,7 +226,6 @@ lazy val bench = project
     egraph.jvm(scala3Version),
     cdclt.jvm(scala3Version),
     lia.jvm(scala3Version),
-    sexpr.jvm(scala3Version),
     vik.jvm(scala3Version),
     smtlib.jvm(scala3Version)
   )
@@ -273,15 +259,12 @@ lazy val bench = project
 // Scala.js on the WebAssembly backend: ES modules and ES 2022 are required.
 lazy val egraphJS = egraph.js(scala3Version)
 lazy val cdcltJS = cdclt.js(scala3Version)
-lazy val sexprJS = sexpr.js(scala3Version)
 lazy val liaJS = lia.js(scala3Version)
 lazy val vikJS = vik.js(scala3Version)
 lazy val smt2JS = smtlib.js(scala3Version)
 egraphJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 cdcltJS / scalaJSLinkerConfig ~=
-  { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
-sexprJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
 liaJS / scalaJSLinkerConfig ~=
   { _.withESFeatures(_.withUseWebAssembly(true).withESVersion(ESVersion.ES2022)).withModuleKind(ModuleKind.ESModule) }
@@ -306,11 +289,11 @@ lazy val docsNavigationFix = taskKey[Unit]("Rewrites `$.get` to `fetch` in Scala
 
 // The test suites by platform, one CI job each: the six modules on the JVM with the corpus, then the same six on
 // Scala.js (Node.js, the WebAssembly backend) and on Scala Native (clang). `sbt test` at the root is the JVM rows.
-addCommandAlias("testJVM", "egraph/test; cdclt/test; sexpr/test; lia/test; vik/test; smtlib/test; smtlibutils/test")
-addCommandAlias("testJS", "egraphJS/test; cdcltJS/test; sexprJS/test; liaJS/test; vikJS/test; smtlibJS/test")
+addCommandAlias("testJVM", "egraph/test; cdclt/test; lia/test; vik/test; smtlib/test; smtlibutils/test")
+addCommandAlias("testJS", "egraphJS/test; cdcltJS/test; liaJS/test; vikJS/test; smtlibJS/test")
 addCommandAlias(
   "testNative",
-  "egraphNative/test; cdcltNative/test; sexprNative/test; liaNative/test; vikNative/test; smtlibNative/test"
+  "egraphNative/test; cdcltNative/test; liaNative/test; vikNative/test; smtlibNative/test"
 )
 
 lazy val root = (project in file("."))
@@ -318,7 +301,6 @@ lazy val root = (project in file("."))
   .aggregate(
     egraph.jvm(scala3Version),
     cdclt.jvm(scala3Version),
-    sexpr.jvm(scala3Version),
     lia.jvm(scala3Version),
     vik.jvm(scala3Version),
     smtlib.jvm(scala3Version)
@@ -329,7 +311,6 @@ lazy val root = (project in file("."))
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
       egraph.jvm(scala3Version),
       cdclt.jvm(scala3Version),
-      sexpr.jvm(scala3Version),
       lia.jvm(scala3Version),
       vik.jvm(scala3Version),
       smtlib.jvm(scala3Version)

@@ -97,7 +97,7 @@ private final class Lowerer:
           (folded, sortOf(t, Map.empty)) match
             // As z3 and cvc5 write a bit-vector value, in binary: `(_ bv1 4)` says the same and reads oddly.
             case (Num(value), Sort.BitVec(w)) =>
-              Some(net.bovel.sexpr.SExpr.SBits(value.mod(modulus(w)), w, hexadecimal = false).toString)
+              Some(s2.sexpr.SExpr.SBits(value.mod(modulus(w)), w, hexadecimal = false).toString)
             case (Num(value), Sort.Int | Sort.Real) => Some(s2.Printer.print(s2.Term.Numeral(value)))
             case (Bool(f), Sort.Bool) => Some(if model.holds(f) then "true" else "false")
             case _ => None

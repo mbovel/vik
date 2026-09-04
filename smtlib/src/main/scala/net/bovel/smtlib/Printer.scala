@@ -12,7 +12,7 @@ object Printer:
    */
   def symbol(name: String): String =
     if name.startsWith("(_ ") || name.startsWith("(as ") then name
-    else net.bovel.sexpr.SExpr.SSymbol(name).toString
+    else sexpr.SExpr.SSymbol(name).toString
 
   def print(script: Script): String = script.commands.map(print).mkString("", "\n", "\n")
 

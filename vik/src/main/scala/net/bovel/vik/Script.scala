@@ -1,7 +1,7 @@
 package net.bovel.vik
 
-import net.bovel.sexpr.SExpr
 import net.bovel.smtlib.Datatype
+import net.bovel.smtlib.sexpr.SExpr
 
 /** A command of a lowered script: the player's instruction set, over the
  *  solver's [[Term]]s and [[Formula]]s. [[Lowering]] produces these from the

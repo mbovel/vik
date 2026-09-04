@@ -1,6 +1,6 @@
 package net.bovel.smtlib
 
-import net.bovel.sexpr.SExpr
+import net.bovel.smtlib.sexpr.SExpr
 
 /** A command of an SMT-LIB 2 script, restricted to what the supported logics
  *  need.

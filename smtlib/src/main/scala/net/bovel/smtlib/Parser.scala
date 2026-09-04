@@ -2,8 +2,8 @@ package net.bovel.smtlib
 
 import scala.collection.mutable.HashMap
 
-import net.bovel.sexpr.{SExpr, SExprParser}
-import net.bovel.sexpr.SExpr.{SBits, SDecimal, SKeyword, SList, SNumeral, SString, SSymbol}
+import net.bovel.smtlib.sexpr.{SExpr, SExprParser}
+import net.bovel.smtlib.sexpr.SExpr.{SBits, SDecimal, SKeyword, SList, SNumeral, SString, SSymbol}
 
 /** Reads an SMT-LIB 2 script (QF_UF, QF_LIA, QF_AX, the bit-vectors and VIK's
  *  into a [[Script]], as written: terms of uninterpreted, numeric and

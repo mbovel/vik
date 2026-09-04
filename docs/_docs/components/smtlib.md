@@ -12,8 +12,20 @@ extraCSS:
 `Formula` trees whose operations are enums per theory (`ArithOp`, `BvOp`, the comparisons), n-ary where the
 standard's `:left-assoc` and `:chainable` make applications n-ary, `let` with its names, `match` read as testers and selectors. The
 parser reads and sorts; it rewrites nothing — the solver's
-[lowering](vik.md) compiles the trees. It depends only on
-[the S-expression reader](sexpr.md); the solver depends on it, not the other way around.
+[lowering](vik.md) compiles the trees. It depends on nothing; the solver depends on it, not the other way
+around.
+
+Underneath is the reader, `sexpr.SExprParser.parse`, which turns text into `SExpr`s in one pass with no token
+list materialised. That is the standard's own category (SMT-LIB 2.6, 3.2: every syntactic category is a
+specialization of `⟨s_expr⟩`), and the tree holds its lexical classes — a symbol, a keyword, a numeral, a
+decimal, a hexadecimal or binary literal, a string, a list — each carrying what it means rather than how it
+was written, and writing itself back the way SMT-LIB reads it. It is usable alone:
+
+```scala
+import net.bovel.smtlib.sexpr.SExprParser
+
+SExprParser.parse("(a (b c)) (d)") // List(SList(...), SList(...))
+```
 
 ```scala
 import net.bovel.smtlib.{Parser, Printer}

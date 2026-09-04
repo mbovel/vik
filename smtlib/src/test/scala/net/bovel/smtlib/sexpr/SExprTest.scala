@@ -1,4 +1,4 @@
-package net.bovel.sexpr
+package net.bovel.smtlib.sexpr
 
 import SExpr.{SBits, SDecimal, SKeyword, SList, SNumeral, SString, SSymbol}
 
