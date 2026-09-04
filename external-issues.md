@@ -353,11 +353,21 @@ Version: `0.5.x`, as the build uses it.
   (`taskset -c 0,1`), crashes about once in 25 runs. The suite is deterministic — its random systems are
   seeded — so an intermittent crash is the runtime, not the search; `si_addr=(nil)` is a null dereference,
   which Scala Native does not check and the JVM would report as an exception.
-- **Cause, as far as the evidence goes**: the multithreaded runtime. With `withMultithreading(false)` the
-  same loop ran 28 times with no crash, where it had crashed once in 25 with it. The test binaries run
-  their suites one after another and use no thread of their own, so the build turns it off for every
-  native test binary (`nativeTests` in build.sbt). Not proof — the rate is a few percent — but the
-  suspect is out of the picture, and this note says what to look at if a crash returns.
+- **Cause: the default garbage collector, immix.** Its rate depends on what the program allocates, not on
+  what it computes, which is how a suite whose result is the same every run crashes sometimes and not
+  others. Counts, each of `liaNative/testOnly io.bovel.lia.SolverTest` on two cores:
+
+  | Build | Crashes |
+  |---|---:|
+  | immix (the default), before the LIA change of 2026-09-04 | 0 / 58 |
+  | immix, after it | 5 / 55 |
+  | commix, after it | 0 / 53 |
+
+  Turning multithreading off does not help (4 / 30), so the runtime's threads are not it, and the same
+  suite passes 25 runs of 25 on the JVM, so there is no null or out-of-bounds for a checked runtime to
+  catch. What the LIA change did was allocate differently. The build gives the test binaries commix
+  (`nativeTests` in build.sbt); the main binary keeps immix, being what the evaluation measures, and a
+  crash there would show in the cold runs and in the corpus on the image.
 
 ## sbt-jmh
 
