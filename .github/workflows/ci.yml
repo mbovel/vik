@@ -223,6 +223,9 @@ jobs:
           name: docs
           path: target/unidoc
       - name: Upload to the documentation server
+        # `--ignore-time`: Scaladoc writes every page afresh on every build, so their times always differ
+        # and the mirror sent all of them, 19 MB, four minutes. Sizes it is, which leaves a page whose
+        # length did not change behind — rare for HTML, and the price of comparing content over FTP.
         if: github.ref == 'refs/heads/main'
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -236,4 +239,4 @@ jobs:
             set cmd:fail-exit yes;
             set ssl:verify-certificate no;
             open -u \"$FTP_USER\",\"$FTP_PASS\" \"$FTP_HOST\";
-            mirror --reverse --delete --no-perms --parallel=4 --verbose target/unidoc /vik"
+            mirror --reverse --delete --no-perms --parallel=4 --verbose --ignore-time target/unidoc /vik"
