@@ -143,7 +143,11 @@ private final class Lowerer:
       rationalProducts.clear()
       rangedApplications.clear()
       clearLowered()
-      List(Command.ResetAssertions)
+      // A declared bit-vector constant's range is an assertion, and `reset-assertions` drops the
+      // assertions: it is asserted again here, or the constant would be an integer of any size.
+      Command.ResetAssertions +: functions.toList.sortBy(_._1).collect {
+        case (name, Sort.BitVec(w)) => Command.Assert(range(Const(name), w))
+      }
     case s2.Command.Reset =>
       functions.clear()
       macros.clear()
