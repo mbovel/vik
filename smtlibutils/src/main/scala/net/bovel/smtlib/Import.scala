@@ -170,6 +170,9 @@ object Import:
     out ++= text.substring(last)
     out.toString
 
+  private val parallelism = 32
+  private val loweringSeconds = 120L
+
   def run(origin: String, root: Path, perFamily: Int): Unit =
     val found = candidates(origin, root)
     val chosen =
@@ -177,11 +180,25 @@ object Import:
       else found
     val rejected = mutable.Map.empty[String, Int]
     var copied = 0
-    for c <- chosen do
+    // The parser reads the whole language; the fragment line is the lowering's, so both must pass — on a
+    // pool of threads, the lowering being the cost; a candidate whose lowering outlasts the limit is
+    // rejected as such (its thread runs on, so a few of them cost parallelism, not the run).
+    val pool = java.util.concurrent.Executors.newFixedThreadPool(parallelism, r => {
+      val t = new Thread(r)
+      t.setDaemon(true)
+      t
+    })
+    val lowered = chosen.map { c =>
       val content = s"; From $origin: ${c.rel} (${licenses(origin)})\n" +
         c.expected.fold(c.text)(withStatuses(c.text, _))
-      // The parser reads the whole language; the fragment line is the lowering's, so both must pass.
-      Try(net.bovel.vik.Lowering(Parser.parse(content))) match
+      val outcome = pool.submit[Try[Unit]](() => Try(net.bovel.vik.Lowering(Parser.parse(content))).map(_ => ()))
+      (c, content, outcome)
+    }
+    for (c, content, outcome) <- lowered do
+      Try(outcome.get(loweringSeconds, java.util.concurrent.TimeUnit.SECONDS)).flatten.recoverWith {
+        case _: java.util.concurrent.TimeoutException =>
+          scala.util.Failure(RuntimeException(s"lowering past $loweringSeconds s"))
+      } match
         case scala.util.Success(_) =>
           val dir = Corpus.root.resolve(classify(c.text)).resolve(origin)
           Files.createDirectories(dir)

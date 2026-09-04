@@ -595,6 +595,8 @@ private final class Lowerer:
   private def arithmeticBv(op: BvOp, args: List[Term], width: Int): Term =
     val m = modulus(width)
     (op, args) match
+      case (BvOp.Add, _ :: _ :: _ :: _) => args.reduceLeft((a, b) => arithmeticBv(BvOp.Add, List(a, b), width))
+      case (BvOp.Mul, _ :: _ :: _ :: _) => args.reduceLeft((a, b) => arithmeticBv(BvOp.Mul, List(a, b), width))
       case (BvOp.Add, a :: b :: Nil) => modulo(a + b, width, 0, 1)
       case (BvOp.Sub, a :: b :: Nil) => modulo(a - b, width, -1, 0)
       case (BvOp.Neg, a :: Nil) => modulo(Term.linear(List((BigInt(-1), a))), width, -1, 0)
@@ -604,7 +606,7 @@ private final class Lowerer:
           case (Num(u), Num(v)) => Num((u * v).mod(m))
           case (t, Num(c)) => times(t, c.mod(m), width)
           case (Num(c), t) => times(t, c.mod(m), width)
-          case _ => throw s2.Unsupported("bvmul of two variables is not supported (no bit-blasting)")
+          case _ => product(a, b, width)
       case (BvOp.Shl, a :: Num(c) :: Nil) =>
         if c >= width then Num(0) else times(a, BigInt(2).pow(c.toInt), width)
       case (BvOp.Lshr, a :: Num(c) :: Nil) =>
@@ -629,6 +631,25 @@ private final class Lowerer:
           case _ => cases("comp", equal(Sort.BitVec(width), a, b), Num(1), Num(0), 0, 1)
       case _ => throw s2.Unsupported(s"${op.name} with these arguments is not supported")
     end match
+
+  /** `a × b` modulo `2^width`, neither a constant: shift-and-add over the bits
+   *  of one operand — each partial product `2^i × a` a case on bit `i`, the sum
+   *  reduced once, its overflow count an unknown.
+   */
+  private def product(a: Term, b: Term, width: Int): Term =
+    val (kept, blasted) = if knownBits(a, width).isDefined && knownBits(b, width).isEmpty then (b, a) else (a, b)
+    loweredOperations.getOrElseUpdate(
+      ("bvmul", List(kept, blasted), List(width)), {
+        val m = modulus(width)
+        val partials = bits(blasted, width).zipWithIndex.map((bit, i) =>
+          bit match
+            case True => kept * modulus(i)
+            case False => Num(0)
+            case _ => cases("part", bit, kept * modulus(i), Num(0), 0, modulus(i) * (m - 1))
+        )
+        modulo(Term.linear(partials.toList.map(p => (BigInt(1), p))), width, 0, m - 2)
+      }
+    )
 
   /** `2^width − 1 − t`; the complement of known bits is known. */
   private def not(t: Term, width: Int): Term =

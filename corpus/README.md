@@ -50,6 +50,11 @@ Mixed logics: `QF_UFBVLIA`, `QF_AUFBVLIA` and `QF_BVLRA` (bit-vectors with integ
 only in the incremental release, from the software verifiers; there is no `QF_AUFLIRA` in SMT-LIB 2025, and
 `QF_LIRA` has two files.
 
+Products of two unknowns (2026-09-04, "Products of two unknowns, shift-and-add") added 28 files in fourteen
+families (`wienand-cav2008`, `brummayerbiere2`, `calypto`, `gulwani-pldi08`, …): 8 answer, 20 do not and are on
+`ignore.txt` — a product is the bits of one operand and a partial product per bit, which the simplex carries on
+every path, so the multiplier-verification families stay out of reach.
+
 The bitwise operations (2026-09-03 evening, "Bitwise operations, as bits") opened `QF_BV` further: of the five
 smallest files per family the old lowering refused, 103 lower now, in twelve new families (`log-slicing`,
 `stp_samples`, `brummayerbiere`, `spear`, `uum`, `RWS`, `uclid_contrib_smtcomp09`, …); 38 answer within the budget
@@ -66,7 +71,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_AUFLIA` | smt-lib | 17 | 7 | 8 | 6 | 3 |
 | `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
-| `QF_BV` | smt-lib | 194 | 34 | 127 | 67 | 0 |
+| `QF_BV` | smt-lib | 222 | 42 | 135 | 87 | 0 |
 | `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
 | `QF_DT` | smt-lib | 76 | 11 | 40 | 12 | 24 |
