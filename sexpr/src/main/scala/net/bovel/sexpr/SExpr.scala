@@ -1,11 +1,23 @@
 package net.bovel.sexpr
 
-/** An S-expression: a list, or one of the lexical classes SMT-LIB 2.6 defines
- *  in 3.1 — a symbol, a keyword, and the literals. Each holds what it means,
- *  not how it was written: a `|quoted symbol|` holds the text between its bars,
- *  since that text is the symbol (`|p1|` and `p1` are one), and a string holds
- *  its characters, not its quotes. [[toString]] writes each back the way
- *  SMT-LIB reads it.
+/** An S-expression: a list, or one of the lexical classes SMT-LIB defines in
+ *  3.1 — a symbol, a keyword, and the literals, which are the numeral, the
+ *  decimal, the hexadecimal, the binary and the string, and nothing else: the
+ *  standard has no exponent form, and `1e5` is neither a literal nor a symbol,
+ *  a simple symbol not starting with a digit. Each holds what it means, not how
+ *  it was written: a `|quoted symbol|` holds the text between its bars, since
+ *  bars around a simple symbol make no new symbol (`|p1|` and `p1` are one),
+ *  and a string holds its characters, not its quotes. [[toString]] writes each
+ *  back the way SMT-LIB reads it.
+ *
+ *  More is read here than the standard writes, in two places nothing conforming
+ *  reaches: a numeral may carry leading zeros (`007` reads as 7, where the
+ *  standard has no such token), and a token that opens with a digit and reads
+ *  as a number is one (`1e5` reads as 100000). Both come back out in the
+ *  standard's shape. Missed the other way: bars around a *reserved* word —
+ *  `|let|`, `|STRING|` — make a symbol the standard keeps apart from the word,
+ *  and here they are one; no file of the corpus writes a reserved word in bars
+ *  where the difference would show.
  */
 enum SExpr:
   /** A symbol, simple (`declare-fun`, `x!3`) or quoted (`|a b|`). */

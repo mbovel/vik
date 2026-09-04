@@ -28,9 +28,11 @@ else if atom.head.isDigit then
 saves are over tokens of three or four characters. Kept for the reading, not the speed — six lines against
 ten, one pass, and the digits parsed by the library rather than by hand.
 
-What it accepts changes at the edges, on tokens SMT-LIB does not define: `1e5` and `1E+2` were symbols
-beginning with a digit, which is no symbol at all, and are now numbers. A token opening with `+` or `-`
-stays a symbol, as the standard has it (`-` is a symbol, and so is `-1.2`), because the digit decides
-whether `BigDecimal` is asked at all.
+What it accepts changes at the edges, on tokens SMT-LIB does not define. The standard (2.7, r2026-03-27,
+3.1) has five literals — numeral, decimal (`⟨numeral⟩.0*⟨numeral⟩`), hexadecimal, binary, string — and no
+exponent form, so `1e5` and `1E+2` are no literal; nor are they symbols, a simple symbol not starting with
+a digit. They were symbols here and are numbers now, both wrong about a token no conforming script holds.
+A token opening with `+`, `-` or `.` stays a symbol, which the standard asks for: `+34`, `-32` and `.8`
+are its own examples of simple symbols. `007` is not a numeral either (no leading zeros) and is read as 7.
 
 The whole corpus, 5443 files, answers as before.
