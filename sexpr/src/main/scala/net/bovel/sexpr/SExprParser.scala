@@ -43,13 +43,31 @@ private class SExprParser(input: String):
         SExpr.SList(items.toList)
       case ")" => throw SyntaxError("unexpected ')'")
       case EOF => throw SyntaxError("unexpected end of input")
-      // A quoted symbol whose text is a symbol on its own is that symbol: `|p1|` and `p1` are one
-      // (SMT-LIB 2.6, 3.1). `|286|` keeps its bars — the numeral 286 is another token.
-      case atom
-          if atom.length >= 2 && atom.startsWith("|") && atom.endsWith("|")
-            && SExpr.simple(atom.substring(1, atom.length - 1)) =>
-        SExpr.SAtom(atom.substring(1, atom.length - 1))
-      case atom => SExpr.SAtom(atom)
+      case atom => classify(atom)
+
+  /** The lexical class of a token (SMT-LIB 2.6, 3.1). Anything that is none of
+   *  the literals is a symbol, quoted or not: the lexer accepts more than the
+   *  standard writes (`1a`, `#z`), and the layer above says what it means.
+   */
+  private def classify(atom: String): SExpr =
+    if atom.startsWith("|") && atom.endsWith("|") && atom.length >= 2 then
+      SExpr.SSymbol(atom.substring(1, atom.length - 1))
+    else if atom.startsWith("\"") then
+      SExpr.SString(atom.substring(1, atom.length - 1).replace("\"\"", "\""))
+    else if atom.startsWith(":") then SExpr.SKeyword(atom.drop(1))
+    else if atom.startsWith("#x") && atom.length > 2 && atom.drop(2).forall(isHexDigit) then
+      SExpr.SBits(BigInt(atom.drop(2), 16), 4 * (atom.length - 2), hexadecimal = true)
+    else if atom.startsWith("#b") && atom.length > 2 && atom.drop(2).forall(c => c == '0' || c == '1') then
+      SExpr.SBits(BigInt(atom.drop(2), 2), atom.length - 2, hexadecimal = false)
+    else if atom.forall(_.isDigit) && atom.nonEmpty then SExpr.SNumeral(BigInt(atom))
+    else
+      val dot = atom.indexOf('.')
+      if dot > 0 && atom.length > dot + 1 && atom.count(_ == '.') == 1
+        && atom.take(dot).forall(_.isDigit) && atom.drop(dot + 1).forall(_.isDigit)
+      then SExpr.SDecimal(BigInt(atom.take(dot) + atom.drop(dot + 1)), atom.length - dot - 1)
+      else SExpr.SSymbol(atom)
+
+  private def isHexDigit(c: Char): Boolean = c.isDigit || (c.toLower >= 'a' && c.toLower <= 'f')
 
   /** Reads all the S-expressions of the input. */
   def parseAll(): List[SExpr] =

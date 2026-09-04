@@ -11,9 +11,8 @@ object Printer:
    *  `cons@(List Int)`); an indexed identifier `(_ is c)` as it is.
    */
   def symbol(name: String): String =
-    if name.startsWith("(_ ") || name.startsWith("(as ") || name.startsWith("|") then name
-    else if net.bovel.sexpr.SExpr.barred(name) then s"|$name|"
-    else name
+    if name.startsWith("(_ ") || name.startsWith("(as ") then name
+    else net.bovel.sexpr.SExpr.SSymbol(name).toString
 
   def print(script: Script): String = script.commands.map(print).mkString("", "\n", "\n")
 
