@@ -37,6 +37,14 @@ val nativeRelease = Seq(
   }
 )
 
+/** The test binaries of Scala Native, single-threaded: they run their suites
+ *  one after another and use no thread of their own, and the multithreaded
+ *  runtime is what the intermittent `Unhandled signal 11` of the CI needs
+ *  (external-issues.md: one crash in 25 runs of a deterministic suite with it,
+ *  none in 28 without).
+ */
+val nativeTests = Seq(Test / nativeConfig ~= (_.withMultithreading(false)))
+
 val forkedTests = Seq(
   Test / fork := true,
   Test / javaOptions += "-Xmx2g",
@@ -56,7 +64,7 @@ lazy val egraph = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeTests)
 
 // Generates the subprojects `cdclt` (JVM) and `cdcltJS` from the same sources.
 lazy val cdclt = projectMatrix
@@ -68,7 +76,7 @@ lazy val cdclt = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeTests)
 
 // Linear integer arithmetic (simplex and branch and bound): subprojects `lia` (JVM) and `liaJS`.
 lazy val lia = projectMatrix
@@ -80,7 +88,7 @@ lazy val lia = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeTests)
 
 // Terms, formulas and the solver over the theories: subprojects `vik` (JVM), `vikJS` and `vikNative`.
 lazy val vik = projectMatrix
@@ -94,7 +102,7 @@ lazy val vik = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeRelease)
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeRelease ++ nativeTests)
 
 // SMT-LIB 2 scripts: subprojects `smtlib` (JVM) and `smt2JS`.
 lazy val smtlib = projectMatrix
@@ -106,7 +114,7 @@ lazy val smtlib = projectMatrix
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
-  .nativePlatform(scalaVersions = Seq(scala3Version))
+  .nativePlatform(scalaVersions = Seq(scala3Version), settings = nativeTests)
 
 lazy val runtimeClasspath = taskKey[String]("The runtime classpath, colon-separated, as real paths")
 

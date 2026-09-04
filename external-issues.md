@@ -349,8 +349,15 @@ Version: `0.5.x`, as the build uses it.
   later the same day, the `lia` binary, there after every one of its suites had reported passing. The same
   commit's other jobs pass, the run before and the run after pass, and the same tests pass locally: the
   crash follows no test, and lands in whichever binary the runner is in.
-- **Workaround**: re-run the job. Not reproduced locally, so nothing is filed upstream; noted here so the
-  next red job is recognized.
+- **Reproduced** (2026-09-04): `liaNative/testOnly io.bovel.lia.SolverTest` in a loop, on two cores
+  (`taskset -c 0,1`), crashes about once in 25 runs. The suite is deterministic — its random systems are
+  seeded — so an intermittent crash is the runtime, not the search; `si_addr=(nil)` is a null dereference,
+  which Scala Native does not check and the JVM would report as an exception.
+- **Cause, as far as the evidence goes**: the multithreaded runtime. With `withMultithreading(false)` the
+  same loop ran 28 times with no crash, where it had crashed once in 25 with it. The test binaries run
+  their suites one after another and use no thread of their own, so the build turns it off for every
+  native test binary (`nativeTests` in build.sbt). Not proof — the rate is a few percent — but the
+  suspect is out of the picture, and this note says what to look at if a crash returns.
 
 ## sbt-jmh
 
