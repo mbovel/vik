@@ -422,12 +422,25 @@ final class Solver:
     tightened.clear()
     Result.Sat
 
-  /** The variables whose bounds were written since a caller last read this: a
-   *  bound asserted, derived or undone by a pop. A client that watches the
-   *  bounds — the theory looking for the atoms they decide — reads and clears
-   *  it instead of walking every variable at every call.
+  private var moved = ArrayBuffer.empty[Var]
+  private var movedSpare = ArrayBuffer.empty[Var]
+
+  /** The variables whose bounds have been written since this was last called: a
+   *  bound asserted, derived, or undone by a pop. A client that watches the
+   *  bounds — the theory looking for the atoms they decide — takes them instead
+   *  of walking every variable at every call.
+   *
+   *  Taking them empties the list, so there is one such client: a second would
+   *  find what the first had already taken, or nothing. The two lists are
+   *  swapped and reused, so a call allocates nothing, and the list handed out
+   *  stays the caller's until the call after next.
    */
-  val moved: ArrayBuffer[Var] = ArrayBuffer.empty
+  def takeMoved(): ArrayBuffer[Var] =
+    val taken = moved
+    moved = movedSpare
+    movedSpare = taken
+    moved.clear()
+    taken
 
   /** The call of [[propagateBounds]] each row was last propagated in, and that
    *  call's mark: a row is propagated once per call, and the array outlives the

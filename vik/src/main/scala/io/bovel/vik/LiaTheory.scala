@@ -142,11 +142,10 @@ final class LiaTheory(
           case _ => ()
     for v <- fresh do look(v)
     fresh.clear()
-    for x <- solver.moved do
+    for x <- solver.takeMoved() do
       if x < watchers.length then
         val watching = watchers(x)
         if watching != null then for v <- watching do look(v)
-    solver.moved.clear()
     out
 
   private def report(check: => lia.Solver.Result): Theory.Result =

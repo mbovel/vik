@@ -343,10 +343,12 @@ Version: `0.5.x`, as the build uses it.
 
 ### 1. The test binary dies with signal 11 now and then on the CI (2026-09-03, 2026-09-04)
 
-- **Observed**: the `test (Scala Native)` job fails with `Process ... vik-test finished with non-zero value
-  11 (0xb)` after some suites have passed, the suites that had not finished counting as errors
-  (`DatatypesTest`, `UfliaTest`, `LoweringTest` on 2026-09-04). The same commit's other jobs pass, the run
-  before and the run after pass, and the same tests pass locally: the crash follows no test.
+- **Observed**: the `test (Scala Native)` job fails with `Process ... finished with non-zero value 11
+  (0xb)`, or `ScalaNative: Unhandled signal 11, si_addr=(nil)`, after some suites have passed. On
+  2026-09-04 it hit the `vik` binary (`DatatypesTest`, `UfliaTest`, `LoweringTest` counted as errors) and,
+  later the same day, the `lia` binary, there after every one of its suites had reported passing. The same
+  commit's other jobs pass, the run before and the run after pass, and the same tests pass locally: the
+  crash follows no test, and lands in whichever binary the runner is in.
 - **Workaround**: re-run the job. Not reproduced locally, so nothing is filed upstream; noted here so the
   next red job is recognized.
 
