@@ -21,7 +21,7 @@ versionScheme := Some("early-semver")
 // Only the `vik` row's main binary gets it, the one cold.sh measures; the test binaries stay quick to link.
 // VIK_NATIVE_FLAGS adds options to the C/C++ compilation and the link, for a toolchain that needs them
 // (laraserver4's user-space LLVM: `-stdlib=libc++ -fuse-ld=lld -Wl,-rpath,<its lib/x86_64-unknown-linux-gnu>`).
-import scala.scalanative.build.{LTO, Mode}
+import scala.scalanative.build.{GC, LTO, Mode}
 val nativeFlags = sys.env.get("VIK_NATIVE_FLAGS").toSeq.flatMap(_.split(" ")).filter(_.nonEmpty)
 val nativeRelease = Seq(
   Compile / nativeConfig ~= { config =>
@@ -43,7 +43,7 @@ val nativeRelease = Seq(
  *  (external-issues.md: one crash in 25 runs of a deterministic suite with it,
  *  none in 28 without).
  */
-val nativeTests = Seq(Test / nativeConfig ~= (_.withMultithreading(false)))
+val nativeTests = Seq(Test / nativeConfig ~= (_.withGC(GC.commix)))
 
 val forkedTests = Seq(
   Test / fork := true,
