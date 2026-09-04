@@ -16,7 +16,7 @@ behind it.
 - [Integer arithmetic](integers.md): linear bounds, a simplex over the integers, and the combination with
   the functions.
 - [Real arithmetic](reals.md): the simplex with δ-rationals for strict bounds.
-- [Bit-vectors](bit-vectors.md): lowered to integers, the arithmetic as arithmetic and the bitwise operations as bits.
+- [Bit-vectors](bit-vectors.md): lowered to integers, the arithmetic as arithmetic and the bit-level operations as bits.
 - [Arrays](arrays.md): `select` as application, `store` by lemmas, extensional, arrays of arrays included.
 
 Each page opens with whether VIK is a decision procedure for its fragment: yes for uninterpreted

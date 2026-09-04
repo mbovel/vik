@@ -50,6 +50,10 @@ Mixed logics: `QF_UFBVLIA`, `QF_AUFBVLIA` and `QF_BVLRA` (bit-vectors with integ
 only in the incremental release, from the software verifiers; there is no `QF_AUFLIRA` in SMT-LIB 2025, and
 `QF_LIRA` has two files.
 
+Divisions by an unknown divisor (2026-09-04, "Divisions by an unknown divisor") close `QF_BV`: of the five
+smallest files per family, 377 of 386 lower — the nine left are five a parser error rejects and four whose
+`define-fun` nest the lowering expands past two minutes. They added 26 files, of which 12 answer.
+
 Shifts by an unknown amount (2026-09-04, "Shifts by an unknown amount, a barrel shifter") added 15 files in
 eight families (`float`, `mcm`, `20230224-grsbits-truby`, …), of which one answers: these files shift *and*
 multiply or divide by unknowns, so the shift alone rarely decides them.
@@ -75,7 +79,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_AUFLIA` | smt-lib | 17 | 7 | 8 | 6 | 3 |
 | `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
-| `QF_BV` | smt-lib | 237 | 46 | 137 | 100 | 0 |
+| `QF_BV` | smt-lib | 263 | 52 | 149 | 114 | 0 |
 | `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
 | `QF_DT` | smt-lib | 76 | 11 | 40 | 12 | 24 |

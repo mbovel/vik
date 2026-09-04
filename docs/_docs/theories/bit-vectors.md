@@ -12,8 +12,8 @@ A bit-vector is an integer in `[0, 2ⁿ)`: the operations that are arithmetic mo
 integer arithmetic, where the width costs nothing, and the bitwise ones to the bits of their operands, each a
 Boolean the SAT solver decides, tied to the integer by one equation.
 
-**Decision procedure: yes, for the fragment it accepts.** Anything outside the fragment is refused up
-front, and the lowered problem has bounded variables, which the integer solver decides.
+**Decision procedure: yes.** The lowered problem has bounded variables, which the integer solver decides;
+what the bit-level operations cost is search, not completeness.
 
 ## What you can write
 
@@ -26,8 +26,8 @@ front, and the lowered problem has bounded variables, which the integer solver d
 (check-sat)
 ```
 
-Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul` and `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`,
-`bvshl`, `bvlshr`, `bvashr`, `bvmul`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
+Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`,
+`bvshl`, `bvlshr`, `bvashr`, `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`, `bvmul`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
 `bvcomp` of anything, `concat`, `extract`, `zero_extend`, `sign_extend`, `repeat`, `rotate_left`, `rotate_right`, the
 unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`, and the integer
 conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the pre-renaming spellings
@@ -42,10 +42,11 @@ conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, wi
 (check-sat)
 ```
 
-Refused, for now: divisions by an unknown. A script that uses one is rejected rather than answered.
+Nothing of the theory is refused any more: every operation of `FixedSizeBitVectors` is lowered, and what
+the fragment costs is time, not an error.
 
-Of the small files of `QF_BV` in the library, about a third are arithmetic, the bitwise operations bring the
-fragment to nearly two thirds, and the products of two unknowns a little further. Where the arithmetic applies, the width is free: `pspace/ndist.a.20000`
+Every small file of `QF_BV` in the library now lowers; about a third are arithmetic alone, and the rest pay
+for their bits. Where the arithmetic applies, the width is free: `pspace/ndist.a.20000`
 is decided in milliseconds here and times out for a bit-blasting solver ([evaluation](../evaluation.md)).
 Where bits are needed, VIK is a bit-blaster with a small SAT solver behind a simplex, and slow next to one.
 
@@ -80,6 +81,8 @@ term are equal only by an integer argument over `2ⁿ`, which branch and bound w
 | `bvsrem a c` | `r` mod `m` | the same division; `a` when `c = 0` |
 | `bvsmod a c` | `r + T·z` mod `m` | the same division; `z ∈ {0, 1}`, one exactly when the signs differ and `r ≠ 0`: the remainder of the sign of the divisor; `a` when `c = 0` |
 | `bvashr a c` | `q` mod `m` | `q`, `r ∈ [0, 2ᶜ)`: `v = 2ᶜ·q + r` for the signed value `v` — the floor of it over `2ᶜ`; all ones or zero by the sign when `c ≥ n` |
+| `bvudiv a b`, `bvurem a b`, `b` unknown | `q`, `r` | `q`, `r ∈ [0, m)`: `a = b·q + r` and `r < b` — the product exact, not modulo, so `q` is the quotient and not a wrapped one; `m − 1` and `a` when `b = 0` |
+| `bvsdiv a b`, `bvsrem a b`, `bvsmod a b`, `b` unknown | `±q`, `±r` mod `m` | the same division of the magnitudes, each a case on a sign bit; the quotient negated when the signs differ, the remainder of the dividend's sign (`bvsrem`) or of the divisor's (`bvsmod`) |
 | `bvand a c`, `c = 2ᵏ − 1` | `r` | `q, r` of `a = 2ᵏ·q + r`: the low bits are the remainder |
 | `bvand a c`, `c = m − 2ᵏ` | `a − r` | the same division: the high bits are what remains |
 | `bvor a c`, `bvxor a c`, `c` such a run of bits | `a − r + c`, `a − r + (c − r)` (low run); `r + c`, `r + (c − a + r)` (high run) | the same division |

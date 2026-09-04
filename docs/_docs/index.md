@@ -43,7 +43,7 @@ Each page says what you can write, how it is solved, and first of all whether VI
 | [Sorts](theories/sorts.md) | Yes: datatypes by their rules in the e-graph; a sort parameter as the theory of each instance, polymorphism being compiled away. |
 | [Integer arithmetic](theories/integers.md) | Yes: branch and bound inside the small-model box. |
 | [Real arithmetic](theories/reals.md) | Yes. |
-| [Bit-vectors](theories/bit-vectors.md) | Yes, for the fragment it accepts. |
+| [Bit-vectors](theories/bit-vectors.md) | Yes, lowered to integers. |
 | [Arrays](theories/arrays.md) | Yes. |
 
 ## The components

@@ -110,8 +110,9 @@ Constructors are injective and distinct, selectors and testers follow them, and 
 ## Bit-vectors, as integers
 
 `QF_BV` is lowered to integers: additions modulo, comparisons, masks, `extract`, `concat`, extensions as
-arithmetic, where wide vectors cost no more than narrow ones, and `bvand`, `bvor`, `bvxor` as the bits of
-their operands, Booleans the SAT solver decides.
+arithmetic, where wide vectors cost no more than narrow ones, and the bit-level operations — `bvand`,
+`bvor`, `bvxor`, a product or a shift or a division by an unknown — as the bits of their operands, Booleans
+the SAT solver decides.
 
 ```smt2
 (set-logic QF_BV)

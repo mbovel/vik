@@ -626,6 +626,9 @@ private final class Lowerer:
           else divideSigned(a, width, BigInt(2).pow(c.toInt), floor = true)._1
         modulo(q, width, -1, 0)
       case (BvOp.Shl | BvOp.Lshr | BvOp.Ashr, a :: b :: Nil) => shifted(op, a, b, width)
+      case (BvOp.Udiv, a :: b :: Nil) => divideUnknown(a, b, width)._1
+      case (BvOp.Urem, a :: b :: Nil) => divideUnknown(a, b, width)._2
+      case (BvOp.Sdiv | BvOp.Srem | BvOp.Smod, a :: b :: Nil) => signedDivisionUnknown(op, a, b, width)
       case (BvOp.And | BvOp.Or | BvOp.Xor, _) => args.reduceLeft((a, b) => bitwise(op, a, b, width))
       case (BvOp.Nand, a :: b :: Nil) => not(bitwise(BvOp.And, a, b, width), width)
       case (BvOp.Nor, a :: b :: Nil) => not(bitwise(BvOp.Or, a, b, width), width)
@@ -655,6 +658,64 @@ private final class Lowerer:
         modulo(Term.linear(partials.toList.map(p => (BigInt(1), p))), width, 0, m - 2)
       }
     )
+
+  /** `a` divided by an unknown `b`: fresh `q` and `r` in `[0, 2^n)` with
+   *  `a = b·q + r` and `r < b` — the product exact, not modulo, so that `q` is
+   *  the quotient and not a wrapped one — and SMT-LIB's answer to a zero
+   *  divisor, all ones and `a`. The pair `(q, r)`.
+   */
+  private def divideUnknown(a: Term, b: Term, width: Int): (Term, Term) =
+    val m = modulus(width)
+    val (q, r) = loweredDivisions.getOrElseUpdate(
+      (Term.linear(List((BigInt(1), a), (m, b))), m, m), {
+        val q = freshInt("q", 0, m - 1)
+        val r = freshInt("r", 0, m - 1)
+        val zero = IntEq(b, Num(0))
+        definitions += Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a))))
+        definitions += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, width) + r), Less(r, b))))
+        (q, r)
+      }
+    )
+    (q, r)
+
+  /** `a × b` as an integer, without the reduction modulo `2^n`: shift-and-add
+   *  over the bits of `b`, for a division, where the product cannot wrap.
+   */
+  private def exactProduct(a: Term, b: Term, width: Int): Term =
+    val m = modulus(width)
+    val partials = bits(b, width).zipWithIndex.map((bit, i) =>
+      bit match
+        case True => a * modulus(i)
+        case False => Num(0)
+        case _ => cases("part", bit, a * modulus(i), Num(0), 0, modulus(i) * (m - 1))
+    )
+    Term.linear(partials.toList.map(p => (BigInt(1), p)))
+
+  /** A signed division by an unknown: the unsigned division of the absolute
+   *  values, its quotient and remainder given the signs SMT-LIB asks for —
+   *  `bvsdiv` truncates, so the remainder takes the dividend's sign and
+   *  `bvsmod` the divisor's — and the zero divisor answered as for a constant.
+   */
+  private def signedDivisionUnknown(op: BvOp, a: Term, b: Term, width: Int): Term =
+    val m = modulus(width)
+    val (na, nb) = (negative(a, width), negative(b, width))
+    def magnitude(t: Term, n: Formula): Term =
+      cases("abs", n, Term.linear(List((BigInt(-1), t)), m), t, 0, m / 2)
+    val (q, r) = divideUnknown(magnitude(a, na), magnitude(b, nb), width)
+    val zero = IntEq(b, Num(0))
+    op match
+      case BvOp.Sdiv =>
+        val signed = cases("sdivq", Not(Iff(na, nb)), Term.linear(List((BigInt(-1), q)), m), q, 0, m - 1)
+        cases("sdiv0", zero, cases("sdiv0!", na, Num(1), Num(m - 1), 1, m - 1), signed, 0, m - 1)
+      case _ =>
+        // The remainder of the sign of the dividend (`bvsrem`), then of the divisor (`bvsmod`).
+        val rem = cases("sremr", na, Term.linear(List((BigInt(-1), r)), m), r, 0, m - 1)
+        val result =
+          if op == BvOp.Srem then rem
+          else
+            val differ = And(List(Not(Iff(na, nb)), Not(IntEq(r, Num(0)))))
+            cases("smodr", differ, modulo(rem + b, width, 0, 1), rem, 0, m - 1)
+        cases("srem0", zero, a, result, 0, m - 1)
 
   /** A shift by an unknown amount: a barrel shifter over the amount's bits —
    *  stage `j` shifts by `2^j` or not, on bit `j` of the amount — so `log n`

@@ -64,9 +64,13 @@ class BitVectorsTest extends munit.FunSuite:
       s"$decls (assert (bvsge x #x00)) (assert (= (bvsdiv x #x00) #xFF)) (assert (= (bvsmod x #x00) x)) (check-sat)"
     ))
     assert(!sat(s"$decls (assert (distinct (bvnot x) (bvneg (bvadd x #x01)))) (check-sat)"))
-    // The whole vocabulary parses — the tree holds it — and the lowering draws the fragment line.
-    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvudiv x y) #x01))")))
-    intercept[net.bovel.smtlib.Unsupported](Session.run(Parser.parse(s"$decls (assert (= (bvurem x y) #x01))")))
+    // An unknown divisor: the division is exact, and its quotient and remainder are the only pair.
+    assert(sat(s"$decls (assert (= (bvudiv x y) #x0a)) (assert (= (bvurem x y) #x02)) (assert (= y #x07)) (check-sat)"))
+    assert(!sat(
+      s"$decls (assert (= (bvudiv x y) #x0a)) (assert (= (bvurem x y) #x02)) (assert (= y #x07))" +
+        " (assert (distinct x #x48)) (check-sat)"
+    ))
+    assert(!sat(s"$decls (assert (bvugt y #x00)) (assert (bvuge (bvurem x y) y)) (check-sat)"))
 
   /** A random 4-bit expression over `x` and `y` as SMT-LIB text, with its value
    *  under `x = vx`, `y = vy`.

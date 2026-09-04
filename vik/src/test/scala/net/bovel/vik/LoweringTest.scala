@@ -34,9 +34,9 @@ class LoweringTest extends munit.FunSuite:
   test("outside the fragment: nonlinear multiplication, integer division"):
     intercept[Smt2Error](lowered("(declare-const x Int) (assert (<= (* x x) 1))"))
     intercept[Unsupported](lowered("(declare-const x Int) (assert (= (div x 2) 1))"))
-    intercept[Unsupported](lowered(
-      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvudiv a b) a))"
-    ))
+    // Bit-vectors are bounded, so the operations the integers refuse are lowered there.
+    lowered("(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvudiv a b) a))")
+    lowered("(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (assert (= (bvmul a b) a))")
 
   test("to_real is the identity, to_int the pinned floor"):
     val commands = Lowering(Parser.parse(
