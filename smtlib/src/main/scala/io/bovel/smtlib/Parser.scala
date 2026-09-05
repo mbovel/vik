@@ -29,6 +29,8 @@ final class Parser:
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, Term | Formula)]
   private val constructors = HashMap.empty[String, Constructor] // by name, for the patterns of `match`
   private var matches = 0 // the `match` scrutinees bound so far, for their names
+  private val datatypeOf = HashMap.empty[String, String] // a constructor to its datatype, for the patterns
+  private val instanceSymbols = scala.collection.mutable.HashSet.empty[String] // the symbols of instances
 
   /** Polymorphism, compiled away here: a sort parameter
    *  (`declare-sort-parameter`, or the `par` of a datatype) makes a rank
@@ -122,6 +124,7 @@ final class Parser:
       })))
     case SList(SSymbol("define-fun") :: SSymbol(name) :: SList(params) :: s :: body :: Nil)
         if sortParameters.exists(p => mentions(s, p) || params.exists(mentions(_, p))) =>
+      free(name)
       val formals = params.map {
         case SList(SSymbol(p) :: ps :: Nil) => (p, ps)
         case other => throw Smt2Error(s"bad parameter $other")
@@ -132,6 +135,7 @@ final class Parser:
     case SList(SSymbol("define-fun") :: SSymbol(name) :: SList(params) :: s :: body :: Nil) =>
       val ps = parameters(params)
       val result = sort(s)
+      free(name) // after the sorts, which may have instantiated a datatype whose symbol this is
       val env = ps.toMap
       val typed: Term | Formula = if result == Sort.Bool then formula(body, env) else term(body, env)
       macros(name) = (ps, result, typed)
@@ -190,7 +194,13 @@ final class Parser:
   /** Declares `name`, with its sort as written; a rank with sort parameters
    *  declares nothing yet (see [[Poly]]).
    */
+  /** Refuses a script's declaration of a symbol an instantiated datatype owns.
+   */
+  private def free(name: String): Unit =
+    if instanceSymbols(name) then throw Smt2Error(s"$name: the symbol of an instantiated datatype")
+
   private def declare(name: String, args: List[SExpr], s: SExpr): List[Command] =
+    free(name)
     val params = sortParameters.filter(p => (s :: args).exists(mentions(_, p))).toList
     if params.nonEmpty then
       polymorphic(name) = Poly.Fun(params, args, s)
@@ -198,6 +208,7 @@ final class Parser:
     else
       val (argSorts, result) = (args.map(sort), sort(s))
       (result :: argSorts).foreach(check)
+      free(name) // again: the sorts just read may have instantiated a datatype whose symbol this is
       functions(name) = Sort.fun(argSorts, result)
       List(Command.DeclareFun(name, argSorts, result))
 
@@ -314,6 +325,12 @@ final class Parser:
             case other => throw Smt2Error(s"bad constructor $other")
           }
         )
+        // The instance's symbols, `c@Int`, live in the script's namespace: a script symbol of that
+        // name is refused, in either order (issue 21).
+        val symbols = datatype.constructors.flatMap(c => c.name :: c.tester :: c.selectors.map(_._1))
+        for symbol <- symbols if functions.contains(symbol) && !instanceSymbols(symbol) do
+          throw Smt2Error(s"$symbol: the script's symbol clashes with the instance $text of $name")
+        instanceSymbols ++= symbols
         register(datatype)
         pending += Command.DeclareDatatypes(List(datatype))
       finally sortSubst = saved
@@ -349,6 +366,7 @@ final class Parser:
     val d = Sort.Named(datatype.name)
     for constructor <- datatype.constructors do
       constructors(constructor.name) = constructor
+      datatypeOf(constructor.name) = datatype.name
       functions(constructor.name) = Sort.fun(constructor.selectors.map(_._2), d)
       functions(constructor.tester) = Sort.fun(List(d), Sort.Bool)
       for (selector, s) <- constructor.selectors do functions(selector) = Sort.fun(List(d), s)
@@ -562,13 +580,21 @@ final class Parser:
   private def matchToIte(sexpr: SExpr): SExpr = sexpr match
     case SList(SSymbol("match") :: scrutinee :: SList(cases) :: Nil) if cases.nonEmpty =>
       matches += 1
+      while functions.contains(s"match!$matches") do matches += 1 // past the script's own symbols (issue 21)
       val name = s"match!$matches"
       val m = SSymbol(name)
+      // A symbol pattern is a constructor pattern only for a constructor of the scrutinee's datatype;
+      // any other symbol is a variable that binds the whole scrutinee (issue 23). The scrutinee's sort
+      // is asked for when it can be told here, before the `let`s around it are read.
+      val scrutineeSort = scala.util.Try(sortOf(scrutinee, Map.empty).text).toOption
       def binding(name: String, value: SExpr): SExpr = SList(List(SSymbol(name), value))
       def let(bindings: List[SExpr], body: SExpr): SExpr =
         if bindings.isEmpty then body else SList(List(SSymbol("let"), SList(bindings), body))
-      def isConstructor(name: String): Boolean = constructors.contains(name) ||
-        owner.contains(name) && polymorphic.contains(name)
+      def isConstructor(name: String): Boolean = scrutineeSort match
+        case Some(d) =>
+          datatypeOf.get(name).contains(d) ||
+          owner.get(name).exists(o => d.startsWith(s"($o ") && polymorphic.contains(name))
+        case None => constructors.contains(name) || owner.contains(name) && polymorphic.contains(name)
       def selectorsOf(name: String): List[String] = constructors.get(name) match
         case Some(c) => c.selectors.map(_._1)
         case None => // a parametric constructor: its declaration in the template

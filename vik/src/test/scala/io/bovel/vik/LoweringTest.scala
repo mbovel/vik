@@ -82,3 +82,23 @@ class LoweringTest extends munit.FunSuite:
     val asserts = lowered("(declare-const n Int) (assert (= ((_ int_to_bv 8) n) #x2A))")
     assertEquals(asserts.last, IntEq(Const("bv!1"), Num(42)))
     assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const("bv!1")), (256, Const("k!2"))), 0))), asserts)
+
+  test("a script's symbol named like the lowering's own is refused, not merged (issue 21)"):
+    val e =
+      intercept[Smt2Error](Session.run(Parser.parse("(declare-fun store!1 ((Array Int Int) Int Int) (Array Int Int))")))
+    assert(e.getMessage.contains("store!1"), e.getMessage)
+    val f = intercept[Smt2Error](Session.run(Parser.parse(
+      "(declare-datatypes ((Lst 1)) ((par (T) ((nil) (cons (hd T) (tl (Lst T)))))))" +
+        "(declare-fun nil@Int () (Lst Int))"
+    )))
+    assert(f.getMessage.contains("nil@Int"), f.getMessage)
+
+  test("the lowering's names pass over the script's own (issue 21)"):
+    // `bit!1` is the script's constant; the bits of `bvand` get other names and its value stays free.
+    assertEquals(
+      Session.run(Parser.parse(
+        "(declare-fun x () (_ BitVec 4))(declare-fun y () (_ BitVec 4))(declare-fun |bit!1| () Int)" +
+          "(assert (= |bit!1| 7))(assert (= (bvand x y) #x0))(check-sat)"
+      )),
+      List("sat")
+    )

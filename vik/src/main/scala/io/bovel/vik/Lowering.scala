@@ -51,6 +51,26 @@ private final class Lowerer:
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, s2.Term | s2.Formula)]
 
   private var fresh = 0
+  private val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own
+
+  /** A name of the lowering's own, `prefix!N`: past the script's symbols, so
+   *  that a script's `bit!1` is never taken for the lowering's, and remembered,
+   *  so that a later declaration of it is refused rather than merged with it
+   *  (issue 21).
+   */
+  private def freshName(prefix: String): String =
+    fresh += 1
+    while functions.contains(s"$prefix!$fresh") do fresh += 1
+    val name = s"$prefix!$fresh"
+    minted += name
+    name
+
+  /** Refuses a script's symbol that is one of the lowering's, or that the
+   *  solver would take for a store by its prefix.
+   */
+  private def reserve(name: String): Unit =
+    if minted(name) || name.startsWith("store!") then
+      throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
   private val rangedApplications = HashSet.empty[Term] // bit-vector applications whose range is asserted
@@ -184,9 +204,11 @@ private final class Lowerer:
     case s2.Command.SetInfo(key, value) => List(Command.SetInfo(key, value))
     case s2.Command.DeclareSort(name, arity) => List(Command.DeclareSort(name, arity))
     case s2.Command.DeclareFun(name, Nil, Sort.BitVec(w)) =>
+      reserve(name)
       functions(name) = Sort.BitVec(w)
       Command.DeclareFun(name, Nil, "Int") +: facts(name, Sort.BitVec(w))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
+      reserve(name)
       functions(name) = Sort.fun(argSorts, sort)
       // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
       // not flattened into a function symbol: the solver applies it either way, and the model knows an
@@ -202,6 +224,7 @@ private final class Lowerer:
         d.copy(constructors = d.constructors.map(c => c.copy(selectors = c.selectors.map((n, s) => (n, lowered(s))))))
       )))
     case s2.Command.DefineFun(name, params, sort, body) =>
+      reserve(name)
       macros(name) = (params, sort, body) // expanded at each use; the definition itself vanishes
       Nil
     case s2.Command.Assert(f) => flush(Command.Assert(formula(f, Map.empty)))
@@ -448,8 +471,7 @@ private final class Lowerer:
       val (t, e) = (term(thn, env), term(els, env))
       loweredOperations.getOrElseUpdate(
         ("ite", List(Term.boolean(c), t, e), Nil), {
-          fresh += 1
-          val name = s"ite!$fresh"
+          val name = freshName("ite")
           val k = Const(name)
           sort match
             case Sort.BitVec(w) => // introduced as the lowering of its declaration would
@@ -530,8 +552,7 @@ private final class Lowerer:
    *  polarities.
    */
   private def floor(r: Term): Term =
-    fresh += 1
-    val name = s"floor!$fresh"
+    val name = freshName("floor")
     introduced += ((name, "Int"))
     functions(name) = Sort.Int
     val k = Const(name)
@@ -574,8 +595,7 @@ private final class Lowerer:
     else
       rationals.getOrElseUpdate(
         (p, q), {
-          fresh += 1
-          val name = s"rat!$fresh"
+          val name = freshName("rat")
           introduced += ((name, "Real"))
           functions(name) = Sort.Real
           val k = Const(name)
@@ -596,8 +616,7 @@ private final class Lowerer:
     else
       rationalProducts.getOrElseUpdate(
         (p, q, t), {
-          fresh += 1
-          val name = s"rat!$fresh"
+          val name = freshName("rat")
           introduced += ((name, "Real"))
           functions(name) = Sort.Real
           val k = Const(name)
@@ -621,7 +640,7 @@ private final class Lowerer:
         // The array's function sort, flattened when its elements are arrays: the index is the first
         // parameter, the value sort what the array applied to one index has.
         val (params, _) = s2.Sorts.arrow(key).getOrElse(throw s2.Smt2Error(s"store on $arraySort"))
-        val n = s"store!${storeSymbols.size + 1}"
+        val n = freshName("store")
         val argSorts = key :: params.head :: List(s2.Sorts.applied(key, 1)) // the array, the index, the value
         introduced += ((n, s2.Sorts.function(argSorts, key)))
         functions(n) = Sort.Named(n) // the solver reads the introduced declaration; the name is enough here
@@ -636,8 +655,7 @@ private final class Lowerer:
    *  current assertion.
    */
   private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
-    fresh += 1
-    val name = s"$prefix!$fresh"
+    val name = freshName(prefix)
     introduced += ((name, "Int"))
     val k = Const(name)
     definitions += Ge(k, Num(lo))
@@ -1096,8 +1114,7 @@ private final class Lowerer:
       loweredOperations.getOrElseUpdate(
         ("int_to_bv", List(t), List(width)), {
           val r = freshInt("bv", 0, modulus(width) - 1)
-          fresh += 1
-          val name = s"k!$fresh"
+          val name = freshName("k")
           introduced += ((name, "Int"))
           val k = Const(name)
           definitions += IntEq(t, r + k * modulus(width))
