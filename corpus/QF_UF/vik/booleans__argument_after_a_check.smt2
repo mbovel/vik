@@ -1,0 +1,28 @@
+; Hand-written for VIK (this repository's license): two Booleans asserted false at the first solve become
+; arguments of a function only at the second. A Boolean term was known as two-valued only once it reached
+; the e-graph as an argument, so the earlier `not x` was recorded as `x != true` rather than `x = false`,
+; the two were never merged and their applications were allowed to differ (issue 14, 2026-09-04).
+(set-logic QF_UF)
+(set-option :global-declarations true)
+(declare-const x Bool)
+(declare-const y Bool)
+(declare-const z Bool)
+(declare-fun f (Bool) Bool)
+(assert (not x))
+(assert (not y))
+(set-info :status sat)
+(check-sat)
+(assert (not (= (f x) (f y))))
+(set-info :status unsat)
+(check-sat)
+(reset-assertions)
+(assert (not x))
+(assert z)
+(set-info :status sat)
+(check-sat)
+(assert (= (f x) (f z)))
+(set-info :status sat)
+(check-sat)
+(assert (not (= (f x) (f false))))
+(set-info :status unsat)
+(check-sat)

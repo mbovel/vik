@@ -557,7 +557,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
   private val arrayReadsDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
-  private lazy val anyStore = declarations.keys.exists(_.startsWith("store!"))
+  // A method, not a memoized value: a `store` first written after a `check-sat` is declared after the
+  // first pass, and a value fixed at that pass would skip its axioms for ever (issue 13).
+  private def anyStore: Boolean = declarations.keys.exists(_.startsWith("store!"))
 
   def arrayLemmas(): Unit = if anyStore then
     val stores = classes.keys.collect {
@@ -647,6 +649,10 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
             if recordFunctionEqualities then functionEqualities += formula
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
+        // Two-valued from its first literal on: the theory merges a false term with `false` only for
+        // terms it knows as Boolean, and a term known only from a later solve keeps the assignment
+        // of an earlier one, which is never asserted again (issue 14).
+        boolean(term)
         val e = atom(classOf(term), trueTerm)
         term match
           case Term.Bool(inner) => // `t = true` iff the formula holds
