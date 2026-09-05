@@ -69,7 +69,17 @@ final class Solver(val simplify: Boolean = true):
   private[vik] val declarations = HashMap.empty[String, (List[String], String)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
 
-  def declare(name: String, argSorts: List[String], sort: String): Unit = declarations(name) = (argSorts, sort)
+  def declare(name: String, argSorts: List[String], sort: String): Unit =
+    declarations(name) = (argSorts, sort)
+    if name.startsWith("store!") then anyStore = true
+
+  /** Whether a `store` has been declared: a flag kept here, since the array
+   *  passes ask at every round of the lemma loop and a scan of the
+   *  declarations, free under HotSpot, cost the native image a third of the
+   *  corpus; a value memoized at the first solve missed the stores declared
+   *  after it (issue 13).
+   */
+  private[vik] var anyStore = false
 
   /** Declares a datatype: its constructors, selectors and testers become known
    *  function symbols.
@@ -158,7 +168,7 @@ final class Solver(val simplify: Boolean = true):
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
-      val e = Encoder(declarations, datatypes.toList)
+      val e = Encoder(declarations, datatypes.toList, () => anyStore)
       encoder = e
       dirty = false
       selectors.clear()
@@ -180,8 +190,10 @@ final class Solver(val simplify: Boolean = true):
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
+    // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
+    // fuel, and a check-sat over its deadline must end, not run on in a thread the caller gave up on.
     var emitted = -1
-    while emitted != e.clauseCount do
+    while emitted != e.clauseCount && keepGoing() do
       emitted = e.clauseCount
       e.assertExtensionality()
       e.applicationLemmas()
@@ -211,7 +223,11 @@ final class Solver(val simplify: Boolean = true):
  *  its selector terms, recursively, so that the search is complete on finite
  *  sorts).
  */
-private final class Encoder(declarations: HashMap[String, (List[String], String)], datatypes: List[Datatype]):
+private final class Encoder(
+    declarations: HashMap[String, (List[String], String)],
+    datatypes: List[Datatype],
+    anyStore: () => Boolean // the solver's flag, read at every array pass (see Solver.anyStore)
+):
   private val classes = HashMap.empty[Term, EClassId]
   private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
@@ -384,7 +400,7 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
   private val applicationsDone = scala.collection.mutable.HashSet.empty[(Term.App, Term)]
   private val equatedApplications = ArrayBuffer.empty[(Term, Term)]
 
-  def applicationLemmas(): Unit = if anyStore then
+  def applicationLemmas(): Unit = if anyStore() then
     val done = applicationsDone // across solves: the encoder persists, a lemma is emitted once
     val equated = equatedApplications
     var more = true
@@ -557,11 +573,8 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
 
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
   private val arrayReadsDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
-  // A method, not a memoized value: a `store` first written after a `check-sat` is declared after the
-  // first pass, and a value fixed at that pass would skip its axioms for ever (issue 13).
-  private def anyStore: Boolean = declarations.keys.exists(_.startsWith("store!"))
 
-  def arrayLemmas(): Unit = if anyStore then
+  def arrayLemmas(): Unit = if anyStore() then
     val stores = classes.keys.collect {
       case s @ Term.App(Term.Const(name), List(_, _, _)) if name.startsWith("store!") => s
     }.toList
