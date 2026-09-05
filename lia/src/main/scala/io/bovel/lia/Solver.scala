@@ -377,6 +377,7 @@ final class Solver:
       return Result.Unsat(bound.reasons ++ opposite.reasons)
     if levels.nonEmpty then trail += Undo(x, isUpper, same)
     if isUpper then upper(x) = bound else lower(x) = bound
+    boundMagnitude = boundMagnitude.max(c.r.num.abs)
     moved += x
     if rows(x) == null && (if isUpper then compareValue(x, c) > 0 else compareValue(x, c) < 0) then update(x, c)
     tightened += x
@@ -605,17 +606,32 @@ final class Solver:
    */
   private var tableau = 0
 
-  /** [[smallModelBoxBits]] of the tableau it was computed from: the box walks
-   *  every row and multiplies its coefficients, which a check that pivots
-   *  nothing would pay again for the same answer.
+  /** The largest constant of a bound ever asserted, in the solver's units. The
+   *  box is computed from it rather than from the bounds in force: a bound
+   *  asserted after the box was computed would otherwise leave the box too
+   *  small, and a solution past it is pruned as none. It only grows, so the
+   *  cache is keyed on it, and it moves rarely once a problem's constants have
+   *  been seen.
+   */
+  private var boundMagnitude = BigInt(2)
+
+  /** [[smallModelBoxBits]] of the tableau, variables and bound magnitude it was
+   *  computed from: the box walks every row and multiplies its coefficients,
+   *  which a check that pivots nothing would pay again for the same answer. A
+   *  larger box is always sound, so its entries only ever grow: every variable
+   *  counts for two bounds, whether or not it has them now.
    */
   private var boxBits = -1L
   private var boxBitsOf = -1
+  private var boxBitsVars = -1
+  private var boxBitsMagnitude = BigInt(-1)
 
   private def cachedBoxBits(): Long =
-    if boxBitsOf != tableau then
+    if boxBitsOf != tableau || boxBitsVars != numVars || boxBitsMagnitude != boundMagnitude then
       boxBits = smallModelBoxBits()
       boxBitsOf = tableau
+      boxBitsVars = numVars
+      boxBitsMagnitude = boundMagnitude
     boxBits
 
   private def smallModelBoxBits(): Long =
@@ -637,15 +653,9 @@ final class Solver:
           a = a.max((c.num * (l / c.den)).abs)
           i += 1
         a = a.max(l)
-      val lo = lower(x)
-      val hi = upper(x)
-      if lo != null then
-        m += 1
-        a = a.max(lo.value.r.num.abs)
-      if hi != null then
-        m += 1
-        a = a.max(hi.value.r.num.abs)
       x += 1
+    m += 2 * numVars // a lower and an upper bound per variable, as many as there could be
+    a = a.max(boundMagnitude)
     val size = BigInt(m + numVars + 2) * (a + 2)
     (2L * (m + numVars) + 6) * size.bitLength
 
