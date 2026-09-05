@@ -42,3 +42,14 @@ class SessionTest extends munit.FunSuite:
     s.assert("(< x 1)")
     assertEquals(s.checkSat(), Some(true))
   }
+
+  test("pop through the API clears the lowering caches (issue 22)"):
+    val s = Session()
+    s.run("(set-logic QF_LRA)(declare-const x Real)")
+    s.push()
+    s.assert("(< x 0.5)")
+    assertEquals(s.checkSat(), Some(true))
+    s.pop()
+    s.assert("(> x 0.5)")
+    s.assert("(< x 0.25)")
+    assertEquals(s.checkSat(), Some(false), "x > 1/2 and x < 1/4: the constant for 1/2 must keep its definition")

@@ -314,7 +314,10 @@ private final class Lowerer:
         case Sort.Array(_, element) => element
         case s => s.applied(1).getOrElse(throw s2.Smt2Error(s"select on $s"))
     case s2.Term.Store(array, _, _) => sortOf(array, env)
-    case s2.Term.Ite(_, thn, _) => sortOf(thn, env)
+    case s2.Term.Ite(_, thn, els) =>
+      // Real when either branch is: a numeral beside a real term is a real (issue 15).
+      val t = sortOf(thn, env)
+      if t == Sort.Int && sortOf(els, env) == Sort.Real then Sort.Real else t
     case s2.Term.Let(bindings, body) =>
       sortOf(
         body,
@@ -440,7 +443,7 @@ private final class Lowerer:
     case s2.Term.Ite(cond, thn, els) =>
       // A fresh constant `k` with `cond => k = thn` and `not cond => k = els`, asserted before the
       // current assertion; one per distinct `ite`, like the bit-vector operations.
-      val sort = sortOf(thn, env)
+      val sort = sortOf(s2.Term.Ite(cond, thn, els), env)
       val c = formula(cond, env)
       val (t, e) = (term(thn, env), term(els, env))
       loweredOperations.getOrElseUpdate(

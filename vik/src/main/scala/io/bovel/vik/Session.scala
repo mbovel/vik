@@ -72,8 +72,11 @@ final class Session(
     case _ => play(lowerer.commands(List(c)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
-  def push(): Unit = play(List(Command.Push(1)))
-  def pop(): Unit = play(List(Command.Pop(1)))
+  // Through the lowerer, like the script commands: a `pop` clears the caches whose defining
+  // assertions die with the level, and a `pop` that bypassed it left a cached rational constant
+  // without its definition (issue 22).
+  def push(): Unit = run(s2.Script(List(s2.Command.Push(1))))
+  def pop(): Unit = run(s2.Script(List(s2.Command.Pop(1))))
 
   /** `check-sat`: `Some(true)` for sat, `None` for unknown. */
   def checkSat(): Option[Boolean] = play(List(Command.CheckSat)).head match
