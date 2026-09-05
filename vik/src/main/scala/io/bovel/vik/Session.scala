@@ -93,7 +93,14 @@ final class Session(
   def model(): Option[Model] = current.model()
   def unsatCore: List[String] = current.unsatCore
 
+  private var lastCheck = "" // what the last check-sat answered: a core is asked for after an unsat one
+
   private def answer(): String =
+    val a = answered()
+    lastCheck = a
+    a
+
+  private def answered(): String =
     val s = current
     // The check-sat's own timeout, and the session's deadline: whichever comes first.
     val stop = (timeout.map(ms => System.nanoTime() + ms * 1000000).toList ++ deadline).minOption
@@ -183,7 +190,10 @@ final class Session(
         case Command.AssertNamed(name, formula) =>
           asserted.last += formula
           current.assert(formula, name)
-        case Command.GetUnsatCore => responses += current.unsatCore.mkString("(", " ", ")")
+        case Command.GetUnsatCore =>
+          responses +=
+            (if lastCheck == "unsat" then current.unsatCore.mkString("(", " ", ")")
+             else "(error \"unsat core is not available\")") // SMT-LIB: after an unsat check only
         case Command.GetAssertions =>
           responses += asserted.flatten.map(Printer.print).mkString("(", " ", ")")
         case Command.GetValue(items, definitions) =>

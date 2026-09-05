@@ -87,6 +87,8 @@ final class Parser:
         (params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad parameter $other") }, body)
       Nil
     case SList(SSymbol("declare-fun") :: SSymbol(name) :: SList(args) :: s :: Nil) => declare(name, args, s)
+    case SList(SSymbol("define-const") :: SSymbol(name) :: s :: body :: Nil) => // a `define-fun` of no parameter
+      command(SList(List(SSymbol("define-fun"), SSymbol(name), SList(Nil), s, body)))
     case SList(SSymbol("declare-const") :: SSymbol(name) :: s :: Nil) => declare(name, Nil, s)
     case SList(SSymbol("declare-datatype") :: SSymbol(name) ::
           SList(SSymbol("par") :: SList(params) :: SList(constructors) :: Nil) :: Nil) =>
@@ -549,7 +551,14 @@ final class Parser:
     case SList(SSymbol(op) :: a :: b :: Nil) if BvCmpOp.named.contains(op) =>
       BvCmp(BvCmpOp.named(op), term(a, env), term(b, env))
     case SList(SList(SSymbol("_") :: SSymbol("is") :: SSymbol(constructor) :: Nil) :: arg :: Nil) =>
-      val c = if owner.contains(constructor) then instance(constructor, Nil, Some(sortOf(arg, env))) else constructor
+      // A parametric constructor's tester is the instance's, found by the argument's sort: the
+      // constructor itself is not applied here, so its arity is not the question (issue 31).
+      val c =
+        if owner.contains(constructor) then
+          val text = sortOf(arg, env).text
+          constructors.keys.find(m => datatypeOf.get(m).contains(text) && m.startsWith(s"$constructor@"))
+            .getOrElse(throw Smt2Error(s"$constructor is not a constructor of $text"))
+        else constructor
       declared(s"(_ is $c)", env)
       IsConstructor(c, term(arg, env))
     case SList(SSymbol("is_int") :: arg :: Nil) => IsInt(term(arg, env))

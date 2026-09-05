@@ -102,3 +102,7 @@ class LoweringTest extends munit.FunSuite:
       )),
       List("sat")
     )
+
+  test("a lowered script writes a declared name with the bars it needs (issue 33)"):
+    assertEquals(Printer.print(Command.DeclareSort("a b", 0)), "(declare-sort |a b| 0)")
+    assertEquals(Printer.print(Command.DeclareFun("f g", List("|a b|"), "Int")), "(declare-fun |f g| (|a b|) Int)")

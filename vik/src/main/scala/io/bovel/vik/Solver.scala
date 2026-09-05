@@ -217,7 +217,9 @@ final class Solver(val simplify: Boolean = true):
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }
         Result.Unsat
-      case cdclt.Solver.Result.Unknown => Result.Unknown(Reason.Stopped)
+      case cdclt.Solver.Result.Unknown =>
+        lastCore = Nil // not the core of an earlier solve (issue 32)
+        Result.Unknown(Reason.Stopped)
 
 /** Encodes formulas into clauses over CDCL(T) variables, terms into e-classes
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into

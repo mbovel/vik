@@ -37,12 +37,12 @@ private class SExprParser(input: String):
       case "(" =>
         val items = ArrayBuffer.empty[SExpr]
         while peek() != ")" do
-          if peek() == EOF then throw SyntaxError("unexpected end of input: missing ')'")
+          if peek() eq EOF then throw SyntaxError("unexpected end of input: missing ')'")
           items += parseOne()
         eat(")")
         SExpr.SList(items.toList)
       case ")" => throw SyntaxError("unexpected ')'")
-      case EOF => throw SyntaxError("unexpected end of input")
+      case t if t eq EOF => throw SyntaxError("unexpected end of input")
       case atom => classify(atom)
 
   /** The lexical class of a token (SMT-LIB 2.6, 3.1). Anything that is none of
@@ -74,7 +74,7 @@ private class SExprParser(input: String):
   /** Reads all the S-expressions of the input. */
   def parseAll(): List[SExpr] =
     val all = ArrayBuffer.empty[SExpr]
-    while peek() != EOF do all += parseOne()
+    while peek() ne EOF do all += parseOne()
     all.toList
 
 object SExprParser:
@@ -82,8 +82,10 @@ object SExprParser:
   case class SyntaxError(message: String) extends Exception(message)
 
   private val tokenRegex = """;[^\n]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\s()";|]+""".r
-  private val EOF = "$EOF"
-  private def show(token: String) = if token == EOF then "end of input" else s"'$token'"
+  // The end of the input is its own object, told apart by identity: a script may hold the symbol
+  // `$EOF`, and one that did was cut short there (issue 29).
+  private val EOF: String = new String("$EOF")
+  private def show(token: String) = if token eq EOF then "end of input" else s"'$token'"
 
   /** Reads all the S-expressions of `input`. */
   def parse(input: String): List[SExpr] = SExprParser(input).parseAll()

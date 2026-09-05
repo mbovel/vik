@@ -65,3 +65,22 @@ class CoresTest extends munit.FunSuite:
       (check-sat)
       (get-unsat-core)""")
     assertEquals(responses, List("unsat", "(xz)"))
+
+  test("no core after a check that did not conclude (issue 32)"):
+    val responses = run("""
+      (set-logic QF_UF)
+      (set-option :produce-unsat-cores true)
+      (declare-const p Bool)
+      (declare-const q Bool)
+      (assert (! p :named a1))
+      (assert (! (not p) :named a2))
+      (check-sat)
+      (get-unsat-core)
+      (pop 0)
+      (set-option :rlimit 1)
+      (push 1)
+      (assert (! (or p q) :named b1))
+      (check-sat)
+      (get-unsat-core)
+    """)
+    assertEquals(responses, List("unsat", "(a1 a2)", "unknown", "(error \"unsat core is not available\")"))

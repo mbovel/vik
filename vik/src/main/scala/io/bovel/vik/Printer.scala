@@ -21,8 +21,9 @@ object Printer:
   def print(command: Command): String = command match
     case Command.SetLogic(logic) => s"(set-logic $logic)"
     case Command.SetInfo(key, value) => s"(set-info $key $value)"
-    case Command.DeclareSort(name, arity) => s"(declare-sort $name $arity)"
-    case Command.DeclareFun(name, argSorts, sort) => s"(declare-fun $name (${argSorts.mkString(" ")}) $sort)"
+    case Command.DeclareSort(name, arity) => s"(declare-sort ${symbol(name)} $arity)"
+    case Command.DeclareFun(name, argSorts, sort) =>
+      s"(declare-fun ${symbol(name)} (${argSorts.mkString(" ")}) $sort)"
     case Command.DeclareDatatypes(datatypes) =>
       val sorts = datatypes.map(d => s"(${d.name} 0)").mkString(" ")
       val declarations = datatypes.map { d =>
