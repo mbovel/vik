@@ -38,6 +38,7 @@ object PrincessReplay:
   /** Replays the program and returns the `check-sat` answers. */
   def check(program: Replay): List[Boolean] =
     SimpleAPI.withProver { p =>
+      var depth = 0 // the levels pushed, the base level among them when the script resets
       import IExpression.*
       val slots = new Array[AnyRef](program.slotCount) // ITerm or IFormula
       val decls = new Array[AnyRef](program.declCount) // IFunction, or the constant's ITerm or IFormula
@@ -64,7 +65,21 @@ object PrincessReplay:
           if built != null && built._1 == op && !program.named(slot) then built._2.reverseIterator.flatMap(spread).toSeq
           else Seq(slot)
         args.iterator.flatMap(spread).toSeq
-      for op <- program.ops do
+      // Princess forgets a symbol declared above a level that is popped: when the script resets, and
+      // the reset is a pop of every level including a base level of its own, the declarations all
+      // come first, at level 0, and the assertions after the base push.
+      def isDeclaration(op: Op): Boolean = op match
+        case _: (Op.MkSort | Op.ArraySort | Op.DeclareSort | Op.DeclareDatatypes | Op.DeclareFun) => true
+        case _ => false
+      val (first, rest) =
+        if program.resets then (program.ops.filter(isDeclaration), program.ops.filterNot(isDeclaration))
+        else (Array.empty[Op], program.ops)
+      for op <- first do execute(op)
+      if program.resets then
+        p.push()
+        depth = 1
+      for op <- rest do execute(op)
+      def execute(op: Op): Unit =
         op match
           case Op.MkSort(id, sort) =>
             sorts(id) = sort match
@@ -203,8 +218,22 @@ object PrincessReplay:
             slots(dst) = adt.hasCtor(term(arg), k)
           case Op.IsInt(dst, a) => slots(dst) = Rationals.isInt(term(a))
           case Op.Assert(slot) => p.addAssertion(formula(slot))
-          case Op.Push(levels) => for _ <- 1 to levels do p.push()
-          case Op.Pop(levels) => for _ <- 1 to levels do p.pop()
+          case Op.Push(levels) =>
+            for _ <- 1 to levels do p.push()
+            depth += levels
+          case Op.Pop(levels) =>
+            for _ <- 1 to levels do p.pop()
+            depth -= levels
+          case Op.Reset =>
+            // Princess has no reset of the assertions alone: with a reset in the script, the base
+            // level is a push of its own, popped with the levels above it and pushed again.
+            for _ <- 1 to depth do p.pop()
+            p.push()
+            depth = 1
+          case Op.ResetAll => // the declarations were all made at level 0: as `reset-assertions`
+            for _ <- 1 to depth do p.pop()
+            p.push()
+            depth = 1
           case Op.Check =>
             answers += (p.checkSat(true) match
               case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true

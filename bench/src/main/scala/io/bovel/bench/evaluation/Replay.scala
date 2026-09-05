@@ -9,7 +9,9 @@ import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formul
  *  executes per query, before any solver's API is named. [[VikReplay]],
  *  [[Z3Replay]], [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]]
  *  run one against their solver — declarations, term construction, asserts,
- *  `push`/`pop` and every `check-sat`, nothing else: no text is parsed, and
+ *  `push`/`pop`, `reset-assertions` and every `check-sat`, with the
+ *  assumptions of a `check-sat-assuming` asserted under a level of their own,
+ *  nothing else: no text is parsed, and
  *  VIK's tree is built by VIK's own front end from the terms handed to it.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
@@ -35,6 +37,7 @@ final class Replay(
     val named: Set[Int]
 ):
   def slotCount: Int = slotSorts.length
+  def resets: Boolean = ops.contains(Replay.Op.Reset) || ops.contains(Replay.Op.ResetAll)
 
 object Replay:
   /** A solver that answered neither `sat` nor `unsat`: reporting `unknown` as
@@ -98,6 +101,16 @@ object Replay:
     case Pop(levels: Int)
     case Check
 
+    /** `reset-assertions`: every assertion and level gone, the declarations
+     *  kept, as a script with global declarations has it.
+     */
+    case Reset
+
+    /** `reset`: the declarations gone too, and the logic; what the script
+     *  declares again is declared again, at new ids.
+     */
+    case ResetAll
+
   /** Compiles the script: the only walk of the tree, done before measuring.
    *  Throws on what no replay encodes (sort parameters).
    */
@@ -111,6 +124,8 @@ object Replay:
     val memo = HashMap.empty[Any, Int] // a construction, by its shape over slots, to its slot
     val named = scala.collection.mutable.HashSet.empty[Int]
     var logic: String | Null = null
+    var sortCount = 0 // the ids ever given, a `reset` starting them over
+    var declCount = 0
     // With no integers in the logic a bare numeral is a real (QF_LRA's `(< x 1)`), as the standard
     // reads it; otherwise it is an integer unless its position says real.
     def numeralsReal: Boolean = logic != null && logic.nn.contains('R') && !logic.nn.contains('I')
@@ -136,6 +151,7 @@ object Replay:
           case Sort.Fun(_, _) => throw UnsupportedOperationException("function sorts are not encoded")
         val id = sortIds.size
         sortIds(s) = id
+        sortCount = sortCount.max(id + 1)
         out += op(id)
         id
     def width(s: Sort): Int = s match
@@ -322,17 +338,21 @@ object Replay:
         case Command.DeclareSort(name, 0) =>
           val id = sortIds.size
           sortIds(Sort.Named(name)) = id
+          sortCount = sortCount.max(id + 1)
           out += Op.DeclareSort(id, name)
         case Command.DeclareSort(name, _) => throw UnsupportedOperationException(s"sort $name takes parameters")
         case Command.DeclareFun(name, argSorts, sort) =>
           val id = declIds.size
           declIds(name) = id
           declSorts(name) = (argSorts, sort)
+          declCount = declCount.max(id + 1)
           out += Op.DeclareFun(id, name, argSorts.map(sortId).toArray, sortId(sort))
         case Command.DeclareDatatypes(datatypes) =>
           // The datatypes take sort ids silently: the declaration op fills them.
           val group = datatypes.map(d => Sort.Named(d.name))
-          for s <- group do sortIds(s) = sortIds.size
+          for s <- group do
+            sortIds(s) = sortIds.size
+            sortCount = sortCount.max(sortIds.size)
           val fieldSorts = datatypes.flatMap(_.constructors.flatMap(_.selectors.map(_._2))).distinct
           val ids = (group ++ fieldSorts).distinct.map(s => s -> sortId(s)).toMap
           val ctorIds = HashMap.empty[String, Int]
@@ -345,6 +365,7 @@ object Replay:
               selectorIds(selector) = declIds.size
               declIds(selector) = declIds.size
               declSorts(selector) = (List(Sort.Named(d.name)), sort)
+          declCount = declCount.max(declIds.size)
           out += Op.DeclareDatatypes(datatypes, ids, ctorIds.toMap, selectorIds.toMap)
         case Command.DefineFun(name, params, _, body) => macros(name) = (params, body)
         case Command.Assert(f) => out += Op.Assert(formula(f, Map.empty))
@@ -352,5 +373,22 @@ object Replay:
         case Command.Push(levels) => out += Op.Push(levels)
         case Command.Pop(levels) => out += Op.Pop(levels)
         case Command.CheckSat => out += Op.Check
-        case _ => () // check-sat-assuming, get-*, set-*: not part of what the solvers are measured on
-    Replay(out.toArray, slotSorts.toArray, sortIds.size, declIds.size, logic, named.toSet)
+        // The assumptions asserted under a level of their own: the same answer, through what every
+        // solver's API has.
+        case Command.CheckSatAssuming(assumptions) =>
+          out += Op.Push(1)
+          for a <- assumptions do out += Op.Assert(formula(a, Map.empty))
+          out += Op.Check
+          out += Op.Pop(1)
+        case Command.ResetAssertions => out += Op.Reset // dropped once, which kept every assertion (issue 36)
+        case Command.Reset =>
+          // Everything forgotten, the constructions too: a slot built before is not reused after.
+          out += Op.ResetAll
+          memo.clear()
+          sortIds.clear()
+          declIds.clear()
+          declSorts.clear()
+          macros.clear()
+          logic = null
+        case _ => () // get-*, set-*: not part of what the solvers are measured on
+    Replay(out.toArray, slotSorts.toArray, sortCount, declCount, logic, named.toSet)

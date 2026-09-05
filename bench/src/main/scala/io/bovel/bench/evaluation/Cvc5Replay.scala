@@ -27,7 +27,7 @@ object Cvc5Replay:
     val solver = Solver(tm)
     try
       if program.logic != null then solver.setLogic(program.logic)
-      if program.ops.exists(_.isInstanceOf[Op.Push]) then solver.setOption("incremental", "true")
+      if program.ops.exists(_.isInstanceOf[Op.Push]) || program.resets then solver.setOption("incremental", "true")
       val slots = new Array[Term](program.slotCount)
       val decls = new Array[Term](program.declCount)
       val testers = new Array[Term](program.declCount) // by the constructor's id
@@ -168,6 +168,8 @@ object Cvc5Replay:
           case Op.Assert(slot) => solver.assertFormula(slots(slot))
           case Op.Push(levels) => solver.push(levels)
           case Op.Pop(levels) => solver.pop(levels)
+          case Op.Reset => solver.resetAssertions() // the terms declared through the API stay valid
+          case Op.ResetAll => solver.resetAssertions()
           case Op.Check =>
             val result = solver.checkSat()
             answers += decided(if result.isSat then Some(true) else if result.isUnsat then Some(false) else None, "cvc5")

@@ -18,7 +18,12 @@ files. The workloads and the results are kept per module:
 `SolverCheck` runs the in-process solvers on the corpus files a regex selects (`/smt-lib/` by default) and
 reports, check-sat by check-sat, every answer against the file's status for that check and every check on
 which the solvers disagree, stamped or not — never the last answer against the first status, which on a
-script of several checks was inverted. A file the replay cannot compile is reported as not checked.
+script of several checks was inverted. A file the replay cannot compile is reported as not checked, and
+so is a solver's own limit; a solver has `VIK_CHECK_SECONDS` per file, 30 by default, on a thread the
+tool leaves behind past it. The exit code says whether a disagreement was found, which CI runs on the
+hand-written files with VIK. The replay itself covers declarations, terms, asserts, `push`/`pop`,
+`reset-assertions` and `reset`, `check-sat` and `check-sat-assuming`; what it does not (sort parameters)
+is reported, never answered.
 `ModelCheck` takes every `get-model` of the selected files, puts VIK's model into the script in place of
 the declarations it values — abstract elements declared and told apart — and asks z3 whether the script
 is then satisfiable: a model that contradicts its script is not. `replaycheck` times a replay.

@@ -6,7 +6,7 @@
 ; EXPECT: sat
 ; EXPECT: (((f x) 5) ((f 5) 7) ((f b) true) ((f false) false))
 ; EXPECT: unsat
-(set-logic QF_UF)
+(set-logic QF_UFLIA)
 (set-option :produce-models true)
 (declare-sort-parameter X)
 (declare-sort U 0)

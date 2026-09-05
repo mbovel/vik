@@ -25,6 +25,7 @@ object SmtInterpolReplay:
   def check(program: Replay): List[Boolean] =
     val s = SMTInterpol(DefaultLogger())
     s.setOption(":verbosity", 2)
+    if program.resets then s.setOption(":global-declarations", true) // a reset keeps the declarations
     if program.logic != null then s.setLogic(program.logic)
     val slots = new Array[ItpTerm](program.slotCount)
     val sorts = new Array[ItpSort](program.sortCount)
@@ -71,6 +72,8 @@ object SmtInterpolReplay:
           val bits = value.toString(2)
           slots(dst) = s.binary("#b" + "0" * (width - bits.length) + bits)
         case Op.Arith(dst, aop, _, as) => slots(dst) = s.term(aop.name, args(as)*)
+        case Op.Bv(dst, BvOp.Concat, as) if as.length > 2 => // binary for SMTInterpol, left to right
+          slots(dst) = args(as).reduceLeft((l, r) => s.term("concat", l, r))
         case Op.Bv(dst, bop, as) =>
           slots(dst) = bop.indices match
             case Nil => s.term(bop.name, args(as)*)
@@ -96,6 +99,12 @@ object SmtInterpolReplay:
         case Op.Assert(slot) => s.assertTerm(slots(slot))
         case Op.Push(levels) => s.push(levels)
         case Op.Pop(levels) => s.pop(levels)
+        case Op.Reset => s.resetAssertions()
+        case Op.ResetAll =>
+          s.reset() // the options and the logic with it: set again, as at the start
+          s.setOption(":verbosity", 2)
+          s.setOption(":global-declarations", true)
+          if program.logic != null then s.setLogic(program.logic)
         case Op.Check =>
           answers += (s.checkSat() match
             case ItpScript.LBool.SAT => true

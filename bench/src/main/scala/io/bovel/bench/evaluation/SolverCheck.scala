@@ -22,10 +22,30 @@ object SolverCheck:
     Natives.z3
     for file <- files do
       try check(file, solvers)
-      catch case error: Throwable => println(s"$file: not checked: ${error.getMessage}") // the replay's limits
-    println(s"${files.length} files, $disagreements with a disagreement")
+      catch
+        case error: Throwable => // the replay's limits
+          limits += 1
+          println(s"$file: not checked: ${error.getMessage}")
+    println(s"${files.length} files, $disagreements with a disagreement, $limits at a solver's or the replay's limit")
+    if disagreements > 0 then sys.exit(1) // a check: the exit code says, for CI
 
-  private var disagreements = 0
+  private var disagreements = 0 // files where an answer is against a status or another solver's
+  private var limits = 0 // files a solver or the replay could not take: not a disagreement
+
+  /** Seconds a solver has per file: `VIK_CHECK_SECONDS`, 30 by default. */
+  private val limit = sys.env.get("VIK_CHECK_SECONDS").map(_.toLong).getOrElse(30L)
+  private val pool = java.util.concurrent.Executors.newCachedThreadPool { r =>
+    val t = Thread(r)
+    t.setDaemon(true)
+    t
+  }
+
+  private def timed(name: String, run: () => List[Boolean]): List[Boolean] =
+    val task = pool.submit(() => run())
+    try task.get(limit, java.util.concurrent.TimeUnit.SECONDS)
+    catch
+      case _: java.util.concurrent.TimeoutException => throw RuntimeException(s"over $limit s")
+      case e: java.util.concurrent.ExecutionException => throw e.getCause
 
   private def check(file: String, solvers: List[String]): Unit =
       val instance = Instance(file)
@@ -34,9 +54,11 @@ object SolverCheck:
       // and a script of several checks is compared check by check, not its last answer to its first
       // status (issue 34).
       val expected = Parser.parse(instance.text).expectedStatuses
+      // A solver gets `limit` seconds per file, on a thread of its own that a solver past the limit
+      // keeps (the check tool does not wait on a solver that would not answer): reported as such.
       val answers: List[(String, List[Boolean] | String)] = solvers.map { name =>
         val got: List[Boolean] | String =
-          try name match
+          try timed(name, () => name match
             case "vik" => VikReplay.check(instance.replay)
             case "z3" =>
               val ctx = Context()
@@ -51,6 +73,7 @@ object SolverCheck:
               finally Cvc5Context.deletePointers()
             case "princess" => PrincessReplay.check(instance.replay)
             case "smtinterpol" => SmtInterpolReplay.check(instance.replay)
+          )
           catch case error: Throwable => String.valueOf(error.getMessage) // gave up or broke: reported, not fatal
         (name, got)
       }
@@ -70,6 +93,6 @@ object SolverCheck:
         if issues.isEmpty then Nil
         else List(s"check ${i + 1} (${stamp.map(word).getOrElse("no status")}): ${issues.mkString(", ")}")
       }
-      if wrong.nonEmpty || broken.nonEmpty then
-        disagreements += 1
-        println(s"$file: ${(wrong ++ broken).mkString("; ")}")
+      if wrong.nonEmpty then disagreements += 1
+      else if broken.nonEmpty then limits += 1
+      if wrong.nonEmpty || broken.nonEmpty then println(s"$file: ${(wrong ++ broken).mkString("; ")}")

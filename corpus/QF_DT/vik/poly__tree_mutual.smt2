@@ -1,7 +1,7 @@
 ; Hand-written for VIK (this repository's license): two mutually recursive
 ; parametric datatypes (the reference's Tree and TreeList), instantiated
 ; together at Int, and a polymorphic definition over them.
-(set-logic QF_DT)
+(set-logic ALL)
 (declare-sort-parameter X)
 (declare-datatypes ((Tree 1) (TreeList 1)) (
   (par (X) ((node (value X) (children (TreeList X)))))

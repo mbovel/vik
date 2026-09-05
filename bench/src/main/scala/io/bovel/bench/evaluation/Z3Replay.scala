@@ -183,7 +183,12 @@ object Z3Replay:
         case Op.Assert(slot) => solver.add(bool(slot))
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)
+        case Op.Reset => solver.reset() // the assertions and the levels; the context keeps the declarations
+        case Op.ResetAll => solver.reset() // the declarations are made again at new ids; the old ones are harmless
         case Op.Check =>
+          // `VIK_REPLAY_DUMP`: the solver's assertions as SMT-LIB before each check, to compare the
+          // replayed problem with the script when their answers differ.
+          if sys.env.contains("VIK_REPLAY_DUMP") then System.err.println(s"; check\n${solver.toString}")
           answers += (solver.check() match
             case Status.SATISFIABLE => true
             case Status.UNSATISFIABLE => false

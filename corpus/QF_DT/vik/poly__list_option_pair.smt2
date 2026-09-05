@@ -6,7 +6,7 @@
 ; EXPECT: (((first p) 2) ((second p) true) ((match l ((nil 0) ((cons h _) h))) 1) ((match o ((none 0) ((some x) (head x)))) 1))
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic QF_DT)
+(set-logic ALL)
 (set-option :produce-models true)
 (declare-datatype List (par (T) ((nil) (cons (head T) (tail (List T))))))
 (declare-datatype Option (par (X) ((none) (some (val X)))))

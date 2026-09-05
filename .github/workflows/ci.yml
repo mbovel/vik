@@ -138,6 +138,8 @@ jobs:
         run: bench/native/bin/z3 --version && bench/native/bin/cvc5 --version
       - name: Compile (the benchmarks)
         run: sbt --server "bench/Jmh/compile"
+      - name: The replays against the hand-written corpus files (VIK, every check-sat against its status)
+        run: sbt --server "bench/runMain io.bovel.bench.evaluation.SolverCheck /vik/ vik"
       - name: The solver as a GraalVM native image
         run: bench/graal.sh
       - name: JMH dry run, every class and method

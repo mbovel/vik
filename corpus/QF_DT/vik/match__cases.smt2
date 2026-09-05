@@ -6,7 +6,7 @@
 ; EXPECT: ((n 5) ((area s) 7))
 ; EXPECT: unsat
 ; EXPECT: sat
-(set-logic QF_DT)
+(set-logic ALL)
 (set-option :produce-models true)
 (declare-datatype List ((nil) (cons (head Int) (tail List))))
 (declare-datatype Shape ((circle (radius Int)) (rect (w Int) (h Int)) (point)))
