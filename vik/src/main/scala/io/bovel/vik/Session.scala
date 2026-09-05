@@ -67,6 +67,7 @@ final class Session(
         current.model().map(m => items.map((source, item) => (source, item, lowerer.evaluate(item, m))))
       computed match
         case Some(values) if values.forall(_._3.isDefined) =>
+          play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
           List(values.map((source, _, value) => s"($source ${value.get})").mkString("(", " ", ")"))
         case _ => play(lowered)
     case _ => play(lowerer.commands(List(c)))

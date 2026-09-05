@@ -193,10 +193,19 @@ private final class Lowerer:
     case Sort.Array(index, element) => Sort.Array(lowered(index), lowered(element))
     case other => other
 
-  private def sortString(s: Sort): String = lowered(s) match
+  private def sortString(s: Sort): String = s match
+    case Sort.BitVec(_) => "Int"
     case Sort.Fun(args, result) => s2.Sorts.function(args.map(sortString), sortString(result))
-    case Sort.Array(index, element) => s2.Sorts.function(List(sortString(index)), sortString(element))
+    case Sort.Array(index, element) => s2.Sorts.function(List(indexString(index)), sortString(element))
     case other => other.text
+
+  /** An index sort keeps a bit-vector's text, `(-> (_ BitVec 8) Int)`: the
+   *  index terms are integers either way, and the width is what ranges the
+   *  witness of two such arrays asserted different (issue 20).
+   */
+  private def indexString(s: Sort): String = s match
+    case Sort.BitVec(_) => s.text
+    case other => sortString(other)
 
   private def command(c: s2.Command): List[Command] = c match
     // The lowered script is in the corresponding integer logic.
@@ -274,13 +283,17 @@ private final class Lowerer:
         )
       )
       val defined = definitions.toList
+      // The symbols minted here are declared for good: a `store!N` stays in `storeSymbols`, and a later
+      // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
+      // asserted after a check and go with the command instead.
+      val declared = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort))
       introduced.clear()
       definitions.clear()
       rationals.clear() // a constant minted here has no definition: later uses must not find it
       rationalProducts.clear()
       rangedApplications.clear()
       clearLowered()
-      List(Command.GetValue(lowered, defined))
+      declared :+ Command.GetValue(lowered, defined)
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
     case s2.Command.Exit => List(Command.Exit)

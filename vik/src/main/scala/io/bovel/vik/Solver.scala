@@ -192,18 +192,23 @@ final class Solver(val simplify: Boolean = true):
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
     // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
     // fuel, and a check-sat over its deadline must end, not run on in a thread the caller gave up on.
+    // The Boolean terms are decided in the loop, first: deciding one encodes the terms inside it,
+    // a `store` in a Boolean argument among them, which the passes of the same round then see
+    // (issue 17). The loop measures the terms decided as well as the clauses, since a round that
+    // registers a Boolean and emits nothing else is not done.
     var emitted = -1
-    while emitted != e.clauseCount && keepGoing() do
+    var decided = -1
+    while (emitted != e.clauseCount || decided != e.booleanCount) && keepGoing() do
       emitted = e.clauseCount
+      decided = e.booleanCount
+      e.decideBooleans()
       e.assertExtensionality()
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertExhaustiveness()
       e.shareIntegers()
-    e.decideBooleans()
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
-    e.decideBooleans()
     e.solve(assumed, keepGoing) match
       case cdclt.Solver.Result.Sat(_) =>
         lastCore = Nil
@@ -223,6 +228,9 @@ final class Solver(val simplify: Boolean = true):
  *  its selector terms, recursively, so that the search is complete on finite
  *  sorts).
  */
+private object Encoder:
+  val bitVector = """\(_ BitVec (\d+)\)""".r
+
 private final class Encoder(
     declarations: HashMap[String, (List[String], String)],
     datatypes: List[Datatype],
@@ -459,8 +467,19 @@ private final class Encoder(
               more = true
               val witnesses = params.map { sort =>
                 val name = s"ext!${introduced.size}"
-                introduced(name) = sort
-                Term.Const(name)
+                sort match
+                  case Encoder.bitVector(width) =>
+                    // The lowering reads a bit-vector as an integer in its range; so is the witness
+                    // index, or two arrays over `(_ BitVec 1)` agreeing at both indices could still
+                    // differ at it (issue 20).
+                    introduced(name) = "Int"
+                    val w = Term.Const(name)
+                    clauses += Array(lit(Formula.Le(Term.Num(0), w)))
+                    clauses += Array(lit(Formula.Le(w, Term.Num(BigInt(2).pow(width.nn.toInt) - 1))))
+                    w
+                  case _ =>
+                    introduced(name) = sort
+                    Term.Const(name)
               }
               clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
@@ -599,6 +618,8 @@ private final class Encoder(
           lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
         )
 
+  def booleanCount: Int = booleans.length
+
   def decideBooleans(): Unit =
     var i = 0
     while i < booleans.length do
@@ -717,7 +738,9 @@ private final class Encoder(
    */
   def assert(formula: Formula, under: Lit | Null): Unit =
     formula match
-      case Formula.Eq(_, _) => assertedEqualities += formula
+      // An equality asserted for good needs no witness; one under a level's selector is gone with
+      // the level, and its negation then needs one like any other (issue 19).
+      case Formula.Eq(_, _) if under == null => assertedEqualities += formula
       case _ => ()
     val l = lit(formula)
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
