@@ -63,13 +63,18 @@ final class Session(
   private def command(c: s2.Command): List[String] = c match
     case s2.Command.GetValue(items) =>
       val lowered = lowerer.commands(List(c))
-      val computed =
-        current.model().map(m => items.map((source, item) => (source, item, lowerer.evaluate(item, m))))
-      computed match
-        case Some(values) if values.forall(_._3.isDefined) =>
-          play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
-          List(values.map((source, _, value) => s"($source ${value.get})").mkString("(", " ", ")"))
-        case _ => play(lowered)
+      play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
+      (current.model(), lowered.last) match
+        case (Some(m0), Command.GetValue(loweredItems, definitions)) =>
+          // Item by item: the lowering computes what it can, and the lowered term under the model,
+          // with the query's definitions folded in, answers the rest — an uninterpreted sort, an
+          // array, a datatype (issue 28).
+          lazy val m = lowerer.fold(m0, definitions)
+          val values = items.zip(loweredItems).map { case ((source, item), (_, loweredItem)) =>
+            s"($source ${lowerer.evaluate(item, m0).getOrElse(valueText(m, loweredItem))})"
+          }
+          List(values.mkString("(", " ", ")"))
+        case _ => play(List(lowered.last))
     case _ => play(lowerer.commands(List(c)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
@@ -127,16 +132,6 @@ final class Session(
    *  `c ⇒ k = t` when `c` holds — the way the lowering states one for a
    *  term-level `ite`; another shape defines nothing.
    */
-  private def define(m: Model, definition: Formula): Model =
-    def bind(k: String, t: Term): Model = m.copy(constants = m.constants + (k -> m.value(t)))
-    definition match
-      case Formula.Implies(c, body) => if m.holds(c) then define(m, body) else m
-      case Formula.Eq(Term.Const(k), t) => bind(k, t)
-      case Formula.Eq(t, Term.Const(k)) => bind(k, t)
-      case Formula.And(List(Formula.Le(Term.Const(k), t), Formula.Le(u, Term.Const(k2)))) if k == k2 && t == u =>
-        bind(k, t) // `IntEq`
-      case _ => m
-
   private def valueText(m: Model, item: Formula | Term): String = item match
     case f: Formula => if m.holds(f) then "true" else "false"
     case t: Term => Printer.print(m.value(t))
@@ -146,21 +141,29 @@ final class Session(
    *  of the datatypes stay out.
    */
   private def modelText(m: Model): String =
-    val sorts = current.declarations.collect { case (n, (Nil, s)) => n -> s }
     val interpreted =
       current.datatypes.flatMap(_.constructors).flatMap(c => c.name :: c.tester :: c.selectors.map(_._1)).toSet
-    val constants = m.constants.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map((n, v) =>
-      s"(define-fun $n () ${s2.Sorts.array(sorts.getOrElse(n, "?"))} ${Printer.print(v)})"
-    )
-    val functions = m.functions.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).map { (n, f) =>
-      val params = f.parameters.zipWithIndex.map((s, i) => s"(x!$i $s)").mkString(" ")
-      val body = f.rows.foldRight(Printer.print(f.default)) { case ((args, r), els) =>
-        val cond = args.zipWithIndex.map((a, i) => s"(= x!$i ${Printer.print(a)})") match
-          case single :: Nil => single
-          case cs => cs.mkString("(and ", " ", ")")
-        s"(ite $cond ${Printer.print(r)} $els)"
+    // The script's symbols, at the sorts the script declared them, their values written as the script
+    // would: a bit-vector constant is `(_ BitVec 4)` and `#b1010`, not the `Int` and `10` the lowering
+    // reads it as (issue 28). The lowering's own constants stay out, as do the datatypes' symbols.
+    def written(v: Term, sort: s2.Sort): String = lowerer.render(v, sort).getOrElse(Printer.print(v))
+    val constants = m.constants.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).flatMap { (n, v) =>
+      lowerer.declaredSort(n).map(sort => s"(define-fun ${Printer.symbol(n)} () ${sort.text} ${written(v, sort)})")
+    }
+    val functions = m.functions.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).flatMap { (n, f) =>
+      lowerer.declaredSort(n).map { sort =>
+        val (argSorts, result) = sort match
+          case s2.Sort.Fun(args, r) => (args, r)
+          case other => (Nil, other)
+        val params = argSorts.zipWithIndex.map((s, i) => s"(x!$i ${s.text})").mkString(" ")
+        val body = f.rows.foldRight(written(f.default, result)) { case ((args, r), els) =>
+          val cond = args.zip(argSorts).zipWithIndex.map { case ((a, s), i) => s"(= x!$i ${written(a, s)})" } match
+            case single :: Nil => single
+            case cs => cs.mkString("(and ", " ", ")")
+          s"(ite $cond ${written(r, result)} $els)"
+        }
+        s"(define-fun ${Printer.symbol(n)} ($params) ${result.text} $body)"
       }
-      s"(define-fun $n ($params) ${f.result} $body)"
     }
     (constants ++ functions).mkString("(", " ", ")")
 
@@ -198,7 +201,7 @@ final class Session(
           responses += asserted.flatten.map(Printer.print).mkString("(", " ", ")")
         case Command.GetValue(items, definitions) =>
           responses += withModel { m0 =>
-            val m = definitions.foldLeft(m0)(define)
+            val m = lowerer.fold(m0, definitions)
             items.map((src, it) => s"($src ${valueText(m, it)})").mkString("(", " ", ")")
           }
         case Command.GetModel => responses += withModel(modelText)

@@ -32,9 +32,10 @@ final case class Model(
   def value(term: Term): Term = term match
     case Term.Num(_) => term
     case Term.Linear(terms, c) =>
-      Model.rationalTerm(terms.foldLeft(lia.Rational(c)) { case (sum, (a, t)) =>
-        sum + lia.Rational(a) * rational(value(t))
-      })
+      val values = terms.map((a, t) => (a, rational(value(t))))
+      if values.forall(_._2.isDefined) then
+        Model.rationalTerm(values.foldLeft(lia.Rational(c)) { case (sum, (a, v)) => sum + lia.Rational(a) * v.get })
+      else term // a term the model has no number for: the combination is not one either
     case Term.Const(name) =>
       functions.get(name) match
         case Some(f) if f.parameters.isEmpty => f.default
@@ -60,6 +61,24 @@ final case class Model(
     case Term.Bool(formula) => Term.boolean(if holds(formula) then Formula.True else Formula.False)
     case _ => term
 
+  /** This model with a constant valued by its definition — `k = t`, or
+   *  `c ⇒ k = t` when `c` holds, or the two bounds of an integer equality — the
+   *  way the lowering states one for a term-level `ite`; only a name `fresh`
+   *  accepts is bound, never a declared one, which a definition of the
+   *  lowering's mentions as a value, not as the defined (issue 28).
+   */
+  def defined(definition: Formula, fresh: String => Boolean): Model =
+    def bind(k: String, t: Term): Model = if fresh(k) then copy(constants = constants + (k -> value(t))) else this
+    definition match
+      case Formula.Implies(c, body) => if holds(c) then defined(body, fresh) else this
+      case Formula.Eq(Term.Const(k), t) if fresh(k) => bind(k, t)
+      case Formula.Eq(t, Term.Const(k)) if fresh(k) => bind(k, t)
+      case Formula.And(List(Formula.Le(Term.Const(k), t), Formula.Le(u, Term.Const(k2)))) if k == k2 && t == u =>
+        bind(k, t) // `IntEq`, the fresh constant on the left
+      case Formula.And(List(Formula.Le(t, Term.Const(k)), Formula.Le(Term.Const(k2), u))) if k == k2 && t == u =>
+        bind(k, t) // `IntEq`, the fresh constant on the right
+      case _ => this
+
   /** A function application by the function's graph: the row of the argument
    *  values, else the default; the application itself for an unknown symbol.
    */
@@ -78,14 +97,15 @@ final case class Model(
     case Formula.Iff(a, b) => holds(a) == holds(b)
     case Formula.Ite(c, t, e) => if holds(c) then holds(t) else holds(e)
     case Formula.Eq(l, r) => Model.same(value(l), value(r))
-    case Formula.Le(l, r) => rational(value(l)) <= rational(value(r))
-    case Formula.Less(l, r) => rational(value(l)) < rational(value(r))
+    // Failing closed: a side the model has no number for makes no bound hold (issue 35).
+    case Formula.Le(l, r) => rational(value(l)).zip(rational(value(r))).exists(_ <= _)
+    case Formula.Less(l, r) => rational(value(l)).zip(rational(value(r))).exists(_ < _)
     case Formula.Pred(t) => value(t) == Term.Bool(Formula.True)
 
-  private def rational(t: Term): lia.Rational = t match
-    case Term.Num(v) => lia.Rational(v)
-    case Term.App(Term.Const("/"), List(p, q)) => rational(p) / rational(q)
-    case _ => lia.Rational(BigInt(0)) // an unconstrained number: the model chose 0
+  private def rational(t: Term): Option[lia.Rational] = t match
+    case Term.Num(v) => Some(lia.Rational(v))
+    case Term.App(Term.Const("/"), List(p, q)) => rational(p).zip(rational(q)).map(_ / _)
+    case _ => None // not a number the model knows
 
 object Model:
   /** A rational as a term: a numeral, or `(/ num den)`. */

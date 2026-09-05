@@ -51,7 +51,7 @@ private final class Lowerer:
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, s2.Term | s2.Formula)]
 
   private var fresh = 0
-  private val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own
+  val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own, a test for the session
 
   /** A name of the lowering's own, `prefix!N`: past the script's symbols, so
    *  that a script's `bit!1` is never taken for the lowering's, and remembered,
@@ -109,19 +109,65 @@ private final class Lowerer:
    *  falls back to the lowered term under the model.
    */
   def evaluate(item: s2.Term | s2.Formula, model: Model): Option[String] =
-    item match
-      case f: s2.Formula => valued(f, model).map(g => if model.holds(formula(g, Map.empty)) then "true" else "false")
-      case t: s2.Term =>
-        valued(t, model).flatMap { v =>
-          val folded = term(v, Map.empty)
-          (folded, sortOf(t, Map.empty)) match
-            // As z3 and cvc5 write a bit-vector value, in binary: `(_ bv1 4)` says the same and reads oddly.
-            case (Num(value), Sort.BitVec(w)) =>
-              Some(s2.sexpr.SExpr.SBits(value.mod(modulus(w)), w, hexadecimal = false).toString)
-            case (Num(value), Sort.Int | Sort.Real) => Some(s2.Printer.print(s2.Term.Numeral(value)))
-            case (Bool(f), Sort.Bool) => Some(if model.holds(f) then "true" else "false")
-            case _ => None
-        }
+    try
+      item match
+        case f: s2.Formula =>
+          valued(f, model).map { g =>
+            val lowered = formula(g, Map.empty)
+            if folded(model).holds(lowered) then "true" else "false"
+          }
+        case t: s2.Term =>
+          valued(t, model).flatMap { v =>
+            val lowered = term(v, Map.empty) // first: what it mints is what the folding values
+            render(folded(model).value(lowered), sortOf(t, Map.empty))
+          }
+    finally forget()
+
+  /** The model with the constants the lowering minted while evaluating — a
+   *  term-level `ite`'s, a rational literal's — valued by their definitions
+   *  (issue 28).
+   */
+  private def folded(model: Model): Model = fold(model, definitions.toList)
+
+  /** The model with the lowering's rational constants valued, and the constants
+   *  `definitions` define — a query's, for the session to value the lowered
+   *  items the lowering could not compute.
+   */
+  def fold(model: Model, definitions: List[Formula]): Model =
+    val withRationals = rationalValues.foldLeft(model) {
+      case (m, (Const(name), (p, q))) =>
+        val value = Model.rationalTerm(io.bovel.lia.Rational(p) / io.bovel.lia.Rational(q))
+        m.copy(constants = m.constants + (name -> value))
+      case (m, _) => m
+    }
+    definitions.foldLeft(withRationals)((m, d) => m.defined(d, minted))
+
+  /** Whatever a query minted, forgotten: a constant defined for the query alone
+   *  must not be found by a later assertion.
+   */
+  private def forget(): Unit =
+    introduced.clear()
+    definitions.clear()
+    rationals.clear()
+    rationalProducts.clear()
+    rangedApplications.clear()
+    clearLowered()
+
+  /** A value as the script writes one of `sort`: a bit-vector in binary, as z3
+   *  and cvc5 write it (`(_ bv1 4)` says the same and reads oddly), a rational
+   *  as `(/ p q)`; `None` for a value that is not a literal.
+   */
+  def render(value: Term, sort: Sort): Option[String] = (value, sort) match
+    case (Num(v), Sort.BitVec(w)) => Some(s2.sexpr.SExpr.SBits(v.mod(modulus(w)), w, hexadecimal = false).toString)
+    case (Num(v), Sort.Int | Sort.Real) => Some(s2.Printer.print(s2.Term.Numeral(v)))
+    case (App(Const("/"), List(Num(_), Num(_))), Sort.Real) => Some(Printer.print(value)) // `(/ (- 2) 3)`
+    case (Bool(f), Sort.Bool) => Some(if f == True then "true" else if f == False then "false" else return None)
+    case _ => None
+
+  /** The sort the script declared `name` at, for the model's text; none for a
+   *  name the script never declared, the lowering's own among them.
+   */
+  def declaredSort(name: String): Option[Sort] = if minted(name) then None else functions.get(name)
 
   /** A surface term with every declared symbol replaced by its value in
    *  `model`, as a literal of its sort.
@@ -166,6 +212,9 @@ private final class Lowerer:
   private def literal(value: Term, sort: Sort): Option[s2.Term] = (value, sort) match
     case (Num(v), Sort.BitVec(w)) => Some(s2.Term.Bits(v.mod(modulus(w)), w))
     case (Num(v), Sort.Int) => Some(s2.Term.Numeral(v))
+    case (Num(v), Sort.Real) => Some(s2.Term.Numeral(v))
+    case (App(Const("/"), List(Num(p), Num(q))), Sort.Real) => // a rational, lowered again as one
+      Some(s2.Term.ArithApp(s2.ArithOp.Div, List(s2.Term.Numeral(p), s2.Term.Numeral(q))))
     case (Bool(True), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.True))
     case (Bool(False), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.False))
     case _ => None

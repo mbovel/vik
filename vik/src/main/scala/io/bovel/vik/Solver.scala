@@ -845,12 +845,74 @@ private final class Encoder(
       // The name is bare, `@a b!0` for the sort `|a b|`: the printer adds the bars a name needs.
       val bare = sort.stripPrefix("|").stripSuffix("|")
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
+    // A number the simplex never saw — a constructor's field invented by a tester's expansion, say — is
+    // free of arithmetic but not of the e-graph's disequalities: its class gets a value of its own, past
+    // every value known, and not the 0 that `(not (= x (mk 0)))` forbids (issue 26).
+    var nextFresh = classValues.values.maxOption.getOrElse(BigInt(0)).max(BigInt(0)) + 1
+    def freshInt(root: EClassId): BigInt =
+      classValues.getOrElseUpdate(
+        root, {
+          nextFresh += 1
+          nextFresh - 1
+        }
+      )
+    def freshReal(root: EClassId): lia.Rational =
+      realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
+    def asRational(value: Term): lia.Rational = value match
+      case Term.Num(v) => lia.Rational(v)
+      case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
+      case _ => lia.Rational.zero
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
+    // The value of a datatype class with no constructor node: none of its testers holds, so none is
+    // asserted of it, and the value is built — a constructor whose tester is not false, its fields
+    // from the selectors' classes when the problem has them and fresh values otherwise — one that
+    // differs from every other such class's, since the e-graph may keep them apart (issue 26).
+    val builtValues = HashMap.empty[EClassId, Term]
+    def testerOf(root: EClassId, tester: String): Option[Boolean] =
+      classes.collectFirst {
+        case (Term.App(Term.Const(t), List(u)), c) if t == tester && classes.get(u).exists(x => eg.find(x) == root) =>
+          eg.find(c)
+      }.map(c => c == eg.find(trueTerm))
+    def selectorOf(root: EClassId, selector: String): Option[EClassId] =
+      classes.collectFirst {
+        case (Term.App(Term.Const(s), List(u)), c) if s == selector && classes.get(u).exists(x => eg.find(x) == root) =>
+          c
+      }
+    def defaultOf(sort: String, seen: Set[String]): Term = datatypes.find(_.name == sort) match
+      case Some(d) if !seen(sort) =>
+        val c = d.constructors.find(_.selectors.isEmpty).getOrElse(d.constructors.head)
+        val args = c.selectors.map((_, s) => defaultOf(s.text, seen + sort))
+        if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
+      case Some(_) => elementOf(sort, eg.newClass())
+      case None => valueOfTerm(Term.Const("@default"), sort)
+    def builtValue(datatype: Datatype, root: EClassId, seen: Set[EClassId]): Term =
+      builtValues.getOrElseUpdate(
+        root, {
+          val candidates = datatype.constructors.filter(c => !testerOf(root, c.tester).contains(false))
+          val numeric = (s: String) => s == "Int" || s == "Real"
+          // A constructor with a number among its fields tells classes apart by that field; an
+          // enumeration by taking its constructors in turn.
+          val c = candidates.find(_.selectors.exists((_, s) => numeric(s.text))).getOrElse {
+            val nullary = candidates.filter(_.selectors.isEmpty)
+            if nullary.nonEmpty then nullary(builtValues.size % nullary.length)
+            else candidates.headOption.getOrElse(datatype.constructors.head)
+          }
+          val args = c.selectors.map { (selector, s) =>
+            selectorOf(root, selector) match
+              case Some(field) => valueOfClass(field, s.text, seen + root)
+              case None if s.text == "Int" => Term.Num(freshInt(eg.newClass()))
+              case None if s.text == "Real" => Model.rationalTerm(freshReal(eg.newClass()))
+              case None => defaultOf(s.text, Set.empty)
+          }
+          if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
+        }
+      )
     def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
       datatypes.find(_.name == sort) match
         case Some(datatype) =>
           val node = adt.map(_.node(eg, cls)).orNull
-          if node == null || seen(eg.find(cls)) then elementOf(sort, cls)
+          if seen(eg.find(cls)) then elementOf(sort, cls) // a cycle, which the rules never let through
+          else if node == null then builtValue(datatype, eg.find(cls), seen)
           else
             val constructor = datatype.constructors.find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
             constructor match
@@ -859,31 +921,40 @@ private final class Encoder(
                   valueOfClass(a, s._2.text, seen + eg.find(cls))
                 )
                 if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
-              case None => elementOf(sort, cls)
+              case None => builtValue(datatype, eg.find(cls), seen)
         case None =>
           sort match
-            case "Int" => Term.Num(classValues.getOrElse(eg.find(cls), BigInt(0)))
-            case "Real" => Model.rationalTerm(realClassValues.getOrElse(eg.find(cls), lia.Rational.zero))
+            case "Int" => Term.Num(freshInt(eg.find(cls)))
+            case "Real" => Model.rationalTerm(freshReal(eg.find(cls)))
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             case _ => elementOf(sort, cls)
     def valueOfTerm(t: Term, sort: String): Term =
       (t, sort) match
         case (Term.Num(_), _) => t // a literal argument of an application
+        case (Term.Linear(terms, c), _) => // a linear argument or index: computed from its terms (issue 24)
+          Model.rationalTerm(terms.foldLeft(lia.Rational(c)) { case (sum, (a, u)) =>
+            sum + lia.Rational(a) * asRational(valueOfTerm(u, sortOf(u)))
+          })
         case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(t, s)
           else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
         case (_, "Int") =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
-            .orElse(classes.get(t).flatMap(c => classValues.get(eg.find(c))).map(Term.Num(_)))
+            .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
         case (_, "Real") =>
           intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x)))
-            .orElse(classes.get(t).flatMap(c => realClassValues.get(eg.find(c))).map(Model.rationalTerm))
+            .orElse(classes.get(t).map(c => Model.rationalTerm(freshReal(eg.find(c)))))
             .getOrElse(Term.Num(0))
         case _ =>
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)
-            case None => if sort == "Bool" then Term.boolean(Formula.False) else elementOf(sort, eg.newClass())
+            case None =>
+              if sort == "Bool" then Term.boolean(Formula.False)
+              else
+                datatypes.find(_.name == sort) match
+                  case Some(d) => builtValue(d, eg.newClass(), Set.empty) // never reached the e-graph: free
+                  case None => elementOf(sort, eg.newClass())
     // An array's value, per e-class: its default and the indices its class was read at — its own
     // selects, the ones of every array equal to it, the write of a store it equals.
     def arrayValue(array: Term, sort: String): Term =
@@ -908,6 +979,17 @@ private final class Encoder(
       (name, (argSorts, sort)) <- declarations
       if argSorts.isEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
     do if classes.contains(Term.Const(name)) then constants += name -> arrayValue(Term.Const(name), sort)
+    // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
+    for
+      (name, (argSorts, sort)) <- declarations
+      if argSorts.nonEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
+    do
+      val rows = classes.keys.collect {
+        case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
+          (args.zip(argSorts).map(valueOfTerm), arrayValue(a, sort))
+      }.toList
+      val default = Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
+      functions += name -> Model.Function(argSorts, Sorts.array(sort), rows, default)
     for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else
