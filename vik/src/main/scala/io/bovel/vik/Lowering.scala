@@ -462,11 +462,15 @@ private final class Lowerer:
     case s2.Term.Let(bindings, body) => term(body, bind(bindings, env))
     case s2.Term.Bool(f) => Term.boolean(formula(f, env))
 
-  /** Expands the macro `name` applied to `args` (evaluated in `env`). */
+  /** Expands the macro `name` applied to `args` (evaluated in `env`). The body
+   *  sees its parameters and the declarations, never the caller's bindings: a
+   *  `define-fun` is a top-level command, and a body that reads a global must
+   *  not be captured by a caller's parameter of the same name (issue 10).
+   */
   private def expand(name: String, args: List[s2.Term], env: Env): Term =
     val (params, sort, body) = macros(name)
     if params.length != args.length then throw s2.Smt2Error(s"$name expects ${params.length} arguments")
-    val inner = params.zip(args).foldLeft(env) { case (e, ((p, s), a)) =>
+    val inner = params.zip(args).foldLeft(Map.empty: Env) { case (e, ((p, s), a)) =>
       e +
         (p -> (
           if s == Sort.Bool then Value.F(Formula.pred(term(a, env)))

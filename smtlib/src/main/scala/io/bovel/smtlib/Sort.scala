@@ -23,7 +23,9 @@ enum Sort:
     case Real => "Real"
     case BitVec(width) => s"(_ BitVec $width)"
     case Array(index, element) => s"(Array ${index.text} ${element.text})"
-    case Named(name) => name
+    // `|a b|` when the name needs its bars; an instance of a parametric sort keeps the
+    // parenthesised text the parser names it by, `(List Int)`, which is how it is written.
+    case Named(name) => if name.startsWith("(") then name else sexpr.SExpr.SSymbol(name).toString
     case Fun(args, result) => s"(-> ${(args.map(_.text) :+ result.text).mkString(" ")})"
 
   override def toString: String = text

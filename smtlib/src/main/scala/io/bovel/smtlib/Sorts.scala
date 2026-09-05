@@ -42,16 +42,20 @@ object Sorts:
     case Some((params, result)) => params.foldRight(result)((i, e) => s"(Array $i $e)")
     case None => sort
 
-  /** The items of `s` separated by spaces at parenthesis depth 0. */
+  /** The items of `s` separated by spaces at parenthesis depth 0 and outside
+   *  the bars of a quoted symbol (`|a b|` is one sort name, issue 11).
+   */
   private def split(s: String): List[String] =
     val items = List.newBuilder[String]
     var depth = 0
+    var quoted = false
     var start = 0
     for i <- s.indices do
       s(i) match
-        case '(' => depth += 1
-        case ')' => depth -= 1
-        case ' ' if depth == 0 =>
+        case '|' => quoted = !quoted
+        case '(' if !quoted => depth += 1
+        case ')' if !quoted => depth -= 1
+        case ' ' if depth == 0 && !quoted =>
           if i > start then items += s.substring(start, i)
           start = i + 1
         case _ => ()

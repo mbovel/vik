@@ -799,7 +799,9 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       realClassValues(eg.find(c)) = lia.Rational(v)
     def elementOf(sort: String, cls: EClassId): Term =
       val root = eg.find(cls)
-      elements.getOrElseUpdate((sort, root), Term.Const(s"@$sort!${elements.count(_._1._1 == sort)}"))
+      // The name is bare, `@a b!0` for the sort `|a b|`: the printer adds the bars a name needs.
+      val bare = sort.stripPrefix("|").stripSuffix("|")
+      elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
     def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
       datatypes.find(_.name == sort) match
