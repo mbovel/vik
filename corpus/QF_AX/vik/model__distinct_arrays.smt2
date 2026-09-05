@@ -2,8 +2,10 @@
 ; get values that differ at the witness index the solver introduced, and an
 ; array equal to a store on another gets that store's write.
 ; EXPECT: sat
-; EXPECT: (((= a c) false) ((= a b) false) ((select c i) @E!0))
-; EXPECT: ((define-fun a () (Array I E) (store ((as const (Array I E)) @E!1) @I!0 @E!0)) (define-fun b () (Array I E) (store ((as const (Array I E)) @E!3) @I!0 @E!2)) (define-fun c () (Array I E) (store ((as const (Array I E)) @E!4) @I!0 @E!0)) (define-fun i () I @I!0) (define-fun v () E @E!0))
+; EXPECT: (((= a c) true) ((= a b) false) ((select c i) @E!0))
+; EXPECT: ((define-fun a () (Array I E) (store ((as const (Array I E)) @E!1) @I!0 @E!0)) (define-fun b () (Array I E) (store ((as const (Array I E)) @E!3) @I!0 @E!2)) (define-fun c () (Array I E) (store (store (store ((as const (Array I E)) @E!1) @I!0 @E!0) @I!0 @E!0) @I!0 @E!0)) (define-fun i () I @I!0) (define-fun v () E @E!0))
+; `c` is `(store a i (select a i))`, which is `a`: its value derives from `a`'s, default and all, and
+; `(= a c)` is true, where it was valued from its own reads over a default of its own until 2026-09-05.
 (set-logic QF_AX)
 (set-option :produce-models true)
 (declare-sort I 0)

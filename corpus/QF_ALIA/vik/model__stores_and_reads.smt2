@@ -4,7 +4,7 @@
 ; them, `store`s in the query included.
 ; EXPECT: sat
 ; EXPECT: (((select b 1) 10) ((select b 2) 20) ((select a 2) 20) ((select (store b i 5) i) 5) ((= a b) false))
-; EXPECT: ((define-fun a () (Array Int Int) (store (store ((as const (Array Int Int)) 0) 0 31) 2 20)) (define-fun b () (Array Int Int) (store (store (store ((as const (Array Int Int)) 0) 0 31) 1 10) 2 20)) (define-fun i () Int 0))
+; EXPECT: ((define-fun a () (Array Int Int) (store (store ((as const (Array Int Int)) 0) 0 31) 2 20)) (define-fun b () (Array Int Int) (store (store (store (store (store (store ((as const (Array Int Int)) 0) 0 31) 2 20) 1 10) 0 31) 1 10) 2 20)) (define-fun i () Int 0))
 (set-logic QF_ALIA)
 (set-option :produce-models true)
 (declare-const a (Array Int Int))

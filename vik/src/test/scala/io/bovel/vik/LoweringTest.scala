@@ -106,3 +106,10 @@ class LoweringTest extends munit.FunSuite:
   test("a lowered script writes a declared name with the bars it needs (issue 33)"):
     assertEquals(Printer.print(Command.DeclareSort("a b", 0)), "(declare-sort |a b| 0)")
     assertEquals(Printer.print(Command.DeclareFun("f g", List("|a b|"), "Int")), "(declare-fun |f g| (|a b|) Int)")
+
+  test("a witness's name declared by the script after the witness is refused (issue 21)"):
+    val e = intercept[Smt2Error](Session.run(Parser.parse(
+      "(declare-const a (Array Int Int))(declare-const b (Array Int Int))(assert (not (= a b)))(check-sat)" +
+        "(declare-const ext!0 Int)(assert (= ext!0 0))(check-sat)"
+    )))
+    assert(e.getMessage.contains("ext!0"), e.getMessage)

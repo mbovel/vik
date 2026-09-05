@@ -509,7 +509,7 @@ final class Parser:
           case other => throw Smt2Error(s"bad binding $other")
         }
       )
-    case SList(SSymbol("match") :: _) => sortOf(matchToIte(sexpr), env)
+    case SList(SSymbol("match") :: _) => sortOf(matchToIte(sexpr, env), env)
     case SList(SSymbol(name) :: args) if macros.contains(name) => macros(name)._2
     case SList(SSymbol(name) :: args) if polymorphic.contains(name) && !env.contains(name) =>
       resultSort(instance(name, args.map(sortOf(_, env)), None), args.length)
@@ -571,7 +571,7 @@ final class Parser:
     case SList(SSymbol("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
       Let(bound, formula(body, inner))
-    case SList(SSymbol("match") :: _) => formula(matchToIte(sexpr), env)
+    case SList(SSymbol("match") :: _) => formula(matchToIte(sexpr, env), env)
     case SList(SSymbol("!") :: body :: _) => formula(body, env) // an annotated term
     case _ => // a Boolean constant or application
       if sortOf(sexpr, env) != Sort.Bool then throw Smt2Error(s"not a formula: $sexpr")
@@ -586,7 +586,7 @@ final class Parser:
    *  pattern binds the scrutinee itself and ends the cases. A pattern symbol
    *  that names a constructor is that constructor; any other is a variable.
    */
-  private def matchToIte(sexpr: SExpr): SExpr = sexpr match
+  private def matchToIte(sexpr: SExpr, env: Map[String, Sort]): SExpr = sexpr match
     case SList(SSymbol("match") :: scrutinee :: SList(cases) :: Nil) if cases.nonEmpty =>
       matches += 1
       while functions.contains(s"match!$matches") do matches += 1 // past the script's own symbols (issue 21)
@@ -595,7 +595,7 @@ final class Parser:
       // A symbol pattern is a constructor pattern only for a constructor of the scrutinee's datatype;
       // any other symbol is a variable that binds the whole scrutinee (issue 23). The scrutinee's sort
       // is asked for when it can be told here, before the `let`s around it are read.
-      val scrutineeSort = scala.util.Try(sortOf(scrutinee, Map.empty).text).toOption
+      val scrutineeSort = scala.util.Try(sortOf(scrutinee, env).text).toOption // a macro's parameter too
       def binding(name: String, value: SExpr): SExpr = SList(List(SSymbol(name), value))
       def let(bindings: List[SExpr], body: SExpr): SExpr =
         if bindings.isEmpty then body else SList(List(SSymbol("let"), SList(bindings), body))
@@ -699,7 +699,7 @@ final class Parser:
     case SList(SSymbol("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
       Term.Let(bound, term(body, inner))
-    case SList(SSymbol("match") :: _) => term(matchToIte(sexpr), env)
+    case SList(SSymbol("match") :: _) => term(matchToIte(sexpr, env), env)
     case SList(SSymbol("!") :: body :: _) => term(body, env) // an annotated term
     case SList(SSymbol(name) :: args) =>
       declared(name, env)

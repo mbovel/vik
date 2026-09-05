@@ -182,9 +182,12 @@ private final class Lowerer:
     case s2.Term.Const(name) if functions.contains(name) =>
       literal(model.value(Const(name)), functions(name))
     case s2.Term.App(s2.Term.Const(name), args) if functions.contains(name) && !macros.contains(name) =>
+      // The arguments lowered may mint constants (a rational literal's): the application is valued
+      // under the model with those valued, or a row at `(/ 1 2)` is never matched by `rat!1`.
       for
         values <- traverse(args.map(valued(_, model)))
-        result <- literal(model.value(App(Const(name), values.map(term(_, Map.empty)))), sortOf(t, Map.empty))
+        lowered = App(Const(name), values.map(term(_, Map.empty)))
+        result <- literal(folded(model).value(lowered), sortOf(t, Map.empty))
       yield result
     case s2.Term.App(fun, args) =>
       traverse((fun :: args).map(valued(_, model))).map(vs => s2.Term.App(vs.head, vs.tail))

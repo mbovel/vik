@@ -26,7 +26,9 @@ object ModelCheck:
       for case (SList(SSymbol("get-model") :: Nil), i) <- commands.zipWithIndex do
         val prefix = commands.take(i + 1)
         val responses = Session.run(Parser.parse(prefix.mkString("\n")))
-        if responses.length >= 2 && responses(responses.length - 2) == "sat" then
+        // The answer of the last check before the model, past any value queries between the two.
+        val lastCheck = responses.init.findLast(r => r == "sat" || r == "unsat" || r == "unknown")
+        if lastCheck.contains("sat") then
           checked += 1
           val model = SExprParser.parse(responses.last) match
             case List(SList(definitions)) => definitions

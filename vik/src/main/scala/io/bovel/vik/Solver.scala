@@ -70,6 +70,8 @@ final class Solver(val simplify: Boolean = true):
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
 
   def declare(name: String, argSorts: List[String], sort: String): Unit =
+    if encoder != null && encoder.nn.introducedName(name) then
+      throw io.bovel.smtlib.Smt2Error(s"$name: a name the solver uses; pick another")
     declarations(name) = (argSorts, sort)
     if name.startsWith("store!") then anyStore = true
 
@@ -461,6 +463,21 @@ private final class Encoder(
   private val functionEqualities = ArrayBuffer.empty[Formula]
   private var recordFunctionEqualities = true
 
+  /** A witness index's name, `ext!N`, past the script's symbols: a script
+   *  constant `ext!0` was the witness, and a later declaration of a witness's
+   *  name is refused by [[Solver.declare]].
+   */
+  private var witnesses = 0
+  private def witnessName(): String =
+    var name = s"ext!$witnesses"
+    while declarations.contains(name) do
+      witnesses += 1
+      name = s"ext!$witnesses"
+    witnesses += 1
+    name
+
+  def introducedName(name: String): Boolean = introduced.contains(name)
+
   def assertExtensionality(): Unit = if anyFunctionEquality then
     val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
@@ -473,7 +490,7 @@ private final class Encoder(
             case Some((params, _)) =>
               more = true
               val witnesses = params.map { sort =>
-                val name = s"ext!${introduced.size}"
+                val name = witnessName()
                 sort match
                   case Encoder.bitVector(width) =>
                     // The lowering reads a bit-vector as an integer in its range; so is the witness
@@ -863,6 +880,7 @@ private final class Encoder(
       case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
       case _ => lia.Rational.zero
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
+    val arraysBeingValued = scala.collection.mutable.HashSet.empty[EClassId] // against a cycle of stores
     // The value of a datatype class with no constructor node: none of its testers holds, so none is
     // asserted of it, and the value is built — a constructor whose tester is not false, its fields
     // from the selectors' classes when the problem has them and fresh values otherwise — one that
@@ -967,10 +985,23 @@ private final class Encoder(
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
               (valueOfTerm(j, indexSort), valueOfTerm(app, elementSort))
           }.toMap
-          val default = valueOfTerm(Term.Const("@default"), elementSort)
-          rows.toList.sortBy(_._1.toString).foldLeft(Model.constArray(Sorts.array(sort), default)) {
-            case (acc, (i, v)) => Model.store(acc, i, v)
+          // A class with a store in it is that store: the base array's value with the write, so that
+          // `c = (store a i (select a i))` makes `c` the value of `a`, default and all, and not an
+          // array of its own reads over a default of its own; the class's reads then agree with it
+          // by the read-over-write lemmas. A class reached again while its base is valued keeps to
+          // its reads.
+          arraysBeingValued += root
+          val written = classes.keys.collectFirst {
+            case s @ Term.App(Term.Const(n), List(base, i, v))
+                if n.startsWith("store!") && classes.get(s).exists(c => eg.find(c) == root)
+                  && !arraysBeingValued(eg.find(classOf(base))) =>
+              Model.store(arrayValue(base, sort), valueOfTerm(i, indexSort), valueOfTerm(v, elementSort))
           }
+          arraysBeingValued -= root
+          val start = written.getOrElse {
+            Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), elementSort))
+          }
+          rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
         }
       )
     val constants = Map.newBuilder[String, Term]
