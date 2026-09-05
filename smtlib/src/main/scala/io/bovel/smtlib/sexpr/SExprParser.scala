@@ -15,19 +15,27 @@ private class SExprParser(input: String):
   private val tokens = tokenRegex.findAllIn(input).filterNot(_.startsWith(";"))
   private var lookahead: String | Null = null
 
-  private def next(): String = if tokens.hasNext then tokens.next() else EOF
+  // The end of the input is `null`, a token no string equals on any platform: a string of its own
+  // told apart by identity was not one on Scala.js, where a string is the engine's primitive, and a
+  // script holding the symbol `$EOF` was cut short there (issue 29, again).
+  private var ended = false
+  private def next(): String | Null =
+    if tokens.hasNext then tokens.next()
+    else
+      ended = true
+      null
 
-  private def peek(): String =
-    if lookahead == null then lookahead = next()
-    lookahead.nn
+  private def peek(): String | Null =
+    if lookahead == null && !ended then lookahead = next()
+    lookahead
 
-  private def eat(): String =
+  private def eat(): String | Null =
     val token = peek()
     lookahead = null
     token
 
   private def eat(expected: String): String =
-    if peek() == expected then eat()
+    if peek() == expected then eat().nn
     else throw SyntaxError(s"expected ${show(expected)} but got ${show(peek())}")
 
   /** Reads one S-expression. */
@@ -37,13 +45,13 @@ private class SExprParser(input: String):
       case "(" =>
         val items = ArrayBuffer.empty[SExpr]
         while peek() != ")" do
-          if peek() eq EOF then throw SyntaxError("unexpected end of input: missing ')'")
+          if peek() == null then throw SyntaxError("unexpected end of input: missing ')'")
           items += parseOne()
         eat(")")
         SExpr.SList(items.toList)
       case ")" => throw SyntaxError("unexpected ')'")
-      case t if t eq EOF => throw SyntaxError("unexpected end of input")
-      case atom => classify(atom)
+      case null => throw SyntaxError("unexpected end of input")
+      case atom => classify(atom.nn)
 
   /** The lexical class of a token (SMT-LIB 2.6, 3.1). Anything that is none of
    *  the literals is a symbol, quoted or not: the lexer accepts more than the
@@ -74,7 +82,7 @@ private class SExprParser(input: String):
   /** Reads all the S-expressions of the input. */
   def parseAll(): List[SExpr] =
     val all = ArrayBuffer.empty[SExpr]
-    while peek() ne EOF do all += parseOne()
+    while peek() != null do all += parseOne()
     all.toList
 
 object SExprParser:
@@ -82,10 +90,7 @@ object SExprParser:
   case class SyntaxError(message: String) extends Exception(message)
 
   private val tokenRegex = """;[^\n]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\s()";|]+""".r
-  // The end of the input is its own object, told apart by identity: a script may hold the symbol
-  // `$EOF`, and one that did was cut short there (issue 29).
-  private val EOF: String = new String("$EOF")
-  private def show(token: String) = if token eq EOF then "end of input" else s"'$token'"
+  private def show(token: String | Null) = if token == null then "end of input" else s"'$token'"
 
   /** Reads all the S-expressions of `input`. */
   def parse(input: String): List[SExpr] = SExprParser(input).parseAll()

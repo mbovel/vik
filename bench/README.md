@@ -26,7 +26,12 @@ hand-written files with VIK. The replay itself covers declarations, terms, asser
 is reported, never answered.
 `ModelCheck` takes every `get-model` of the selected files, puts VIK's model into the script in place of
 the declarations it values — abstract elements declared and told apart — and asks z3 whether the script
-is then satisfiable: a model that contradicts its script is not. `replaycheck` times a replay.
+is then satisfiable: a model that contradicts its script is not. `CoreCheck` does the same for every
+`get-unsat-core`: the script with the named assertions outside the core dropped must be unsat for z3.
+`replaycheck` times a replay. [platforms.sh](platforms.sh) runs a list of corpus files through the solver
+on another platform — the Scala Native binary, `node bench/vik-node.mjs` (with `--stack-size`, since a
+deep script overflows Node's default), a GraalVM image — against the files' statuses, and CI runs the
+hand-written files that way on Scala.js and Scala Native; the corpus test itself is JVM only.
 
 ## The evaluation page
 

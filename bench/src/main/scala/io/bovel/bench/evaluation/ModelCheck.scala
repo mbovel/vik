@@ -52,13 +52,13 @@ object ModelCheck:
     val rewritten = script.flatMap {
       case SList(SSymbol("declare-fun" | "declare-const") :: SSymbol(name) :: _) if defined.contains(name) =>
         List(defined(name))
+      // The options stay: `:global-declarations` keeps the declarations across a `reset-assertions`.
       case SList(SSymbol("get-value" | "get-model" | "get-unsat-core" | "get-assertions" | "get-info") :: _) => Nil
-      case SList(SSymbol("set-option") :: _) => Nil
       case other => List(other)
     }
     // The elements after the sorts and datatypes they are of, before anything that mentions them.
     val (sorts, rest) = rewritten.span {
-      case SList(SSymbol("set-logic" | "declare-sort" | "declare-datatype" | "declare-datatypes" | "define-sort") :: _) => true
+      case SList(SSymbol("set-logic" | "set-option" | "set-info" | "declare-sort" | "declare-datatype" | "declare-datatypes" | "define-sort") :: _) => true
       case _ => false
     }
     val text = (sorts ++ declared ++ apart ++ rest).mkString("\n")
@@ -66,9 +66,9 @@ object ModelCheck:
       case SList(SSymbol("get-value" | "get-model" | "get-unsat-core" | "get-assertions" | "get-info") :: _) => true
       case _ => false
     }.mkString("\n")
-    if scala.util.Try(TextOracle.z3(original)).isFailure then
+    if scala.util.Try(TextOracle.z3Binary(original)).isFailure then
       return Some("not checked: z3 rejects the script itself (a sort of its own, say)")
-    scala.util.Try(TextOracle.z3(text)) match
+    scala.util.Try(TextOracle.z3Binary(text)) match
       case scala.util.Success(list) if list.lastOption.contains(true) => None
       case scala.util.Success(list) =>
         Some(s"z3 answers ${list.map(b => if b then "sat" else "unsat").mkString(", ")} with the model in place")

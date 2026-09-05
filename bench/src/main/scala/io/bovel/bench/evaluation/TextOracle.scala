@@ -19,6 +19,23 @@ object TextOracle:
   private def answers(output: String): List[Boolean] =
     output.linesIterator.map(_.trim).collect { case "sat" => true; case "unsat" => false }.toList
 
+  /** The z3 binary on the text, for scripts the binding's context cannot take
+   *  as written: it sets `:global-declarations` before its logic, which the
+   *  context has fixed, and options of other solvers it warns about and goes
+   *  on. `sat` and `unsat` lines only; an error with no answer is thrown.
+   */
+  def z3Binary(text: String): List[Boolean] =
+    val file = java.nio.file.Files.createTempFile("oracle", ".smt2")
+    try
+      java.nio.file.Files.writeString(file, text)
+      val process = ProcessBuilder("bench/native/bin/z3", file.toString).redirectErrorStream(true).start()
+      val output = String(process.getInputStream.readAllBytes(), "UTF-8")
+      process.waitFor()
+      val found = answers(output)
+      if found.isEmpty then throw RuntimeException(output.linesIterator.find(_.startsWith("(error")).getOrElse(output.take(200)))
+      found
+    finally java.nio.file.Files.deleteIfExists(file)
+
   /** VIK's own front end: a `Session` on the text. */
   def vik(text: String): List[Boolean] =
     io.bovel.vik.Session().run(text).collect { case "sat" => true; case "unsat" => false }

@@ -64,6 +64,8 @@ jobs:
         run: sbt --server compileJS
       - name: Test (Scala.js)
         run: sbt --server testJS
+      - name: The solver on Node.js against the hand-written corpus files (bench/platforms.sh)
+        run: sbt --server docsAssets && bench/platforms.sh <(ls corpus/*/vik/*.smt2) node --stack-size=900000 bench/vik-node.mjs
   test-native:
     name: test (Scala Native)
     runs-on: ubuntu-latest # clang comes with the runner image
@@ -79,6 +81,8 @@ jobs:
         run: sbt --server compileNative
       - name: Test (Scala Native)
         run: sbt --server testNative
+      - name: The solver as a Scala Native binary against the hand-written corpus files (bench/platforms.sh)
+        run: sbt --server vikNative/nativeLink && bench/platforms.sh <(ls corpus/*/vik/*.smt2) "$(find target/out/native0.5 -name io.bovel.vik.smt2 -type f | head -1)"
   graal:
     # Every suite the JVM runs, built into a GraalVM native image of their own and run there — the corpus
     # included, so what the binary answers is checked, not only that it starts. The solver's own image is
