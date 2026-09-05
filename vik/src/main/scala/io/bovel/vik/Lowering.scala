@@ -159,10 +159,15 @@ private final class Lowerer:
    */
   def render(value: Term, sort: Sort): Option[String] = (value, sort) match
     case (Num(v), Sort.BitVec(w)) => Some(s2.sexpr.SExpr.SBits(v.mod(modulus(w)), w, hexadecimal = false).toString)
-    case (Num(v), Sort.Int | Sort.Real) => Some(s2.Printer.print(s2.Term.Numeral(v)))
-    case (App(Const("/"), List(Num(_), Num(_))), Sort.Real) => Some(Printer.print(value)) // `(/ (- 2) 3)`
+    case (Num(v), Sort.Int) => Some(s2.Printer.print(s2.Term.Numeral(v)))
+    // A real as a decimal, `4.0` and `(/ 9.0 2.0)`, as z3 writes one: a numeral is an integer where the
+    // logic has both, and a definition `(define-fun e () Real 0)` is a sort mismatch to z3.
+    case (Num(v), Sort.Real) => Some(decimal(v))
+    case (App(Const("/"), List(Num(p), Num(q))), Sort.Real) => Some(s"(/ ${decimal(p)} ${decimal(q)})")
     case (Bool(f), Sort.Bool) => Some(if f == True then "true" else if f == False then "false" else return None)
     case _ => None
+
+  private def decimal(v: BigInt): String = if v.signum < 0 then s"(- ${-v}.0)" else s"$v.0"
 
   /** The sort the script declared `name` at, for the model's text; none for a
    *  name the script never declared, the lowering's own among them.

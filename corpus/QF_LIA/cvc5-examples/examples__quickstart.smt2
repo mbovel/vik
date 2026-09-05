@@ -2,7 +2,7 @@
 ;! [docs-smt2-quickstart-1 start]
 ; statuses: the `unknown` ones answered by This is cvc5 version 1.2.1 (statusstamp, 2026-09-03)
 ; EXPECT: sat
-; EXPECT: ((x (/ 1 3)) (y (/ 1 3)) ((- x y) 0))
+; EXPECT: ((x (/ 1.0 3.0)) (y (/ 1.0 3.0)) ((- x y) 0.0))
 ; EXPECT: unsat
 ; EXPECT: ()
 (set-logic ALL)

@@ -1,6 +1,6 @@
 ; From princess: rationals/casts.smt2 (BSD, LICENSES/princess.txt)
 ; EXPECT: sat
-; EXPECT: ((define-fun x () Real (/ 1 2)) (define-fun y () Real (/ 1 2)))
+; EXPECT: ((define-fun x () Real (/ 1.0 2.0)) (define-fun y () Real (/ 1.0 2.0)))
 
 (declare-const x Real)
 (declare-const y Real)

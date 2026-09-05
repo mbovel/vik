@@ -2,7 +2,7 @@
 ; fraction, a rational literal printed as the lowering's own constant, and a Boolean item was evaluated
 ; wrongly, all on the path that values the lowered term under the model (issue 28, 2026-09-05).
 ; EXPECT: sat
-; EXPECT: (((+ x 0.5) (/ 9 2)) (1.5 (/ 3 2)) ((/ x 2) 2) (y (/ (- 3) 4)) ((* 2 y) (/ (- 3) 2)) ((< y x) true) ((= (ite (< x y) x y) y) true))
+; EXPECT: (((+ x 0.5) (/ 9.0 2.0)) (1.5 (/ 3.0 2.0)) ((/ x 2) 2.0) (y (/ (- 3.0) 4.0)) ((* 2 y) (/ (- 3.0) 2.0)) ((< y x) true) ((= (ite (< x y) x y) y) true))
 (set-logic QF_LRA)
 (set-option :produce-models true)
 (declare-const x Real)

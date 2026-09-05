@@ -11,7 +11,17 @@ files. The workloads and the results are kept per module:
 | `lia` | `lia.LiaBench` | [results/lia](results/lia/README.md) |
 | `smtlib` | `smtlib.SExprBench` (the reader), `smtlib.SmtlibBench` (the parser and the printer) | [results/sexpr](results/sexpr/README.md), [results/smtlib](results/smtlib/README.md) |
 | `vik` (random integer and datatype instances through the API) | `vik.UfliaBench`, `vik.AdtBench` | [results/smt](results/smt/README.md) |
-| `evaluation` (VIK, z3, cvc5, princess and SMTInterpol in process on the SMT-LIB instances of the evaluation) | `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`; `SolverCheck`, `replaycheck` | [results/smt](results/smt/README.md) |
+| `evaluation` (VIK, z3, cvc5, princess and SMTInterpol in process on the SMT-LIB instances of the evaluation) | `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`; `SolverCheck`, `ModelCheck`, `replaycheck` | [results/smt](results/smt/README.md) |
+
+## The checkers
+
+`SolverCheck` runs the in-process solvers on the corpus files a regex selects (`/smt-lib/` by default) and
+reports, check-sat by check-sat, every answer against the file's status for that check and every check on
+which the solvers disagree, stamped or not — never the last answer against the first status, which on a
+script of several checks was inverted. A file the replay cannot compile is reported as not checked.
+`ModelCheck` takes every `get-model` of the selected files, puts VIK's model into the script in place of
+the declarations it values — abstract elements declared and told apart — and asks z3 whether the script
+is then satisfiable: a model that contradicts its script is not. `replaycheck` times a replay.
 
 ## The evaluation page
 
