@@ -19,6 +19,7 @@ final case class Model(
     datatypes: List[io.bovel.smtlib.Datatype] = Nil
 ):
   /** A selector's constructor and position, a tester's constructor. */
+  private lazy val constructors: Set[String] = datatypes.flatMap(_.constructors).map(_.name).toSet
   private lazy val selectors: Map[String, (String, Int)] =
     (for d <- datatypes; c <- d.constructors; ((s, _), i) <- c.selectors.zipWithIndex yield s -> (c.name, i)).toMap
   private lazy val testers: Map[String, String] =
@@ -52,6 +53,9 @@ final case class Model(
         case _ => false
       Term.boolean(if holds then Formula.True else Formula.False)
     case Term.App(fun, List(index)) if Model.isArray(value(fun)) => Model.select(value(fun), value(index))
+    // A constructor application is a value once its arguments are: through the graph it would get the
+    // default, an abstract element, for a term the solver never saw (a definition of the simplifier's).
+    case Term.App(Term.Const(name), args) if constructors.contains(name) => Term.App(Term.Const(name), args.map(value))
     case Term.App(Term.Const(name), args) => lookup(name, args.map(value))
     case Term.Bool(formula) => Term.boolean(if holds(formula) then Formula.True else Formula.False)
     case _ => term

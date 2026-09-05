@@ -121,6 +121,14 @@ object Simplifier:
               defined(c) = t
               for (name, d) <- defined.toList if name != c do defined(name) = substitute(d, c, t)
               conjuncts = conjuncts.zipWithIndex.collect { case (g, j) if j != i => substitute(g, c, t) }
+              // The counts over the whole set follow the conjunction: `c` is gone from it and the
+              // constants of `t` now stand where it stood. A count taken once would let a constant
+              // that another assertion mentions pass as local, once enough of `t` had been put into
+              // this conjunction to match its stale total (issue 12).
+              val after = HashMap.empty[String, Int]
+              conjuncts.foreach(countConstants(_, after))
+              for name <- local.keySet ++ after.keySet if total.getOrElse(name, 0) != Int.MaxValue do
+                total(name) = total.getOrElse(name, 0) - local.getOrElse(name, 0) + after.getOrElse(name, 0)
               changed = true
             case None => ()
         conjuncts match
