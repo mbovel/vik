@@ -12,7 +12,9 @@ object Printer:
    *  `cons@(List Int)`); an indexed identifier `(_ is c)` as it is.
    */
   def symbol(name: String): String =
-    if name.startsWith("(_ ") || name.startsWith("(as ") || name.startsWith("|") then name
+    if name.startsWith("(_ is ") then
+      s"(_ is ${symbol(name.stripPrefix("(_ is ").stripSuffix(")"))})" // its constructor quoted
+    else if name.startsWith("(_ ") || name.startsWith("(as ") || name.startsWith("|") then name
     else if name.exists(c => c == ' ' || c == '(' || c == ')') then s"|$name|"
     else name
 
@@ -24,12 +26,12 @@ object Printer:
     case Command.DeclareSort(name, arity) => s"(declare-sort ${symbol(name)} $arity)"
     case Command.DeclareFun(name, argSorts, sort) =>
       s"(declare-fun ${symbol(name)} (${argSorts.mkString(" ")}) $sort)"
-    case Command.DeclareDatatypes(datatypes) =>
-      val sorts = datatypes.map(d => s"(${d.name} 0)").mkString(" ")
+    case Command.DeclareDatatypes(datatypes) => // every name as the script would write it (issue 33)
+      val sorts = datatypes.map(d => s"(${symbol(d.name)} 0)").mkString(" ")
       val declarations = datatypes.map { d =>
         d.constructors.map { c =>
-          if c.selectors.isEmpty then s"(${c.name})"
-          else s"(${c.name} ${c.selectors.map((s, sort) => s"($s $sort)").mkString(" ")})"
+          if c.selectors.isEmpty then s"(${symbol(c.name)})"
+          else s"(${symbol(c.name)} ${c.selectors.map((s, sort) => s"(${symbol(s)} $sort)").mkString(" ")})"
         }.mkString("(", " ", ")")
       }.mkString(" ")
       s"(declare-datatypes ($sorts) ($declarations))"

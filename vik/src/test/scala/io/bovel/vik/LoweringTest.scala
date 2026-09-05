@@ -113,3 +113,11 @@ class LoweringTest extends munit.FunSuite:
         "(declare-const ext!0 Int)(assert (= ext!0 0))(check-sat)"
     )))
     assert(e.getMessage.contains("ext!0"), e.getMessage)
+
+  test("a lowered script writes a datatype's names with the bars they need (issue 33)"):
+    val lowered = Printer.print(Lowering(Parser.parse(
+      "(declare-datatype |my type| ((|c 1| (|f 1| Int)) (|c 2|)))(declare-const x |my type|)" +
+        "(assert ((_ is |c 1|) x))(assert (= (|f 1| x) 3))(check-sat)"
+    )))
+    assert(lowered.contains("(declare-datatypes ((|my type| 0)) (((|c 1| (|f 1| Int)) (|c 2|))))"), lowered)
+    assert(lowered.contains("(_ is |c 1|)"), lowered)
