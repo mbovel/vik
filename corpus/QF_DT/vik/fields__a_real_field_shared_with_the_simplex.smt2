@@ -1,0 +1,25 @@
+; Hand-written for VIK (this repository's license): a datatype with a real field. The selector's
+; applications met their constructor's arguments in the arithmetic solver only for integer fields, so a
+; real field's equalities stayed in the e-graph alone and `(< (f p) r)` with `p = (mk r)` answered sat
+; (issue 18, 2026-09-05).
+(set-logic ALL)
+(set-option :global-declarations true)
+(declare-datatype P ((mk (f Real))))
+(declare-const p P)
+(declare-const r Real)
+(assert (= p (mk r)))
+(assert (< (f p) r))
+(set-info :status unsat)
+(check-sat)
+(reset-assertions)
+(assert (= p (mk r)))
+(assert (<= (f p) r))
+(set-info :status sat)
+(check-sat)
+(assert (< (f p) 0.5))
+(assert (> r 0.25))
+(set-info :status sat)
+(check-sat)
+(assert (> (* 2 (f p)) 1.0))
+(set-info :status unsat)
+(check-sat)

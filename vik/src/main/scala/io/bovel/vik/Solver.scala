@@ -362,7 +362,12 @@ private final class Encoder(
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
     for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
     // A selector's applications meet the arguments of its constructor at its position (the selector rule).
-    for d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex if sort.text == "Int" do
+    // An arithmetic field, integer or real: a real one shared only through the e-graph left the
+    // simplex without its equalities (issue 18).
+    for
+      d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
+      if sort.text == "Int" || sort.text == "Real"
+    do
       for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
       do
         if k.args.length > i then pair(s, k.args(i))
