@@ -52,7 +52,9 @@ only in the incremental release, from the software verifiers; there is no `QF_AU
 
 Divisions by an unknown divisor (2026-09-04, "Divisions by an unknown divisor") close `QF_BV`: of the five
 smallest files per family, 377 of 386 lower — the nine left are five a parser error rejects and four whose
-`define-fun` nest the lowering expands past two minutes. They added 26 files, of which 12 answer.
+`define-fun` nest the lowering expands past two minutes. They added 26 files, of which 12 answer. One release
+file, `2020-Weber__extensions`, went out of reach on 2026-09-05 with the fix of the zero quotient (issue 9):
+it had answered while that quotient was wrongly unsatisfiable, which pruned the search.
 
 Shifts by an unknown amount (2026-09-04, "Shifts by an unknown amount, a barrel shifter") added 15 files in
 eight families (`float`, `mcm`, `20230224-grsbits-truby`, …), of which one answers: these files shift *and*

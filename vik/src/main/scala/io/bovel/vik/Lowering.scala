@@ -792,11 +792,17 @@ private final class Lowerer:
     val zero = IntEq(b, Num(0))
     op match
       case BvOp.Sdiv =>
-        val signed = cases("sdivq", Not(Iff(na, nb)), Term.linear(List((BigInt(-1), q)), m), q, 0, m - 1)
+        // Negated as `2^n − q` when the signs differ and the quotient is not zero: `2^n − 0` is
+        // outside the width, and a case constant with no value made the script unsat (issue 9).
+        // `q ≥ 1` is one bound where `q ≠ 0` would be two; ranging the case up to `2^n` and
+        // reducing it with `modulo` costs no atom but measured slower (2020-Weber, 9.2 s to 7.8 s).
+        val negate = And(List(Not(Iff(na, nb)), Ge(q, Num(1))))
+        val signed = cases("sdivq", negate, Term.linear(List((BigInt(-1), q)), m), q, 0, m - 1)
         cases("sdiv0", zero, cases("sdiv0!", na, Num(1), Num(m - 1), 1, m - 1), signed, 0, m - 1)
       case _ =>
         // The remainder of the sign of the dividend (`bvsrem`), then of the divisor (`bvsmod`).
-        val rem = cases("sremr", na, Term.linear(List((BigInt(-1), r)), m), r, 0, m - 1)
+        val negate = And(List(na, Ge(r, Num(1)))) // as for the quotient: never `2^n − 0`
+        val rem = cases("sremr", negate, Term.linear(List((BigInt(-1), r)), m), r, 0, m - 1)
         val result =
           if op == BvOp.Srem then rem
           else

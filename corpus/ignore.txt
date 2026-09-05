@@ -93,6 +93,7 @@ QF_BV/smt-lib/2017-BuchwaldFried__synthesis.dump.ia32_RorMem_base_index_scale_di
 QF_BV/smt-lib/2018-Goel-hwbench__QF_BV_eq_sdp_v6_cc_reg_max.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20190429-UltimateAutomizerSvcomp2019__byte_add_1_true-unreach-call_true-no-overflow_true-termination.i_13.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20190429-UltimateAutomizerSvcomp2019__byte_add_1_true-unreach-call_true-no-overflow_true-termination.i_2.smt2	timeout (5 s limit)
+QF_BV/smt-lib/2020-Weber__extensions.smt2	beyond the search today (the fuel, two million steps, runs out): it passed while the zero quotient of a signed division was wrongly unsatisfiable, which pruned the search (issue 9)
 QF_BV/smt-lib/20200328-Favaro__mul_mba_synthesis.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20210219-Sydr__master__jasper__predicate_82.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20210219-Sydr__master__jasper__predicate_93.smt2	timeout (5 s limit)
