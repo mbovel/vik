@@ -166,9 +166,18 @@ object Formula:
   /** `lhs = rhs` on integers: two bounds. */
   def IntEq(lhs: Term, rhs: Term): Formula = And(List(Le(lhs, rhs), Le(rhs, lhs)))
 
-  /** `distinct` on integers: `And` of the pairwise `Or(Lt, Gt)`. */
+  /** `distinct` on integers: `And` of the pairwise `Or(Lt, Gt)`, where `Lt` is
+   *  the integer reading of a strict bound, `a + 1 ≤ b`.
+   */
   def IntDistinct(terms: List[Term]): Formula =
     And(for (a, i) <- terms.zipWithIndex; b <- terms.drop(i + 1) yield Or(List(Lt(a, b), Lt(b, a))))
+
+  /** `distinct` on reals: the same, with the strict bounds the simplex carries
+   *  as delta rationals. The integer reading would forbid the whole open band
+   *  `(a − 1, a + 1)` rather than the point (issue 7).
+   */
+  def RealDistinct(terms: List[Term]): Formula =
+    And(for (a, i) <- terms.zipWithIndex; b <- terms.drop(i + 1) yield Or(List(Less(a, b), Less(b, a))))
 
 extension (lhs: Term)
   def ===(rhs: Term): Formula = Formula.Eq(lhs, rhs)

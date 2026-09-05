@@ -379,7 +379,11 @@ private final class Lowerer:
       sort match
         case Sort.BitVec(w) if bitwiseEquality(ts, w) =>
           chain(for (a, i) <- ts.zipWithIndex; b <- ts.drop(i + 1) yield Not(equal(sort, a, b)))
-        case _ => if arithmetic(sort) then IntDistinct(ts) else Distinct(ts)
+        case _ =>
+          // A numeral among reals says `Int` on its own, so any real side makes the whole `distinct` one.
+          if !arithmetic(sort) then Distinct(ts)
+          else if args.exists(a => sortOf(a, env) == Sort.Real) then RealDistinct(ts)
+          else IntDistinct(ts)
     case s2.Formula.Cmp(op, args) =>
       val real = args.exists(a => sortOf(a, env) == Sort.Real) // any side: numerals alone say Int
       val ts = args.map(term(_, env))

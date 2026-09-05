@@ -350,8 +350,15 @@ private final class Encoder(declarations: HashMap[String, (List[String], String)
       // relaxation lands on (hundreds of them on `wisas`).
       def equalOrApart(x: lia.Var, c: BigInt): Unit =
         liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
-        val (below, above) = (bound(x, c - 1, false), bound(x, c, false))
+        // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
+        // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
+        // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
+        val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
+        val above = bound(x, c, false)
         clauses += Array(e, below, above.neg)
+        // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
+        // here, the search does not have to reach the theory to find that out.
+        if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
         guidedAtoms += below.variable
         guidedAtoms += above.variable
         anySharedAtom = true
