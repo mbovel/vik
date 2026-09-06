@@ -79,15 +79,26 @@ private def isCheckSat(line: String): Boolean =
  *  none when the solver reported an error.
  */
 private def answers(solver: String, file: String, seconds: Int): List[String] =
-  val path = Corpus.root.resolve(file).toString
+  // The solver reads a copy without the statuses: z3 and cvc5 error on a status they contradict, and
+  // the error dropped every answer, so a disagreement was never reported (issue 57).
+  val blind = Files.createTempFile("statusstamp", ".smt2")
+  Files.writeString(blind, withoutStatuses(Files.readString(Corpus.root.resolve(file))))
+  val path = blind.toString
   val command = solver match
     case "z3" => List("z3", "-smt2", s"-T:$seconds", path)
-    case "cvc5" => List("cvc5", "--lang=smt2", s"--tlimit=${seconds * 1000}", path)
+    case "cvc5" => List("cvc5", "--lang=smt2", "--incremental", s"--tlimit=${seconds * 1000}", path)
     case other => List(other, path)
-  val output = run(command, seconds + 5).map(_.trim)
+  val output =
+    try run(command, seconds + 5).map(_.trim)
+    finally Files.delete(blind)
   // An error drops the assertion it is in: the answers after it are to another problem.
   if output.exists(_.startsWith("(error")) then Nil
   else output.filter(l => l == "sat" || l == "unsat" || l == "unknown")
+
+/** The script with every `(set-info :status ...)` line saying `unknown`. */
+def withoutStatuses(text: String): String =
+  text.linesIterator.map(l => if l.startsWith("(set-info :status ") then "(set-info :status unknown)" else l)
+    .mkString("", "\n", "\n")
 
 /** Runs a command with a time limit; its output lines (empty when killed or failed). */
 private def run(command: List[String], seconds: Int): List[String] =

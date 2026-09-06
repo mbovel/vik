@@ -140,8 +140,8 @@ object PrincessReplay:
               case ArithOp.Mul =>
                 val flat = flatten(aop, as).map(term)
                 if real then flat.reduceLeft[ITerm](Rationals.mul) else flat.reduceLeft[ITerm](p.mulTheory.mult)
-              case ArithOp.Div => Rationals.divWithSpecialZero(ts(0), ts(1))
-              case ArithOp.IntDiv => p.mulTheory.eDivWithSpecialZero(ts(0), ts(1))
+              case ArithOp.Div => ts.reduceLeft[ITerm](Rationals.divWithSpecialZero) // n-ary, left-associative (issue 53)
+              case ArithOp.IntDiv => ts.reduceLeft[ITerm](p.mulTheory.eDivWithSpecialZero)
               case ArithOp.Mod => p.mulTheory.eModWithSpecialZero(ts(0), ts(1))
               case ArithOp.Abs => abs(ts.head)
               case ArithOp.ToReal => Rationals.int2ring(ts.head)
@@ -225,6 +225,7 @@ object PrincessReplay:
             for _ <- 1 to levels do p.pop()
             depth -= levels
           case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
+          case Op.SetLogic(_) => () // given once, the first, at the start
           case Op.Reset =>
             // Princess has no reset of the assertions alone: with a reset in the script, the base
             // level is a push of its own, popped with the levels above it and pushed again.

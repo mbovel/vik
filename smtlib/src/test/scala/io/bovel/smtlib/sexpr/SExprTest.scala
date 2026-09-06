@@ -12,6 +12,14 @@ class SExprTest extends munit.FunSuite:
       List(SList(List(SSymbol("f"), SList(List(SSymbol("g"), SSymbol("a"))), SList(Nil))))
     )
 
+  test("the whitespace is SMT-LIB's; another control character is refused"):
+    // `\s` had the vertical tab on the JVM and not on Scala Native (issue 59): spelled out, and the rest an error, as z3.
+    assertEquals(SExprParser.parse("p\tq\r\n(r)"), List(SSymbol("p"), SSymbol("q"), SList(List(SSymbol("r")))))
+    intercept[SExprParser.SyntaxError](SExprParser.parse("(and p\u000Bq)"))
+    intercept[SExprParser.SyntaxError](SExprParser.parse("p\u0000"))
+    assertEquals(SExprParser.parse("|p\u000Bq|"), List(SSymbol("p\u000Bq"))) // quoted, any character
+    assertEquals(SExprParser.parse("\"a\u000Bb\""), List(SString("a\u000Bb")))
+
   test("comments, quoted symbols, strings and keywords"):
     val input = """
       ; a comment

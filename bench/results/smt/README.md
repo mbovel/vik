@@ -122,3 +122,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-09-06, laraserver4, declarations scoped by their level](2026-09-06-laraserver4-scoped-declarations.md) — the fix for issue 40 (kept): the cold list flat, 29.01 → 29.03 s
 - [2026-09-06, laraserver4, values computed from the model](2026-09-06-laraserver4-values.md) — the fixes for issues 45 to 50 (kept): the cold list flat, 29.03 → 29.05 s, every corpus model judged by z3
 - [2026-09-06, laraserver4, the core's availability and exit](2026-09-06-laraserver4-cores-and-exit.md) — the fixes for issues 51 and 52 (kept): flat, 29.05 → 29.06 s
+- [2026-09-06, laraserver4, the bench drivers, the corpus tools and the platforms](2026-09-06-laraserver4-platforms-and-tools.md) — the fixes for issues 53 to 60 (kept): the JVM's hashes kept bit for bit, the other platforms computing them; flat, 29.06 → 29.16 s

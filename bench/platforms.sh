@@ -14,7 +14,8 @@ export RUNNER="$*" SECONDS_PER_FILE
 # The status of each check-sat as the corpus test reads it (Script.expectedStatuses): the last
 # `set-info :status` before it, none for a check after one that had a stamp; `?` where there is none.
 statuses() {
-  grep -oE '\(set-info :status [a-z]+\)|\(check-sat' "$1" | awk '
+  sed 's/;.*//' "$1" | grep -oE '\(set-info :status [a-z]+\)|\(check-sat|\(exit\)' | awk '
+    /exit/ { exit } # the script ends there: what follows is not read
     /set-info/ { status = $3; sub(/\)/, "", status); if (status != "sat" && status != "unsat") status = "?"; seen = 1; next }
     /check-sat/ { printf "%s%s", (n++ ? "," : ""), (status == "" ? "?" : status); if (seen) status = "" }
   '

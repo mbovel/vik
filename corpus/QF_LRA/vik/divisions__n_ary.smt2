@@ -1,0 +1,23 @@
+; Hand-written for VIK (this repository's license): `(/ a b c)` is `(/ (/ a b) c)`, left-associative, as
+; SMT-LIB reads a chain. The bench's z3 driver divided by the first divisor only and answered sat on
+; the first check (issue 53); the solver check runs every driver on this file.
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(push 1)
+(assert (= x (/ 8.0 2.0 2.0)))
+(assert (= x 4.0))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(push 1)
+(assert (= x (/ 8.0 2.0 2.0)))
+(assert (= x 2.0))
+(set-info :status sat)
+(check-sat)
+(pop 1)
+(assert (= y (/ x 2.0 2.0)))
+(assert (= x 8.0))
+(assert (not (= y 2.0)))
+(set-info :status unsat)
+(check-sat)

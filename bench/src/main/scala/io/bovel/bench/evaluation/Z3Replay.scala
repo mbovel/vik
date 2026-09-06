@@ -104,7 +104,8 @@ object Z3Replay:
             case ArithOp.Sub => ctx.mkSub(as.map(arith)*)
             case ArithOp.Neg => ctx.mkUnaryMinus(arith(as(0)))
             case ArithOp.Mul => ctx.mkMul(as.map(arith)*)
-            case ArithOp.Div | ArithOp.IntDiv => ctx.mkDiv(arith(as(0)), arith(as(1)))
+            case ArithOp.Div | ArithOp.IntDiv => // n-ary, left-associative (issue 53)
+              as.map(arith).reduceLeft[Expr[ArithSort]]((a, b) => ctx.mkDiv(a, b))
             case ArithOp.Mod => ctx.mkMod(slots(as(0)).asInstanceOf[IntExpr], slots(as(1)).asInstanceOf[IntExpr])
             case ArithOp.Abs => throw UnsupportedOperationException("abs is not in z3's Java API")
             case ArithOp.ToReal => ctx.mkInt2Real(slots(as(0)).asInstanceOf[IntExpr])
@@ -184,6 +185,7 @@ object Z3Replay:
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)
         case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
+        case Op.SetLogic(_) => () // given once, the first, at the start
         case Op.Reset => solver.reset() // the assertions and the levels; the context keeps the declarations
         case Op.ResetAll => solver.reset() // the declarations are made again at new ids; the old ones are harmless
         case Op.Check =>

@@ -100,6 +100,12 @@ object Replay:
     case Push(levels: Int)
     case Pop(levels: Int)
 
+    /** `(set-logic ...)` where the script has it, after a `reset` too: for the
+     *  solvers set through their script commands (VIK, SMTInterpol); the
+     *  others are given [[Replay.logic]], the first, once.
+     */
+    case SetLogic(logic: String)
+
     /** `(set-option :global-declarations ...)`: for VIK's session, which scopes
      *  its declarations by level as the standard says; the bindings keep theirs
      *  whatever the levels do.
@@ -138,7 +144,8 @@ object Replay:
     val slotSorts = ArrayBuffer.empty[Sort]
     val memo = HashMap.empty[Any, Int] // a construction, by its shape over slots, to its slot
     val named = scala.collection.mutable.HashSet.empty[Int]
-    var logic: String | Null = null
+    var logic: String | Null = null // the logic in force while compiling: what a bare numeral is
+    var firstLogic: String | Null = null // what the solvers set once are given (issue 55)
     var sortCount = 0 // the ids ever given, a `reset` starting them over
     var declCount = 0
     // With no integers in the logic a bare numeral is a real (QF_LRA's `(< x 1)`), as the standard
@@ -239,6 +246,8 @@ object Replay:
       case Term.Bits(value, w) => emit(("bits", value, w), Sort.BitVec(w))(Op.Bits(_, value, w))
       case Term.App(Term.Const(name), args) if macros.contains(name) =>
         val (params, body) = macros(name)
+        // Refused as the script front end refuses it: zipped short, the program answered instead (issue 54).
+        if params.length != args.length then throw IllegalArgumentException(s"$name expects ${params.length} arguments")
         expand(body, params.zip(args).map((p, a) => p._1 -> termOf(a, env, p._2)).toMap, expected)
       case Term.App(Term.Const(name), args) if declSorts.contains(name) =>
         val (argSorts, result) = declSorts(name)
@@ -350,7 +359,10 @@ object Replay:
 
     for command <- script.commands do
       command match
-        case Command.SetLogic(l) => logic = l
+        case Command.SetLogic(l) =>
+          logic = l
+          if firstLogic == null then firstLogic = l
+          out += Op.SetLogic(l)
         case Command.DeclareSort(name, 0) =>
           val id = sortCount
           sortCount += 1
@@ -425,4 +437,4 @@ object Replay:
           macros.clear()
           logic = null
         case _ => () // get-*, set-*: not part of what the solvers are measured on
-    Replay(out.toArray, slotSorts.toArray, sortCount, declCount, logic, named.toSet)
+    Replay(out.toArray, slotSorts.toArray, sortCount, declCount, firstLogic, named.toSet)

@@ -57,10 +57,30 @@ sealed abstract class Rational extends Ordered[Rational]:
   override def equals(that: Any): Boolean = that match
     case that: Rational => compare(that) == 0
     case _ => false
-  override def hashCode: Int = 31 * num.hashCode + den.hashCode
+  override def hashCode: Int = 31 * Rational.hash(num) + Rational.hash(den)
   override def toString: String = if isInteger then num.toString else s"$num/$den"
 
 object Rational:
+  /** A big integer's hash, the same on every platform: `BigInt` hashes a value
+   *  past the `Long` range through `BigInteger.hashCode`, which the JDK and the
+   *  javalib of Scala.js and Scala Native compute differently (issue 58), and a
+   *  hash map over terms then iterates in another order — the model, the
+   *  numbering of the lowering's constants differ. This is the JDK's:
+   *  `31 * h + word` over the 32-bit words of the magnitude, most significant
+   *  first, times the sign; on the JVM the very value `BigInt.hashCode` gives.
+   */
+  def hash(v: BigInt): Int =
+    if v.isValidLong then v.hashCode
+    else
+      val magnitude = v.abs
+      val words = (magnitude.bitLength + 31) / 32
+      var h = 0
+      var i = words - 1
+      while i >= 0 do
+        h = 31 * h + ((magnitude >> (32 * i)) & 0xffffffffL).toInt
+        i -= 1
+      h * v.signum
+
   private final case class Small(n: Long, d: Long) extends Rational:
     def num: BigInt = BigInt(n)
     def den: BigInt = BigInt(d)

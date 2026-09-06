@@ -159,10 +159,13 @@ object Import:
    */
   def withStatuses(text: String, expected: List[String]): String =
     val checks = "\\(check-sat-assuming|\\(check-sat-using|\\(check-sat(?=[ )])".r
+    // A check-sat inside a comment is no check-sat: a status spliced into `;(check-sat)` stayed in the
+    // comment, made the command live, and shifted the answers of the real ones (issue 56).
+    def commented(at: Int): Boolean = text.lastIndexOf(';', at) > text.lastIndexOf('\n', at)
     val out = StringBuilder()
     var last = 0
     var k = 0
-    for m <- checks.findAllMatchIn(text) do
+    for m <- checks.findAllMatchIn(text) if !commented(m.start) do
       out ++= text.substring(last, m.start)
       out ++= s"(set-info :status ${expected.lift(k).getOrElse("unknown")})\n" + m.matched
       k += 1

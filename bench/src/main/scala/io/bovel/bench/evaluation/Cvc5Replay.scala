@@ -169,6 +169,7 @@ object Cvc5Replay:
           case Op.Push(levels) => solver.push(levels)
           case Op.Pop(levels) => solver.pop(levels)
           case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
+          case Op.SetLogic(_) => () // given once, the first, at the start
           case Op.Reset => solver.resetAssertions() // the terms declared through the API stay valid
           case Op.ResetAll => solver.resetAssertions()
           case Op.Check =>

@@ -26,7 +26,6 @@ object SmtInterpolReplay:
     val s = SMTInterpol(DefaultLogger())
     s.setOption(":verbosity", 2)
     if program.resets then s.setOption(":global-declarations", true) // a reset keeps the declarations
-    if program.logic != null then s.setLogic(program.logic)
     val slots = new Array[ItpTerm](program.slotCount)
     val sorts = new Array[ItpSort](program.sortCount)
     val names = new Array[String](program.declCount)
@@ -100,12 +99,12 @@ object SmtInterpolReplay:
         case Op.Push(levels) => s.push(levels)
         case Op.Pop(levels) => s.pop(levels)
         case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
+        case Op.SetLogic(logic) => s.setLogic(logic)
         case Op.Reset => s.resetAssertions()
         case Op.ResetAll =>
           s.reset() // the options and the logic with it: set again, as at the start
           s.setOption(":verbosity", 2)
-          s.setOption(":global-declarations", true)
-          if program.logic != null then s.setLogic(program.logic)
+          s.setOption(":global-declarations", true) // the logic follows, as the script sets it again
         case Op.Check =>
           answers += (s.checkSat() match
             case ItpScript.LBool.SAT => true

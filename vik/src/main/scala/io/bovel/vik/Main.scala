@@ -13,7 +13,15 @@ private def parseFile(path: String) =
  *  process solve them all — what a training run for a JVM's AOT cache needs
  *  (bench/aot.sh).
  */
-@main def smt2(paths: String*): Unit = for path <- paths do Session.run(parseFile(path)).foreach(println)
+@main def smt2(paths: String*): Unit =
+  // The responses in UTF-8 whatever the locale: under `LC_ALL=C` HotSpot's standard output wrote the
+  // non-ASCII characters of a symbol as `?`, itself a symbol character, so the model defined another
+  // symbol than the script's (issue 60).
+  val out = java.io.PrintStream(System.out, true, "UTF-8")
+  Console.withOut(out) {
+    for path <- paths do Session.run(parseFile(path)).foreach(println)
+  }
+  out.flush()
 
 /** Prints an SMT-LIB 2 file as VIK will play it, after the lowerings:
  *  bit-vectors become bounded integers with their defining equations

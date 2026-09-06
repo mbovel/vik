@@ -36,12 +36,24 @@ enum Term:
 
   /** The structural hash, computed once: the encoder looks terms up in hash
    *  maps, and a subterm shared through `let` would otherwise be hashed in full
-   *  at each lookup of each term containing it.
+   *  at each lookup of each term containing it. The case-class hash, with the
+   *  numbers hashed as the JDK hashes them on every platform
+   *  ([[io.bovel.lia.Rational.hash]], issue 58): the value the JVM always gave.
    */
-  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
+  private lazy val hash: Int = this match
+    case Num(value) => MurmurHash3.caseClassHash(Tuple1(Term.Hashed(value)), "Num")
+    case Linear(terms, constant) =>
+      MurmurHash3.caseClassHash((terms.map((a, t) => (Term.Hashed(a), t)), Term.Hashed(constant)), "Linear")
+    case _ => MurmurHash3.caseClassHash(this)
   override def hashCode: Int = hash
 
 object Term:
+  /** A number's stand-in in a hash: hashed as the JDK hashes the number, so
+   *  that a term's hash is the same on every platform (issue 58).
+   */
+  private final case class Hashed(value: BigInt):
+    override def hashCode: Int = io.bovel.lia.Rational.hash(value)
+
   /** A formula as a term: `Pred(t)` is `t` itself. */
   def boolean(formula: Formula): Term = formula match
     case Formula.Pred(t) => t

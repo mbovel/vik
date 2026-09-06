@@ -34,7 +34,6 @@ object VikReplay:
     def formulas(is: Array[Int]): List[Formula] = is.toList.map(formula)
     def boolean(i: Int): Boolean = program.slotSorts(i) == Sort.Bool
     def run(command: Command): Unit = s.run(Script(List(command)))
-    if program.logic != null then run(Command.SetLogic(program.logic))
     for op <- program.ops do
       op match
         case Op.MkSort(id, sort) => sorts(id) = sort
@@ -85,6 +84,7 @@ object VikReplay:
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()
         case Op.Check => answers += decided(s.checkSat(), "VIK")
         case Op.SetOption(key, value) => run(Command.SetOption(key, value))
+        case Op.SetLogic(logic) => run(Command.SetLogic(logic))
         case Op.Reset => run(Command.ResetAssertions)
         case Op.ResetAll => run(Command.Reset)
     answers.toList

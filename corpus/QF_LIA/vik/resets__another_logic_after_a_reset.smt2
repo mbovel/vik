@@ -1,0 +1,23 @@
+; Hand-written for VIK (this repository's license): a `reset` and a new logic after it. The bench's
+; replay carried one logic for the whole program, the last one set, so a driver set through script
+; commands (SMTInterpol) read the integer half as reals: `Sort Int not declared` (issue 55).
+(set-logic QF_LIA)
+(declare-const x Int)
+(assert (< x 0))
+(assert (> x (- 2)))
+(set-info :status sat)
+(check-sat)
+(assert (< x (- 1)))
+(set-info :status unsat)
+(check-sat)
+(reset)
+(set-logic QF_LRA)
+(declare-const x Real)
+(assert (< x 0.5))
+(assert (> x 0.0))
+(set-info :status sat)
+(check-sat)
+(assert (< x (/ 1 3)))
+(assert (> x (/ 1 3)))
+(set-info :status unsat)
+(check-sat)

@@ -51,14 +51,16 @@ private class SExprParser(input: String):
         SExpr.SList(items.toList)
       case ")" => throw SyntaxError("unexpected ')'")
       case null => throw SyntaxError("unexpected end of input")
-      case atom => classify(atom.nn)
+      case atom => classify(atom)
 
   /** The lexical class of a token (SMT-LIB 2.6, 3.1). Anything that is none of
    *  the literals is a symbol, quoted or not: the lexer accepts more than the
    *  standard writes (`1a`, `#z`), and the layer above says what it means.
    */
   private def classify(atom: String): SExpr =
-    if atom.startsWith("|") && atom.endsWith("|") && atom.length >= 2 then
+    if atom.length == 1 && (atom.head < ' ' || atom.head == '\u007f') then
+      throw SyntaxError(s"unexpected character (code ${atom.head.toInt})")
+    else if atom.startsWith("|") && atom.endsWith("|") && atom.length >= 2 then
       SExpr.SSymbol(atom.substring(1, atom.length - 1))
     else if atom.startsWith("\"") then
       SExpr.SString(atom.substring(1, atom.length - 1).replace("\"\"", "\""))
@@ -89,7 +91,11 @@ object SExprParser:
   /** What [[parse]] throws on malformed input. */
   case class SyntaxError(message: String) extends Exception(message)
 
-  private val tokenRegex = """;[^\n]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\s()";|]+""".r
+  // The whitespace is SMT-LIB's, space, tab, newline and return, spelled out: `\s` is the regex
+  // engine's, and Java's has the vertical tab where Scala Native's port of RE2 has not (issue 59). Any
+  // other control character is a token of its own, which `classify` refuses, as z3 and cvc5 do.
+  private val tokenRegex =
+    """;[^\n]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\x00-\x20()";|\x7F]+|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]""".r
   private def show(token: String | Null) = if token == null then "end of input" else s"'$token'"
 
   /** Reads all the S-expressions of `input`. */
