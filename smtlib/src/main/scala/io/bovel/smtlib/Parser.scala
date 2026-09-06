@@ -75,7 +75,7 @@ final class Parser:
     case SList(SSymbol("set-info") :: SKeyword(key) :: value :: Nil) => List(Command.SetInfo(s":$key", value.toString))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: SNumeral(arity) :: Nil) =>
       declaredSorts += name
-      List(Command.DeclareSort(name, arity.toInt))
+      List(Command.DeclareSort(name, index(arity)))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: Nil) =>
       declaredSorts += name
       List(Command.DeclareSort(name, 0))
@@ -170,9 +170,9 @@ final class Parser:
     case SList(SSymbol("get-assertions") :: Nil) => List(Command.GetAssertions)
     case SList(SSymbol(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
       throw Smt2Error(s"$name is not supported")
-    case SList(SSymbol("push") :: SNumeral(n) :: Nil) => List(Command.Push(n.toInt))
+    case SList(SSymbol("push") :: SNumeral(n) :: Nil) => List(Command.Push(index(n)))
     case SList(SSymbol("push") :: Nil) => List(Command.Push(1))
-    case SList(SSymbol("pop") :: SNumeral(n) :: Nil) => List(Command.Pop(n.toInt))
+    case SList(SSymbol("pop") :: SNumeral(n) :: Nil) => List(Command.Pop(index(n)))
     case SList(SSymbol("pop") :: Nil) => List(Command.Pop(1))
     case SList(SSymbol("get-model") :: Nil) => List(Command.GetModel)
     case SList(SSymbol("get-value") :: SList(items) :: Nil) =>
@@ -199,7 +199,8 @@ final class Parser:
   /** Refuses a script's declaration of a symbol an instantiated datatype owns.
    */
   private def free(name: String): Unit =
-    if instanceSymbols(name) then throw Smt2Error(s"$name: the symbol of an instantiated datatype")
+    if Parser.reserved(name) then throw Smt2Error(s"$name: a reserved word; pick another name")
+    if instanceSymbols(name) then throw Smt2Error(s"$name: the symbol of an instance; pick another name")
 
   private def declare(name: String, args: List[SExpr], s: SExpr): List[Command] =
     free(name)
@@ -278,7 +279,12 @@ final class Parser:
           case Some(datatype) =>
             instantiate(datatype, actualSorts) // declares the instance's constructors and selectors
           case None =>
-            if !functions.contains(instanceName) && !macros.contains(instanceName) then
+            // The instance's name lives in the script's namespace, like a datatype instance's symbols
+            // (issue 21): a script symbol of that name is refused, in either order (issue 43).
+            if (functions.contains(instanceName) || macros.contains(instanceName)) && !instanceSymbols(instanceName)
+            then throw Smt2Error(s"$instanceName: the script's symbol clashes with the instance of $name")
+            if !instanceSymbols(instanceName) then
+              instanceSymbols += instanceName
               val saved = sortSubst
               sortSubst = params.zip(actual).toMap
               try
@@ -406,7 +412,7 @@ final class Parser:
     case SSymbol("Int") => Sort.Int
     case SSymbol("Real") => Sort.Real
     case SSymbol(name) => Sort.Named(name)
-    case SList(SSymbol("_") :: SSymbol("BitVec") :: SNumeral(width) :: Nil) => Sort.BitVec(width.toInt)
+    case SList(SSymbol("_") :: SSymbol("BitVec") :: SNumeral(width) :: Nil) => Sort.BitVec(index(width))
     case SList(SSymbol("Array") :: args) if args.length >= 2 =>
       val sorts = args.map(sort)
       sorts.init.foldRight(sorts.last)(Sort.Array(_, _))
@@ -455,13 +461,22 @@ final class Parser:
   /** The sort of an expression: what decides between the two trees. `env` binds
    *  the `let`-bound names in scope.
    */
+  /** Whether `name` at the head of a list is the script's own function or
+   *  macro: a script may declare `+` or `to_real` in a logic without the theory
+   *  (issue 41), and its symbol is then not the operator.
+   */
+  private def scripted(name: String, env: Map[String, Sort]): Boolean =
+    !env.contains(name) && (functions.contains(name) || macros.contains(name))
+
   private def sortOf(sexpr: SExpr, env: Map[String, Sort]): Sort = sexpr match
     case SSymbol("true" | "false") => Sort.Bool
+    case SList(SSymbol(name) :: args) if scripted(name, env) =>
+      macros.get(name).map(_._2).getOrElse(applied(functions(name), args.length))
     case SNumeral(_) => Sort.Int
     case SDecimal(_, _) => Sort.Real
     case SBits(_, width, _) => Sort.BitVec(width)
     case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil) if literal.startsWith("bv") =>
-      Sort.BitVec(width.toInt)
+      Sort.BitVec(index(width))
     case SSymbol(name) =>
       env.get(name).orElse(functions.get(name)).orElse(macros.get(name).map(_._2)).getOrElse(
         if polymorphic.contains(name) then symbolSort(instance(name, Nil, None))
@@ -473,17 +488,17 @@ final class Parser:
     case SList(SSymbol("bvcomp") :: _) => Sort.BitVec(1)
     case SList(SSymbol("ubv_to_int" | "sbv_to_int" | "bv2nat" | "bv2int") :: _) => Sort.Int
     case SList(SList(SSymbol("_") :: SSymbol("int_to_bv" | "int2bv") :: SNumeral(n) :: Nil) :: _) =>
-      Sort.BitVec(n.toInt)
+      Sort.BitVec(index(n))
     case SList(SSymbol(op) :: a :: _) if BvOp.named.contains(op) && op != "concat" => sortOf(a, env)
     case SList(SSymbol("concat") :: args) =>
       Sort.BitVec(args.map(a => width(sortOf(a, env))).sum)
     case SList(SSymbol(op) :: _) if BvCmpOp.named.contains(op) => Sort.Bool
     case SList(SList(SSymbol("_") :: SSymbol("extract") :: SNumeral(i) :: SNumeral(j) :: Nil) :: _ :: Nil) =>
-      Sort.BitVec(i.toInt - j.toInt + 1)
+      Sort.BitVec(index(i) - index(j) + 1)
     case SList(SList(SSymbol("_") :: SSymbol("zero_extend" | "sign_extend") :: SNumeral(k) :: Nil) :: a :: Nil) =>
-      Sort.BitVec(width(sortOf(a, env)) + k.toInt)
+      Sort.BitVec(width(sortOf(a, env)) + index(k))
     case SList(SList(SSymbol("_") :: SSymbol("repeat") :: SNumeral(k) :: Nil) :: a :: Nil) =>
-      Sort.BitVec(width(sortOf(a, env)) * k.toInt)
+      Sort.BitVec(width(sortOf(a, env)) * index(k))
     case SList(SList(SSymbol("_") :: SSymbol("rotate_left" | "rotate_right") :: SNumeral(_) :: Nil) :: a :: Nil) =>
       sortOf(a, env)
     case SList(SSymbol("not" | "and" | "or" | "=>" | "xor" | "=" | "distinct" | "<=" | "<" | ">=" | ">") :: _) =>
@@ -528,6 +543,13 @@ final class Parser:
   private def resultSort(name: String, n: Int): Sort =
     macros.get(name).map(_._2).getOrElse(applied(symbolSort(name), n))
 
+  /** A numeral that must fit an `Int`: an index, a width, a count. Read
+   *  truncated, `(_ rotate_left 4294967296)` was a rotation by nothing (issue
+   *  44).
+   */
+  private def index(n: BigInt): Int =
+    if n.isValidInt then n.toInt else throw Smt2Error(s"$n: too large for an index")
+
   private def width(s: Sort): Int = s match
     case Sort.BitVec(w) => w
     case _ => throw Smt2Error(s"a bit-vector was expected, not $s")
@@ -538,6 +560,7 @@ final class Parser:
   private def formula(sexpr: SExpr, env: Map[String, Sort]): Formula = sexpr match
     case SSymbol("true") => True
     case SSymbol("false") => False
+    case SList(SSymbol(name) :: _) if scripted(name, env) => predicate(sexpr, env)
     case SList(SSymbol(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
     case SList(SSymbol("not") :: arg :: Nil) => Not(formula(arg, env))
     case SList(SSymbol("and") :: args) => And(args.map(formula(_, env)))
@@ -573,10 +596,13 @@ final class Parser:
       Let(bound, formula(body, inner))
     case SList(SSymbol("match") :: _) => formula(matchToIte(sexpr, env), env)
     case SList(SSymbol("!") :: body :: _) => formula(body, env) // an annotated term
-    case _ => // a Boolean constant or application
-      if sortOf(sexpr, env) != Sort.Bool then throw Smt2Error(s"not a formula: $sexpr")
-      Formula.Pred(term(sexpr, env))
+    case _ => predicate(sexpr, env)
   end formula
+
+  /** A Boolean constant or application as a formula. */
+  private def predicate(sexpr: SExpr, env: Map[String, Sort]): Formula =
+    if sortOf(sexpr, env) != Sort.Bool then throw Smt2Error(s"not a formula: $sexpr")
+    Formula.Pred(term(sexpr, env))
 
   /** `(match t ((p1 b1) ... (pn bn)))` as the tree the rest of the parser
    *  reads: the scrutinee bound once by a `let` — so it is shared, as `let`
@@ -589,7 +615,11 @@ final class Parser:
   private def matchToIte(sexpr: SExpr, env: Map[String, Sort]): SExpr = sexpr match
     case SList(SSymbol("match") :: scrutinee :: SList(cases) :: Nil) if cases.nonEmpty =>
       matches += 1
-      while functions.contains(s"match!$matches") do matches += 1 // past the script's own symbols (issue 21)
+      // Past the script's own symbols (issue 21), and the names bound around the match — a `let`'s, a
+      // macro's parameters — which a case body may read (issue 42).
+      while functions.contains(s"match!$matches") || macros.contains(s"match!$matches") ||
+        env.contains(s"match!$matches")
+      do matches += 1
       val name = s"match!$matches"
       val m = SSymbol(name)
       // A symbol pattern is a constructor pattern only for a constructor of the scrutinee's datatype;
@@ -652,6 +682,7 @@ final class Parser:
   private def term(sexpr: SExpr, env: Map[String, Sort]): Term = sexpr match
     case SSymbol("true") => Term.Bool(True)
     case SSymbol("false") => Term.Bool(False)
+    case SList(SSymbol(name) :: args) if scripted(name, env) => application(name, args, env)
     case SList(SSymbol(q @ ("forall" | "exists")) :: _) => throw Smt2Error(s"$q: quantifiers are not supported")
     // A formula-shaped tree where a term is expected (an argument, a field).
     case SList(SSymbol("not" | "and" | "or" | "=>" | "xor" | "distinct" | "<=" | "<" | ">=" | ">" | "is_int") :: _) =>
@@ -663,7 +694,7 @@ final class Parser:
     case SDecimal(unscaled, scale) => Term.Decimal(unscaled, scale)
     case SBits(value, width, _) => Term.Bits(value, width)
     case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil) if literal.startsWith("bv") =>
-      Term.Bits(BigInt(literal.drop(2)).mod(BigInt(2).pow(width.toInt)), width.toInt)
+      Term.Bits(BigInt(literal.drop(2)).mod(BigInt(2).pow(index(width))), index(width))
     case SSymbol(name) =>
       declared(name, env)
       val concrete = if !env.contains(name) then instance(name, Nil, None) else name
@@ -677,8 +708,8 @@ final class Parser:
       Term.App(Term.Const(instance(name, args.map(sortOf(_, env)), Some(sort(s)))), args.map(term(_, env)))
     case SList(SSymbol(op) :: args) if BvOp.named.contains(op) => Term.BvApp(BvOp.named(op), args.map(term(_, env)))
     case SList(SList(SSymbol("_") :: SSymbol(op) :: indices) :: args)
-        if BvOp.indexed(op, indices.collect { case SNumeral(i) => i.toInt }).isDefined =>
-      val parsed = BvOp.indexed(op, indices.collect { case SNumeral(i) => i.toInt }).get
+        if BvOp.indexed(op, indices.collect { case SNumeral(i) => index(i) }).isDefined =>
+      val parsed = BvOp.indexed(op, indices.collect { case SNumeral(i) => index(i) }).get
       Term.BvApp(parsed, args.map(term(_, env)))
     case SList(SSymbol("select") :: a :: i :: Nil) if selectable(a, env) =>
       Term.Select(term(a, env), term(i, env))
@@ -701,12 +732,14 @@ final class Parser:
       Term.Let(bound, term(body, inner))
     case SList(SSymbol("match") :: _) => term(matchToIte(sexpr, env), env)
     case SList(SSymbol("!") :: body :: _) => term(body, env) // an annotated term
-    case SList(SSymbol(name) :: args) =>
-      declared(name, env)
-      val concrete = if !env.contains(name) then instance(name, args.map(sortOf(_, env)), None) else name
-      Term.App(Term.Const(concrete), args.map(term(_, env)))
+    case SList(SSymbol(name) :: args) => application(name, args, env)
     case other => throw Smt2Error(s"not a term: $other")
   end term
+
+  private def application(name: String, args: List[SExpr], env: Map[String, Sort]): Term =
+    declared(name, env)
+    val concrete = if !env.contains(name) then instance(name, args.map(sortOf(_, env)), None) else name
+    Term.App(Term.Const(concrete), args.map(term(_, env)))
 
   /** Whether `a` is an array: what `select` and `store` accept. */
   private def selectable(a: SExpr, env: Map[String, Sort]): Boolean = sortOf(a, env) match
@@ -720,3 +753,27 @@ final class Parser:
 
 object Parser:
   def parse(input: String): Script = Parser().parse(input)
+
+  /** The reserved words of SMT-LIB and the symbols of its Core theory: a script
+   *  cannot declare or define them.
+   */
+  val reserved: Set[String] = Set(
+    "!",
+    "_",
+    "as",
+    "let",
+    "exists",
+    "forall",
+    "match",
+    "par",
+    "true",
+    "false",
+    "not",
+    "=>",
+    "and",
+    "or",
+    "xor",
+    "=",
+    "distinct",
+    "ite"
+  )
