@@ -85,11 +85,16 @@ final class Parser:
   private def pop(levels: Int): Unit =
     for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
 
+  // `(exit)` ends the script: what follows is not read (issue 52), as z3 and cvc5 stop there.
+  private var exited = false
+
   def parse(input: String): Script = Script(SExprParser.parse(input).flatMap { s =>
-    val commands = command(s)
-    val out = pending.toList ++ commands
-    pending.clear()
-    out
+    if exited then Nil
+    else
+      val commands = command(s)
+      val out = pending.toList ++ commands
+      pending.clear()
+      out
   })
 
   private def command(sexpr: SExpr): List[Command] = sexpr match
@@ -230,7 +235,9 @@ final class Parser:
       if key == "global-declarations" then globalDeclarations = value.toString == "true"
       List(Command.SetOption(s":$key", value.toString))
     case SList(SSymbol("get-info") :: SKeyword(key) :: Nil) => List(Command.GetInfo(s":$key"))
-    case SList(SSymbol("exit") :: Nil) => List(Command.Exit)
+    case SList(SSymbol("exit") :: Nil) =>
+      exited = true
+      List(Command.Exit)
     case SList(SSymbol(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
 

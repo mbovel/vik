@@ -6,6 +6,19 @@ import io.bovel.smtlib.{Parser, Printer}
 class CoresTest extends munit.FunSuite:
   private def run(text: String): List[String] = Session.run(Parser.parse(text))
 
+  test("a core is available after an unsat check only, until the problem changes"):
+    // An assertion, a declaration, a level, a reset leave unsat mode (issue 51).
+    val s = Session()
+    s.run(
+      "(set-option :produce-unsat-cores true) (declare-const p Bool) (assert (! p :named a)) (assert (! (not p) :named b))"
+    )
+    assertEquals(s.run("(check-sat) (get-unsat-core) (get-unsat-core)"), List("unsat", "(a b)", "(a b)"))
+    val error = "(error \"unsat core is not available\")"
+    assertEquals(s.run("(assert (! p :named c)) (get-unsat-core)"), List(error))
+    assertEquals(s.run("(check-sat) (declare-const q Bool) (get-unsat-core)"), List("unsat", error))
+    assertEquals(s.run("(check-sat) (push 1) (get-unsat-core) (pop 1) (get-unsat-core)"), List("unsat", error, error))
+    assertEquals(s.run("(check-sat) (reset-assertions) (get-unsat-core)"), List("unsat", error))
+
   test("the core names the guilty assertions"):
     val responses = run("""
       (set-logic QF_UF)

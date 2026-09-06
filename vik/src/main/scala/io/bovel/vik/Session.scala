@@ -95,7 +95,10 @@ final class Session(
   def model(): Option[Model] = current.model()
   def unsatCore: List[String] = current.unsatCore
 
-  private var lastCheck = "" // what the last check-sat answered: a core is asked for after an unsat one
+  // What the last check-sat answered: a core is asked for after an unsat one, and before anything that
+  // changes the problem — an assertion, a declaration, a level, a reset — which SMT-LIB makes an error
+  // and VIK answered with the stale core (issue 51).
+  private var lastCheck = ""
 
   private def answer(): String =
     val a = answered()
@@ -185,13 +188,16 @@ final class Session(
     for command <- commands do
       command match
         case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
+          lastCheck = ""
           declarations += command
           if declaredAt.length > 1 && !globalDeclarations then declaredAt.last += command
           declare(command)
         case Command.Assert(formula) =>
+          lastCheck = ""
           asserted.last += formula
           current.assert(formula)
         case Command.AssertNamed(name, formula) =>
+          lastCheck = ""
           asserted.last += formula
           current.assert(formula, name)
         case Command.GetUnsatCore =>
@@ -207,11 +213,13 @@ final class Session(
           }
         case Command.GetModel => responses += withModel(modelText)
         case Command.Push(n) =>
+          lastCheck = ""
           for _ <- 0 until n do
             current.push()
             asserted += ArrayBuffer.empty
             declaredAt += ArrayBuffer.empty
         case Command.Pop(n) =>
+          lastCheck = ""
           for _ <- 0 until n do
             current.pop()
             if declaredAt.length > 1 then declaredAt.remove(declaredAt.length - 1).reverseIterator.foreach(undeclare)
@@ -223,9 +231,11 @@ final class Session(
           responses += answer()
           current.pop()
         case Command.ResetAssertions =>
+          lastCheck = ""
           restart()
           declarations.foreach(declare)
         case Command.Reset =>
+          lastCheck = ""
           restart()
           declarations.clear()
           globalDeclarations = false

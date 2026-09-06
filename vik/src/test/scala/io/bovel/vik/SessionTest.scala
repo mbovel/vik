@@ -94,6 +94,16 @@ class SessionTest extends munit.FunSuite:
     assertEquals(s.checkSat(), Some(true))
   }
 
+  test("exit ends the script") {
+    // What follows is not read, not even parsed (issue 52).
+    val s = Session()
+    assertEquals(
+      s.run("(declare-const p Bool) (assert p) (check-sat) (exit) (assert (not p)) (check-sat) (not a command)"),
+      List("sat")
+    )
+    assertEquals(s.run("(check-sat)"), Nil)
+  }
+
   test("an unknown symbol is an error of the text, not of the solver") {
     val s = Session()
     intercept[s2.Smt2Error](s.assert("(< x 1)"))
