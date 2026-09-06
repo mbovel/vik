@@ -222,7 +222,7 @@ final class Parser:
           s.toString ->
             (s match
               case SSymbol(name) if functions.get(name).flatMap(_.arrow).exists(_._1.nonEmpty) =>
-                Term.Const(name) // a function symbol: its graph in the model
+                Term.Const(name) // a function symbol: its graph in the model, answered as a lambda (issue 50)
               case _ => if sortOf(s, Map.empty) == Sort.Bool then formula(s, Map.empty) else term(s, Map.empty))
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))

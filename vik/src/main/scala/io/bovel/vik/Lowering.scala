@@ -72,7 +72,7 @@ private final class Lowerer:
    */
   private def freshName(prefix: String): String =
     fresh += 1
-    while functions.contains(s"$prefix!$fresh") do fresh += 1
+    while functions.contains(s"$prefix!$fresh") || macros.contains(s"$prefix!$fresh") do fresh += 1
     val name = s"$prefix!$fresh"
     minted += name
     name
@@ -112,38 +112,230 @@ private final class Lowerer:
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
-  /** The value of a surface term or formula under `model`, as SMT-LIB writes
-   *  it: every declared symbol replaced by what the model gives it, and the
-   *  lowering folded — an operation of literals is a literal, so the value of
-   *  `(bvadd x y)` is computed by the same code that lowers it, with no second
-   *  reading of what the operations mean. `None` where the model has no value
-   *  to put in (an uninterpreted sort, an array, a datatype), and the caller
-   *  falls back to the lowered term under the model.
+  /** The value of a surface term or formula under `model`, as SMT-LIB writes it
+   *  at the term's sort. Every construct is computed here from the model's
+   *  values of the declared symbols: the lowering's fresh constants have no
+   *  value in a model, so a value read through the lowered term stopped at them
+   *  — `is_int` false, `floor!8` or `q!2` printed as a value, a select at a
+   *  minted index (issues 45 to 48).
    */
-  def evaluate(item: s2.Term | s2.Formula, model: Model): Option[String] =
-    try
-      item match
-        case f: s2.Formula =>
-          valued(f, model).map { g =>
-            val lowered = formula(g, Map.empty)
-            if folded(model).holds(lowered) then "true" else "false"
-          }
-        case t: s2.Term =>
-          valued(t, model).flatMap { v =>
-            val lowered = term(v, Map.empty) // first: what it mints is what the folding values
-            render(folded(model).value(lowered), sortOf(t, Map.empty))
-          }
-    finally forget()
+  def evaluate(item: s2.Term | s2.Formula, model: Model): String = item match
+    case f: s2.Formula => if truth(f, model, Scope.empty) then "true" else "false"
+    case s2.Term.Const(name) if functions.get(name).flatMap(_.arrow).exists(_._1.nonEmpty) =>
+      // A function symbol: its graph as a lambda, as cvc5 answers (issue 50).
+      val Some((argSorts, result)) = functions(name).arrow: @unchecked
+      val f = model.functions.getOrElse(name, Model.Function(argSorts.map(_.text), result.text, Nil, Const("@default")))
+      val (params, body) = graph(f, argSorts, result)
+      s"(lambda ($params) $body)"
+    case t: s2.Term => written(eval(t, model, Scope.empty), sortOf(t, Map.empty))
 
-  /** The model with the constants the lowering minted while evaluating — a
-   *  term-level `ite`'s, a rational literal's — valued by their definitions
-   *  (issue 28).
+  /** A declared function's graph as an `ite` chain over parameters `x!i`: the
+   *  parameters' declarations and the body — a model's `define-fun`, a
+   *  `get-value`'s `lambda`.
    */
-  private def folded(model: Model): Model = fold(model, definitions.toList)
+  def graph(f: Model.Function, argSorts: List[Sort], result: Sort): (String, String) =
+    val params = argSorts.zipWithIndex.map((s, i) => s"(x!$i ${s.text})").mkString(" ")
+    val body = f.rows.foldRight(written(f.default, result)) { case ((args, r), els) =>
+      val cond = args.zip(argSorts).zipWithIndex.map { case ((a, s), i) => s"(= x!$i ${written(a, s)})" } match
+        case single :: Nil => single
+        case cs => cs.mkString("(and ", " ", ")")
+      s"(ite $cond ${written(r, result)} $els)"
+    }
+    (params, body)
+
+  /** The `let`-bound names and macro parameters in scope while evaluating:
+   *  their values, and their sorts for [[sortOf]].
+   */
+  private final case class Scope(values: Map[String, Term], sorts: Env):
+    def bound(name: String, value: Term, sort: Sort): Scope =
+      val typed = if sort == Sort.Bool then Value.F(True) else Value.T(Const(name), sort)
+      Scope(values + (name -> value), sorts + (name -> typed))
+  private object Scope:
+    val empty: Scope = Scope(Map.empty, Map.empty)
+
+  private def eval(t: s2.Term, model: Model, scope: Scope): Term = t match
+    case s2.Term.Numeral(v) => Num(v)
+    case s2.Term.Decimal(unscaled, scale) => Model.rationalTerm(io.bovel.lia.Rational(unscaled, BigInt(10).pow(scale)))
+    case s2.Term.Bits(v, _) => Num(v)
+    case s2.Term.Const(name) =>
+      scope.values.get(name) match
+        case Some(v) => v
+        case None =>
+          macros.get(name) match
+            case Some((Nil, _, body)) => eval(body, model, Scope.empty)
+            case _ => model.value(Const(name))
+    case s2.Term.App(s2.Term.Const(name), args) if macros.contains(name) && !scope.values.contains(name) =>
+      // The body sees its parameters and the declarations, never the caller's bindings (issue 10).
+      val (params, _, body) = macros(name)
+      if params.length != args.length then throw s2.Smt2Error(s"$name expects ${params.length} arguments")
+      val inner = params.zip(args).foldLeft(Scope.empty) { case (inner, ((p, sort), a)) =>
+        inner.bound(p, eval(a, model, scope), sort)
+      }
+      eval(body, model, inner)
+    // A declared function's graph, a constructor, a selector, a tester, an array read: the model's.
+    case s2.Term.App(fun, args) => model.value(App(eval(fun, model, scope), args.map(eval(_, model, scope))))
+    case s2.Term.ArithApp(op, args) =>
+      val values = args.map(a => rational(eval(a, model, scope)))
+      op match
+        case ArithOp.Add => number(values.reduce(_ + _))
+        case ArithOp.Sub => number(values.reduce(_ - _))
+        case ArithOp.Neg => number(-values.head)
+        case ArithOp.Mul => number(values.reduce(_ * _))
+        case ArithOp.Div => number(values.reduce(_ / _)) // a zero divisor is refused before this, by the lowering
+        case ArithOp.ToReal => number(values.head)
+        case ArithOp.ToInt => Num(values.head.floor)
+        case ArithOp.IntDiv | ArithOp.Mod | ArithOp.Abs => throw s2.Unsupported(s"${op.name} is not supported")
+    case s2.Term.BvApp(op, args) =>
+      val widths = args.map(a =>
+        sortOf(a, scope.sorts) match
+          case Sort.BitVec(w) => w
+          case _ => 0 // the integer of `int_to_bv`
+      )
+      Num(bitVector(op, args.map(a => integer(eval(a, model, scope))), widths))
+    case s2.Term.Select(array, index) => Model.select(eval(array, model, scope), eval(index, model, scope))
+    case s2.Term.Store(array, index, value) =>
+      Model.store(eval(array, model, scope), eval(index, model, scope), eval(value, model, scope))
+    case s2.Term.Ite(c, thn, els) => if truth(c, model, scope) then eval(thn, model, scope) else eval(els, model, scope)
+    case s2.Term.Let(bindings, body) => eval(body, model, bindAll(bindings, model, scope))
+    case s2.Term.Bool(f) => Term.boolean(if truth(f, model, scope) then True else False)
+
+  private def eval(body: s2.Term | s2.Formula, model: Model, scope: Scope): Term = body match
+    case t: s2.Term => eval(t, model, scope)
+    case f: s2.Formula => Term.boolean(if truth(f, model, scope) then True else False)
+
+  /** The bindings of a `let`, each valued outside them all. */
+  private def bindAll(bindings: List[(String, s2.Term | s2.Formula)], model: Model, scope: Scope): Scope =
+    bindings.foldLeft(scope) { case (inner, (name, value)) =>
+      value match
+        case t: s2.Term => inner.bound(name, eval(t, model, scope), sortOf(t, scope.sorts))
+        case f: s2.Formula => inner.bound(name, eval(f, model, scope), Sort.Bool)
+    }
+
+  private def truth(f: s2.Formula, model: Model, scope: Scope): Boolean = f match
+    case s2.Formula.True => true
+    case s2.Formula.False => false
+    case s2.Formula.Not(a) => !truth(a, model, scope)
+    case s2.Formula.And(as) => as.forall(truth(_, model, scope))
+    case s2.Formula.Or(as) => as.exists(truth(_, model, scope))
+    case s2.Formula.Implies(as) => as.map(truth(_, model, scope)).reduceRight((a, b) => !a || b)
+    case s2.Formula.Xor(as) => as.map(truth(_, model, scope)).reduceLeft(_ != _)
+    case s2.Formula.Iff(as) =>
+      val values = as.map(truth(_, model, scope))
+      values.forall(_ == values.head)
+    case s2.Formula.Eq(as) =>
+      val values = as.map(eval(_, model, scope))
+      values.zip(values.tail).forall(Model.same)
+    case s2.Formula.Distinct(as) =>
+      val values = as.map(eval(_, model, scope))
+      values.zipWithIndex.forall((a, i) => values.drop(i + 1).forall(b => !Model.same(a, b)))
+    case s2.Formula.Cmp(op, as) =>
+      val values = as.map(a => rational(eval(a, model, scope)))
+      values.zip(values.tail).forall((a, b) =>
+        op match
+          case s2.CmpOp.Le => a <= b
+          case s2.CmpOp.Lt => a < b
+          case s2.CmpOp.Ge => a >= b
+          case s2.CmpOp.Gt => a > b
+      )
+    case s2.Formula.BvCmp(op, l, r) =>
+      val m = modulus(width(l, scope.sorts))
+      def read(t: s2.Term): BigInt =
+        val v = integer(eval(t, model, scope))
+        if op.signed && v >= m / 2 then v - m else v
+      val (a, b) = (read(l), read(r))
+      op match
+        case BvCmpOp.Ult | BvCmpOp.Slt => a < b
+        case BvCmpOp.Ule | BvCmpOp.Sle => a <= b
+        case BvCmpOp.Ugt | BvCmpOp.Sgt => a > b
+        case BvCmpOp.Uge | BvCmpOp.Sge => a >= b
+    case s2.Formula.Ite(c, t, e) => if truth(c, model, scope) then truth(t, model, scope) else truth(e, model, scope)
+    case s2.Formula.IsConstructor(constructor, arg) =>
+      eval(arg, model, scope) match
+        case App(Const(c), _) => c == constructor
+        case Const(c) => c == constructor
+        case _ => false
+    case s2.Formula.IsInt(arg) => rational(eval(arg, model, scope)).isInteger
+    case s2.Formula.Let(bindings, body) => truth(body, model, bindAll(bindings, model, scope))
+    case s2.Formula.Pred(t) => eval(t, model, scope) == Bool(True)
+
+  private def rational(value: Term): io.bovel.lia.Rational = value match
+    case Num(v) => io.bovel.lia.Rational(v)
+    case App(Const("/"), List(Num(p), Num(q))) => io.bovel.lia.Rational(p) / io.bovel.lia.Rational(q)
+    case other => throw s2.Smt2Error(s"not a number: $other")
+
+  private def integer(value: Term): BigInt = value match
+    case Num(v) => v
+    case other => throw s2.Smt2Error(s"not a bit-vector: $other")
+
+  private def number(r: io.bovel.lia.Rational): Term = Model.rationalTerm(r)
+
+  /** A bit-vector operation on values, as SMT-LIB defines it — the divisions by
+   *  zero included: `bvudiv` by zero is all ones, `bvurem` by zero the
+   *  dividend, and the signed ones follow from those.
+   */
+  private def bitVector(op: BvOp, values: List[BigInt], widths: List[Int]): BigInt =
+    val w = widths.headOption.getOrElse(0)
+    val m = modulus(w)
+    def signed(v: BigInt): BigInt = if v >= m / 2 then v - m else v
+    def unsigned(v: BigInt): BigInt = v.mod(m)
+    def udiv(a: BigInt, b: BigInt): BigInt = if b.signum == 0 then m - 1 else a / b
+    def urem(a: BigInt, b: BigInt): BigInt = if b.signum == 0 then a else a % b
+    val a = values.head
+    lazy val b = values(1)
+    lazy val sa = signed(a)
+    lazy val sb = signed(b)
+    op match
+      case BvOp.Add => values.reduce(_ + _).mod(m)
+      case BvOp.Sub => values.reduce(_ - _).mod(m)
+      case BvOp.Neg => (-a).mod(m)
+      case BvOp.Not => m - 1 - a
+      case BvOp.Mul => values.reduce(_ * _).mod(m)
+      case BvOp.And => values.reduce(_ & _)
+      case BvOp.Or => values.reduce(_ | _)
+      case BvOp.Xor => values.reduce(_ ^ _)
+      case BvOp.Nand => m - 1 - (a & b)
+      case BvOp.Nor => m - 1 - (a | b)
+      case BvOp.Xnor => m - 1 - (a ^ b)
+      case BvOp.Comp => if a == b then BigInt(1) else BigInt(0)
+      case BvOp.Shl => if b >= w then BigInt(0) else (a << b.toInt).mod(m)
+      case BvOp.Lshr => if b >= w then BigInt(0) else a >> b.toInt
+      case BvOp.Ashr => if b >= w then (if sa.signum < 0 then m - 1 else BigInt(0)) else unsigned(sa >> b.toInt)
+      case BvOp.Udiv => udiv(a, b)
+      case BvOp.Urem => urem(a, b)
+      case BvOp.Sdiv =>
+        if sa.signum >= 0 && sb.signum >= 0 then udiv(a, b)
+        else if sa.signum < 0 && sb.signum >= 0 then unsigned(-udiv(unsigned(-sa), b))
+        else if sa.signum >= 0 then unsigned(-udiv(a, unsigned(-sb)))
+        else udiv(unsigned(-sa), unsigned(-sb))
+      case BvOp.Srem =>
+        if sa.signum >= 0 && sb.signum >= 0 then urem(a, b)
+        else if sa.signum < 0 && sb.signum >= 0 then unsigned(-urem(unsigned(-sa), b))
+        else if sa.signum >= 0 then urem(a, unsigned(-sb))
+        else unsigned(-urem(unsigned(-sa), unsigned(-sb)))
+      case BvOp.Smod =>
+        val u = urem(unsigned(sa.abs), unsigned(sb.abs))
+        if u.signum == 0 || (sa.signum >= 0 && sb.signum >= 0) then u
+        else if sa.signum < 0 && sb.signum >= 0 then unsigned(-u + sb)
+        else if sa.signum >= 0 then unsigned(u + sb)
+        else unsigned(-u)
+      case BvOp.Concat => values.zip(widths).foldLeft(BigInt(0)) { case (acc, (v, wi)) => (acc << wi) + v }
+      case BvOp.UbvToInt => a
+      case BvOp.SbvToInt => sa
+      case BvOp.IntToBv(n) => a.mod(modulus(n))
+      case BvOp.Extract(i, j) => (a >> j) & (modulus(i - j + 1) - 1)
+      case BvOp.ZeroExtend(_) => a
+      case BvOp.SignExtend(k) => sa.mod(modulus(w + k))
+      case BvOp.Repeat(k) => (1 to k).foldLeft(BigInt(0))((acc, _) => (acc << w) + a)
+      case BvOp.RotateLeft(k) =>
+        val r = k % w
+        ((a << r) | (a >> (w - r))).mod(m)
+      case BvOp.RotateRight(k) =>
+        val r = k % w
+        ((a >> r) | (a << (w - r))).mod(m)
 
   /** The model with the lowering's rational constants valued, and the constants
    *  `definitions` define — a query's, for the session to value the lowered
-   *  items the lowering could not compute.
+   *  items of a lowered `get-value`.
    */
   def fold(model: Model, definitions: List[Formula]): Model =
     val withRationals = rationalValues.foldLeft(model) {
@@ -154,30 +346,28 @@ private final class Lowerer:
     }
     definitions.foldLeft(withRationals)((m, d) => m.defined(d, minted))
 
-  /** Whatever a query minted, forgotten: a constant defined for the query alone
-   *  must not be found by a later assertion.
-   */
-  private def forget(): Unit =
-    introduced.clear()
-    definitions.clear()
-    rationals.clear()
-    rationalProducts.clear()
-    rangedApplications.clear()
-    clearLowered()
-
   /** A value as the script writes one of `sort`: a bit-vector in binary, as z3
-   *  and cvc5 write it (`(_ bv1 4)` says the same and reads oddly), a rational
-   *  as `(/ p q)`; `None` for a value that is not a literal.
+   *  and cvc5 write it (`(_ bv1 4)` says the same and reads oddly), a real as a
+   *  decimal, an array as its stores over a constant array of the script's
+   *  sort, a constructor's arguments at its fields' sorts (issue 47).
    */
-  def render(value: Term, sort: Sort): Option[String] = (value, sort) match
-    case (Num(v), Sort.BitVec(w)) => Some(s2.sexpr.SExpr.SBits(v.mod(modulus(w)), w, hexadecimal = false).toString)
-    case (Num(v), Sort.Int) => Some(s2.Printer.print(s2.Term.Numeral(v)))
+  def written(value: Term, sort: Sort): String = (value, sort) match
+    case (Num(v), Sort.BitVec(w)) => s2.sexpr.SExpr.SBits(v.mod(modulus(w)), w, hexadecimal = false).toString
+    case (Num(v), Sort.Int) => s2.Printer.print(s2.Term.Numeral(v))
     // A real as a decimal, `4.0` and `(/ 9.0 2.0)`, as z3 writes one: a numeral is an integer where the
     // logic has both, and a definition `(define-fun e () Real 0)` is a sort mismatch to z3.
-    case (Num(v), Sort.Real) => Some(decimal(v))
-    case (App(Const("/"), List(Num(p), Num(q))), Sort.Real) => Some(s"(/ ${decimal(p)} ${decimal(q)})")
-    case (Bool(f), Sort.Bool) => Some(if f == True then "true" else if f == False then "false" else return None)
-    case _ => None
+    case (Num(v), Sort.Real) => decimal(v)
+    case (App(Const("/"), List(Num(p), Num(q))), Sort.Real) => s"(/ ${decimal(p)} ${decimal(q)})"
+    case (Bool(f), Sort.Bool) => if f == True then "true" else "false"
+    case (App(Const("store"), List(a, i, v)), Sort.Array(index, element)) =>
+      s"(store ${written(a, sort)} ${written(i, index)} ${written(v, element)})"
+    case (App(Const(name), List(d)), Sort.Array(_, element)) if name.startsWith("(as const ") =>
+      s"((as const ${sort.text}) ${written(d, element)})"
+    case (App(Const(c), args), Sort.Named(_)) if functions.get(c).flatMap(_.arrow).exists(_._1.length == args.length) =>
+      val fields = functions(c).arrow.get._1
+      s"(${Printer.symbol(c)} ${args.zip(fields).map(written).mkString(" ")})"
+    case (Const(c), _) => Printer.symbol(c) // a nullary constructor, an abstract element
+    case _ => Printer.print(value)
 
   private def decimal(v: BigInt): String = if v.signum < 0 then s"(- ${-v}.0)" else s"$v.0"
 
@@ -185,59 +375,6 @@ private final class Lowerer:
    *  name the script never declared, the lowering's own among them.
    */
   def declaredSort(name: String): Option[Sort] = if minted(name) then None else functions.get(name)
-
-  /** A surface term with every declared symbol replaced by its value in
-   *  `model`, as a literal of its sort.
-   */
-  private def valued(t: s2.Term, model: Model): Option[s2.Term] = t match
-    case s2.Term.Numeral(_) | s2.Term.Decimal(_, _) | s2.Term.Bits(_, _) => Some(t)
-    case s2.Term.Const(name) if functions.contains(name) =>
-      literal(model.value(Const(name)), functions(name))
-    case s2.Term.App(s2.Term.Const(name), args) if functions.contains(name) && !macros.contains(name) =>
-      // The arguments lowered may mint constants (a rational literal's): the application is valued
-      // under the model with those valued, or a row at `(/ 1 2)` is never matched by `rat!1`.
-      for
-        values <- traverse(args.map(valued(_, model)))
-        lowered = App(Const(name), values.map(term(_, Map.empty)))
-        result <- literal(folded(model).value(lowered), sortOf(t, Map.empty))
-      yield result
-    case s2.Term.App(fun, args) =>
-      traverse((fun :: args).map(valued(_, model))).map(vs => s2.Term.App(vs.head, vs.tail))
-    case s2.Term.ArithApp(op, args) => traverse(args.map(valued(_, model))).map(s2.Term.ArithApp(op, _))
-    case s2.Term.BvApp(op, args) => traverse(args.map(valued(_, model))).map(s2.Term.BvApp(op, _))
-    case s2.Term.Ite(c, thn, els) =>
-      for c <- valued(c, model); t <- valued(thn, model); e <- valued(els, model) yield s2.Term.Ite(c, t, e)
-    case s2.Term.Bool(f) => valued(f, model).map(s2.Term.Bool(_))
-    case _ => None
-
-  private def valued(f: s2.Formula, model: Model): Option[s2.Formula] = f match
-    case s2.Formula.True | s2.Formula.False => Some(f)
-    case s2.Formula.Not(a) => valued(a, model).map(s2.Formula.Not(_))
-    case s2.Formula.And(as) => traverse(as.map(valued(_, model))).map(s2.Formula.And(_))
-    case s2.Formula.Or(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Or(_))
-    case s2.Formula.Eq(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Eq(_))
-    case s2.Formula.Distinct(as) => traverse(as.map(valued(_, model))).map(s2.Formula.Distinct(_))
-    case s2.Formula.Cmp(op, as) => traverse(as.map(valued(_, model))).map(s2.Formula.Cmp(op, _))
-    case s2.Formula.BvCmp(op, l, r) =>
-      for l <- valued(l, model); r <- valued(r, model) yield s2.Formula.BvCmp(op, l, r)
-    case s2.Formula.Pred(t) => valued(t, model).map(s2.Formula.Pred(_))
-    case _ => None
-
-  private def traverse[A](options: List[Option[A]]): Option[List[A]] =
-    if options.forall(_.isDefined) then Some(options.map(_.get)) else None
-
-  /** A model's value as a surface literal of `sort`: the sorts whose values are
-   *  numbers, which is what a `get-value` of an arithmetic term needs.
-   */
-  private def literal(value: Term, sort: Sort): Option[s2.Term] = (value, sort) match
-    case (Num(v), Sort.BitVec(w)) => Some(s2.Term.Bits(v.mod(modulus(w)), w))
-    case (Num(v), Sort.Int) => Some(s2.Term.Numeral(v))
-    case (Num(v), Sort.Real) => Some(s2.Term.Numeral(v))
-    case (App(Const("/"), List(Num(p), Num(q))), Sort.Real) => // a rational, lowered again as one
-      Some(s2.Term.ArithApp(s2.ArithOp.Div, List(s2.Term.Numeral(p), s2.Term.Numeral(q))))
-    case (Bool(True), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.True))
-    case (Bool(False), Sort.Bool) => Some(s2.Term.Bool(s2.Formula.False))
-    case _ => None
 
   /** A sort as the solver writes it: a string, arrays as function sorts. */
   /** What a declaration of `name` at `sort` asserts about it, beyond the

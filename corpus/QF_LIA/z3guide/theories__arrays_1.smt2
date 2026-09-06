@@ -1,7 +1,7 @@
 ; From z3guide: 02 - theories/04 - Arrays.md (block 1) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
-; EXPECT: ((define-fun a1 () (Array Int Int) (store ((as const (Array Int Int)) 0) 0 0)) (define-fun x () Int 0) (define-fun y () Int 0))
+; EXPECT: ((define-fun a1 () (Array Int Int) (store ((as const (Array Int Int)) 0) 0 0)) (define-fun a2 () (Array Int Int) ((as const (Array Int Int)) 0)) (define-fun x () Int 0) (define-fun y () Int 0))
 (declare-const x Int)
 (declare-const y Int)
 (declare-const a1 (Array Int Int))

@@ -120,3 +120,4 @@ One file per run, named by date and host (plus a tag when a day has several runs
 - [2026-09-06, laraserver4, a level-0 unsat kept, the budget honoured, arrays paired under any function](2026-09-06-laraserver4-level-zero.md) — the fixes for issues 37, 38 and 39 (kept): the cold list flat, 29.03 → 28.99 s
 - [2026-09-06, laraserver4, the front end's names](2026-09-06-laraserver4-front-end-names.md) — the fixes for issues 41 to 44 (kept): the cold list flat, 28.99 → 29.01 s
 - [2026-09-06, laraserver4, declarations scoped by their level](2026-09-06-laraserver4-scoped-declarations.md) — the fix for issue 40 (kept): the cold list flat, 29.01 → 29.03 s
+- [2026-09-06, laraserver4, values computed from the model](2026-09-06-laraserver4-values.md) — the fixes for issues 45 to 50 (kept): the cold list flat, 29.03 → 29.05 s, every corpus model judged by z3

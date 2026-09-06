@@ -1041,7 +1041,13 @@ private final class Encoder(
     for
       (name, (argSorts, sort)) <- declarations
       if argSorts.isEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
-    do if classes.contains(Term.Const(name)) then constants += name -> arrayValue(Term.Const(name), sort)
+    do
+      // An array the assertions never read or wrote holds a default everywhere: a value all the same,
+      // where `(select arr i)` was printed as itself (issue 48).
+      constants += name -> (
+        if classes.contains(Term.Const(name)) then arrayValue(Term.Const(name), sort)
+        else Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
+      )
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
       (name, (argSorts, sort)) <- declarations

@@ -68,17 +68,10 @@ final class Session(
     case s2.Command.GetValue(items) =>
       val lowered = lowerer.commands(List(c))
       play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
-      (current.model(), lowered.last) match
-        case (Some(m0), Command.GetValue(loweredItems, definitions)) =>
-          // Item by item: the lowering computes what it can, and the lowered term under the model,
-          // with the query's definitions folded in, answers the rest — an uninterpreted sort, an
-          // array, a datatype (issue 28).
-          lazy val m = lowerer.fold(m0, definitions)
-          val values = items.zip(loweredItems).map { case ((source, item), (_, loweredItem)) =>
-            s"($source ${lowerer.evaluate(item, m0).getOrElse(valueText(m, loweredItem))})"
-          }
-          List(values.mkString("(", " ", ")"))
-        case _ => play(List(lowered.last))
+      current.model() match
+        case Some(m) =>
+          List(items.map((source, item) => s"($source ${lowerer.evaluate(item, m)})").mkString("(", " ", ")"))
+        case None => play(List(lowered.last))
     case _ => play(lowerer.commands(List(c)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
@@ -158,7 +151,7 @@ final class Session(
     // The script's symbols, at the sorts the script declared them, their values written as the script
     // would: a bit-vector constant is `(_ BitVec 4)` and `#b1010`, not the `Int` and `10` the lowering
     // reads it as (issue 28). The lowering's own constants stay out, as do the datatypes' symbols.
-    def written(v: Term, sort: s2.Sort): String = lowerer.render(v, sort).getOrElse(Printer.print(v))
+    def written(v: Term, sort: s2.Sort): String = lowerer.written(v, sort)
     val constants = m.constants.toList.filterNot((n, _) => interpreted(n)).sortBy(_._1).flatMap { (n, v) =>
       lowerer.declaredSort(n).map(sort => s"(define-fun ${Printer.symbol(n)} () ${sort.text} ${written(v, sort)})")
     }
@@ -167,13 +160,7 @@ final class Session(
         val (argSorts, result) = sort match
           case s2.Sort.Fun(args, r) => (args, r)
           case other => (Nil, other)
-        val params = argSorts.zipWithIndex.map((s, i) => s"(x!$i ${s.text})").mkString(" ")
-        val body = f.rows.foldRight(written(f.default, result)) { case ((args, r), els) =>
-          val cond = args.zip(argSorts).zipWithIndex.map { case ((a, s), i) => s"(= x!$i ${written(a, s)})" } match
-            case single :: Nil => single
-            case cs => cs.mkString("(and ", " ", ")")
-          s"(ite $cond ${written(r, result)} $els)"
-        }
+        val (params, body) = lowerer.graph(f, argSorts, result)
         s"(define-fun ${Printer.symbol(n)} ($params) ${result.text} $body)"
       }
     }

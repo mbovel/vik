@@ -83,7 +83,10 @@ final case class Model(
    *  values, else the default; the application itself for an unknown symbol.
    */
   private def lookup(name: String, values: List[Term]): Term = functions.get(name) match
-    case Some(f) => f.rows.collectFirst { case (a, r) if a == values => r }.getOrElse(f.default)
+    // Array arguments are compared extensionally: a row keyed by a store read back is one (issue 49).
+    case Some(f) =>
+      f.rows.collectFirst { case (a, r) if a.length == values.length && a.zip(values).forall(Model.same) => r }
+        .getOrElse(f.default)
     case None => Term.App(Term.Const(name), values)
 
   /** Whether a formula holds under this model. */
