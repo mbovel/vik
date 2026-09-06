@@ -84,6 +84,7 @@ object VikReplay:
         case Op.Push(levels) => for _ <- 1 to levels do s.push()
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()
         case Op.Check => answers += decided(s.checkSat(), "VIK")
+        case Op.SetOption(key, value) => run(Command.SetOption(key, value))
         case Op.Reset => run(Command.ResetAssertions)
         case Op.ResetAll => run(Command.Reset)
     answers.toList

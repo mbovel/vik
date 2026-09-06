@@ -99,6 +99,12 @@ object Replay:
     case Assert(slot: Int)
     case Push(levels: Int)
     case Pop(levels: Int)
+
+    /** `(set-option :global-declarations ...)`: for VIK's session, which scopes
+     *  its declarations by level as the standard says; the bindings keep theirs
+     *  whatever the levels do.
+     */
+    case SetOption(key: String, value: String)
     case Check
 
     /** `reset-assertions`: every assertion and level gone, the declarations
@@ -120,6 +126,15 @@ object Replay:
     val declIds = HashMap.empty[String, Int]
     val declSorts = HashMap.empty[String, (List[Sort], Sort)]
     val macros = HashMap.empty[String, (List[(String, Sort)], Term | Formula)] // define-fun
+    // A declaration or a definition goes with its level's `pop`, unless `:global-declarations` is true
+    // (issue 40): one list of undos per open level; and an id is never given twice, so a slot built over
+    // a popped declaration is not taken for one over its successor of the same name.
+    var globalDeclarations = false
+    val scopes = ArrayBuffer.empty[ArrayBuffer[() => Unit]]
+    def undoable[K, V](map: HashMap[K, V], key: K): Unit =
+      if scopes.nonEmpty && !globalDeclarations then
+        val previous = map.get(key)
+        scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
     val slotSorts = ArrayBuffer.empty[Sort]
     val memo = HashMap.empty[Any, Int] // a construction, by its shape over slots, to its slot
     val named = scala.collection.mutable.HashSet.empty[Int]
@@ -149,9 +164,10 @@ object Replay:
             Op.ArraySort(_, i, e)
           case Sort.Named(name) => throw IllegalArgumentException(s"undeclared sort $name")
           case Sort.Fun(_, _) => throw UnsupportedOperationException("function sorts are not encoded")
-        val id = sortIds.size
+        val id = sortCount
+        sortCount += 1
+        undoable(sortIds, s)
         sortIds(s) = id
-        sortCount = sortCount.max(id + 1)
         out += op(id)
         id
     def width(s: Sort): Int = s match
@@ -336,42 +352,55 @@ object Replay:
       command match
         case Command.SetLogic(l) => logic = l
         case Command.DeclareSort(name, 0) =>
-          val id = sortIds.size
+          val id = sortCount
+          sortCount += 1
+          undoable(sortIds, Sort.Named(name))
           sortIds(Sort.Named(name)) = id
-          sortCount = sortCount.max(id + 1)
           out += Op.DeclareSort(id, name)
         case Command.DeclareSort(name, _) => throw UnsupportedOperationException(s"sort $name takes parameters")
         case Command.DeclareFun(name, argSorts, sort) =>
-          val id = declIds.size
+          val id = declCount
+          declCount += 1
+          undoable(declIds, name)
           declIds(name) = id
+          undoable(declSorts, name)
           declSorts(name) = (argSorts, sort)
-          declCount = declCount.max(id + 1)
           out += Op.DeclareFun(id, name, argSorts.map(sortId).toArray, sortId(sort))
         case Command.DeclareDatatypes(datatypes) =>
           // The datatypes take sort ids silently: the declaration op fills them.
           val group = datatypes.map(d => Sort.Named(d.name))
           for s <- group do
-            sortIds(s) = sortIds.size
-            sortCount = sortCount.max(sortIds.size)
+            undoable(sortIds, s)
+            sortIds(s) = sortCount
+            sortCount += 1
           val fieldSorts = datatypes.flatMap(_.constructors.flatMap(_.selectors.map(_._2))).distinct
           val ids = (group ++ fieldSorts).distinct.map(s => s -> sortId(s)).toMap
           val ctorIds = HashMap.empty[String, Int]
           val selectorIds = HashMap.empty[String, Int]
+          def declare(name: String, argSorts: List[Sort], result: Sort): Int =
+            val id = declCount
+            declCount += 1
+            undoable(declIds, name)
+            declIds(name) = id
+            undoable(declSorts, name)
+            declSorts(name) = (argSorts, result)
+            id
           for d <- datatypes; c <- d.constructors do
-            ctorIds(c.name) = declIds.size
-            declIds(c.name) = declIds.size
-            declSorts(c.name) = (c.selectors.map(_._2), Sort.Named(d.name))
+            ctorIds(c.name) = declare(c.name, c.selectors.map(_._2), Sort.Named(d.name))
             for (selector, sort) <- c.selectors do
-              selectorIds(selector) = declIds.size
-              declIds(selector) = declIds.size
-              declSorts(selector) = (List(Sort.Named(d.name)), sort)
-          declCount = declCount.max(declIds.size)
+              selectorIds(selector) = declare(selector, List(Sort.Named(d.name)), sort)
           out += Op.DeclareDatatypes(datatypes, ids, ctorIds.toMap, selectorIds.toMap)
-        case Command.DefineFun(name, params, _, body) => macros(name) = (params, body)
+        case Command.DefineFun(name, params, _, body) =>
+          undoable(macros, name)
+          macros(name) = (params, body)
         case Command.Assert(f) => out += Op.Assert(formula(f, Map.empty))
         case Command.AssertNamed(_, f) => out += Op.Assert(formula(f, Map.empty)) // the name changes nothing
-        case Command.Push(levels) => out += Op.Push(levels)
-        case Command.Pop(levels) => out += Op.Pop(levels)
+        case Command.Push(levels) =>
+          for _ <- 1 to levels do scopes += ArrayBuffer.empty
+          out += Op.Push(levels)
+        case Command.Pop(levels) =>
+          for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+          out += Op.Pop(levels)
         case Command.CheckSat => out += Op.Check
         // The assumptions asserted under a level of their own: the same answer, through what every
         // solver's API has.
@@ -381,9 +410,14 @@ object Replay:
           out += Op.Check
           out += Op.Pop(1)
         case Command.ResetAssertions => out += Op.Reset // dropped once, which kept every assertion (issue 36)
+        case Command.SetOption(":global-declarations", value) =>
+          globalDeclarations = value == "true"
+          out += Op.SetOption(":global-declarations", value)
         case Command.Reset =>
           // Everything forgotten, the constructions too: a slot built before is not reused after.
           out += Op.ResetAll
+          scopes.clear()
+          globalDeclarations = false
           memo.clear()
           sortIds.clear()
           declIds.clear()

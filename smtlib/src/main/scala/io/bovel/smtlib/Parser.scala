@@ -63,6 +63,28 @@ final class Parser:
   private val pending = scala.collection.mutable.ArrayBuffer.empty[Command] // instances' declarations
   private var sortSubst: Map[String, SExpr] = Map.empty // a template's parameters, while instantiating
 
+  // A declaration or a definition belongs to the level it was made at and goes with the level's `pop`,
+  // unless `:global-declarations` is true (issue 40): one list of undos per open level.
+  private var globalDeclarations = false
+  private val scopes = scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.ArrayBuffer[() => Unit]]
+
+  /** Records, before `map(key)` is set, how to restore it at the level's pop.
+   */
+  private def undoable[V](map: scala.collection.mutable.Map[String, V], key: String): Unit =
+    if scopes.nonEmpty && !globalDeclarations then
+      val previous = map.get(key)
+      scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
+
+  /** Records, before `key` joins `set`, its removal at the level's pop. */
+  private def undoable(set: scala.collection.mutable.Set[String], key: String): Unit =
+    if scopes.nonEmpty && !globalDeclarations && !set(key) then scopes.last += (() => set -= key)
+
+  private def push(levels: Int): Unit =
+    for _ <- 1 to levels do scopes += scala.collection.mutable.ArrayBuffer.empty
+
+  private def pop(levels: Int): Unit =
+    for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+
   def parse(input: String): Script = Script(SExprParser.parse(input).flatMap { s =>
     val commands = command(s)
     val out = pending.toList ++ commands
@@ -74,15 +96,19 @@ final class Parser:
     case SList(SSymbol("set-logic") :: SSymbol(logic) :: Nil) => List(Command.SetLogic(logic))
     case SList(SSymbol("set-info") :: SKeyword(key) :: value :: Nil) => List(Command.SetInfo(s":$key", value.toString))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: SNumeral(arity) :: Nil) =>
+      undoable(declaredSorts, name)
       declaredSorts += name
       List(Command.DeclareSort(name, index(arity)))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: Nil) =>
+      undoable(declaredSorts, name)
       declaredSorts += name
       List(Command.DeclareSort(name, 0))
     case SList(SSymbol("declare-sort-parameter") :: SSymbol(name) :: Nil) =>
+      undoable(sortParameters, name)
       sortParameters += name
       Nil
     case SList(SSymbol("define-sort") :: SSymbol(name) :: SList(params) :: body :: Nil) =>
+      undoable(sortDefinitions, name)
       sortDefinitions(name) =
         (params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad parameter $other") }, body)
       Nil
@@ -132,6 +158,7 @@ final class Parser:
         case other => throw Smt2Error(s"bad parameter $other")
       }
       val ps = sortParameters.filter(p => mentions(s, p) || formals.exists((_, fs) => mentions(fs, p))).toList
+      undoable(polymorphic, name)
       polymorphic(name) = Poly.Macro(ps, formals, s, body)
       Nil
     case SList(SSymbol("define-fun") :: SSymbol(name) :: SList(params) :: s :: body :: Nil) =>
@@ -140,6 +167,7 @@ final class Parser:
       free(name) // after the sorts, which may have instantiated a datatype whose symbol this is
       val env = ps.toMap
       val typed: Term | Formula = if result == Sort.Bool then formula(body, env) else term(body, env)
+      undoable(macros, name)
       macros(name) = (ps, result, typed)
       List(Command.DefineFun(name, ps, result, typed))
     case SList(SSymbol("assert") :: SList(SSymbol("!") :: body :: attributes) :: Nil)
@@ -165,15 +193,27 @@ final class Parser:
       templates.clear()
       owner.clear()
       instantiated.clear()
+      instanceSymbols.clear()
+      datatypeOf.clear()
+      scopes.clear()
+      globalDeclarations = false
       List(Command.Reset)
     case SList(SSymbol("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)
     case SList(SSymbol("get-assertions") :: Nil) => List(Command.GetAssertions)
     case SList(SSymbol(name @ ("block-model" | "block-model-values" | "get-unsat-assumptions")) :: _) =>
       throw Smt2Error(s"$name is not supported")
-    case SList(SSymbol("push") :: SNumeral(n) :: Nil) => List(Command.Push(index(n)))
-    case SList(SSymbol("push") :: Nil) => List(Command.Push(1))
-    case SList(SSymbol("pop") :: SNumeral(n) :: Nil) => List(Command.Pop(index(n)))
-    case SList(SSymbol("pop") :: Nil) => List(Command.Pop(1))
+    case SList(SSymbol("push") :: SNumeral(n) :: Nil) =>
+      push(index(n))
+      List(Command.Push(index(n)))
+    case SList(SSymbol("push") :: Nil) =>
+      push(1)
+      List(Command.Push(1))
+    case SList(SSymbol("pop") :: SNumeral(n) :: Nil) =>
+      pop(index(n))
+      List(Command.Pop(index(n)))
+    case SList(SSymbol("pop") :: Nil) =>
+      pop(1)
+      List(Command.Pop(1))
     case SList(SSymbol("get-model") :: Nil) => List(Command.GetModel)
     case SList(SSymbol("get-value") :: SList(items) :: Nil) =>
       // An item outside the fragment (another theory's term) leaves the whole command unanswered, as before.
@@ -187,6 +227,7 @@ final class Parser:
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))
     case SList(SSymbol("set-option") :: SKeyword(key) :: value :: Nil) =>
+      if key == "global-declarations" then globalDeclarations = value.toString == "true"
       List(Command.SetOption(s":$key", value.toString))
     case SList(SSymbol("get-info") :: SKeyword(key) :: Nil) => List(Command.GetInfo(s":$key"))
     case SList(SSymbol("exit") :: Nil) => List(Command.Exit)
@@ -206,12 +247,14 @@ final class Parser:
     free(name)
     val params = sortParameters.filter(p => (s :: args).exists(mentions(_, p))).toList
     if params.nonEmpty then
+      undoable(polymorphic, name)
       polymorphic(name) = Poly.Fun(params, args, s)
       Nil
     else
       val (argSorts, result) = (args.map(sort), sort(s))
       (result :: argSorts).foreach(check)
       free(name) // again: the sorts just read may have instantiated a datatype whose symbol this is
+      undoable(functions, name)
       functions(name) = Sort.fun(argSorts, result)
       List(Command.DeclareFun(name, argSorts, result))
 
@@ -284,6 +327,7 @@ final class Parser:
             if (functions.contains(instanceName) || macros.contains(instanceName)) && !instanceSymbols(instanceName)
             then throw Smt2Error(s"$instanceName: the script's symbol clashes with the instance of $name")
             if !instanceSymbols(instanceName) then
+              undoable(instanceSymbols, instanceName)
               instanceSymbols += instanceName
               val saved = sortSubst
               sortSubst = params.zip(actual).toMap
@@ -292,6 +336,7 @@ final class Parser:
                   case Poly.Fun(_, as, r) =>
                     val (argSorts, resultSort) = (as.map(sort), sort(r))
                     (resultSort :: argSorts).foreach(check)
+                    undoable(functions, instanceName)
                     functions(instanceName) = Sort.fun(argSorts, resultSort)
                     pending += Command.DeclareFun(instanceName, argSorts, resultSort)
                   case Poly.Macro(_, formals, r, body) =>
@@ -299,6 +344,7 @@ final class Parser:
                     val resultSort = sort(r)
                     val env = ps.toMap
                     val typed: Term | Formula = if resultSort == Sort.Bool then formula(body, env) else term(body, env)
+                    undoable(macros, instanceName)
                     macros(instanceName) = (ps, resultSort, typed)
                     pending += Command.DefineFun(instanceName, ps, resultSort, typed)
               finally sortSubst = saved
@@ -315,7 +361,9 @@ final class Parser:
     val (params, decls) = templates(name)
     if args.length != params.length then throw Smt2Error(s"$name takes ${params.length} sort arguments")
     val text = s"($name ${args.map(_.text).mkString(" ")})"
-    if instantiated.add(text) then
+    if !instantiated(text) then
+      undoable(instantiated, text)
+      instantiated += text
       val saved = sortSubst
       sortSubst = params.zip(args.map(sexprOf)).toMap
       try
@@ -338,6 +386,7 @@ final class Parser:
         val symbols = datatype.constructors.flatMap(c => c.name :: c.tester :: c.selectors.map(_._1))
         for symbol <- symbols if functions.contains(symbol) && !instanceSymbols(symbol) do
           throw Smt2Error(s"$symbol: the script's symbol clashes with the instance $text of $name")
+        for symbol <- symbols do undoable(instanceSymbols, symbol)
         instanceSymbols ++= symbols
         register(datatype)
         pending += Command.DeclareDatatypes(List(datatype))
@@ -373,17 +422,24 @@ final class Parser:
   private def register(datatype: Datatype): Unit =
     val d = Sort.Named(datatype.name)
     for constructor <- datatype.constructors do
+      undoable(constructors, constructor.name)
       constructors(constructor.name) = constructor
+      undoable(datatypeOf, constructor.name)
       datatypeOf(constructor.name) = datatype.name
+      undoable(functions, constructor.name)
       functions(constructor.name) = Sort.fun(constructor.selectors.map(_._2), d)
+      undoable(functions, constructor.tester)
       functions(constructor.tester) = Sort.fun(List(d), Sort.Bool)
-      for (selector, s) <- constructor.selectors do functions(selector) = Sort.fun(List(d), s)
+      for (selector, s) <- constructor.selectors do
+        undoable(functions, selector)
+        functions(selector) = Sort.fun(List(d), s)
 
   /** Keeps a parametric datatype's declaration for its instances, and makes its
    *  constructors and selectors polymorphic symbols of the datatype.
    */
   private def template(name: String, params: List[SExpr], constructors: List[SExpr]): Unit =
     val ps = params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad sort parameter $other") }
+    undoable(templates, name)
     templates(name) = (ps, constructors)
     val self = SList(SSymbol(name) :: ps.map(SSymbol(_)))
     for c <- constructors do
@@ -391,12 +447,16 @@ final class Parser:
         case SList(SSymbol(constructor) :: selectors) =>
           val fields = selectors.map {
             case SList(SSymbol(selector) :: s :: Nil) =>
+              undoable(polymorphic, selector)
               polymorphic(selector) = Poly.Fun(ps, List(self), s)
+              undoable(owner, selector)
               owner(selector) = name
               s
             case other => throw Smt2Error(s"bad selector $other")
           }
+          undoable(polymorphic, constructor)
           polymorphic(constructor) = Poly.Fun(ps, fields, self)
+          undoable(owner, constructor)
           owner(constructor) = name
         case other => throw Smt2Error(s"bad constructor $other")
 

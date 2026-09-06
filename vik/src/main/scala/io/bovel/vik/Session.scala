@@ -38,6 +38,10 @@ final class Session(
   // The assertion stack as asserted, one buffer per level: what get-assertions prints.
   private val asserted = ArrayBuffer(ArrayBuffer.empty[Formula])
   private val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
+  // The declarations of each open level, undone with its `pop` unless `:global-declarations` is true
+  // (issue 40); the first level's are never popped.
+  private val declaredAt = ArrayBuffer(ArrayBuffer.empty[Command])
+  private var globalDeclarations = false
   private var rlimit = fuel
   private var timeout = timeoutMs // milliseconds per check-sat, as `(set-option :timeout ...)` sets it
   private var reason = Option.empty[String]
@@ -126,6 +130,14 @@ final class Session(
     case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.declare)
     case _ => ()
 
+  private def undeclare(command: Command): Unit =
+    command match
+      case Command.DeclareFun(name, _, _) => current.undeclare(name)
+      case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.undeclare)
+      case _ => ()
+    val i = declarations.lastIndexOf(command)
+    if i >= 0 then declarations.remove(i)
+
   private def withModel(text: Model => String): String = current.model().map(text).getOrElse("(error \"no model\")")
 
   /** The model with a fresh constant valued by its definition — `k = t`, or
@@ -169,6 +181,7 @@ final class Session(
 
   private def restart(): Unit =
     asserted.clear(); asserted += ArrayBuffer.empty
+    declaredAt.clear(); declaredAt += ArrayBuffer.empty
     val produceModels = current.produceModels
     current = Solver(simplify = current.simplify)
     current.produceModels = produceModels
@@ -186,6 +199,7 @@ final class Session(
       command match
         case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
           declarations += command
+          if declaredAt.length > 1 && !globalDeclarations then declaredAt.last += command
           declare(command)
         case Command.Assert(formula) =>
           asserted.last += formula
@@ -209,8 +223,11 @@ final class Session(
           for _ <- 0 until n do
             current.push()
             asserted += ArrayBuffer.empty
+            declaredAt += ArrayBuffer.empty
         case Command.Pop(n) =>
-          for _ <- 0 until n do current.pop()
+          for _ <- 0 until n do
+            current.pop()
+            if declaredAt.length > 1 then declaredAt.remove(declaredAt.length - 1).reverseIterator.foreach(undeclare)
           asserted.dropRightInPlace(n min (asserted.length - 1))
         case Command.CheckSat => responses += answer()
         case Command.CheckSatAssuming(assumptions) =>
@@ -224,6 +241,8 @@ final class Session(
         case Command.Reset =>
           restart()
           declarations.clear()
+          globalDeclarations = false
+        case Command.SetOption(":global-declarations", value) => globalDeclarations = value == "true"
         case Command.SetOption(":rlimit", value) => rlimit = value.toLong
         case Command.SetOption(":timeout", value) => timeout = Some(value.toLong)
         case Command.GetInfo(":reason-unknown") => responses += s"((:reason-unknown ${reason.getOrElse("incomplete")}))"

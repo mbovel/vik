@@ -252,6 +252,8 @@ QF_LIA/princess/smtlib-parser__int_incompleteness3.smt2	timeout (5 s limit)
 QF_LIA/princess/special__diamonds.16.3.i.a.u.smt2	timeout (5 s limit)
 QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.smt2	timeout (5 s limit)
 QF_LIA/smt-lib-incremental/lustre__traffic.bmc_k100.smt2	timeout (5 s limit)
+QF_LIA/z3guide/logic__basiccommands_4.smt2	skip: the `p` after its level's pop is an error, as z3 and cvc5 say (issue 40); the whole script is read before it is played, so the two answers before the error are not given
+QF_LIA/z3test/regressions__z3.29.smt2	skip: the `p` after its level's pop is an error, as z3 and cvc5 say (issue 40); the whole script is read before it is played, so the two answers before the error are not given
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___count_by_k.i_3_3_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___overflow1.i_3_8_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___standard_two_index_06.i_3_2_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)

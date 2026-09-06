@@ -50,6 +50,18 @@ private final class Lowerer:
   private val functions = HashMap.empty[String, Sort] // declared symbols, with their whole function sort
   private val macros = HashMap.empty[String, (List[(String, Sort)], Sort, s2.Term | s2.Formula)]
 
+  // A declaration or a definition goes with its level's `pop`, unless `:global-declarations` is true
+  // (issue 40): one list of undos per open level, as the parser keeps.
+  private var globalDeclarations = false
+  private val scopes = ArrayBuffer.empty[ArrayBuffer[() => Unit]]
+
+  /** Records, before `map(key)` is set, how to restore it at the level's pop.
+   */
+  private def undoable[V](map: scala.collection.mutable.Map[String, V], key: String): Unit =
+    if scopes.nonEmpty && !globalDeclarations then
+      val previous = map.get(key)
+      scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
+
   private var fresh = 0
   val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own, a test for the session
 
@@ -271,10 +283,12 @@ private final class Lowerer:
     case s2.Command.DeclareSort(name, arity) => List(Command.DeclareSort(name, arity))
     case s2.Command.DeclareFun(name, Nil, Sort.BitVec(w)) =>
       reserve(name)
+      undoable(functions, name)
       functions(name) = Sort.BitVec(w)
       Command.DeclareFun(name, Nil, "Int") +: facts(name, Sort.BitVec(w))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       reserve(name)
+      undoable(functions, name)
       functions(name) = Sort.fun(argSorts, sort)
       // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
       // not flattened into a function symbol: the solver applies it either way, and the model knows an
@@ -283,14 +297,19 @@ private final class Lowerer:
     case s2.Command.DeclareDatatypes(datatypes) =>
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = Sort.Named(datatype.name)
+        undoable(functions, constructor.name)
         functions(constructor.name) = Sort.fun(constructor.selectors.map(_._2), d)
+        undoable(functions, constructor.tester)
         functions(constructor.tester) = Sort.fun(List(d), Sort.Bool)
-        for (selector, s) <- constructor.selectors do functions(selector) = Sort.fun(List(d), s)
+        for (selector, s) <- constructor.selectors do
+          undoable(functions, selector)
+          functions(selector) = Sort.fun(List(d), s)
       List(Command.DeclareDatatypes(datatypes.map(d =>
         d.copy(constructors = d.constructors.map(c => c.copy(selectors = c.selectors.map((n, s) => (n, lowered(s))))))
       )))
     case s2.Command.DefineFun(name, params, sort, body) =>
       reserve(name)
+      undoable(macros, name)
       macros(name) = (params, sort, body) // expanded at each use; the definition itself vanishes
       Nil
     case s2.Command.Assert(f) => flush(Command.Assert(formula(f, Map.empty)))
@@ -298,8 +317,11 @@ private final class Lowerer:
     case s2.Command.CheckSat => List(Command.CheckSat)
     case s2.Command.CheckSatAssuming(assumptions) =>
       flush(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
-    case s2.Command.Push(levels) => List(Command.Push(levels))
+    case s2.Command.Push(levels) =>
+      for _ <- 1 to levels do scopes += ArrayBuffer.empty
+      List(Command.Push(levels))
     case s2.Command.Pop(levels) =>
+      for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
       // A defining assertion lives and dies with its level: a rational constant
       // cached across the pop would come back without its definition, so later
       // uses mint a fresh one, defined again.
@@ -317,6 +339,8 @@ private final class Lowerer:
       // here, or a bit-vector constant would be an integer of any size (a wrong `sat`, fixed 2026-09-04).
       Command.ResetAssertions +: functions.toList.sortBy(_._1).flatMap(facts)
     case s2.Command.Reset =>
+      scopes.clear()
+      globalDeclarations = false
       functions.clear()
       macros.clear()
       rationals.clear()
@@ -354,7 +378,9 @@ private final class Lowerer:
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
     case s2.Command.Exit => List(Command.Exit)
-    case s2.Command.SetOption(key, value) => List(Command.SetOption(key, value))
+    case s2.Command.SetOption(key, value) =>
+      if key == ":global-declarations" then globalDeclarations = value == "true"
+      List(Command.SetOption(key, value))
     case s2.Command.GetInfo(key) => List(Command.GetInfo(key))
     case s2.Command.Other(sexpr) => List(Command.Other(sexpr))
 

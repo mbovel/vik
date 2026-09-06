@@ -183,6 +183,7 @@ object Z3Replay:
         case Op.Assert(slot) => solver.add(bool(slot))
         case Op.Push(levels) => for _ <- 1 to levels do solver.push()
         case Op.Pop(levels) => solver.pop(levels)
+        case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
         case Op.Reset => solver.reset() // the assertions and the levels; the context keeps the declarations
         case Op.ResetAll => solver.reset() // the declarations are made again at new ids; the old ones are harmless
         case Op.Check =>

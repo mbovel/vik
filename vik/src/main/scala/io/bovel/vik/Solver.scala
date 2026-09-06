@@ -72,8 +72,27 @@ final class Solver(val simplify: Boolean = true):
   def declare(name: String, argSorts: List[String], sort: String): Unit =
     if encoder != null && encoder.nn.introducedName(name) then
       throw io.bovel.smtlib.Smt2Error(s"$name: a name the solver uses; pick another")
+    // A name the live encoder knows at another sort — declared again after the pop of its level (issue
+    // 40): the encoder's sort, class and variable for it are the old symbol's, so it is rebuilt.
+    if encoder != null && encoded.get(name).exists(_ != (argSorts, sort)) then dirty = true
     declarations(name) = (argSorts, sort)
+    if encoder != null then encoded(name) = (argSorts, sort)
     if name.startsWith("store!") then anyStore = true
+
+  /** The declarations the live encoder was given, as given: what a declaration
+   *  after a pop is held against.
+   */
+  private val encoded = HashMap.empty[String, (List[String], String)]
+
+  /** Forgets a declaration: its level is popped (issue 40). */
+  def undeclare(name: String): Unit = declarations -= name
+
+  def undeclare(datatype: Datatype): Unit =
+    datatypes.filterInPlace(_.name != datatype.name)
+    for c <- datatype.constructors do
+      declarations -= c.name
+      declarations -= c.tester
+      for (selector, _) <- c.selectors do declarations -= selector
 
   /** Whether a `store` has been declared: a flag kept here, since the array
    *  passes ask at every round of the lemma loop and a scan of the
@@ -172,6 +191,8 @@ final class Solver(val simplify: Boolean = true):
     if encoder == null || dirty then
       val e = Encoder(declarations, datatypes.toList, () => anyStore)
       encoder = e
+      encoded.clear()
+      encoded ++= declarations
       dirty = false
       selectors.clear()
       val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet

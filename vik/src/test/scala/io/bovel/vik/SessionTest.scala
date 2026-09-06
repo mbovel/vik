@@ -66,6 +66,34 @@ class SessionTest extends munit.FunSuite:
     assertEquals(Session().run(text), List("unsat"))
   }
 
+  test("a declaration leaves with its level") {
+    // Popped, the name is free for another sort (issue 40); with `:global-declarations` it stays.
+    val s = Session()
+    s.run("(declare-const a Int) (push 1) (declare-const x Int) (assert (> x 0))")
+    assertEquals(s.checkSat(), Some(true))
+    s.run("(pop 1) (declare-const x Bool) (declare-fun f (Bool) Int)")
+    s.run("(assert (and (not x) (distinct (f x) (f false))))")
+    assertEquals(s.checkSat(), Some(false))
+    s.run(
+      "(reset-assertions) (push 1) (define-fun p () Bool true) (assert p) (pop 1) (declare-const p Bool) (assert (not p))"
+    )
+    assertEquals(s.checkSat(), Some(true))
+    intercept[s2.Smt2Error](s.run("(push 1) (declare-const q Int) (pop 1) (assert (= q 1))"))
+    val g = Session()
+    g.run("(set-option :global-declarations true) (push 1) (declare-const q Int) (pop 1) (assert (= q 1))")
+    assertEquals(g.checkSat(), Some(true))
+  }
+
+  test("a datatype leaves with its level") {
+    val s = Session()
+    s.run("(push 1) (declare-datatype D ((a) (b))) (declare-const d D) (assert (= d a))")
+    assertEquals(s.checkSat(), Some(true))
+    s.run("(pop 1) (declare-datatype D ((c))) (declare-const e D) (assert (= e c))")
+    assertEquals(s.checkSat(), Some(true))
+    s.run("(reset-assertions) (push 1) (declare-datatype E ((m) (n))) (pop 1) (declare-const m Int) (assert (= m 5))")
+    assertEquals(s.checkSat(), Some(true))
+  }
+
   test("an unknown symbol is an error of the text, not of the solver") {
     val s = Session()
     intercept[s2.Smt2Error](s.assert("(< x 1)"))

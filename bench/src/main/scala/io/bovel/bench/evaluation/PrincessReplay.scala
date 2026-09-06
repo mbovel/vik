@@ -224,6 +224,7 @@ object PrincessReplay:
           case Op.Pop(levels) =>
             for _ <- 1 to levels do p.pop()
             depth -= levels
+          case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
           case Op.Reset =>
             // Princess has no reset of the assertions alone: with a reset in the script, the base
             // level is a push of its own, popped with the levels above it and pushed again.

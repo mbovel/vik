@@ -99,6 +99,7 @@ object SmtInterpolReplay:
         case Op.Assert(slot) => s.assertTerm(slots(slot))
         case Op.Push(levels) => s.push(levels)
         case Op.Pop(levels) => s.pop(levels)
+        case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
         case Op.Reset => s.resetAssertions()
         case Op.ResetAll =>
           s.reset() // the options and the logic with it: set again, as at the start
