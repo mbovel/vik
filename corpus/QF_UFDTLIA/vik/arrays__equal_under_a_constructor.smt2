@@ -1,0 +1,17 @@
+; Hand-written for VIK (this repository's license): two arrays equal by extensionality under a
+; constructor — the constructor is a function, and its applications are equal by congruence (issue 39).
+(set-logic ALL)
+(declare-datatype P ((mk (arr (Array Int Int)))))
+(declare-const a (Array Int Int))
+(declare-const b (Array Int Int))
+(declare-const c (Array Int Int))
+(assert (= a (store b 0 (select b 0))))
+(push 1)
+(assert (not (= (mk a) (mk b))))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(assert (= c (store a 1 7)))
+(assert (not (= (arr (mk c)) (store b 1 7))))
+(set-info :status unsat)
+(check-sat)

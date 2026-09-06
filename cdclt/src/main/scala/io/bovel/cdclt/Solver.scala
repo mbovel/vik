@@ -378,10 +378,17 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    *  the conflict already held; an empty one holds at level 0.
    */
   private def resolve(conflict: Array[Lit]): Boolean =
-    if conflict.isEmpty then return false
+    if conflict.isEmpty then
+      unsat = true // a theory found the clauses inconsistent by themselves
+      return false
     val top = conflict.map(l => level(l.variable)).max
     if top < decisionLevel then backtrack(top)
-    if decisionLevel == 0 then false
+    if decisionLevel == 0 then
+      // Every literal of the conflict is a level-0 fact: the clauses alone are unsatisfiable, for good.
+      // Said here, or the next solve, starting past the literals already propagated, never meets the
+      // clause again and answers sat (issue 37).
+      unsat = true
+      false
     else
       conflicts += 1
       val (learned, to) = analyze(conflict)

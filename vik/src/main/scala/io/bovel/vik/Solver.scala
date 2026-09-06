@@ -209,6 +209,11 @@ final class Solver(val simplify: Boolean = true):
       e.arrayLemmas()
       e.assertExhaustiveness()
       e.shareIntegers()
+    if emitted != e.clauseCount || decided != e.booleanCount then
+      // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
+      // sat without them (issue 38).
+      lastCore = Nil
+      return Result.Unknown(Reason.Stopped)
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
     e.solve(assumed, keepGoing) match
@@ -309,6 +314,8 @@ private final class Encoder(
     case Term.Num(_) | Term.Linear(_, _) => true
     case _ => sortOf(t) == "Int" || sortOf(t) == "Real" || intTerms(t)
 
+  private def isFun(t: Term): Boolean = Sorts.arrow(sortOf(t)).isDefined
+
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
    *  such shared terms are leaves for the e-graph and variables for the LIA
@@ -324,7 +331,7 @@ private final class Encoder(
    */
   private val sharedPairs = scala.collection.mutable.HashSet.empty[(Term, Term)]
 
-  def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty then
+  def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
@@ -335,8 +342,12 @@ private final class Encoder(
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then arrayPairs += ((a, b))
     val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
+    // An application with an integer or an array, as its value or among its arguments, can share; the
+    // others have nothing to. Two arrays under the same function meet here too, whatever the function
+    // gives: equal by extensionality, their applications are equal by congruence (issue 39).
+    def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
     for (_, group) <- applications do
-      val relevant = group.filter(a => isInt(a) || a.args.exists(isInt)) // the others have nothing to share
+      val relevant = group.filter(shares)
       for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
@@ -360,7 +371,7 @@ private final class Encoder(
         a
     }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
     for (_, group) <- byFunctionSort do
-      val relevant = group.filter(a => isInt(a) || a.args.exists(isInt))
+      val relevant = group.filter(shares)
       for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)

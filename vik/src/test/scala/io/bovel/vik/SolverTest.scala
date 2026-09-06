@@ -52,6 +52,22 @@ class SolverTest extends munit.FunSuite:
     assert(isSat(diamonds*))
     assert(!isSat((diamonds :+ (x(0) !== x(n)))*))
 
+  test("arrays equal by extensionality under a function"):
+    // Two arrays met only as the arguments of a function into an uninterpreted sort, into Bool, into an
+    // array: equal by extensionality, so are the applications (issue 39).
+    def run(text: String) = Session.run(io.bovel.smtlib.Parser.parse(s"""
+      (declare-sort U 0)
+      (declare-const a (Array Int Int)) (declare-const b (Array Int Int))
+      (declare-fun f ((Array Int Int)) U) (declare-fun p ((Array Int Int)) Bool)
+      (declare-fun g ((Array Int Int)) (Array Int Int))
+      (assert (= a (store b 0 (select b 0))))
+      $text
+      (check-sat)"""))
+    assertEquals(run("(assert (not (= (f a) (f b))))"), List("unsat"))
+    assertEquals(run("(assert (not (= (p a) (p b))))"), List("unsat"))
+    assertEquals(run("(assert (not (= (select (g a) 1) (select (g b) 1))))"), List("unsat"))
+    assertEquals(run("(assert (= (f a) (f b)))"), List("sat"))
+
   test("push and pop"):
     val s = Solver()
     s.assert(a === b)

@@ -1,0 +1,18 @@
+; Hand-written for VIK (this repository's license): the level-0 conflict of two real bounds, kept for
+; the checks after it (issue 37).
+(set-logic QF_LRA)
+(declare-const y Real)
+(declare-const z Real)
+(assert (< z y))
+(assert (not (<= z y)))
+(set-info :status unsat)
+(check-sat)
+(set-info :status unsat)
+(check-sat)
+(push 1)
+(assert (< y 2.5))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(set-info :status unsat)
+(check-sat)

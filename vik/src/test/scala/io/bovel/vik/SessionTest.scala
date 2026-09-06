@@ -35,6 +35,37 @@ class SessionTest extends munit.FunSuite:
     assertEquals(s.run("(reset) (declare-const p Int) (assert (> p 0)) (check-sat)"), List("sat"))
   }
 
+  test("an unsat among the top-level assertions holds for every later check") {
+    // A conflict found at decision level 0 (issue 37): plain, under an assumption, under a push, with
+    // one more assertion, on Booleans and on the bounds of one integer.
+    val s = Session()
+    s.run("(declare-const u Bool) (declare-const f Bool) (declare-const q Bool)")
+    s.run("(assert (or (not u) (not f))) (assert f) (assert u)")
+    assertEquals(s.checkSat(), Some(false))
+    assertEquals(s.checkSat(), Some(false))
+    assertEquals(s.run("(check-sat-assuming (q))"), List("unsat"))
+    s.push()
+    s.assert("q")
+    assertEquals(s.checkSat(), Some(false))
+    s.pop()
+    s.assert("(or u q)")
+    assertEquals(s.checkSat(), Some(false))
+    val t = Session()
+    t.run("(declare-const x Int) (assert (<= x 5)) (assert (not (<= x 7)))")
+    assertEquals(t.run("(check-sat) (check-sat) (check-sat-assuming ((<= x 100)))"), List("unsat", "unsat", "unsat"))
+  }
+
+  test("a budget spent before the lemmas answers unknown") {
+    // The array lemmas take rounds of the lemma loop, which the budget stops (issue 38).
+    val text = """
+      (declare-sort E 0)
+      (declare-const a (Array Int E)) (declare-const b (Array Int E)) (declare-const x E) (declare-const y E)
+      (assert (= a (store b 0 x))) (assert (= (select a 0) y)) (assert (not (= x y)))
+      (check-sat)"""
+    assertEquals(Session(fuel = 0).run(text), List("unknown"))
+    assertEquals(Session().run(text), List("unsat"))
+  }
+
   test("an unknown symbol is an error of the text, not of the solver") {
     val s = Session()
     intercept[s2.Smt2Error](s.assert("(< x 1)"))

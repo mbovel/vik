@@ -19,6 +19,19 @@ class IncrementalTest extends munit.FunSuite:
     assertEquals(s.solve(), Solver.Result.Unsat)
     assertEquals(s.solve(), Solver.Result.Unsat) // unsat stays unsat
 
+  test("a conflict at level 0 stays unsat"):
+    // The units make the clause false with no decision taken: the clauses are unsatisfiable for good,
+    // and a solve that starts past the propagated units must still say so (issue 37).
+    val s = Solver(3)
+    s.addClause(Lit(0, false), Lit(1, false))
+    s.addClause(Lit(1))
+    s.addClause(Lit(0))
+    assertEquals(s.solve(), Solver.Result.Unsat)
+    assertEquals(s.solve(), Solver.Result.Unsat)
+    assertEquals(s.solve(Array(Lit(2)), () => true), Solver.Result.Unsat)
+    s.addClause(Lit(2), Lit(0))
+    assertEquals(s.solve(), Solver.Result.Unsat)
+
   test("variables added between solves"):
     val s = Solver(1)
     s.addClause(Lit(0))
