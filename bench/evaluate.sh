@@ -76,6 +76,6 @@ case "${1:-}" in
   warm) preflight; warm; regen ;;
   cold) preflight; preflight_cold; cold; regen ;;
   regen) preflight; regen ;;
-  all) preflight; preflight_cold; warm; cold; regen ;;
+  all) preflight; preflight_cold; cold; warm; regen ;;
   *) echo "usage: bench/evaluate.sh warm|cold|regen|all"; exit 2 ;;
 esac
