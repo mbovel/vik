@@ -23,10 +23,14 @@ CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | ta
 java -cp "$CP" io.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
 NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.smt2" -type f 2>/dev/null | head -1)
+# The native binary and the WebAssembly module are two of the three platforms the table shows: a run without
+# one goes on, but says so — the column vanished unnoticed once, the binary left behind by a rename.
+[ -n "$NATIVE" ] || echo "cold.sh: no native binary (sbt vikNative/nativeLink): the vik-native column is skipped" >&2
 GRAAL=target/graal/vik
 AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
 AOT_CP=$(cat target/aot/classpath.txt 2>/dev/null || true)
 MODULE=docs/_assets/js/vik/main.js
+[ -f "$MODULE" ] || echo "cold.sh: no WebAssembly module (sbt docsAssets): the vik-node column is skipped" >&2
 NODE_RUNNER=bench/vik-node.mjs
 
 seconds() { # the wall-clock time of one run, and the answers (comma-separated for an incremental script);
