@@ -17,6 +17,19 @@ INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nobody waits
 
+# The native toolchain, before minutes of builds: clang on the PATH, or a user-space LLVM named by LLVM_BIN
+# with the flags it needs in VIK_NATIVE_FLAGS (laraserver4's: `-stdlib=libc++ -fuse-ld=lld -Wl,-rpath,<its
+# lib/x86_64-unknown-linux-gnu> -Wl,--disable-new-dtags`, see build.sbt). The compiler is run once: one
+# whose own libraries are missing from LD_LIBRARY_PATH fails here, not at the link.
+if [ -n "${LLVM_BIN:-}" ]; then
+  "$LLVM_BIN/clang" --version >/dev/null 2>&1 ||
+    { echo "cold.sh: LLVM_BIN=$LLVM_BIN has no clang that runs (its libraries on LD_LIBRARY_PATH?)" >&2; exit 1; }
+  [ -n "${VIK_NATIVE_FLAGS:-}" ] ||
+    { echo "cold.sh: VIK_NATIVE_FLAGS is unset: the flags the toolchain of LLVM_BIN needs (see build.sbt)" >&2; exit 1; }
+elif ! command -v clang >/dev/null; then
+  echo "cold.sh: no clang on the PATH and LLVM_BIN unset: export LLVM_BIN and VIK_NATIVE_FLAGS for the native link" >&2
+  exit 1
+fi
 # The builds first, their output on stderr (stdout is the table). --server runs them in this process, no
 # thin client — a client racing a half-dead background server answered with empty stdout on three of four
 # CI runs. A build that fails ends the run here, loudly — not as thirty silent `error` rows or a lost column.
