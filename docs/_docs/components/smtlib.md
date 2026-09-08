@@ -35,5 +35,5 @@ Printer.print(script)       // the script as written: nothing is rewritten at pa
 ```
 
 `Printer.print` writes the tree back as SMT-LIB, faithfully. The compilation to the solver's trees
-belongs to [the solver](vik.md) — `smt2lowered file.smt2` prints a script that way, and
+belongs to [the solver](vik.md) — `io.bovel.vik.lower file.smt2` prints a script that way, and
 `(get-assertions)` in a running script answers with the lowered stack.

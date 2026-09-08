@@ -14,6 +14,6 @@ CP=$(sbt --server --no-colors "vik/package; print vik/runtimeClasspath" | grep -
 mkdir -p target/aot
 files=$(grep -o '^corpus/[^ ]*' "$INSTANCES" | tr '\n' ' ')
 # shellcheck disable=SC2086
-java -XX:AOTCacheOutput=target/aot/vik.aot -cp "$CP" io.bovel.vik.smt2 $files > /dev/null
+java -XX:AOTCacheOutput=target/aot/vik.aot -cp "$CP" io.bovel.vik.run $files > /dev/null
 echo "$CP" > target/aot/classpath.txt
 echo "trained target/aot/vik.aot ($(du -h target/aot/vik.aot | cut -f1)) on $(wc -w <<< "$files") instances"

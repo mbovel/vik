@@ -97,7 +97,7 @@ lazy val vik = projectMatrix
   .settings(
     name := "vik",
     description := "A minimal, readable SMT solver",
-    Compile / mainClass := Some("io.bovel.vik.smt2"), // the command line, also as a native binary
+    Compile / mainClass := Some("io.bovel.vik.run"), // the command line, also as a native binary
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
@@ -139,7 +139,7 @@ lazy val graal = project
   .settings(
     name := "graal",
     publish / skip := true,
-    Compile / mainClass := Some("io.bovel.vik.smt2"),
+    Compile / mainClass := Some("io.bovel.vik.run"),
     // Every suite the JVM runs, in a native image of their own (`graal/nativeImageTest`, then
     // `graal/nativeImageTestRun`): what the binary answers, not only that it starts. The image carries no
     // test framework, so `Suites.scala` is generated from what sbt discovers and the runner walks it.

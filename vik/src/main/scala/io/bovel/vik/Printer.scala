@@ -4,7 +4,7 @@ import io.bovel.smtlib.Datatype
 
 /** Prints lowered scripts, formulas and terms back to SMT-LIB 2 text (one
  *  command per line), e.g. to hand the problem the solver plays to another
- *  solver, or to show it (`smt2lowered`, `get-assertions`, the models).
+ *  solver, or to show it (`io.bovel.vik.lower`, `get-assertions`, the models).
  */
 object Printer:
   /** A symbol as SMT-LIB writes it: quoted when it holds a character a simple

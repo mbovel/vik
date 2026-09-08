@@ -25,9 +25,9 @@ sbt --server --no-colors "vikNative/nativeLink; docsAssets" 1>&2 ||
 bench/graal.sh 1>&2 || { echo "cold.sh: building the GraalVM image failed" >&2; exit 1; }
 bench/aot.sh "$INSTANCES" 1>&2 || { echo "cold.sh: training the AOT cache failed" >&2; exit 1; }
 CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
-java -cp "$CP" io.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
+java -cp "$CP" io.bovel.vik.run /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
-NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.smt2" -type f 2>/dev/null | head -1)
+NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.run" -type f 2>/dev/null | head -1)
 GRAAL=target/graal/vik
 AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
 AOT_CP=$(cat target/aot/classpath.txt)
@@ -73,10 +73,10 @@ while read -r f _; do
   if [ "$CHECKS" -gt 1 ]; then inc=--incremental; pinc=+incremental; fi
   base=$(basename "$f")
   {
-    measure vik-jvm java -cp "$CP" io.bovel.vik.smt2 "$f"
+    measure vik-jvm java -cp "$CP" io.bovel.vik.run "$f"
     measure vik-native "$NATIVE" "$f"
     measure vik-graal "$GRAAL" "$f"
-    measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.smt2 "$f"
+    measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.run "$f"
     measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"

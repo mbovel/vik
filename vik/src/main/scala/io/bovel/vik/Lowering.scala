@@ -9,9 +9,9 @@ import Term.*
 
 /** Lowers a surface script (`io.bovel.smtlib`) to the solver's language: the
  *  one function from the language the parser reads to the trees the solver
- *  plays — a [[Session]] applies it, and `smt2lowered` prints its result. This
- *  is where the surface language's conveniences are compiled away and where the
- *  fragment line is drawn, with a message:
+ *  plays — a [[Session]] applies it, and `io.bovel.vik.lower` prints its
+ *  result. This is where the surface language's conveniences are compiled away
+ *  and where the fragment line is drawn, with a message:
  *    - `let` names become substitutions; `define-fun` macros are expanded at
  *      their uses;
  *    - `+`, `-` and `*` by a literal become the linear normal form; rational
