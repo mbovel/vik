@@ -207,8 +207,8 @@ whole answer, three repetitions, the median reported (a scheduling hiccup then d
 same ten-second budget as the warm table. This is where start-up appears, and it is what a tool pays when
 it shells out to a solver. VIK's JVM column has a twin, the same JVM started from a JDK 25 AOT cache
 (JEP 514: one training run over these instances, `bench/aot.sh`), and its native column a twin too, a
-GraalVM native image of the same code (`bench/graal.sh`); both are built on request, and the table shows
-them when the run had them.
+GraalVM native image of the same code (`bench/graal.sh`). The cold run builds every one of VIK's binaries
+first, from the tree it measures.
 
 **Times in seconds — lower is better;** the best correct answer of a row is green; a run past the budget
 reads 🐢, and a solver that rejects the file (a sort or a dialect it does not speak) gets a `—`.
@@ -305,8 +305,7 @@ finish agree on `sat`).
 bench/fetch-native.sh     # once: the z3 and cvc5 libraries and binaries of the versions above (Linux x86-64)
 bench/evaluate.sh all     # the warm JMH groups, the cold run, and the tables of this page
 bench/evaluate.sh warm    # or one half: the warm table only
-bench/evaluate.sh cold    # the cold table only — with the binaries below
-sbt "vikNative/nativeLink; docsAssets"   # the native binary and the WebAssembly module the cold run uses
+bench/evaluate.sh cold    # the cold table only; it builds VIK's binaries first, every platform
 ```
 
 `bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Cold-start comparison, as a competition measures it: a new process per instance and solver, the whole
-# answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets, and as
-# a GraalVM native image when bench/graal.sh has built one, and on the JVM with the AOT cache of bench/aot.sh
-# when it has trained one.
+# answer end to end (start-up, parsing, solving). VIK is measured on the three platforms it targets, as a
+# GraalVM native image (bench/graal.sh) and on the JVM with a JDK AOT cache (bench/aot.sh) — every one of
+# them built here first, from the tree being measured: a binary left behind by a rename or an older build
+# lost a column, or measured older code, in silence.
 #
 # Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
@@ -16,22 +17,25 @@ INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nobody waits
 
-# --server runs the build in this process, no thin client — a client racing a half-dead
-# background server answered with empty stdout on three of four CI runs.
+# The builds first, their output on stderr (stdout is the table). --server runs them in this process, no
+# thin client — a client racing a half-dead background server answered with empty stdout on three of four
+# CI runs. A build that fails ends the run here, loudly — not as thirty silent `error` rows or a lost column.
+sbt --server --no-colors "vikNative/nativeLink; docsAssets" 1>&2 ||
+  { echo "cold.sh: linking the native binary or the WebAssembly module failed" >&2; exit 1; }
+bench/graal.sh 1>&2 || { echo "cold.sh: building the GraalVM image failed" >&2; exit 1; }
+bench/aot.sh "$INSTANCES" 1>&2 || { echo "cold.sh: training the AOT cache failed" >&2; exit 1; }
 CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
-# A broken classpath must fail here, loudly — not as thirty silent `error` rows.
 java -cp "$CP" io.bovel.vik.smt2 /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
 NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.smt2" -type f 2>/dev/null | head -1)
-# The native binary and the WebAssembly module are two of the three platforms the table shows: a run without
-# one goes on, but says so — the column vanished unnoticed once, the binary left behind by a rename.
-[ -n "$NATIVE" ] || echo "cold.sh: no native binary (sbt vikNative/nativeLink): the vik-native column is skipped" >&2
 GRAAL=target/graal/vik
 AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
-AOT_CP=$(cat target/aot/classpath.txt 2>/dev/null || true)
+AOT_CP=$(cat target/aot/classpath.txt)
 MODULE=docs/_assets/js/vik/main.js
-[ -f "$MODULE" ] || echo "cold.sh: no WebAssembly module (sbt docsAssets): the vik-node column is skipped" >&2
 NODE_RUNNER=bench/vik-node.mjs
+for built in "$NATIVE" "$GRAAL" "$AOT" "$MODULE"; do
+  [ -s "$built" ] || { echo "cold.sh: built nothing at '$built'" >&2; exit 1; }
+done
 
 seconds() { # the wall-clock time of one run, and the answers (comma-separated for an incremental script);
   # `timeout` when it does not finish, `error` when it stops before answering every check-sat
@@ -70,10 +74,10 @@ while read -r f _; do
   base=$(basename "$f")
   {
     measure vik-jvm java -cp "$CP" io.bovel.vik.smt2 "$f"
-    [ -n "$NATIVE" ] && measure vik-native "$NATIVE" "$f"
-    [ -x "$GRAAL" ] && measure vik-graal "$GRAAL" "$f"
-    [ -f "$AOT" ] && measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.smt2 "$f"
-    [ -f "$MODULE" ] && measure vik-node node "$NODE_RUNNER" "$f"
+    measure vik-native "$NATIVE" "$f"
+    measure vik-graal "$GRAAL" "$f"
+    measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.smt2 "$f"
+    measure vik-node node "$NODE_RUNNER" "$f"
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"
     measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"

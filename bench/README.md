@@ -56,8 +56,9 @@ gave up look like one that decided — so the mark means "did not answer in ten 
 earns its line's removal. A cold run is cut by `timeout 10` (in [cold.sh](cold.sh)) with the same cell.
 The instances of both tables, in their order, are [evaluation-instances.txt](evaluation-instances.txt).
 
-It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`, the cold binaries) and
-fails with the command to run. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`
+It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`) and fails with the
+command to run; the cold run builds VIK's own binaries — the native one, the WebAssembly module, the GraalVM
+image, the AOT cache — from the tree it measures, so no column is stale or missing. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`
 always reads the newest set, so committed results are the reference and a fresh machine reproduces the
 trends, not the exact milliseconds.
 
