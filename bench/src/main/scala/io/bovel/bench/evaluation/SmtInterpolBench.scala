@@ -40,6 +40,8 @@ class SmtInterpolBench:
       "RandomDecoupled__pb_real_30_60_45_28.smt2",
       "sage__app7__bench_8505.smt2",
       "bmc-bv__adpcm.smt2",
+      "bench_ab__a649test0047.smt2",
+      "sage__app2__bench_512.smt2",
       "spear__cvs_v1.11.22__cvs_vc71402.smt2",
       "20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150.smt2",
       "pspace__ndist.a.20000.smt2",
