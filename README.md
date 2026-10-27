@@ -18,14 +18,14 @@ tables of the [documentation site](https://matt.bovel.net/vik/) say which).
 
 | Package | Description |
 |---|---|
-| `egraph` | A standalone congruence closure over dense integer ids, with disequalities, backtracking (`push`/`pop`) and explanations. |
-| `cdclt` | A CDCL(T) SAT solver abstracting over theory solvers: two watched literals, first-UIP learning, VMTF, phase saving, restarts. |
-| `vik` | Terms and formulas, the lowering from the surface language, a simplifier, and the solver that plugs the e-graph (equality with uninterpreted functions, and algebraic datatypes as rules of the e-graph) and the LIA solver into `cdclt` as theories: QF_UF, QF_DT, QF_LIA and their combination (QF_UFLIA, datatypes with `Int` fields): integer leaves are LIA variables, applications are e-graph nodes, and an equality atom per pair of shared terms, tied to the bounds on their difference, lets the SAT solver choose an arrangement both theories accept. `Bool` as a sort (formulas as arguments and fields). Arrays by the read-over-write axioms, reals on the same simplex. Bit-vectors are integers: the arithmetic of QF_BV (`bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`, shifts and divisions by constants, masks, `extract`, `concat`, extensions, rotations, unsigned and signed comparisons) is lowered to linear integer arithmetic with bounded overflow counts, and the bitwise operations (`bvand`, `bvor`, `bvxor` and their complements, `bvcomp`) to the bits of their operands, Booleans tied to the integer by one equation; a product of two unknowns is shift-and-add over one operand's bits; a shift by an unknown amount is a barrel shifter over the amount's bits, and a division by an unknown one exact product with its remainder: the whole of `FixedSizeBitVectors` is lowered. A `Session` runs a script on the solver, whole or piece by piece — text, `smtlib` trees or the solver's — each piece in the scope the earlier ones declared (`sbt "vik/run file.smt2"` prints the answers): `check-sat-assuming`, `push`/`pop`, `get-model`, `get-value`, `get-unsat-core` over `:named` assertions, `reset-assertions`, `reset`; `(set-option :rlimit n)` sets the fuel of each `check-sat` and `:timeout` a deadline in milliseconds, `unknown` then, with `(get-info :reason-unknown)` answering `resourceout` or `timeout`. |
-| `smtlib` | SMT-LIB 2 as written: the reader that turns text into the standard's own `⟨s_expr⟩` category (a symbol, a keyword, a numeral, a decimal, a bit-vector literal, a string, a list, each holding what it means rather than how it was written), and above it the sorts, terms, formulas and commands of the standard, parsed from and printed to text, faithful to the script — the solver reads them through `vik`'s lowering. |
-| `lia` | Bounds on linear integer expressions, decided by Dutertre and de Moura's simplex with bound propagation and branch and bound. |
-| `playground` | Two browser pages (Scala.js, linked to WebAssembly): an e-graph playground and an SMT-LIB playground. |
-| `docsPlayground` | The solver as a WebAssembly module (`solve`, `lower`), for the runnable snippets of the documentation site. |
-| `bench` | The JMH benchmarks of every module and the comparison with other solvers, with results per module. |
+| `egraph` | Congruence closure with disequalities, backtracking and explanations. |
+| `cdclt` | A CDCL(T) SAT solver parameterized by theory solvers. |
+| `lia` | Linear arithmetic by simplex, with bound propagation and branch and bound. |
+| `smtlib` | SMT-LIB 2 parser and printer. |
+| `vik` | The SMT solver: terms, lowering, simplification, the theory combination, and the session that runs scripts. |
+| `playground` | Browser playgrounds for the e-graph and for SMT-LIB scripts. |
+| `docsPlayground` | The solver as a WebAssembly module for the documentation site's runnable snippets. |
+| `bench` | JMH benchmarks of every module and the comparison with other solvers. |
 
 ## Documentation
 
@@ -34,7 +34,7 @@ browser, a page per theory ([first-order logic](https://matt.bovel.net/vik/theor
 [uninterpreted functions](https://matt.bovel.net/vik/theories/uninterpreted-functions.html),
 [integer arithmetic](https://matt.bovel.net/vik/theories/integers.html),
 [algebraic datatypes](https://matt.bovel.net/vik/theories/datatypes.html),
-[bit-vectors](https://matt.bovel.net/vik/theories/bit-vectors.html))), a page per component with its API
+[bit-vectors](https://matt.bovel.net/vik/theories/bit-vectors.html)), a page per component with its API
 and its feature tables ([the e-graph](https://matt.bovel.net/vik/components/egraph.html),
 [the CDCL(T) solver](https://matt.bovel.net/vik/components/cdclt.html),
 [the LIA solver](https://matt.bovel.net/vik/components/lia.html),
