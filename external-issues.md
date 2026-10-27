@@ -9,6 +9,10 @@ behaviours rather than bugs are kept for understanding, not reporting.
 Versions: sbt 2.0.8 (`project/build.properties`), sbt runner 2.0.2, thin client `sbtn 2.0.0-b4d628dd`,
 sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 
+Since 2026-10-27 the build is on sbt 2.1.0-RC1 (the first 2.x where a task can be opted out of the cache):
+`build.sbt` sets `cacheStores := Nil` on the tests and on `nativeLink`, which closes 5, 10 and 15 below, and
+2.1 makes `clean` invalidate the cache. The other entries were seen on 2.0.8 and not re-checked.
+
 ### 1. `Jmh/run; shutdown` in one command deletes the forked process's classpath (2026-08-28)
 
 - **Observed**: `sbt "egraphBench/Jmh/run; shutdown"` fails with
@@ -55,6 +59,8 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
   and runs nothing, because task results are cached by content; `clean` does not reset that cache. Reading a green
   `Total 0` as "tests ran" is an easy mistake, and CI logs show it too.
 - **Workaround**: `sbt "project/testOnly *"` forces a run. Documented in the README; surprising rather than wrong.
+- **Closed** (2026-10-27, sbt 2.1.0-RC1): `Test / test / cacheStores := Nil` in `build.sbt`; the tests run every
+  time, and `clean` invalidates the cache since 2.1.
 - **Also**: the cache keys on the classpath and the sources, not on data a test reads from disk, so
   a run after a change to the corpus alone could in principle be replayed. Not observed here in the end — what
   looked like a stale replay was this summary's `Total` excluding the ignored tests — but the corpus is stamped
@@ -100,6 +106,7 @@ sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
   cache: `Passed: Total 0`, twice, including right after `smtlibutils/clean`. The stamp
   regenerates with the new content, so the resource's hash should differ; the replay
   suggests the cache key does not see it. `testOnly` is not cached and runs the tests. Not minimized yet.
+- **Closed** (2026-10-27): moot — the test task is no longer cached (5), and the stamp resource is gone.
 
 ### 11. Killed servers and clients leave state that silently wedges every later invocation (2026-08-29 – 2026-09-01)
 
@@ -181,6 +188,8 @@ leaving the server to build only.
   the second is a cache hit.
 - **Workaround**: `vikNative/clean` before a link whose options changed; put option changes in `build.sbt` itself when
   possible.
+- **Closed** (2026-10-27, sbt 2.1.0-RC1): `nativeLink / cacheStores := Nil` in `build.sbt`; the link runs every time
+  (Scala Native's own incremental cache still applies).
 - **Related**: the same session found `Compile / nativeConfig` reaching the `Test` link as well (both binaries linked
   in release mode until `Test / nativeConfig` was set back to debug explicitly).
 

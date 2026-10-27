@@ -54,6 +54,15 @@ val forkedTests = Seq(
 scalaVersion := scala3Version
 scalacOptions += "-Yexplicit-nulls"
 
+// sbt 2 caches task results on disk by their inputs and replays them. The tests and the Scala Native links are
+// opted out (sbt 2.1): a replayed test run reports `Total 0` for nothing run (external-issues.md, 5 and 10), and
+// a replayed `nativeLink` kept a binary whose options had changed (15). Compilation stays cached.
+Test / test / cacheStores := Nil // `testOnly`, `testQuick` and `testSelected` follow `test`
+nativeLink / cacheStores := Nil
+// One forked JVM per module, its suites in sequence, as in sbt 2.0: sbt 2.1 splits them over two workers by
+// default, each with the heap above, and the corpus suite's wall-clock guard assumes the machine to itself.
+Test / testTopology := TestTopology.subprojectExclusive
+
 // Generates the subprojects `egraph` (JVM) and `egraphJS` from the same sources.
 lazy val egraph = projectMatrix
   .in(file("egraph"))
@@ -192,29 +201,6 @@ lazy val smtlibutils = (project in file("smtlibutils"))
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
   )
   .settings(forkedTests *)
-
-// The corpus and the documentation pages are data the JVM tests read from disk. The test cache is keyed on
-// the classpath, not on them (external-issues.md), so their stamp becomes a managed resource: a changed file
-// changes the classpath, and the cache lets the tests run.
-lazy val corpusStamp = taskKey[Seq[File]]("The corpus and docs listing, as a test resource (cache input)")
-smtlibutils / Test / corpusStamp := Def.uncached {
-  import scala.jdk.CollectionConverters.*
-  val listing = new StringBuilder
-  Seq("corpus", "docs/_docs").foreach { root =>
-    val stream = java.nio.file.Files.walk(java.nio.file.Path.of(root))
-    try {
-      stream.iterator().asScala.filter(java.nio.file.Files.isRegularFile(_)).toList.sortBy(_.toString).foreach {
-        p =>
-          listing.append(p.toString).append('\t').append(java.nio.file.Files.size(p))
-            .append('\t').append(java.nio.file.Files.getLastModifiedTime(p).toMillis).append('\n')
-      }
-    } finally stream.close()
-  }
-  val out = (smtlibutils / Test / resourceManaged).value / "corpus-stamp.tsv"
-  IO.write(out, listing.toString)
-  Seq(out)
-}
-smtlibutils / Test / resourceGenerators += (smtlibutils / Test / corpusStamp).taskValue
 
 // The browser playgrounds (Scala.js): the e-graph and the SMT-LIB front end.
 import org.scalajs.linker.interface.ESVersion

@@ -57,11 +57,14 @@ of the site are checked by [`ReadmeExamplesTest`](vik/src/test/scala/io/bovel/vi
 
 ## Development
 
-Subprojects: `egraph`, `cdclt`, `lia`, `vik` and `smtlib` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `playground` (the browser playgrounds, WebAssembly too) and `bench` (the benchmarks, below).
+Subprojects: `egraph`, `cdclt`, `lia`, `vik` and `smtlib` on the JVM, the same with a `JS` suffix on Scala.js (same sources, linked to WebAssembly: Scala.js's WebAssembly backend, run by Node.js 24 or later) and with a `Native` suffix on Scala Native (same sources, compiled with clang), `smtlibutils` (the corpus, its importer and its tests, on the JVM), `playground` (the browser playgrounds, WebAssembly too), `docsPlayground` (the solver for the site's snippets), `graal` (the GraalVM native images, below) and `bench` (the benchmarks, below).
 
 ```sh
-sbt compile   # compiles all subprojects
-sbt test      # runs the tests on the JVM, on Scala.js (WebAssembly) and on Scala Native
+sbt compile     # the five modules on the JVM
+sbt test        # their tests
+sbt testJVM     # the same, with the corpus tests of smtlibutils
+sbt testJS      # the five modules on Scala.js (WebAssembly)
+sbt testNative  # and on Scala Native
 ```
 
 The solver also builds as a GraalVM native image (`graal`, sbt-native-image), and every suite the JVM runs
@@ -74,7 +77,7 @@ sbt "graal/nativeImageTest; graal/nativeImageTestRun"  # every suite as a native
 ```
 
 > [!NOTE]
-> sbt 2 caches task results by content: when nothing changed since the last run, `sbt test` reports `Passed: Total 0` instead of re-running the tests, and `clean` does not reset this cache. To force a run, use `sbt "egraph/testOnly *"` or `sbt "egraphJS/testOnly *"`.
+> sbt 2 caches task results on disk by their inputs. The build opts the tests and the Scala Native links out of it (`cacheStores := Nil` in [build.sbt](build.sbt)), so `sbt test` runs the suites every time; compilation and the rest replay when nothing changed, and `clean` invalidates a module's cache for the next command.
 
 Sharp edges met in other tools — sbt 2 (thin client hangs, forked processes outliving a killed client, virtual classpath references) and the solvers the benchmarks compare against — are collected in [external-issues.md](external-issues.md).
 
@@ -98,7 +101,7 @@ z3, cvc5, princess and SMTInterpol, in process through their Java bindings and a
 
 `sbt site` generates the documentation site in `target/unidoc`: the guide of [docs/_docs](docs/_docs) and the
 API documentation of the six modules, as one Scaladoc site. The guide's SMT-LIB snippets run in the reader's
-browser: the `docsPlayground` module is linked to WebAssembly (780 kB) into `docs/_assets/js/vik/`, and
+browser: the `docsPlayground` module is linked to WebAssembly (1.2 MB) into `docs/_assets/js/vik/`, and
 [docs/_assets/js/snippets.js](docs/_assets/js/snippets.js) gives every `smt2` block a Run button (the snippets
 are editable). Serve the output directory to read it — the WebAssembly module is fetched, so `file://` will not
 do:
