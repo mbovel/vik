@@ -44,9 +44,8 @@ and its feature tables ([the e-graph](https://matt.bovel.net/vik/components/egra
 [API documentation](https://matt.bovel.net/vik/api/index.html). Its sources are in [docs/](docs), and
 `sbt site` builds it.
 
-The short version of the usage: `sbt "vik/run problem.smt2"` answers a script, and the solver is a library —
-`Solver()`, `declare`, `assert`, `push`, `pop`, `solve()` — with every module usable on its own. The examples
-of the site are checked by [`ReadmeExamplesTest`](vik/src/test/scala/io/bovel/vik/ReadmeExamplesTest.scala).
+For usage, see [Getting started](https://matt.bovel.net/vik/getting-started.html): the command line, the
+Scala API, and each module on its own.
 
 ## Requirements
 
