@@ -10,9 +10,8 @@ extraCSS:
 
 An SMT solver in Scala 3, small enough to read: equality with uninterpreted functions, linear integer
 arithmetic over integers and reals, algebraic datatypes, arrays, and bit-vectors as integers, in about
-5000 lines of
-solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be embedded — as a
-library, in the process of the tool that asks the questions.
+6500 lines of solver. It runs on the JVM, in the browser and as a native binary, and it is meant to be
+embedded — as a library, in the process of the tool that asks the questions.
 
 The snippets of this site are solved here, in your browser: press the **play button** in the corner of a block. They are
 editable, so change one and run it again.
@@ -29,7 +28,7 @@ editable, so change one and run it again.
 
 - [Getting started](getting-started.md): the command line, and the Scala API.
 - [Evaluation](evaluation.md): what it costs, warm and cold, against z3, cvc5, princess and SMTInterpol.
-- The [API documentation](api/index.html) of the six modules, and the
+- The [API documentation](api/index.html) of the five modules, and the
   [repository](https://github.com/mbovel/vik).
 
 ## The theories
@@ -53,10 +52,10 @@ Each component is a module usable on its own. Lines are `wc -l` over its `src/ma
 | Component | Lines | What it is |
 |---|---|---|
 | [The e-graph](components/egraph.md) | 743 | Congruence closure with backtracking, explanations, disequalities and rules. |
-| [The CDCL(T) solver](components/cdclt.md) | 585 | A CDCL SAT solver with a theory interface. |
-| [The LIA solver](components/lia.md) | 993 | A simplex over the integers with branch and bound. |
-| [The language](components/smtlib.md) | 1384 | SMT-LIB 2 as written: the reader, sorts, terms, formulas, in and out. |
-| [The solver](components/vik.md) | 3401 | The solver's trees and their lowering, the simplifier, the encoder, the theories, the solver and the session. |
+| [The CDCL(T) solver](components/cdclt.md) | 592 | A CDCL SAT solver with a theory interface. |
+| [The LIA solver](components/lia.md) | 1079 | A simplex over the integers with branch and bound. |
+| [The language](components/smtlib.md) | 1578 | SMT-LIB 2 as written: the reader, sorts, terms, formulas, in and out. |
+| [The solver](components/vik.md) | 4002 | The solver's trees and their lowering, the simplifier, the encoder, the theories, the solver and the session. |
 
 ## What it is for
 

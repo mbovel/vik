@@ -54,8 +54,8 @@ with a default for the rest. Its edges: a bit-vector constant is printed as its 
 `Int`, since the solver lowered it; a datatype component the assertions never touched is an element
 `@List!0` rather than a constructor term; the constants the lowering introduced (`ite!1`, `floor!2`) are
 printed with the rest; and `get-value` evaluates constants, literals and applications of
-declared symbols, but an operation the lowering defines through an auxiliary constant — `ite`, `div`, `mod`,
-the bit-vector operations — comes back as that constant's name (`ite!3`) rather than a value. After an
+declared symbols, but an operation the lowering defines through an auxiliary constant — `ite`, the
+bit-vector operations — comes back as that constant's name (`ite!3`) rather than a value. After an
 `unsat` or `unknown`, the answer is `(error "no model")`.
 
 ```smt2
@@ -78,5 +78,6 @@ the bit-vector operations — comes back as that constant's name (`ite!3`) rathe
 
 The corpus of SMT-LIB files that the tests play is in
 [corpus/](https://github.com/mbovel/vik/tree/main/corpus), with one test per file: it holds the instances of
-the benchmarks, the three smallest files of every family of the release in our fragment, and the regression
+the benchmarks, a sample of every family of the SMT-LIB release spread over the sizes (about two thirds that VIK
+answers, one third that it does not, on `ignore.txt` with the reason), and the regression
 suites of cvc5, z3 and princess, each file keeping its origin and its licence.

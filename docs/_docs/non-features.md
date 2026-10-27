@@ -28,14 +28,6 @@ trees, and an unknown function value applied to arguments is an uninterpreted fu
 are defunctionalized — a constant of an uninterpreted sort under an `apply` symbol — as the verifiers built
 on SMT solvers do. A function symbol is applied, never a value: `(= f g)` is refused.
 
-**Bit-blasting.** Bit-vectors are integers in `[0, 2ⁿ)` and the operations that are arithmetic modulo `2ⁿ`
-are lowered to linear integer arithmetic; see [bit-vectors](theories/bit-vectors.md) for the fragment. A
-product, a division, a shift or a bitwise operation of two unknowns is refused. A counterexample-guided
-loop that kept such operations as uninterpreted symbols and held them to their meaning by value lemmas from
-the candidate models was tried and reverted the same month: it works, and it puts an evaluation loop around
-the search that the solver is meant to be one instance of — a client that wants it can run it on top of the
-solver's models.
-
 **Non-linear arithmetic.** Multiplication of two unknowns and division by an unknown are refused: the
 arithmetic is linear over the integers and the reals, and the reals are computed over the integers (see
 [reals](theories/reals.md)).

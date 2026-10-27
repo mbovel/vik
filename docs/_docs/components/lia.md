@@ -36,7 +36,7 @@ carries the reasons of the bounds that are inconsistent, which is the explanatio
 | Feature | | Notes |
 |---|---|---|
 | Dutertre–de Moura simplex: tableau built once, bounds as the only backtracked state, Bland's rule | ✓ | |
-| Integers only: bounds tightened by the gcd of an expression, no δ-rationals | ✓ | |
+| Integers and reals: bounds tightened by the gcd of an integer row, δ-rationals for strict real bounds | ✓ | |
 | Branch and bound, iterative, explanations combined across branches | ✓ | |
 | Disequalities `x ≠ c`, decided at the final check by branching `x ≤ c − 1 ∨ x ≥ c + 1` | ✓ | for the equality atoms of shared terms |
 | Bound propagation, incremental over the tightened variables | ✓ | [2–4× slower on random systems, decisive on SMT-LIB instances](https://github.com/mbovel/vik/blob/main/bench/results/lia/2026-08-29-laraserver4-propagation.md) |

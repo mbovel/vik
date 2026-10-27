@@ -11,7 +11,7 @@ extraCSS:
 `io.bovel.smtlib` is the language: SMT-LIB 2 as written, with precise types — a `Sort` enum, `Term` and
 `Formula` trees whose operations are enums per theory (`ArithOp`, `BvOp`, the comparisons), n-ary where the
 standard's `:left-assoc` and `:chainable` make applications n-ary, `let` with its names, `match` read as testers and selectors. The
-parser reads and sorts; it rewrites nothing — the solver's
+parser reads and sorts; it compiles away sort parameters and `match`, and rewrites nothing else — the solver's
 [lowering](vik.md) compiles the trees. It depends on nothing; the solver depends on it, not the other way
 around.
 
