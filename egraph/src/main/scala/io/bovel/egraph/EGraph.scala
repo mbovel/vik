@@ -20,8 +20,7 @@ final case class App(fun: EClassId, args: ArraySeq[EClassId]):
  *  [[EGraph.derive]] (an equality justified by rule premises), add nodes and
  *  raise a [[EGraph.contradiction]]. Merges are reported by [[EGraph.rebuild]],
  *  after the union, so a callback sees a consistent graph and may cause further
- *  merges, reported in turn. Datatypes are decided this way (`smt.AdtRules`);
- *  see `docs/adt-plan.md`.
+ *  merges, reported in turn. Datatypes are decided this way (`smt.AdtRules`).
  */
 trait Rules:
   /** A node was added for `app`, in the fresh class `cls` (already merged with

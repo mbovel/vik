@@ -28,5 +28,3 @@ subsection:
       - page: components/vik.md
   - title: Evaluation
     page: evaluation.md
-  - title: Design notes
-    page: adt-plan.md
