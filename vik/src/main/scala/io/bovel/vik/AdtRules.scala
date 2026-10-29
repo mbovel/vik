@@ -7,9 +7,9 @@ import io.bovel.egraph.{App, EClassId, EGraph, Rules}
 import io.bovel.smtlib.{Constructor, Datatype}
 
 /** Algebraic datatypes as rules of the e-graph (Barrett, Shikanian and Tinelli
- *  2007). The encoder registers the classes
- *  of the constructor, selector and tester symbols and of `true`; the rules
- *  then keep, per class, the constructor node it holds, and:
+ *  2007). The encoder registers the classes of the constructor, selector and
+ *  tester symbols and of `true`; the rules then keep, per class, the
+ *  constructor node it holds, and:
  *    - injectivity: two constructor nodes of one constructor in one class
  *      equate their arguments; distinctness: nodes of different constructors in
  *      one class are a contradiction;
