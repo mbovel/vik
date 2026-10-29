@@ -9,7 +9,7 @@ behaviours rather than bugs are kept for understanding, not reporting.
 Versions: sbt 2.0.8 (`project/build.properties`), sbt runner 2.0.2, thin client `sbtn 2.0.0-b4d628dd`,
 sbt-jmh 0.4.8, Scala 3.9.0, OpenJDK 17.0.20 on Ubuntu 24.04 (Linux 6.8).
 
-Since 2026-10-27 the build is on sbt 2.1.0-RC1 (the first 2.x where a task can be opted out of the cache):
+Since 2026-10-27 the build is on sbt 2.1.0 release candidates (RC2 as of 2026-10-29) (the first 2.x where a task can be opted out of the cache):
 `build.sbt` sets `cacheStores := Nil` on the tests and on `nativeLink`, which closes 5, 10 and 15 below, and
 2.1 makes `clean` invalidate the cache. The other entries were seen on 2.0.8 and not re-checked.
 
