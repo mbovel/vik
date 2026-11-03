@@ -759,11 +759,15 @@ final class Solver:
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
      */
-    def step(): Result | Branch = relaxationAndWindows() match
+    def step(sweep: Boolean = true): Result | Branch = relaxationAndWindows() match
       case Result.Sat =>
+        if !anyReal then patch()
         var x = 0
         while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
-        if x < numVars then
+        val parity = if x < numVars && !anyReal then pivotedRows(sweep) else Result.Sat
+        if parity != Result.Sat then parity
+        else if sweep && tightened.nonEmpty then step(false)
+        else if x < numVars then
           branches += 1
           val v = deltaValue(x)
           Branch(x, v.floor, v.ceil, -branches, Set.empty)
@@ -821,6 +825,143 @@ final class Solver:
                 case Result.Sat => step()
                 case unsat => unsat
     throw AssertionError("unreachable")
+
+  /** What the rows say now, before a branch: bound propagation saw them before
+   *  the pivots of the simplex, and a pivoted row can tie together variables no
+   *  original row did (`x = -y`, both at most 0, so both 0). Then their residues.
+   */
+  private def pivotedRows(sweep: Boolean): Result =
+    var b = 0
+    while sweep && b < numVars do
+      if rows(b) != null then
+        propagateRow(b) match
+          case Result.Sat => ()
+          case unsat =>
+            tightened.clear()
+            return unsat
+      b += 1
+    if sweep && tightened.nonEmpty then Result.Sat else congruences()
+
+  /** Looks for an integer unknown that its rows force into incompatible residues.
+   *  Once the search has fixed all of a row's variables but one, `y`, the row says
+   *  `k = a y + c` with `k` an integer, a congruence on `y`. Two such rows can
+   *  disagree (`y / 2` and `(y + 1) / 2` both integers), which the relaxation
+   *  cannot see and branch and bound finds out only by walking the whole window
+   *  of `y`, a unit at a time, on the 32 and 64 bit windows of bit vectors.
+   */
+  private def congruences(): Result =
+    final class Residue(var r: BigInt, var m: BigInt, var rows: List[Var])
+    val residues = scala.collection.mutable.HashMap.empty[Var, Residue]
+    def fixed(y: Var): Boolean =
+      val l = lower(y)
+      val u = upper(y)
+      l != null && u != null && l.value.r == u.value.r
+    def unsat(ks: List[Var]): Result =
+      val out = Set.newBuilder[Int]
+      for k <- ks do
+        val row = rows(k).nn
+        var i = 0
+        while i < row.size do
+          val y = row.varAt(i)
+          if fixed(y) then
+            out ++= lower(y).nn.reasons
+            out ++= upper(y).nn.reasons
+          i += 1
+      Result.Unsat(out.result())
+    var k = 0
+    while k < numVars do
+      val row = rows(k)
+      if row != null && isInt(k) then
+        // l k = Σ big_i y_i + small, in integers: gcd(l, big_i...) divides small, and a lone y gets a residue.
+        var c = values(k)
+        var free = 0
+        var y = -1
+        var a = Rational.zero
+        var l = BigInt(1)
+        var i = 0
+        while i < row.size do
+          val j = row.varAt(i)
+          if !fixed(j) then
+            val aj = row.coefAt(i)
+            c = c - aj * values(j)
+            l = l / (l gcd aj.den) * aj.den
+            free += 1
+            y = j
+            a = aj
+          i += 1
+        l = l / (l gcd c.den) * c.den
+        val small = c.num * (l / c.den)
+        var g = l
+        i = 0
+        while i < row.size && g != 1 do
+          val j = row.varAt(i)
+          if !fixed(j) then g = g gcd (row.coefAt(i).num * (l / row.coefAt(i).den)).abs
+          i += 1
+        if small.mod(g) != 0 then return unsat(List(k))
+        if free == 1 then
+          val big = a.num * (l / a.den)
+          val m = l / g
+          if m > 1 then
+            val r = (-(small / g) * (big / g).modInverse(m)).mod(m)
+            residues.get(y) match
+              case None => residues(y) = Residue(r, m, List(k))
+              case Some(e) =>
+                e.rows = k :: e.rows
+                val h = e.m gcd m
+                if (e.r - r).mod(h) != 0 then return unsat(e.rows)
+                if m.mod(e.m) != 0 then // Chinese remainder: e.r + e.m t ≡ r (mod m)
+                  val t = (((r - e.r) / h) * (e.m / h).modInverse(m / h)).mod(m / h)
+                  e.r = e.r + e.m * t
+                  e.m = e.m / h * m
+      k += 1
+    Result.Sat
+
+  /** Moves non-basic variables by whole steps to make fractional unknowns
+   *  integer, where no bound breaks and no integer value turns fractional: a
+   *  fraction usually comes from a variable resting on its bound with room to
+   *  move, and a branch on an unbounded or wide unknown would only push that
+   *  fraction along, one unit per branch.
+   */
+  private def patch(): Unit =
+    var x = 0
+    while x < numVars do
+      val row = rows(x)
+      if row != null && !isSlack(x) && isInt(x) && !values(x).isInteger then
+        var i = 0
+        while i < row.size && !patched(x, row.varAt(i), row.coefAt(i)) do i += 1
+      x += 1
+
+  private val patchSteps = 8
+
+  private def patched(x: Var, y: Var, a: Rational): Boolean =
+    if !isInt(y) then return false
+    var step = 1
+    while step <= patchSteps do
+      var sign = 1
+      while sign >= -1 do
+        val moved = Rational(step * sign)
+        if (values(x) + a * moved).isInteger && canMove(y, moved) then
+          update(y, Delta(values(y) + moved, Rational.zero))
+          return true
+        sign -= 2
+      step += 1
+    false
+
+  private def canMove(y: Var, moved: Rational): Boolean =
+    if !within(y, values(y) + moved) then return false
+    val column = columns(y)
+    var i = 0
+    while i < column.size do
+      val k = column(i)
+      val v = values(k) + moved * rows(k).nn(y)
+      if !within(k, v) || (!isSlack(k) && isInt(k) && values(k).isInteger && !v.isInteger) then return false
+      i += 1
+    true
+
+  private def within(x: Var, v: Rational): Boolean =
+    val l = lower(x)
+    val u = upper(x)
+    (l == null || v.compare(l.value.r) >= 0) && (u == null || v.compare(u.value.r) <= 0)
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the
    *  simplex; `Sat` leaves the integrality to [[check]].
