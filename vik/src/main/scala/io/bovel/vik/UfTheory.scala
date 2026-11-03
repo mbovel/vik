@@ -37,10 +37,36 @@ final class UfTheory(
    */
   private val impliedBy = ArrayBuffer.empty[(EClassId, EClassId, Int) | Null]
 
+  /** The atoms of each id, as either of their sides. */
+  private val atomsAt = ArrayBuffer.empty[ArrayBuffer[Var] | Null]
+
+  /** The atoms to look at whatever the e-graph says: the new ones, and the ones
+   *  a pop made unassigned, whose implication may have outlived their
+   *  assignment.
+   */
+  private val again = ArrayBuffer.empty[Var]
+
+  /** What the last propagation implied: the search does not take all of it when
+   *  it finds a conflict.
+   */
+  private var lastImplied = ArrayBuffer.empty[Lit]
+
   private def grown(): Unit =
     while assigned.length < atoms.length do
+      val v = assigned.length
       assigned += false
       impliedBy += null
+      val atom = atoms(v)
+      if atom != null then
+        val (t, u) = atom
+        watch(t, v)
+        watch(u, v)
+        again += v
+
+  private def watch(id: EClassId, v: Var): Unit =
+    while atomsAt.length <= id do atomsAt += null
+    if atomsAt(id) == null then atomsAt(id) = ArrayBuffer.empty
+    atomsAt(id).nn += v
 
   private def lits(reasons: ArrayBuffer[Int]): ArrayBuffer[Lit] = reasons.map(Lit.fromIndex)
 
@@ -68,15 +94,15 @@ final class UfTheory(
   def propagate(): Theory.Result =
     grown()
     if !touched then return Theory.ok
+    if eg.touchedLimit < 0 then eg.touchedLimit = math.max(1024, atoms.length)
     eg.rebuild()
     eg.conflict match
       case Some(reasons) => Theory.Result.Conflict(lits(reasons))
       case None =>
         touched = false
         val implied = ArrayBuffer.empty[Lit]
-        atomScans += atoms.length
-        var v = 0
-        while v < atoms.length do
+        def look(v: Var): Unit =
+          atomScans += 1
           val atom = atoms(v)
           if atom != null && !assigned(v) then
             val (t, u) = atom
@@ -87,7 +113,33 @@ final class UfTheory(
                   impliedBy(v) = diseq
                   implied += Lit(v, false)
                 case None => ()
-          v += 1
+        // Only the atoms of what changed: looking at every atom at every propagation was most of the time of
+        // the large unrollings of a verification condition, where most of them never change. In order of
+        // variable, as such a walk gave them.
+        val ids = eg.takeTouched()
+        if ids == null then
+          var v = 0
+          while v < atoms.length do
+            look(v)
+            v += 1
+        else
+          var i = 0
+          while i < ids.length do
+            val id = ids(i)
+            if id < atomsAt.length then
+              val at = atomsAt(id)
+              if at != null then again ++= at
+            i += 1
+          val candidates = again.toArray
+          java.util.Arrays.sort(candidates)
+          i = 0
+          while i < candidates.length do
+            if i == 0 || candidates(i) != candidates(i - 1) then look(candidates(i))
+            i += 1
+          ids.clear()
+        eg.touchedLimit = math.max(1024, atoms.length)
+        again.clear()
+        lastImplied = implied
         Theory.Result.Ok(implied)
 
   override def finalCheck(): Theory.Result = propagate() match
@@ -112,4 +164,9 @@ final class UfTheory(
     touched = true // undone merges: atoms may need re-implying
     eg.pop()
     val mark = marks.remove(marks.length - 1)
-    while assignedTrail.length > mark do assigned(assignedTrail.remove(assignedTrail.length - 1)) = false
+    while assignedTrail.length > mark do
+      val v = assignedTrail.remove(assignedTrail.length - 1)
+      assigned(v) = false
+      again += v
+    for l <- lastImplied do again += l.variable
+    lastImplied = ArrayBuffer.empty
