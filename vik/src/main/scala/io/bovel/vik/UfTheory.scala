@@ -5,6 +5,15 @@ import scala.collection.mutable.ArrayBuffer
 import io.bovel.cdclt.{Lit, Theory, Var}
 import io.bovel.egraph.{EClassId, EGraph}
 
+/** A growing list of variables, unboxed: the atom index is walked at every propagation. */
+private final class Vars:
+  var elems = new Array[Var](4)
+  var size = 0
+  def +=(v: Var): Unit =
+    if size == elems.length then elems = java.util.Arrays.copyOf(elems, 2 * size)
+    elems(size) = v
+    size += 1
+
 /** Equality with uninterpreted functions over an [[io.bovel.egraph.EGraph]], as
  *  a theory of the CDCL(T) solver: the atom of variable `v` is `t = u` for
  *  `atoms(v) = (t, u)`, e-classes of `eg`, or none when `atoms(v)` is `null`.
@@ -28,7 +37,8 @@ final class UfTheory(
   /** Atoms asserted so far, with the level marks for `pop`; `atoms` may grow
    *  between solves, so these grow with it.
    */
-  private val assigned = ArrayBuffer.empty[Boolean]
+  private var assigned = new Array[Boolean](64)
+  private var known = 0 // how many of `atoms` have their entries here
   private val assignedTrail = ArrayBuffer.empty[Var]
   private val marks = ArrayBuffer.empty[Int]
 
@@ -38,7 +48,7 @@ final class UfTheory(
   private val impliedBy = ArrayBuffer.empty[(EClassId, EClassId, Int) | Null]
 
   /** The atoms of each id, as either of their sides. */
-  private val atomsAt = ArrayBuffer.empty[ArrayBuffer[Var] | Null]
+  private val atomsAt = ArrayBuffer.empty[Vars | Null]
 
   /** The atoms to look at whatever the e-graph says: the new ones, and the ones a pop made unassigned, whose
    *  implication may have outlived their assignment.
@@ -48,10 +58,18 @@ final class UfTheory(
   /** What the last propagation implied: the search does not take all of it when it finds a conflict. */
   private var lastImplied = ArrayBuffer.empty[Lit]
 
+  /** The atoms to look at in one propagation: each once, whichever of its sides brought it. */
+  private val candidates = Vars()
+  private var candidateIn = new Array[Int](64)
+  private var candidateMark = 0
+
   private def grown(): Unit =
-    while assigned.length < atoms.length do
-      val v = assigned.length
-      assigned += false
+    if assigned.length < atoms.length then
+      assigned = java.util.Arrays.copyOf(assigned, 2 * atoms.length)
+      candidateIn = java.util.Arrays.copyOf(candidateIn, 2 * atoms.length)
+    while known < atoms.length do
+      val v = known
+      known += 1
       impliedBy += null
       val atom = atoms(v)
       if atom != null then
@@ -62,7 +80,7 @@ final class UfTheory(
 
   private def watch(id: EClassId, v: Var): Unit =
     while atomsAt.length <= id do atomsAt += null
-    if atomsAt(id) == null then atomsAt(id) = ArrayBuffer.empty
+    if atomsAt(id) == null then atomsAt(id) = Vars()
     atomsAt(id).nn += v
 
   private def lits(reasons: ArrayBuffer[Int]): ArrayBuffer[Lit] = reasons.map(Lit.fromIndex)
@@ -116,18 +134,31 @@ final class UfTheory(
             look(v)
             v += 1
         else
+          candidates.size = 0
+          candidateMark += 1
+          def candidate(v: Var): Unit =
+            if !assigned(v) && candidateIn(v) != candidateMark then
+              candidateIn(v) = candidateMark
+              candidates += v
           var i = 0
+          while i < again.length do
+            candidate(again(i))
+            i += 1
+          i = 0
           while i < ids.length do
             val id = ids(i)
             if id < atomsAt.length then
               val at = atomsAt(id)
-              if at != null then again ++= at
+              if at != null then
+                var j = 0
+                while j < at.size do
+                  candidate(at.elems(j))
+                  j += 1
             i += 1
-          val candidates = again.toArray
-          java.util.Arrays.sort(candidates)
+          java.util.Arrays.sort(candidates.elems, 0, candidates.size)
           i = 0
-          while i < candidates.length do
-            if i == 0 || candidates(i) != candidates(i - 1) then look(candidates(i))
+          while i < candidates.size do
+            look(candidates.elems(i))
             i += 1
           ids.clear()
         eg.touchedLimit = math.max(1024, atoms.length)
