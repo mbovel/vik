@@ -205,11 +205,13 @@ final class EGraph(rules: Rules = NoRules):
 
   /** The ids whose relation to another class may have changed since
    *  [[takeTouched]] was last called, when a client watches them: those of an
-   *  absorbed class, and of the smaller side of each new disequality between
-   *  classes, the one asserted or the one a merge carried over. Each is walked
-   *  past anyway or is the smaller side, so that a client indexing facts by id
-   *  does not walk them all per propagation; past `touchedLimit` it is told to
-   *  do so instead.
+   *  absorbed class, and of the smaller side of a new disequality between
+   *  classes. Each is walked past anyway or is the smaller side, so that a
+   *  client indexing facts by id does not walk them all per propagation; past
+   *  `touchedLimit` it is told to do so instead. A disequality that a merge
+   *  carries to more ids touches nothing: looking at the atoms of those ids was
+   *  half of the time of the large unrollings, for implied atoms that the
+   *  search finds out at the same cost, or with fewer conflicts.
    */
   private val touched = ArrayBuffer.empty[EClassId]
   private var touchedOverflow = false
@@ -510,14 +512,6 @@ final class EGraph(rules: Rules = NoRules):
     next(from) = next(into)
     next(into) = t
     size(into) += size(from)
-
-    if watched && fromForbid != null then
-      var i = 0
-      while i < fromForbid.length && !touchedOverflow do
-        val d = fromForbid(i)
-        val other = if repr(d.a) == into then repr(d.b) else repr(d.a)
-        if other != into then touchSmaller(into, other)
-        i += 1
 
     // Only the parents of the absorbed class need re-canonicalization.
     val fromUses = uses(from)
