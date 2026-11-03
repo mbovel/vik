@@ -163,26 +163,60 @@ class SolverTest extends munit.FunSuite:
       case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
       case other => fail(s"expected unsat, got $other")
 
-  test("the small-model box turns a sliding branch and bound into a sound unsat"):
-    // x even and x odd: integer-infeasible, rationally satisfiable everywhere, and no single
-    // expression's gcd sees it — the branches slide.
+  test("rows that force one unknown into incompatible residues are unsat without a branch"):
+    val s = Solver()
+    val x = s.newVar()
+    val y = s.newVar()
+    val z = s.newVar()
+    val even = s.newSlack(List((BigInt(1), x), (BigInt(-2), y)))
+    val odd = s.newSlack(List((BigInt(1), x), (BigInt(-2), z)))
+    assertEquals(s.assertUpper(even, 0, 1), Result.Sat)
+    assertEquals(s.assertLower(even, 0, 2), Result.Sat)
+    assertEquals(s.assertUpper(odd, 1, 3), Result.Sat)
+    assertEquals(s.assertLower(odd, 1, 4), Result.Sat)
+    var steps = 50
+    s.keepGoing = () =>
+      steps -= 1; steps >= 0
+    s.check() match
+      case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
+      case other => fail(s"expected unsat, got $other")
+
+  test("a fraction is moved away by a variable with room rather than branched on"):
+    // 2y = x + w, x at its lower bound 1 and w at 0 leave y at 1/2: w or x moves by one.
+    val s = Solver()
+    val x = s.newVar()
+    val w = s.newVar()
+    val y = s.newVar()
+    val eq = s.newSlack(List((BigInt(1), x), (BigInt(1), w), (BigInt(-2), y)))
+    assertEquals(s.assertUpper(eq, 0, 1), Result.Sat)
+    assertEquals(s.assertLower(eq, 0, 2), Result.Sat)
+    assertEquals(s.assertLower(x, 1, 3), Result.Sat)
+    var steps = 50
+    s.keepGoing = () =>
+      steps -= 1; steps >= 0
+    assertEquals(s.check(), Result.Sat)
+    assertEquals((s.value(x) + s.value(w) - 2 * s.value(y)).toInt, 0)
+
+  test("a parity that shows only in a pivoted row is unsat, with or without the small-model box"):
+    // x + u + w even and x + u + w odd: integer-infeasible, rationally satisfiable everywhere, and no single
+    // expression's gcd sees it: the first branch pivots the difference of the two into a row of its own.
     def parity(): Solver =
       val s = Solver()
       val x = s.newVar()
+      val u = s.newVar()
+      val w = s.newVar()
       val y = s.newVar()
       val z = s.newVar()
-      val even = s.newSlack(List((BigInt(1), x), (BigInt(-2), y)))
-      val odd = s.newSlack(List((BigInt(1), x), (BigInt(-2), z)))
+      val even = s.newSlack(List((BigInt(1), x), (BigInt(1), u), (BigInt(1), w), (BigInt(-2), y)))
+      val odd = s.newSlack(List((BigInt(1), x), (BigInt(1), u), (BigInt(1), w), (BigInt(-2), z)))
       assertEquals(s.assertUpper(even, 0, 1), Result.Sat)
       assertEquals(s.assertLower(even, 0, 2), Result.Sat)
       assertEquals(s.assertUpper(odd, 1, 3), Result.Sat)
       assertEquals(s.assertLower(odd, 1, 4), Result.Sat)
       s
-    val diverging = parity()
-    var steps = 10000
-    diverging.keepGoing = () =>
-      steps -= 1; steps >= 0
-    assertEquals(diverging.check(), Result.Unknown) // without the box: to the fuel
+    parity().check() match
+      case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
+      case other => fail(s"expected unsat, got $other")
     val boxed = parity()
     boxed.boxBitsOverride = 8 // a test-sized box: past it, exhaustion is unsat
     boxed.check() match
