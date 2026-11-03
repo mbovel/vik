@@ -159,6 +159,7 @@ final class Solver:
    */
   private val valuesD = ArrayBuffer.empty[Rational]
   private var anyReal = false
+  def hasReals: Boolean = anyReal
 
   /** The row of each basic variable (`null` for a non-basic one): the
    *  coefficients of the non-basic variables whose combination it equals.
@@ -589,6 +590,13 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
+  /** How many branches a [[check]] may open before it stops and says so in [[branchedOut]]: `Sat`, with no
+   *  integer solution behind it. A search that has not decided all its atoms has something better to do than
+   *  to walk a range one value at a time (32768 branches on `PackedFloat8`, 7 ms once its atoms are decided).
+   */
+  var branchBudget = Int.MaxValue
+  var branchedOut = false
+
   /** For the tests: pretend the small-model box is this many bits wide. */
   private[lia] var boxBitsOverride: Long = -1
 
@@ -686,6 +694,8 @@ final class Solver:
       if past then boxPruned = true
       past
     val open = ArrayBuffer.empty[Branch]
+    val branchesBefore = branches
+    branchedOut = false
 
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
@@ -742,6 +752,10 @@ final class Solver:
         case branch: Branch if !keepGoing() =>
           for _ <- open do pop()
           return Result.Unknown
+        case branch: Branch if branches - branchesBefore > branchBudget =>
+          for _ <- open do pop()
+          branchedOut = true
+          return Result.Sat
         case branch: Branch =>
           open += branch
           push()

@@ -17,6 +17,39 @@ class SessionTest extends munit.FunSuite:
     assertEquals(s.checkSat(), Some(true))
   }
 
+  // The search decides only what a model needs, and the model has to hold anyway.
+  private def assertModelHolds(script: String, expected: Boolean = true): Session =
+    val s = Session()
+    s.run("(set-option :produce-models true)")
+    s.run(script)
+    assertEquals(s.checkSat(), Some(expected))
+    if expected then
+      val m = s.model().get
+      s.assertions.foreach(f => assert(m.holds(f), f))
+    s
+
+  test("different results of a function need different integer arguments") {
+    assertModelHolds("""(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
+      (assert (not (= (f a) (f b))))""")
+    // The values the relaxation picks are equal until the equality is decided.
+    assertModelHolds("""(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
+      (assert (and (<= 0 a) (<= a 1) (<= 0 b) (<= b 1) (not (= (f a) (f b)))))""")
+    assertModelHolds("""(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
+      (assert (and (<= 0 a) (<= a 0) (<= 0 b) (<= b 0) (not (= (f a) (f b)))))""", expected = false)
+  }
+
+  test("what is behind a false guard takes no part in the model") {
+    assertModelHolds("""(declare-const g Bool) (declare-const x Int) (declare-const y Int)
+      (assert (=> g (and (< x y) (< y x)))) (assert (or g (< x 0))) (assert (not g))""")
+    assertModelHolds("""(declare-const g Bool) (declare-const h Bool) (declare-const x Int)
+      (assert (or g h)) (assert (=> g (= x 1))) (assert (=> h (= x 2))) (assert (= g (> x 5)))""")
+  }
+
+  test("a Boolean term under a function has a value in the model") {
+    assertModelHolds("""(declare-fun f (Bool) Int) (declare-const p Bool) (declare-const q Bool)
+      (assert (not (= (f p) (f q)))) (assert (or p q))""")
+  }
+
   test("a lowered convenience keeps its definitions across the pieces") {
     val s = Session()
     s.run("(set-option :produce-models true) (declare-const x Int) (declare-const y Int)")
