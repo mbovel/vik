@@ -201,6 +201,37 @@ final class EGraph(rules: Rules = NoRules):
   private var violated: Diseq | Null = null
   private var contradicted: ArrayBuffer[Int] | Null = null
 
+  /** The ids whose relation to another class may have changed since [[takeTouched]] was last called, when a
+   *  client watches them: those of an absorbed class, and of the smaller side of each new disequality between
+   *  classes, the one asserted or the one a merge carried over. Each is walked past anyway or is the smaller
+   *  side, so that a client indexing facts by id does not walk them all per propagation; past
+   *  `touchedLimit` it is told to do so instead.
+   */
+  private val touched = ArrayBuffer.empty[EClassId]
+  private var touchedOverflow = false
+  var touchedLimit: Int = -1 // negative: nobody watches
+
+  /** The ids touched, or `null` when too many were to list. The caller must have used them before calling again. */
+  def takeTouched(): ArrayBuffer[EClassId] | Null =
+    val overflow = touchedOverflow
+    touchedOverflow = false
+    if overflow then
+      touched.clear()
+      null
+    else touched
+
+  private def touch(id: EClassId): Unit =
+    if touched.length >= touchedLimit then touchedOverflow = true
+    else touched += id
+
+  private def touchSmaller(a: EClassId, b: EClassId): Unit =
+    val root = if size(a) <= size(b) then a else b
+    touch(root)
+    var m = next(root)
+    while m != root && !touchedOverflow do
+      touch(m)
+      m = next(m)
+
   /** Merges done since the last [[rebuild]], to report to the rules. */
   private val merges = ArrayBuffer.empty[Merge]
 
@@ -333,6 +364,7 @@ final class EGraph(rules: Rules = NoRules):
       addForbid(ra, d)
       addForbid(rb, d)
       if recording then trail += Undo.Disequated(ra, rb)
+      if touchedLimit >= 0 then touchSmaller(ra, rb)
 
   private def addForbid(root: EClassId, d: Diseq): Unit =
     val list = forbid(root)
@@ -458,8 +490,11 @@ final class EGraph(rules: Rules = NoRules):
     repr(from) = into
     var m = next(from)
     var k = 0
+    val watched = touchedLimit >= 0
+    if watched then touch(from)
     while m != from do
       repr(m) = into
+      if watched then touch(m)
       if members != null then
         members(k) = m
         k += 1
@@ -469,6 +504,14 @@ final class EGraph(rules: Rules = NoRules):
     next(from) = next(into)
     next(into) = t
     size(into) += size(from)
+
+    if watched && fromForbid != null then
+      var i = 0
+      while i < fromForbid.length && !touchedOverflow do
+        val d = fromForbid(i)
+        val other = if repr(d.a) == into then repr(d.b) else repr(d.a)
+        if other != into then touchSmaller(into, other)
+        i += 1
 
     // Only the parents of the absorbed class need re-canonicalization.
     val fromUses = uses(from)
