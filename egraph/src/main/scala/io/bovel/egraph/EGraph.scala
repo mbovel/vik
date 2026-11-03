@@ -97,7 +97,8 @@ object EGraph:
    *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
    *  the surviving one) were equated for `why`. `time` orders the merges.
    */
-  private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int)
+  private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int):
+    var explainedIn = 0 // the last `explain` that went through it (see `justify`)
 
   /** A disequality `a != b` asserted for `reason`. */
   private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
@@ -570,8 +571,11 @@ final class EGraph(rules: Rules = NoRules):
   def explain(x: EClassId, y: EClassId): ArrayBuffer[Int] =
     require(repr(x) == repr(y), "explain: the two terms are not equal")
     val reasons = ArrayBuffer.empty[Int]
+    explanation += 1
     explainInto(x, y, reasons)
     reasons.distinct
+
+  private var explanation = 0
 
   private def explainInto(x: EClassId, y: EClassId, out: ArrayBuffer[Int]): Unit =
     if x == y then return
@@ -612,12 +616,16 @@ final class EGraph(rules: Rules = NoRules):
    *  congruence, the reasons making the two applications' functions and
    *  arguments equal.
    */
-  private def justify(edge: Edge, out: ArrayBuffer[Int]): Unit = edge.why match
-    case Justification.Asserted(reason) => out += reason
-    case Justification.Congruence(n1, n2) =>
-      explainInto(n1.app.fun, n2.app.fun, out)
-      for i <- n1.app.args.indices do explainInto(n1.app.args(i), n2.app.args(i), out)
-    case Justification.Rule(premises) => for (x, y) <- premises do explainInto(x, y, out)
+  private def justify(edge: Edge, out: ArrayBuffer[Int]): Unit =
+    // Once per explanation: congruences over shared terms otherwise walk the same edges exponentially many times.
+    if edge.explainedIn != explanation then
+      edge.explainedIn = explanation
+      edge.why match
+        case Justification.Asserted(reason) => out += reason
+        case Justification.Congruence(n1, n2) =>
+          explainInto(n1.app.fun, n2.app.fun, out)
+          for i <- n1.app.args.indices do explainInto(n1.app.args(i), n2.app.args(i), out)
+        case Justification.Rule(premises) => for (x, y) <- premises do explainInto(x, y, out)
 
   /** Opens a level: [[pop]] will undo everything done after this call.
    *  Completes the pending [[rebuild]] first, so that a level starts from a
