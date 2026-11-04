@@ -929,7 +929,7 @@ private final class Encoder(
     liaSolver.branchBudget = if sat.relevantOnly then branchesWhileRelevant else Int.MaxValue
     lastModel = null
     var result = sat.solve(assumptions.toArray, keepGoing)
-    while sharesByModel && result.isInstanceOf[cdclt.Solver.Result.Sat] && {
+    while sharesByModel && result.isInstanceOf[cdclt.Solver.Result.Sat] && !liaSolver.branchedOut && {
         val broken = pairsTheModelBreaks()
         if broken.nonEmpty then
           sat.unwind()
@@ -940,12 +940,12 @@ private final class Encoder(
     do result = sat.solve(assumptions.toArray, keepGoing)
     result match
       case cdclt.Solver.Result.Sat(_) if produceModels || sat.relevantOnly || sharesByModel =>
-        lastModel = takeModel()
+        if !liaSolver.branchedOut then lastModel = takeModel()
         // `neededEquality` looks at integer arguments only, and an atom left undecided leaves the values free: a
         // datatype holding two integers of one value makes one row of two (`LawTypeArgsElim`). Rare enough to answer
         // by deciding everything, this once. A search that left atoms open has its answer rest on this walk, so it
         // is paid without `:produce-models` too.
-        if (sat.relevantOnly || sharesByModel) && !modelHolds(lastModel.nn) then
+        if liaSolver.branchedOut || (sat.relevantOnly || sharesByModel) && !modelHolds(lastModel.nn) then
           sat.unwind()
           sat.relevantOnly = false
           liaSolver.branchBudget = Int.MaxValue
@@ -970,7 +970,9 @@ private final class Encoder(
    */
   private def neededEquality(): cdclt.Var =
     if liaSolver.branchedOut then
-      liaSolver.branchBudget = Int.MaxValue
+      // With a large group's pairs left to the model the budget stays: a check that branches past it with all atoms
+      // decided needs those pairs, which only a new search can have (`wisas/xs_11_11`, 60 ms with them, past 20 s without).
+      if !sharesByModel then liaSolver.branchBudget = Int.MaxValue
       return Theory.everythingNeeded
     def key(t: Term): Any = if isInt(t) then simplexValue(t).getOrElse(eg.find(classOf(t))) else eg.find(classOf(t))
     val rows = HashMap.empty[(EClassId, List[Any]), Term.App]
