@@ -187,7 +187,6 @@ final class Solver(val simplify: Boolean = true):
       case Result.Unknown(_) => Result.Unknown(Reason.Fuel)
       case result => result
 
-  def debugStats: String = encoder.nn.debugStats
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
@@ -913,7 +912,6 @@ private final class Encoder(
   var produceModels: Boolean = true
   var modelHolds: Model => Boolean = _ => true
 
-  def debugStats: String = s"conflicts ${sat.numConflicts} decisions ${sat.numDecisions} liaVars ${liaSolver.numVars} atoms ${atoms.length}"
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     def addNew(): Unit =
@@ -941,11 +939,12 @@ private final class Encoder(
       }
     do result = sat.solve(assumptions.toArray, keepGoing)
     result match
-      case cdclt.Solver.Result.Sat(_) if produceModels =>
+      case cdclt.Solver.Result.Sat(_) if produceModels || sat.relevantOnly || sharesByModel =>
         lastModel = takeModel()
         // `neededEquality` looks at integer arguments only, and an atom left undecided leaves the values free: a
         // datatype holding two integers of one value makes one row of two (`LawTypeArgsElim`). Rare enough to answer
-        // by deciding everything, this once.
+        // by deciding everything, this once. A search that left atoms open has its answer rest on this walk, so it
+        // is paid without `:produce-models` too.
         if (sat.relevantOnly || sharesByModel) && !modelHolds(lastModel.nn) then
           sat.unwind()
           sat.relevantOnly = false
@@ -976,6 +975,21 @@ private final class Encoder(
     def key(t: Term): Any = if isInt(t) then simplexValue(t).getOrElse(eg.find(classOf(t))) else eg.find(classOf(t))
     val rows = HashMap.empty[(EClassId, List[Any]), Term.App]
     var needed = Theory.nothingNeeded
+    // Two integers of one class and two values: congruence met them, and the atom that tells the simplex is open.
+    val valued = HashMap.empty[EClassId, (Term, BigInt)]
+    val integers = classes.keysIterator.filter(isInt)
+    while needed == Theory.nothingNeeded && integers.hasNext do
+      val t = integers.next()
+      simplexValue(t).foreach { v =>
+        val root = eg.find(classes(t))
+        valued.get(root) match
+          case None => valued(root) = (t, v)
+          case Some((u, w)) =>
+            if v != w then
+              lits.get(Formula.Eq(t, u)).orElse(lits.get(Formula.Eq(u, t))) match
+                case Some(e) if sat.isUnassigned(e) => needed = e.variable
+                case _ => () // no atom: the model will break it, see `pairsTheModelBreaks`
+      }
     val applications = classes.keysIterator.collect { case a: Term.App if a.args.exists(isInt) => a }
     while needed == Theory.nothingNeeded && applications.hasNext do
       val a = applications.next()
