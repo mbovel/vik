@@ -10,7 +10,9 @@ sealed abstract class Rational extends Ordered[Rational]:
   def num: BigInt
   def den: BigInt
 
-  /** Whether this is an integer that fits in a `Long`, whose value [[smallValue]] then returns. */
+  /** Whether this is an integer that fits in a `Long`, whose value
+   *  [[smallValue]] then returns.
+   */
   def isSmallInteger: Boolean = false
   def smallValue: Long = throw new UnsupportedOperationException
 

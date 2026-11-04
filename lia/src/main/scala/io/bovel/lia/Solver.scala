@@ -453,9 +453,10 @@ final class Solver:
   private def growVisited(a: Array[Int]): Array[Int] =
     if a.length >= numVars then a else java.util.Arrays.copyOf(a, math.max(8, 2 * numVars))
 
-  /** Whether the row of `b`, every coefficient and bound an integer in a `Long`, derives nothing: the test of
-   *  [[propagateRow]] without its allocations, which were a third of the time of `RedBlackTree2-28`. False, to
-   *  let that method look, whenever it cannot tell.
+  /** Whether the row of `b`, every coefficient and bound an integer in a
+   *  `Long`, derives nothing: the test of [[propagateRow]] without its
+   *  allocations, which were a third of the time of `RedBlackTree2-28`. False,
+   *  to let that method look, whenever it cannot tell.
    */
   private def rowIsQuiet(b: Var, row: Row, hasLow: Boolean, hasHigh: Boolean): Boolean =
     if anyReal then return false
@@ -511,8 +512,10 @@ final class Solver:
     while i < row.size do
       val j = row.varAt(i)
       val positive = row.coefAt(i).signum > 0
-      if (if positive then lower(j) else upper(j)) == null then lowMissing += 1
-      if (if positive then upper(j) else lower(j)) == null then highMissing += 1
+      val forLow = if positive then lower(j) else upper(j)
+      val forHigh = if positive then upper(j) else lower(j)
+      if forLow == null then lowMissing += 1
+      if forHigh == null then highMissing += 1
       if lowMissing > 0 && highMissing > 0 then break(Result.Sat)
       i += 1
     if rowIsQuiet(b, row, lowMissing == 0, highMissing == 0) then break(Result.Sat)
