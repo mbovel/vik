@@ -1002,16 +1002,14 @@ private final class Encoder(
     lazy val takenValues = HashSet.from(classes.iterator.collect {
       case (t, c) if datatypeNames(sortOf(t)) => closedValue(c).map(_._1)
     }.flatten)
+    // The testers and selectors of each class, one scan for all of them (`CovCollection`: three quarters of the
+    // check went on looking through the classes for each built value).
+    lazy val unaryApps = HashMap.from(classes.iterator.collect {
+      case (Term.App(Term.Const(f), List(u)), c) if classes.contains(u) => (f, eg.find(classes(u))) -> c
+    })
     def testerOf(root: EClassId, tester: String): Option[Boolean] =
-      classes.collectFirst {
-        case (Term.App(Term.Const(t), List(u)), c) if t == tester && classes.get(u).exists(x => eg.find(x) == root) =>
-          eg.find(c)
-      }.map(c => c == eg.find(trueTerm))
-    def selectorOf(root: EClassId, selector: String): Option[EClassId] =
-      classes.collectFirst {
-        case (Term.App(Term.Const(s), List(u)), c) if s == selector && classes.get(u).exists(x => eg.find(x) == root) =>
-          c
-      }
+      unaryApps.get((tester, root)).map(c => eg.find(c) == eg.find(trueTerm))
+    def selectorOf(root: EClassId, selector: String): Option[EClassId] = unaryApps.get((selector, root))
     def defaultOf(sort: String, seen: Set[String]): Term = datatypes.find(_.name == sort) match
       case Some(d) if !seen(sort) =>
         val c = d.constructors.find(_.selectors.isEmpty).getOrElse(d.constructors.head)
