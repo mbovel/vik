@@ -10,6 +10,10 @@ sealed abstract class Rational extends Ordered[Rational]:
   def num: BigInt
   def den: BigInt
 
+  /** Whether this is an integer that fits in a `Long`, whose value [[smallValue]] then returns. */
+  def isSmallInteger: Boolean = false
+  def smallValue: Long = throw new UnsupportedOperationException
+
   def +(that: Rational): Rational = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
       try
@@ -82,6 +86,8 @@ object Rational:
       h * v.signum
 
   private final case class Small(n: Long, d: Long) extends Rational:
+    override def isSmallInteger: Boolean = d == 1
+    override def smallValue: Long = n
     def num: BigInt = BigInt(n)
     def den: BigInt = BigInt(d)
     def unary_- : Rational = if n == Long.MinValue then Rational(-num, den) else Small(-n, d)

@@ -453,28 +453,84 @@ final class Solver:
   private def growVisited(a: Array[Int]): Array[Int] =
     if a.length >= numVars then a else java.util.Arrays.copyOf(a, math.max(8, 2 * numVars))
 
+  /** Whether the row of `b`, every coefficient and bound an integer in a `Long`, derives nothing: the test of
+   *  [[propagateRow]] without its allocations, which were a third of the time of `RedBlackTree2-28`. False, to
+   *  let that method look, whenever it cannot tell.
+   */
+  private def rowIsQuiet(b: Var, row: Row, hasLow: Boolean, hasHigh: Boolean): Boolean =
+    if anyReal then return false
+    val lb = lower(b)
+    val ub = upper(b)
+    if (lb != null && !lb.value.r.isSmallInteger) || (ub != null && !ub.value.r.isSmallInteger) then return false
+    try
+      var low = 0L
+      var high = 0L
+      var i = 0
+      while i < row.size do
+        val a = row.coefAt(i)
+        if !a.isSmallInteger then return false
+        val c = a.smallValue
+        val j = row.varAt(i)
+        val forLow = if c > 0 then lower(j) else upper(j)
+        val forHigh = if c > 0 then upper(j) else lower(j)
+        if hasLow then
+          if !forLow.nn.value.r.isSmallInteger then return false
+          low = Math.addExact(low, Math.multiplyExact(c, forLow.nn.value.r.smallValue))
+        if hasHigh then
+          if !forHigh.nn.value.r.isSmallInteger then return false
+          high = Math.addExact(high, Math.multiplyExact(c, forHigh.nn.value.r.smallValue))
+        i += 1
+      // A row that can tighten `b` itself, or is in conflict with it, is for the slow path.
+      if hasLow && (lb == null || low > lb.value.r.smallValue) then return false
+      if hasHigh && (ub == null || high < ub.value.r.smallValue) then return false
+      val upperRoom = if ub != null && hasLow then Math.subtractExact(ub.value.r.smallValue, low) else Long.MaxValue
+      val lowerRoom = if lb != null && hasHigh then Math.subtractExact(high, lb.value.r.smallValue) else Long.MaxValue
+      val room = Math.min(upperRoom, lowerRoom)
+      if room == Long.MaxValue then return true
+      i = 0
+      while i < row.size do
+        val j = row.varAt(i)
+        val l = lower(j)
+        val u = upper(j)
+        if l == null || u == null || !l.value.r.isSmallInteger || !u.value.r.isSmallInteger then return false
+        val c = row.coefAt(i).smallValue
+        val moves = Math.multiplyExact(Math.subtractExact(u.value.r.smallValue, l.value.r.smallValue), Math.abs(c))
+        if room < moves then return false
+        i += 1
+      true
+    catch case _: ArithmeticException => false
+
   /** Derives the bounds the row of `b` implies (see [[propagateBounds]]). */
   private def propagateRow(b: Var): Result = boundary:
     val row = rows(b).nn
-    // The lowest and highest values of the row given the bounds, when every variable has the bound needed.
-    var low = Delta.zero
-    var high = Delta.zero
+    // Whether every variable has the bound needed for the lowest and for the highest value of the row: a row
+    // with neither derives nothing, and most rows are such, so finding that out does no arithmetic.
     var lowMissing = 0
     var highMissing = 0
-    val lowPremises = ArrayBuffer.empty[Bound]
-    val highPremises = ArrayBuffer.empty[Bound]
     var i = 0
     while i < row.size do
       val j = row.varAt(i)
+      val positive = row.coefAt(i).signum > 0
+      if (if positive then lower(j) else upper(j)) == null then lowMissing += 1
+      if (if positive then upper(j) else lower(j)) == null then highMissing += 1
+      if lowMissing > 0 && highMissing > 0 then break(Result.Sat)
+      i += 1
+    if rowIsQuiet(b, row, lowMissing == 0, highMissing == 0) then break(Result.Sat)
+    // The lowest and highest values of the row given the bounds.
+    var low = Delta.zero
+    var high = Delta.zero
+    val lowPremises = ArrayBuffer.empty[Bound]
+    val highPremises = ArrayBuffer.empty[Bound]
+    i = 0
+    while i < row.size do
+      val j = row.varAt(i)
       val a = row.coefAt(i)
-      val forLow = if a.signum > 0 then lower(j) else upper(j)
-      val forHigh = if a.signum > 0 then upper(j) else lower(j)
-      if forLow == null then lowMissing += 1
-      else
+      if lowMissing == 0 then
+        val forLow = (if a.signum > 0 then lower(j) else upper(j)).nn
         low = low + forLow.value * a
         lowPremises += forLow
-      if forHigh == null then highMissing += 1
-      else
+      if highMissing == 0 then
+        val forHigh = (if a.signum > 0 then upper(j) else lower(j)).nn
         high = high + forHigh.value * a
         highPremises += forHigh
       i += 1
