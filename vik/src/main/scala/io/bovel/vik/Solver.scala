@@ -145,11 +145,12 @@ final class Solver(val simplify: Boolean = true):
    *  [[Model]]).
    */
   def model(): Option[Model] =
-    Option(encoder).flatMap(e => Option(e.lastModel)).map { m =>
-      // The constants the simplification defined away get their definitions' values: the
-      // definitions mention only constants the model already has.
-      m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
-    }
+    Option(encoder).flatMap(e => Option(e.lastModel)).map(complete)
+
+  // The constants the simplification defined away get their definitions' values: the
+  // definitions mention only constants the model already has.
+  private def complete(m: Model): Model =
+    m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
 
   /** The named assertions among the causes of the last [[solve]]'s `Unsat`:
    *  re-asserting just these (with the unnamed assertions) stays `Unsat`. Empty
@@ -210,6 +211,9 @@ final class Solver(val simplify: Boolean = true):
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
     e.produceModels = produceModels
+    e.modelHolds = m =>
+      val full = complete(m)
+      levels.forall(_.forall(full.holds)) && named.forall(_.forall((_, formula) => full.holds(formula)))
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
@@ -861,6 +865,7 @@ private final class Encoder(
    */
   var lastModel: Model | Null = null
   var produceModels: Boolean = true
+  var modelHolds: Model => Boolean = _ => true
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
@@ -876,9 +881,20 @@ private final class Encoder(
     sat.relevantOnly = !anyFunctionEquality && !anyStore() && !liaSolver.hasReals
     liaSolver.branchBudget = if sat.relevantOnly then branchesWhileRelevant else Int.MaxValue
     lastModel = null
-    val result = sat.solve(assumptions.toArray, keepGoing)
+    var result = sat.solve(assumptions.toArray, keepGoing)
     result match
-      case cdclt.Solver.Result.Sat(_) => if produceModels then lastModel = takeModel()
+      case cdclt.Solver.Result.Sat(_) if produceModels =>
+        lastModel = takeModel()
+        // `neededEquality` looks at integer arguments only, and an atom left undecided leaves the values free: a
+        // datatype holding two integers of one value makes one row of two (`LawTypeArgsElim`). Rare enough to answer
+        // by deciding everything, this once.
+        if sat.relevantOnly && !modelHolds(lastModel.nn) then
+          sat.unwind()
+          sat.relevantOnly = false
+          liaSolver.branchBudget = Int.MaxValue
+          lastModel = null
+          result = sat.solve(assumptions.toArray, keepGoing)
+          if result.isInstanceOf[cdclt.Solver.Result.Sat] then lastModel = takeModel()
       case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
