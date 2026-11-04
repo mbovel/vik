@@ -187,6 +187,7 @@ final class Solver(val simplify: Boolean = true):
       case Result.Unknown(_) => Result.Unknown(Reason.Fuel)
       case result => result
 
+  def debugStats: String = encoder.nn.debugStats
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
@@ -373,7 +374,7 @@ private final class Encoder(
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
     for (_, group) <- applications do
       val relevant = group.filter(shares)
-      for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
+      if relevant.length <= eagerGroup then for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
     // Applications of different function terms meet too when the functions themselves can be equated —
@@ -408,10 +409,59 @@ private final class Encoder(
       d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
       if sort.text == "Int" || sort.text == "Real"
     do
-      for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
-      do
-        if k.args.length > i then pair(s, k.args(i))
-    for (a, b) <- pairs do
+      val selected = applications.getOrElse(Term.Const(selector), Nil)
+      val built = applications.getOrElse(Term.Const(c.name), Nil)
+      if selected.length.toLong * built.length <= eagerGroup.toLong * eagerGroup then
+        for s <- selected; k <- built do
+          if k.args.length > i then pair(s, k.args(i))
+    for (a, b) <- pairs do share(a, b)
+    // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
+    // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
+    // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
+    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
+
+  /** Whether the pairs of a large group wait until a model has them disagree (see [[pairsTheModelBreaks]]). Arrays
+   *  and functions equated by the search need the arrangement up front: their witnesses and store lemmas come from
+   *  the atoms.
+   */
+  private def sharesByModel: Boolean = !anyStore() && !anyFunctionEquality && !liaSolver.hasReals
+
+  /** Above this many applications a function's pairs are left to the model. Small groups stay eager: their atoms cost
+   *  little, and guide the search better than a model does (`Peano`, 2.3s here, 10s with every group left to the
+   *  model; at 200 `BraunTree-13` is unfinished at 20s, the whole corpus 214s at 10, 234s at 30, 254s at 200).
+   */
+  private def eagerGroup: Int = if sharesByModel && !allPairsNow then 10 else Int.MaxValue
+  private var allPairsNow = false // for the search after a model that failed
+
+  /** The pairs of integer terms that the theories disagree on in the search's model, new ones only: in one class
+   *  with two values, or arguments of one value and two classes under applications of different values. These
+   *  are the only pairs an arrangement has to settle, which is model-based theory combination (de Moura and
+   *  Bjørner); all pairs of a function's applications come to 428,871 atoms on `BraunTree`.
+   */
+  private def pairsTheModelBreaks(): ArrayBuffer[(Term, Term)] =
+    val broken = ArrayBuffer.empty[(Term, Term)]
+    def pair(a: Term, b: Term): Unit =
+      if a != b && !sharedPairs((b, a)) && sharedPairs.add((a, b)) then broken += ((a, b))
+    val valued = HashMap.empty[EClassId, (Term, BigInt)]
+    def key(t: Term): Any = if isInt(t) then simplexValue(t).getOrElse(eg.find(classOf(t))) else eg.find(classOf(t))
+    for t <- classes.keysIterator if isInt(t) do
+      simplexValue(t).foreach { v =>
+        val root = eg.find(classes(t))
+        valued.get(root) match
+          case None => valued(root) = (t, v)
+          case Some((u, w)) => if v != w then pair(t, u)
+      }
+    val rows = HashMap.empty[(EClassId, List[Any]), Term.App]
+    for case a: Term.App <- classes.keysIterator if a.args.exists(isInt) do
+      val row = (eg.find(classOf(a.fun)), a.args.map(key))
+      rows.get(row) match
+        case None => rows(row) = a
+        case Some(b) =>
+          if key(a) != key(b) then
+            for (x, y) <- a.args.zip(b.args) if isInt(x) && eg.find(classOf(x)) != eg.find(classOf(y)) do pair(x, y)
+    broken
+
+  private def share(a: Term, b: Term): Unit =
       val e = lit(Formula.Eq(a, b))
       // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
       // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
@@ -435,10 +485,6 @@ private final class Encoder(
         case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
         case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
         case difference => equalOrApart(intVar(difference), 0)
-    // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
-    // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
-    // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
-    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
@@ -867,32 +913,48 @@ private final class Encoder(
   var produceModels: Boolean = true
   var modelHolds: Model => Boolean = _ => true
 
+  def debugStats: String = s"conflicts ${sat.numConflicts} decisions ${sat.numDecisions} liaVars ${liaSolver.numVars} atoms ${atoms.length}"
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    while satVars < atoms.length do
-      sat.newVar()
-      satVars += 1
-    while clauseCursor < clauses.length do
-      sat.addClause(clauses(clauseCursor), definedBy.getOrElse(clauseCursor, -1))
-      clauseCursor += 1
-    while booleansRequired < booleans.length do
-      sat.require(lit(Formula.Pred(booleans(booleansRequired))).variable)
-      booleansRequired += 1
+    def addNew(): Unit =
+      while satVars < atoms.length do
+        sat.newVar()
+        satVars += 1
+      while clauseCursor < clauses.length do
+        sat.addClause(clauses(clauseCursor), definedBy.getOrElse(clauseCursor, -1))
+        clauseCursor += 1
+      while booleansRequired < booleans.length do
+        sat.require(lit(Formula.Pred(booleans(booleansRequired))).variable)
+        booleansRequired += 1
+    addNew()
     sat.relevantOnly = !anyFunctionEquality && !anyStore() && !liaSolver.hasReals
     liaSolver.branchBudget = if sat.relevantOnly then branchesWhileRelevant else Int.MaxValue
     lastModel = null
     var result = sat.solve(assumptions.toArray, keepGoing)
+    while sharesByModel && result.isInstanceOf[cdclt.Solver.Result.Sat] && {
+        val broken = pairsTheModelBreaks()
+        if broken.nonEmpty then
+          sat.unwind()
+          for (a, b) <- broken do share(a, b)
+          addNew()
+        broken.nonEmpty
+      }
+    do result = sat.solve(assumptions.toArray, keepGoing)
     result match
       case cdclt.Solver.Result.Sat(_) if produceModels =>
         lastModel = takeModel()
         // `neededEquality` looks at integer arguments only, and an atom left undecided leaves the values free: a
         // datatype holding two integers of one value makes one row of two (`LawTypeArgsElim`). Rare enough to answer
         // by deciding everything, this once.
-        if sat.relevantOnly && !modelHolds(lastModel.nn) then
+        if (sat.relevantOnly || sharesByModel) && !modelHolds(lastModel.nn) then
           sat.unwind()
           sat.relevantOnly = false
           liaSolver.branchBudget = Int.MaxValue
           lastModel = null
+          allPairsNow = true
+          shareIntegers()
+          allPairsNow = false
+          addNew()
           result = sat.solve(assumptions.toArray, keepGoing)
           if result.isInstanceOf[cdclt.Solver.Result.Sat] then lastModel = takeModel()
       case _ => ()
@@ -926,6 +988,7 @@ private final class Encoder(
               case Some((x, y)) =>
                 lits.get(Formula.Eq(x, y)).orElse(lits.get(Formula.Eq(y, x))) match
                   case Some(e) if sat.isUnassigned(e) => needed = e.variable
+                  case None if sharesByModel => () // the model will break it: see `pairsTheModelBreaks`
                   case _ => needed = Theory.everythingNeeded
               case None => needed = Theory.everythingNeeded
     needed
