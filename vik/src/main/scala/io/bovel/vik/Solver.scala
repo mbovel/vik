@@ -948,6 +948,9 @@ private final class Encoder(
         if liaSolver.branchedOut || (sat.relevantOnly || sharesByModel) && !modelHolds(lastModel.nn) then
           sat.unwind()
           sat.relevantOnly = false
+          // The phases of the search that failed walk the same range again (`BinarySearch1-36`, 119 ms on main, past
+          // 20 s with them kept, 887 ms without).
+          sat.forgetSearch()
           liaSolver.branchBudget = Int.MaxValue
           lastModel = null
           allPairsNow = true
