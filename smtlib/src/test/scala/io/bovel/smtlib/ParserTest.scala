@@ -134,3 +134,11 @@ class ParserTest extends munit.FunSuite:
     intercept[Smt2Error](
       parse("(declare-sort Box 1) (declare-const b (Box Int)) (declare-const c (Box Bool)) (assert (= b c))")
     )
+  test("an indexed identifier that is no bit-vector literal is an error, not a crash"):
+    for script <- List(
+        "(assert (= (_ bvfoo 8) #x00))",
+        "(assert (= #x00 (_ bv 8)))",
+        "(assert (= #x00 (_ bv-1 8)))"
+      )
+    do intercept[Smt2Error](parse(script))
+    parse("(assert (= (_ bv255 8) #xFF))")

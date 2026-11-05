@@ -565,7 +565,8 @@ final class Parser:
     case SNumeral(_) => Sort.Int
     case SDecimal(_, _) => Sort.Real
     case SBits(_, width, _) => Sort.BitVec(width)
-    case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil) if literal.startsWith("bv") =>
+    case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil)
+        if literal.startsWith("bv") && isNumeral(literal.drop(2)) =>
       Sort.BitVec(index(width))
     case SSymbol(name) =>
       env.get(name).orElse(functions.get(name)).orElse(macros.get(name).map(_._2)).getOrElse(
@@ -781,7 +782,8 @@ final class Parser:
     case SNumeral(value) => Term.Numeral(value)
     case SDecimal(unscaled, scale) => Term.Decimal(unscaled, scale)
     case SBits(value, width, _) => Term.Bits(value, width)
-    case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil) if literal.startsWith("bv") =>
+    case SList(SSymbol("_") :: SSymbol(literal) :: SNumeral(width) :: Nil)
+        if literal.startsWith("bv") && isNumeral(literal.drop(2)) =>
       Term.Bits(BigInt(literal.drop(2)).mod(BigInt(2).pow(index(width))), index(width))
     case SSymbol(name) =>
       declared(name, env)
