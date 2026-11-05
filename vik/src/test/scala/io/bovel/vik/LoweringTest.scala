@@ -35,14 +35,14 @@ class LoweringTest extends munit.FunSuite:
     // The range of a bit-vector constant is an assertion, and reset-assertions drops the assertions:
     // without it said again, the constants are integers of any size and an unsat script answers sat.
     val commands = Lowering(Parser.parse(
-      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 4)) (reset-assertions) (assert (= a b))"
+      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (reset-assertions) (assert (= a b))"
     )).commands
     val after = commands.dropWhile(_ != Command.ResetAssertions).tail
     assertEquals(
       after.takeWhile(_ != Command.Assert(IntEq(Const("a"), Const("b")))),
       List(
         Command.Assert(And(List(Le(Num(0), Const("a")), Le(Const("a"), Num(255))))),
-        Command.Assert(And(List(Le(Num(0), Const("b")), Le(Const("b"), Num(15)))))
+        Command.Assert(And(List(Le(Num(0), Const("b")), Le(Const("b"), Num(255)))))
       )
     )
 

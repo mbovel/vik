@@ -13,7 +13,8 @@ import io.bovel.smtlib.sexpr.SExpr.{SBits, SDecimal, SKeyword, SList, SNumeral, 
  *  reading and sorts: sorts of declared and bound symbols decide which tree a
  *  subterm belongs to (`=` on Booleans is equivalence, a Boolean application a
  *  [[Formula.Pred]]) and reject what no theory here speaks (strings, floats,
- *  ...). An unknown symbol is an error.
+ *  ...). An unknown symbol is an error, and so is an ill-sorted term
+ *  ([[SortCheck]]).
  */
 /** One parser: it carries the declarations and macros the commands build up, so
  *  the next `parse` reads its input in their scope ([[Parser.parse]] makes a
@@ -31,6 +32,7 @@ final class Parser:
   private var matches = 0 // the `match` scrutinees bound so far, for their names
   private val datatypeOf = HashMap.empty[String, String] // a constructor to its datatype, for the patterns
   private val instanceSymbols = scala.collection.mutable.HashSet.empty[String] // the symbols of instances
+  private val sortCheck = SortCheck(functions, macros)
 
   /** Polymorphism, compiled away here: a sort parameter
    *  (`declare-sort-parameter`, or the `par` of a datatype) makes a rank
@@ -170,22 +172,21 @@ final class Parser:
       val ps = parameters(params)
       val result = sort(s)
       free(name) // after the sorts, which may have instantiated a datatype whose symbol this is
-      val env = ps.toMap
-      val typed: Term | Formula = if result == Sort.Bool then formula(body, env) else term(body, env)
+      val typed = definition(ps, result, body)
       undoable(macros, name)
       macros(name) = (ps, result, typed)
       List(Command.DefineFun(name, ps, result, typed))
     case SList(SSymbol("assert") :: SList(SSymbol("!") :: body :: attributes) :: Nil)
         if attributes.sliding(2).exists { case Seq(SKeyword("named"), _) => true; case _ => false } =>
       val name = attributes.sliding(2).collectFirst { case Seq(SKeyword("named"), SSymbol(n)) => n }.get
-      List(Command.AssertNamed(name, formula(body, Map.empty)))
-    case SList(SSymbol("assert") :: body :: Nil) => List(Command.Assert(formula(body, Map.empty)))
+      List(Command.AssertNamed(name, assertion(body)))
+    case SList(SSymbol("assert") :: body :: Nil) => List(Command.Assert(assertion(body)))
     case SList(SSymbol("check-sat") :: Nil) => List(Command.CheckSat)
     case SList(SSymbol("check-sat-using") :: _) => List(Command.CheckSat) // z3's, with a tactic: ignored
     case SList(SSymbol("check-sat-assuming") :: SList(assumptions) :: Nil) =>
-      List(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
+      List(Command.CheckSatAssuming(assumptions.map(assertion)))
     case SList(SSymbol("check-sat") :: assumptions) => // z3's shorthand
-      List(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
+      List(Command.CheckSatAssuming(assumptions.map(assertion)))
     case SList(SSymbol("reset-assertions") :: Nil) => List(Command.ResetAssertions)
     case SList(SSymbol("reset") :: Nil) =>
       functions.clear()
@@ -228,7 +229,12 @@ final class Parser:
             (s match
               case SSymbol(name) if functions.get(name).flatMap(_.arrow).exists(_._1.nonEmpty) =>
                 Term.Const(name) // a function symbol: its graph in the model, answered as a lambda (issue 50)
-              case _ => if sortOf(s, Map.empty) == Sort.Bool then formula(s, Map.empty) else term(s, Map.empty))
+              case _ =>
+                if sortOf(s, Map.empty) == Sort.Bool then assertion(s)
+                else
+                  val t = term(s, Map.empty)
+                  sortCheck.term(t, Map.empty)
+                  t)
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))
     case SList(SSymbol("set-option") :: SKeyword(key) :: value :: Nil) =>
@@ -240,6 +246,24 @@ final class Parser:
       List(Command.Exit)
     case SList(SSymbol(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
+
+  /** A closed formula, its sorts checked. */
+  private def assertion(sexpr: SExpr): Formula =
+    val f = formula(sexpr, Map.empty)
+    sortCheck.formula(f, Map.empty)
+    f
+
+  /** A macro's body, its sorts checked against its parameters and result. */
+  private def definition(params: List[(String, Sort)], result: Sort, body: SExpr): Term | Formula =
+    val env = params.toMap
+    if result == Sort.Bool then
+      val f = formula(body, env)
+      sortCheck.formula(f, env)
+      f
+    else
+      val t = term(body, env)
+      sortCheck.expect(sortCheck.term(t, env), result, "the body of a definition")
+      t
 
   /** Declares `name`, with its sort as written; a rank with sort parameters
    *  declares nothing yet (see [[Poly]]).
@@ -305,7 +329,10 @@ final class Parser:
    */
   private def instance(name: String, argSorts: List[Sort], expected: Option[Sort]): String =
     polymorphic.get(name) match
-      case None => name
+      case None =>
+        val declared = functions.get(name).map(s => s.arrow.fold(s)(_._2)).orElse(macros.get(name).map(_._2))
+        for e <- expected; s <- declared if s != e do throw Smt2Error(s"(as $name ${e.text}): its sort is ${s.text}")
+        name
       case Some(poly) =>
         val (params, args, result) = poly match
           case Poly.Fun(ps, as, r) => (ps, as, r)
@@ -349,8 +376,7 @@ final class Parser:
                   case Poly.Macro(_, formals, r, body) =>
                     val ps = formals.map((n, s) => n -> sort(s))
                     val resultSort = sort(r)
-                    val env = ps.toMap
-                    val typed: Term | Formula = if resultSort == Sort.Bool then formula(body, env) else term(body, env)
+                    val typed = definition(ps, resultSort, body)
                     undoable(macros, instanceName)
                     macros(instanceName) = (ps, resultSort, typed)
                     pending += Command.DefineFun(instanceName, ps, resultSort, typed)
@@ -483,6 +509,10 @@ final class Parser:
     case SList(SSymbol("Array") :: args) if args.length >= 2 =>
       val sorts = args.map(sort)
       sorts.init.foldRight(sorts.last)(Sort.Array(_, _))
+    // An instance of a declared sort constructor, named by its arguments' own sorts: `(Box X)` under a
+    // sort parameter and `(Box IntBox)` under `define-sort` are the same sort as `(Box Int)`.
+    case SList(SSymbol(name) :: args) if declaredSorts(name) && args.nonEmpty =>
+      Sort.Named(s"($name ${args.map(sort(_).text).mkString(" ")})")
     case other => Sort.Named(other.toString) // opaque: rejected by `check` where a symbol is declared
 
   /** Rejects, at a declaration or a binder, the sorts of theories that are not
@@ -517,13 +547,6 @@ final class Parser:
   private def isDecimal(name: String): Boolean =
     val i = name.indexOf('.')
     i > 0 && i < name.length - 1 && name.take(i).forall(_.isDigit) && name.drop(i + 1).forall(_.isDigit)
-
-  /** Whether terms of `sort` are numbers or bit-vectors: where `=` and
-   *  `distinct` mean arithmetic equality after the lowering.
-   */
-  private def arithmetic(s: Sort): Boolean = s match
-    case Sort.Int | Sort.Real | Sort.BitVec(_) => true
-    case _ => false
 
   /** The sort of an expression: what decides between the two trees. `env` binds
    *  the `let`-bound names in scope.
@@ -653,8 +676,6 @@ final class Parser:
       IsConstructor(c, term(arg, env))
     case SList(SSymbol("is_int") :: arg :: Nil) => IsInt(term(arg, env))
     case SList(SSymbol(op @ ("<=" | "<" | ">=" | ">")) :: args) if args.length >= 2 =>
-      for a <- args if !arithmetic(sortOf(a, env)) do
-        throw Smt2Error(s"$op on ${sortOf(a, env)} is not supported")
       Cmp(CmpOp.values.find(_.name == op).get, args.map(term(_, env)))
     case SList(SSymbol("ite") :: cond :: thn :: els :: Nil) =>
       Ite(formula(cond, env), formula(thn, env), formula(els, env))
