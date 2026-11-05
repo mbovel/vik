@@ -172,21 +172,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def isUnassigned(l: Lit): Boolean = value(l.index) == 0
 
-  /** Forgets the saved phases and the decision order, not the clauses: for a search that must not follow the one
-   *  before it. At level 0, between two solves.
+  /** Forgets the saved phases, not the clauses or the decision order: for a search that must not follow the one before
+   *  it. At level 0, between two solves.
    */
-  def forgetSearch(): Unit =
+  def forgetPhases(): Unit =
     java.util.Arrays.fill(phase, false)
     java.util.Arrays.fill(seen, false)
-    var v = 0
-    while v < varCount do
-      vmtfPrev(v) = v - 1
-      vmtfNext(v) = if v + 1 < varCount then v + 1 else -1
-      vmtfStamp(v) = -v.toLong
-      v += 1
-    vmtfHead = if varCount > 0 then 0 else -1
-    vmtfTail = varCount - 1
-    vmtfSearch = vmtfHead
 
   /** Unwinds the search to level 0, the theories included: called between
    *  solves, so that what is added next lands in the persistent state, never on
