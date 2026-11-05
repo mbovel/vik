@@ -134,3 +134,40 @@ class ParserTest extends munit.FunSuite:
     intercept[Smt2Error](
       parse("(declare-sort Box 1) (declare-const b (Box Int)) (declare-const c (Box Bool)) (assert (= b c))")
     )
+
+  test("a sort must be declared"):
+    for script <- List(
+        "(declare-const a Mystery)",
+        "(declare-fun f (Mystery) Bool)",
+        "(declare-const a (Mystery Int))",
+        "(declare-const a (Array Int Mystery))",
+        "(define-fun f () Mystery 1)",
+        "(define-fun f ((x Mystery)) Bool true)",
+        "(declare-datatype D ((c (f Mystery))))",
+        "(declare-datatypes ((L 1)) ((par (T) ((c (f Mystery))))))(declare-const a (L Int))",
+        "(push)(declare-sort U 0)(pop)(declare-const a U)",
+        "(declare-sort U 0)(reset)(declare-const a U)",
+        "(declare-datatype D ((c)))(reset)(declare-const a D)"
+      )
+    do intercept[Smt2Error](parse(script))
+
+  test("a declared sort takes its arity"):
+    for script <- List(
+        "(declare-sort U 0)(declare-const a (U Int))",
+        "(declare-sort B 1)(declare-const a B)",
+        "(declare-sort B 1)(declare-const a (B Int Int))",
+        "(declare-sort B 1)(declare-datatype D ((c (f B))))"
+      )
+    do intercept[Smt2Error](parse(script))
+
+  test("the datatypes a field may mention"):
+    parse("""
+      (declare-sort U 0) (declare-sort B 1)
+      (declare-datatype R ((n) (m (next R))))
+      (declare-datatypes ((A 0) (C 0)) (((a (c C))) ((e) (d (a A)))))
+      (declare-datatypes ((L 1)) ((par (T) ((nil) (cons (head T) (tail (L T)))))))
+      (declare-datatype F ((f (l (L F)) (u U) (b (B Int)) (arr (Array Int U)))))
+      (declare-datatypes ((M 1) (N 0)) ((par (T) ((m1 (v T) (o N)))) ((n1 (w (M Int))))))
+      (declare-datatype Unused ((s (t String))))
+      (declare-const x (L Int)) (declare-const y (M Bool)) (declare-const z (B U))
+      """)
