@@ -3,9 +3,9 @@ package io.bovel.smtlib
 /** Checks the sorts of parsed terms, in one pass over each tree. The parser's
  *  own `sortOf` asks only what picks a tree, so an ill-sorted script used to
  *  reach the solver and get a definite answer (corpus file
- *  `alpha-beta_reduce-932bafde0fe6`, a Function1 equated with an `Any`, answered
- *  `sat` against its `:status unsat`). z3 and cvc5 refuse such a script, and so
- *  does this.
+ *  `alpha-beta_reduce-932bafde0fe6`, a Function1 equated with an `Any`,
+ *  answered `sat` against its `:status unsat`). z3 and cvc5 refuse such a
+ *  script, and so does this.
  *
  *  Beyond SMT-LIB, an Int fits where a Real is expected, as in z3: scripts rely
  *  on it. z3's other coercions, a Real to an Int and a Bool to a number, are

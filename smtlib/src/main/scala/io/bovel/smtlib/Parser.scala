@@ -234,8 +234,7 @@ final class Parser:
                 else
                   val t = term(s, Map.empty)
                   sortCheck.term(t, Map.empty)
-                  t
-            )
+                  t)
         )))
       catch case _: Smt2Error => List(Command.Other(sexpr))
     case SList(SSymbol("set-option") :: SKeyword(key) :: value :: Nil) =>

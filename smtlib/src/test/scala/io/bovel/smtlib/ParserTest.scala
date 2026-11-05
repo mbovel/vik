@@ -131,4 +131,6 @@ class ParserTest extends munit.FunSuite:
       (declare-fun unbox ((Box X)) X) (declare-const b (Box IntBox)) (declare-const c (Box Int))
       (assert (= (unbox b) (unbox c) 1))
       """)
-    intercept[Smt2Error](parse("(declare-sort Box 1) (declare-const b (Box Int)) (declare-const c (Box Bool)) (assert (= b c))"))
+    intercept[Smt2Error](
+      parse("(declare-sort Box 1) (declare-const b (Box Int)) (declare-const c (Box Bool)) (assert (= b c))")
+    )
