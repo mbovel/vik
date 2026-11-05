@@ -2,9 +2,9 @@
 ; Copyright (c) Levent Erkok
 ; https://github.com/Z3Prover/z3/issues/1645
 ; EXPECT: sat
-; EXPECT: ((x 1))
+; EXPECT: ((x (- 1)))
 ; EXPECT: ((y 0))
-; EXPECT: ((z 2))
+; EXPECT: ((z 1))
 (declare-fun x () Int)
 (declare-fun y () Int)
 (declare-fun z () Int)

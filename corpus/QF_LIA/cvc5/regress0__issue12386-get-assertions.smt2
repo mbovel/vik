@@ -2,7 +2,7 @@
 ; SCRUBBER: sed -E 's/\(\(x \(- [1-9][0-9]*\)\)\)/((x NONZERO))/; s/\(\(x [1-9][0-9]*\)\)/((x NONZERO))/'
 ; EXPECT: sat
 ; EXPECT: ((and (or (<= (+ x 1) 0) (<= 1 x))))
-; EXPECT: ((x 1))
+; EXPECT: ((x (- 1)))
 (set-option :produce-models true)
 (set-logic QF_LIA)
 (declare-const x Int)
