@@ -33,6 +33,10 @@ unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(
 conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the pre-renaming spellings
 `bv2nat`, `bv2int` and `(_ int2bv n)` accepted.
 
+`bv2int` is signed, the same as `sbv_to_int`, following the definition in the SMT-LIB theory. z3 reads it as
+unsigned, the same as `bv2nat`, so the two answer differently when the top bit is set: `(bv2int #xFF)` is -1 here
+and 255 in z3.
+
 ```smt2
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
