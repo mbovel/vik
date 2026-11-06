@@ -1,0 +1,42 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/i1399a.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!34 () Bool)
+(assert start!34)
+(declare-fun res!74 () Bool)
+(declare-fun e!30 () Bool)
+(assert (=> start!34 (=> (not res!74) (not e!30))))
+(declare-datatypes ((Option!14 0))(
+  ( (Some!13 (v!47 Int)) (None!13) )
+))
+(declare-datatypes ((tuple2!16 0))(
+  ( (tuple2!17 (_1!8 Int) (_2!8 Option!14)) )
+))
+(declare-datatypes ((List!20 0))(
+  ( (Nil!18) (Cons!18 (h!81 tuple2!16) (t!96 List!20)) )
+))
+(declare-fun l!110 () List!20)
+(declare-fun lambda!31 () Int)
+(declare-datatypes ((List!21 0))(
+  ( (Nil!19) (Cons!19 (h!82 Option!14) (t!97 List!21)) )
+))
+(declare-fun bar!0 (List!20) List!21)
+(declare-fun map!13 (List!20 Int) List!21)
+(assert (=> start!34 (= res!74 (= (bar!0 l!110) (map!13 l!110 lambda!31)))))
+(assert (=> start!34 e!30))
+(assert (=> start!34 true))
+(declare-fun b!34 () Bool)
+(assert (=> b!34 (= e!30 (not (= (bar!0 l!110) (map!13 l!110 lambda!31))))))
+(assert (= (and start!34 res!74) b!34))
+(declare-fun m!75 () Bool)
+(assert (=> start!34 m!75))
+(declare-fun m!77 () Bool)
+(assert (=> start!34 m!77))
+(assert (=> b!34 m!75))
+(declare-fun m!79 () Bool)
+(assert (=> b!34 m!79))
+(set-info :status unsat)
+(check-sat-assuming ((not start!34) (not b!34)))
+(set-info :status unsat)
+(check-sat)

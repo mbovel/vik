@@ -1,0 +1,30 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/ConcTree.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!2050 () Bool)
+(assert start!2050)
+(declare-datatypes ((T!527 0))(
+  ( (T!528 (val!178 Int)) )
+))
+(declare-datatypes ((Conc!160 0))(
+  ( (Empty!160) (CC!160 (left!238 Conc!160) (right!238 Conc!160)) (Single!160 (x!2876 T!527)) )
+))
+(declare-fun thiss!148 () Conc!160)
+(get-info :version)
+(assert (=> start!2050 false))
+(declare-fun e!13011 () Bool)
+(assert (=> start!2050 e!13011))
+(declare-fun b!27102 () Bool)
+(declare-fun tp!3621 () Bool)
+(declare-fun tp!3622 () Bool)
+(assert (=> b!27102 (= e!13011 (and tp!3621 tp!3622))))
+(declare-fun b!27103 () Bool)
+(declare-fun tp_is_empty!357 () Bool)
+(assert (=> b!27103 (= e!13011 tp_is_empty!357)))
+(assert (= (and start!2050 ((_ is CC!160) thiss!148)) b!27102))
+(assert (= (and start!2050 ((_ is Single!160) thiss!148)) b!27103))
+(set-info :status unsat)
+(check-sat-assuming ((not b!27102) tp_is_empty!357))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,26 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/Overrides.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!29 () Bool)
+(assert start!29)
+(declare-datatypes ((B!10 0))(
+  ( (C!9 (c!22 Int)) (D!9) )
+))
+(declare-fun thiss!13 () B!10)
+(declare-fun i!3 () Int)
+(get-info :version)
+(assert (=> start!29 (and ((_ is C!9) thiss!13) (>= i!3 0) (not (= i!3 0)) (< (- i!3 1) 0))))
+(declare-fun lt!15 () B!10)
+(assert (=> start!29 (= lt!15 thiss!13)))
+(declare-fun inv!1 (B!10) Bool)
+(assert (=> start!29 (and (inv!1 thiss!13) ((_ is C!9) lt!15))))
+(assert (=> start!29 true))
+(declare-fun bs!13 () Bool)
+(assert (= bs!13 start!29))
+(declare-fun m!35 () Bool)
+(assert (=> bs!13 m!35))
+(set-info :status unsat)
+(check-sat-assuming ((not start!29)))
+(set-info :status unsat)
+(check-sat)

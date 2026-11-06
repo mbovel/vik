@@ -1,0 +1,26 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/PropositionalLogic.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFBVDT)
+(declare-fun start!327 () Bool)
+(assert start!327)
+(declare-fun res!1006 () Bool)
+(declare-fun e!2227 () Bool)
+(assert (=> start!327 (=> (not res!1006) (not e!2227))))
+(declare-datatypes ((Formula!47 0))(
+  ( (Literal!47 (id!69 (_ BitVec 32))) (Not!47 (f!409 Formula!47)) (And!47 (lhs!449 Formula!47) (rhs!449 Formula!47)) (Implies!47 (lhs!450 Formula!47) (rhs!450 Formula!47)) (Or!47 (lhs!451 Formula!47) (rhs!451 Formula!47)) )
+))
+(declare-fun f!194 () Formula!47)
+(declare-fun isNNF!0 (Formula!47) Bool)
+(assert (=> start!327 (= res!1006 (isNNF!0 f!194))))
+(assert (=> start!327 e!2227))
+(assert (=> start!327 true))
+(declare-fun b!3754 () Bool)
+(assert (=> b!3754 (= e!2227 false)))
+(assert (= (and start!327 res!1006) b!3754))
+(declare-fun m!1517 () Bool)
+(assert (=> start!327 m!1517))
+(set-info :status unsat)
+(check-sat-assuming ((not start!327)))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,30 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/RedBlackTree.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFBVDT)
+(declare-fun start!20 () Bool)
+(assert start!20)
+(declare-fun res!109 () Bool)
+(declare-fun e!94 () Bool)
+(assert (=> start!20 (=> (not res!109) (not e!94))))
+(declare-datatypes ((Color!7 0))(
+  ( (Red!7) (Black!7) )
+))
+(declare-fun c!30 () Color!7)
+(declare-datatypes ((Tree!7 0))(
+  ( (Empty!7) (Node!7 (color!56 Color!7) (left!58 Tree!7) (value!92 (_ BitVec 32)) (right!58 Tree!7)) )
+))
+(declare-fun b!35 () Tree!7)
+(declare-fun a!44 () Tree!7)
+(get-info :version)
+(assert (=> start!20 (= res!109 (and (or (not ((_ is Black!7) c!30)) (not ((_ is Node!7) a!44)) (not ((_ is Red!7) (color!56 a!44))) (not ((_ is Node!7) (left!58 a!44))) (not ((_ is Red!7) (color!56 (left!58 a!44))))) (or (not ((_ is Black!7) c!30)) (not ((_ is Node!7) a!44)) (not ((_ is Red!7) (color!56 a!44))) (not ((_ is Node!7) (right!58 a!44))) (not ((_ is Red!7) (color!56 (right!58 a!44))))) (or (not ((_ is Black!7) c!30)) (not ((_ is Node!7) b!35)) (not ((_ is Red!7) (color!56 b!35))) (not ((_ is Node!7) (left!58 b!35))) (not ((_ is Red!7) (color!56 (left!58 b!35))))) (or (not ((_ is Black!7) c!30)) (not ((_ is Node!7) b!35)) (not ((_ is Red!7) (color!56 b!35))) (not ((_ is Node!7) (right!58 b!35))) (not ((_ is Red!7) (color!56 (right!58 b!35)))))))))
+(assert (=> start!20 e!94))
+(assert (=> start!20 true))
+(declare-fun b!178 () Bool)
+(declare-fun err!3 () Tree!7)
+(assert (=> b!178 (= e!94 (not ((_ is Node!7) err!3)))))
+(assert (=> b!178 true))
+(assert (= (and start!20 res!109) b!178))
+(set-info :status sat)
+(check-sat)
+(get-model)

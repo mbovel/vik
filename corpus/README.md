@@ -3,7 +3,8 @@
 Test inputs and benchmark instances, one directory per logic, the smallest standard logic each file fits (`QF_ABV`,
 `QF_ALIA`, `QF_AUFBV`, `QF_AUFBVLIA`, `QF_AUFLIA`, `QF_AX`, `QF_BV`, `QF_BVLRA`, `QF_DT`, `QF_IDL`, `QF_LIA`,
 `QF_LIRA`, `QF_LRA`, `QF_UF`, `QF_UFBV`, `QF_UFBVDT`, `QF_UFBVLIA`, `QF_UFDT`, `QF_UFDTLIA`, `QF_UFDTLIRA`, `QF_UFIDL`,
-`QF_UFLIA`, `QF_UFLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
+`QF_UFLIA`, `QF_UFLRA`; and, for Stainless's sessions, which SMT-LIB has no logic for, `QF_AUFBVDT`, `QF_AUFBVDTLIA`,
+`QF_AUFDTLIA` and `QF_UFBVDTLIA`, named as `QF_UFBVDT` is), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
@@ -26,6 +27,7 @@ their `@Param`s.
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
 | Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `<logic>/dotty/` | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
 | Scala 3 qualified types, bit-vector default (the same branch and commit) | `<logic>/dotty/` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
+| [Stainless](https://github.com/epfl-lara/stainless) verification benchmarks (commit a1a60c98, inox 37db9545) | `<logic>/stainless/` | the solver sessions of `frontends/benchmarks/verification/{valid,invalid}`, dumped with `--solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30`, statuses from z3, imported by `bench/import-stainless.py`: every session up to 100 KB, and those up to 1 MB that take a second or more (5 773 of 6 231, exact duplicates once; the two largest, of 94 MB and 185 MB, are left out though both time out at 20 s), less the ones `prune` removes: 2 190 alike at `order`, then 3 trivial at `trivial 10 5` (3 580 left). A file is `<valid or invalid>-<benchmark>__<session>`, so a family is one benchmark's sessions | Apache-2.0 (the stainless repository) |
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) and one generated script, `QF_DT/vik/bmc__stack_k20.smt2`: bounded model checking of a stack of integers, twenty steps, a postcondition (unsat) and a reachability question (sat) per step under `push`/`pop` — datatypes and integers together, the way a BMC tool drives an incremental solver (`bench/gen-bmc-stack.py`) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
