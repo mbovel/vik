@@ -56,7 +56,8 @@ final class Parser:
      */
     case Macro(params: List[String], formals: List[(String, SExpr)], result: SExpr, body: SExpr)
   private val sortParameters = scala.collection.mutable.LinkedHashSet.empty[String]
-  private val declaredSorts = scala.collection.mutable.HashSet.empty[String] // `declare-sort`, of any arity
+  private val declaredSorts = HashMap.empty[String, Int] // `declare-sort`, with its arity
+  private val datatypeNames = scala.collection.mutable.HashSet.empty[String] // monomorphic datatypes
   private val sortDefinitions = HashMap.empty[String, (List[String], SExpr)] // define-sort
   private val polymorphic = HashMap.empty[String, Poly]
   private val templates = HashMap.empty[String, (List[String], List[SExpr])] // parametric datatypes
@@ -104,11 +105,11 @@ final class Parser:
     case SList(SSymbol("set-info") :: SKeyword(key) :: value :: Nil) => List(Command.SetInfo(s":$key", value.toString))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: SNumeral(arity) :: Nil) =>
       undoable(declaredSorts, name)
-      declaredSorts += name
+      declaredSorts(name) = index(arity)
       List(Command.DeclareSort(name, index(arity)))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: Nil) =>
       undoable(declaredSorts, name)
-      declaredSorts += name
+      declaredSorts(name) = 0
       List(Command.DeclareSort(name, 0))
     case SList(SSymbol("declare-sort-parameter") :: SSymbol(name) :: Nil) =>
       undoable(sortParameters, name)
@@ -132,6 +133,10 @@ final class Parser:
     case SList(SSymbol("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil)
         if names.exists { case SList(_ :: SNumeral(n) :: Nil) if n == 0 => false; case _ => true } =>
       // Parametric: each declaration is `(par (params) (constructors))`, a template instantiated on use.
+      // A monomorphic member is named up front: an earlier member's field may mention it.
+      for case SList(SSymbol(name) :: SNumeral(n) :: Nil) <- names if n == 0 do
+        undoable(datatypeNames, name)
+        datatypeNames += name
       for (n, d) <- names.zip(declarations) do
         (n, d) match
           case (
@@ -171,6 +176,7 @@ final class Parser:
     case SList(SSymbol("define-fun") :: SSymbol(name) :: SList(params) :: s :: body :: Nil) =>
       val ps = parameters(params)
       val result = sort(s)
+      check(result)
       free(name) // after the sorts, which may have instantiated a datatype whose symbol this is
       val typed = definition(ps, result, body)
       undoable(macros, name)
@@ -193,6 +199,7 @@ final class Parser:
       macros.clear()
       constructors.clear()
       declaredSorts.clear()
+      datatypeNames.clear()
       sortParameters.clear()
       sortDefinitions.clear()
       polymorphic.clear()
@@ -376,6 +383,7 @@ final class Parser:
                   case Poly.Macro(_, formals, r, body) =>
                     val ps = formals.map((n, s) => n -> sort(s))
                     val resultSort = sort(r)
+                    (resultSort :: ps.map(_._2)).foreach(check)
                     val typed = definition(ps, resultSort, body)
                     undoable(macros, instanceName)
                     macros(instanceName) = (ps, resultSort, typed)
@@ -422,6 +430,7 @@ final class Parser:
         for symbol <- symbols do undoable(instanceSymbols, symbol)
         instanceSymbols ++= symbols
         register(datatype)
+        fields(datatype)
         pending += Command.DeclareDatatypes(List(datatype))
       finally sortSubst = saved
     Sort.Named(text)
@@ -432,6 +441,9 @@ final class Parser:
    *  `(_ is C)` : `D -> Bool`).
    */
   private def declareDatatypes(declarations: List[(String, List[SExpr])]): Command =
+    for (name, _) <- declarations do // named first: the fields read below may mention them, and instantiate
+      undoable(datatypeNames, name)
+      datatypeNames += name
     val datatypes = declarations.map { (name, constructors) =>
       Datatype(
         name,
@@ -449,6 +461,7 @@ final class Parser:
       )
     }
     datatypes.foreach(register)
+    datatypes.foreach(fields)
     Command.DeclareDatatypes(datatypes)
 
   /** Makes a datatype's constructors, selectors and testers known. */
@@ -504,6 +517,8 @@ final class Parser:
     case SSymbol("Bool") => Sort.Bool
     case SSymbol("Int") => Sort.Int
     case SSymbol("Real") => Sort.Real
+    case SSymbol(name) if declaredSorts.get(name).exists(_ > 0) =>
+      throw Smt2Error(s"the sort $name takes ${declaredSorts(name)} sort arguments")
     case SSymbol(name) => Sort.Named(name)
     case SList(SSymbol("_") :: SSymbol("BitVec") :: SNumeral(width) :: Nil) => Sort.BitVec(index(width))
     case SList(SSymbol("Array") :: args) if args.length >= 2 =>
@@ -511,26 +526,60 @@ final class Parser:
       sorts.init.foldRight(sorts.last)(Sort.Array(_, _))
     // An instance of a declared sort constructor, named by its arguments' own sorts: `(Box X)` under a
     // sort parameter and `(Box IntBox)` under `define-sort` are the same sort as `(Box Int)`.
-    case SList(SSymbol(name) :: args) if declaredSorts(name) && args.nonEmpty =>
+    case SList(SSymbol(name) :: args) if declaredSorts.contains(name) && args.nonEmpty =>
+      if args.length != declaredSorts(name) then
+        throw Smt2Error(s"the sort $name takes ${declaredSorts(name)} sort arguments")
       Sort.Named(s"($name ${args.map(sort(_).text).mkString(" ")})")
-    case other => Sort.Named(other.toString) // opaque: rejected by `check` where a symbol is declared
+    case other => Sort.Named(other.toString) // rejected by `check` where a symbol is declared
 
-  /** Rejects, at a declaration or a binder, the sorts of theories that are not
-   *  spoken here, which would otherwise pass for uninterpreted sorts: strings,
-   *  floats, sets, ... (a datatype field is not checked, as before: an unused
-   *  one costs nothing).
+  /** Whether the script declared the sort `name`: a sort, a datatype, or an
+   *  instance of a sort constructor or of a parametric datatype.
+   */
+  private def known(name: String): Boolean =
+    declaredSorts.contains(name) || datatypeNames(name) || instantiated(name)
+      || (name.startsWith("(") && declaredSorts.contains(name.drop(1).takeWhile(_ != ' ')))
+
+  /** A sort of a theory that is not spoken here: strings, floats, sets, ... */
+  private def unsupported(name: String): Boolean =
+    List(
+      "String",
+      "RegLan",
+      "RoundingMode",
+      "(RoundingMode)",
+      "UnitTuple",
+      "(Set ",
+      "(Bag ",
+      "(Seq ",
+      "(Tuple ",
+      "(_ FloatingPoint"
+    )
+      .exists(u => name == u || name.startsWith(u)) || name.startsWith("Float")
+
+  /** Rejects, at a declaration or a binder, a sort the script did not declare,
+   *  which would otherwise pass for an uninterpreted sort, and the unsupported
+   *  ones.
    */
   private def check(s: Sort): Unit = s match
-    case Sort.Named(name) if name.startsWith("(") && declaredSorts(name.drop(1).takeWhile(_ != ' ')) => ()
+    case Sort.Named(name) if known(name) => ()
     case Sort.Named(name) =>
-      val unsupported =
-        List("String", "RegLan", "RoundingMode", "UnitTuple", "(Set ", "(Bag ", "(Seq ", "(Tuple ", "(_ FloatingPoint")
-      if unsupported.exists(u => name == u || name.startsWith(u)) || name.startsWith("Float") then
-        throw Smt2Error(s"the sort $name is not supported")
+      if unsupported(name) then throw Smt2Error(s"the sort $name is not supported")
+      throw Smt2Error(s"unknown sort $name")
     case Sort.Array(index, element) =>
       check(index)
       check(element)
     case _ => ()
+
+  /** Rejects a datatype's field of an undeclared sort. An unsupported one
+   *  stays, as before: an unused field costs nothing.
+   */
+  private def fields(datatype: Datatype): Unit =
+    def field(s: Sort): Unit = s match
+      case Sort.Named(name) if !known(name) && !unsupported(name) => throw Smt2Error(s"unknown sort $name")
+      case Sort.Array(index, element) =>
+        field(index)
+        field(element)
+      case _ => ()
+    for constructor <- datatype.constructors; (_, s) <- constructor.selectors do field(s)
 
   /** The parameters of a macro, `((x S) ...)`, with their sorts.
    */

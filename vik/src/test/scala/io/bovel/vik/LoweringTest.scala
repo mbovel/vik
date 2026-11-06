@@ -76,6 +76,7 @@ class LoweringTest extends munit.FunSuite:
       IntEq(Const("x"), Const("n")) // ubv_to_int vanishes: the lowered bit-vector is its unsigned value
     )
     assertEquals(lowered("(assert (= (sbv_to_int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1)))
+    assertEquals(lowered("(assert (= (bv2int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1))) // signed, unlike z3
     assertEquals(lowered("(assert (= (sbv_to_int #x7F) 127))").last, IntEq(Num(127), Num(127)))
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, IntEq(Num(44), Num(44)))
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, IntEq(Num(255), Num(255)))
