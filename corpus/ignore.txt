@@ -275,6 +275,7 @@ QF_UF/cvc5/regress3__hole10.cvc.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress3__hole9.cvc.smt2	timeout (5 s limit)
 QF_UF/smt-lib/PEQ__PEQ018_size5.smt2	timeout (5 s limit)
 QF_UF/smt-lib/SEQ__SEQ009_size10.smt2	timeout (5 s limit)
+QF_UF/z3test/regressions__fp-rounding_mode-3.smt2	the parser refuses RoundingMode, a floating-point sort it does not support
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_needham.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_train-gate.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_at.1.prop1_ab_cti_max.smt2	timeout (5 s limit)
