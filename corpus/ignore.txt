@@ -335,8 +335,6 @@ QF_UFBVDT/dotty/alpha-self_reference-c9600a9ed93e.smt2	ill-sorted dump: the pars
 QF_UFBVDT/dotty/alpha-self_reference-d91e663a4e35.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-self_reference-e2687e6f81f5.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-unstable_prefix_neg-0fc6bee9a7a1.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
-QF_UFBVDT/stainless/invalid__PackedFloat8_11.smt2	timeout (5 s limit)
-QF_UFBVDT/stainless/valid__PackedFloat8_11.smt2	timeout (5 s limit)
 QF_UFDTLIA/dotty/alpha-beta_reduce-0c97f5909e14.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFDTLIA/dotty/alpha-beta_reduce-1077069fc90a.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFDTLIA/dotty/alpha-beta_reduce-215e83cb297a.smt2	ill-sorted dump: the parser refuses it, as z3 does
@@ -499,6 +497,7 @@ QF_UFLIA/smt-lib/wisas__xs_32_52.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_35_45.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_38_38.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_40_60.smt2	timeout (5 s limit)
+QF_UFLIA/stainless/invalid__ForallAssoc_0.smt2	timeout (5 s limit)
 QF_UFLIA/submission/20260311-TPTP__ARI654_1.smt2	timeout (5 s limit)
 QF_UFLIA/submission/20260311-TPTP__ARI692_1.smt2	timeout (5 s limit)
 QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_19.smt2	timeout (5 s limit)
