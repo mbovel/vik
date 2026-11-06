@@ -46,6 +46,10 @@ QF_ALIA/smt-lib/qlock2__qlock.induction.5.smt2	skip: out of memory at 2 GB befor
 QF_ALIA/smt-lib/qlock2__qlock.induction.6.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_AUFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
 QF_AUFBV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
+QF_AUFBVDTLIA/stainless/invalid__BinarySearch1_28.smt2	timeout (5 s limit), passes on main
+QF_AUFBVDTLIA/stainless/invalid__BinarySearch1_36.smt2	timeout (5 s limit), passes on main
+QF_AUFBVDTLIA/stainless/invalid__BinarySearch3_32.smt2	timeout (5 s limit), passes on main
+QF_AUFBVDTLIA/stainless/invalid__BinarySearch3_33.smt2	timeout (5 s limit), passes on main
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--ppp--ppp_generic.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--wireless--mwifiex--mwifiex_sdio.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--input--misc--atlas_btns.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -296,6 +300,7 @@ QF_UFBV/smt-lib/20241113-Certora__1977.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__1999.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2007.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2053.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid__AnonymousClasses1_4.smt2	timeout (5 s limit)
 QF_UFBVDT/dotty/alpha-list_zip_2-0757c679b587.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-list_zip_2-2221f1ece327.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-list_zip_2-3b60979baa36.smt2	ill-sorted dump: the parser refuses it, as z3 does
@@ -332,6 +337,8 @@ QF_UFBVDT/dotty/alpha-self_reference-c9600a9ed93e.smt2	ill-sorted dump: the pars
 QF_UFBVDT/dotty/alpha-self_reference-d91e663a4e35.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-self_reference-e2687e6f81f5.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-unstable_prefix_neg-0fc6bee9a7a1.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
+QF_UFBVDT/stainless/invalid__BraunTree_13.smt2	timeout (5 s limit)
+QF_UFDT/stainless/valid__Factorial_0.smt2	timeout (5 s limit), passes on main
 QF_UFDTLIA/dotty/alpha-beta_reduce-0c97f5909e14.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFDTLIA/dotty/alpha-beta_reduce-1077069fc90a.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFDTLIA/dotty/alpha-beta_reduce-215e83cb297a.smt2	ill-sorted dump: the parser refuses it, as z3 does
