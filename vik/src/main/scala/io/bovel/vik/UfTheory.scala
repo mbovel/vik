@@ -5,7 +5,9 @@ import scala.collection.mutable.ArrayBuffer
 import io.bovel.cdclt.{Lit, Theory, Var}
 import io.bovel.egraph.{EClassId, EGraph}
 
-/** A growing list of variables, unboxed: the atom index is walked at every propagation. */
+/** A growing list of variables, unboxed: the atom index is walked at every
+ *  propagation.
+ */
 private final class Vars:
   var elems = new Array[Var](4)
   var size = 0
@@ -50,15 +52,20 @@ final class UfTheory(
   /** The atoms of each id, as either of their sides. */
   private val atomsAt = ArrayBuffer.empty[Vars | Null]
 
-  /** The atoms to look at whatever the e-graph says: the new ones, and the ones a pop made unassigned, whose
-   *  implication may have outlived their assignment.
+  /** The atoms to look at whatever the e-graph says: the new ones, and the ones
+   *  a pop made unassigned, whose implication may have outlived their
+   *  assignment.
    */
   private val again = ArrayBuffer.empty[Var]
 
-  /** What the last propagation implied: the search does not take all of it when it finds a conflict. */
+  /** What the last propagation implied: the search does not take all of it when
+   *  it finds a conflict.
+   */
   private var lastImplied = ArrayBuffer.empty[Lit]
 
-  /** The atoms to look at in one propagation: each once, whichever of its sides brought it. */
+  /** The atoms to look at in one propagation: each once, whichever of its sides
+   *  brought it.
+   */
   private val candidates = Vars()
   private var candidateIn = new Array[Int](64)
   private var candidateMark = 0

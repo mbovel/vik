@@ -202,18 +202,23 @@ final class EGraph(rules: Rules = NoRules):
   private var violated: Diseq | Null = null
   private var contradicted: ArrayBuffer[Int] | Null = null
 
-  /** The ids whose relation to another class may have changed since [[takeTouched]] was last called, when a
-   *  client watches them: those of an absorbed class, and of the smaller side of a new disequality between
-   *  classes. Each is walked past anyway or is the smaller side, so that a client indexing facts by id does not
-   *  walk them all per propagation; past `touchedLimit` it is told to do so instead. A disequality that a merge
-   *  carries to more ids touches nothing: looking at the atoms of those ids was half of the time of the large
-   *  unrollings, for implied atoms that the search finds out at the same cost, or with fewer conflicts.
+  /** The ids whose relation to another class may have changed since
+   *  [[takeTouched]] was last called, when a client watches them: those of an
+   *  absorbed class, and of the smaller side of a new disequality between
+   *  classes. Each is walked past anyway or is the smaller side, so that a
+   *  client indexing facts by id does not walk them all per propagation; past
+   *  `touchedLimit` it is told to do so instead. A disequality that a merge
+   *  carries to more ids touches nothing: looking at the atoms of those ids was
+   *  half of the time of the large unrollings, for implied atoms that the
+   *  search finds out at the same cost, or with fewer conflicts.
    */
   private val touched = ArrayBuffer.empty[EClassId]
   private var touchedOverflow = false
   var touchedLimit: Int = -1 // negative: nobody watches
 
-  /** The ids touched, or `null` when too many were to list. The caller must have used them before calling again. */
+  /** The ids touched, or `null` when too many were to list. The caller must
+   *  have used them before calling again.
+   */
   def takeTouched(): ArrayBuffer[EClassId] | Null =
     val overflow = touchedOverflow
     touchedOverflow = false
