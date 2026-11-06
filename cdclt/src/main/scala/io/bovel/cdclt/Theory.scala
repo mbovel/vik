@@ -32,9 +32,10 @@ trait Theory:
    */
   def phase(v: Var): Option[Boolean] = None
 
-  /** When the search leaves variables unassigned: a variable it has to decide for the theories' model to exist,
-   *  [[Theory.nothingNeeded]] if there is a model, [[Theory.everythingNeeded]] if this cannot be told. Asked
-   *  after a [[finalCheck]] that found nothing.
+  /** When the search leaves variables unassigned: a variable it has to decide
+   *  for the theories' model to exist, [[Theory.nothingNeeded]] if there is a
+   *  model, [[Theory.everythingNeeded]] if this cannot be told. Asked after a
+   *  [[finalCheck]] that found nothing.
    */
   def neededDecision(): Var = Theory.nothingNeeded
 

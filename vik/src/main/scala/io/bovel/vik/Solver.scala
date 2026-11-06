@@ -373,9 +373,10 @@ private final class Encoder(
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
     for (_, group) <- applications do
       val relevant = group.filter(shares)
-      if relevant.length <= eagerGroup then for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
-        pair(a, b)
-        for (x, y) <- a.args.zip(b.args) do pair(x, y)
+      if relevant.length <= eagerGroup then
+        for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
+          pair(a, b)
+          for (x, y) <- a.args.zip(b.args) do pair(x, y)
     // Applications of different function terms meet too when the functions themselves can be equated —
     // two arrays, or a store and the array it may equal: group by the function's sort instead of the
     // function.
@@ -419,23 +420,28 @@ private final class Encoder(
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
     for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
 
-  /** Whether the pairs of a large group wait until a model has them disagree (see [[pairsTheModelBreaks]]). Arrays
-   *  and functions equated by the search need the arrangement up front: their witnesses and store lemmas come from
+  /** Whether the pairs of a large group wait until a model has them disagree
+   *  (see [[pairsTheModelBreaks]]). Arrays and functions equated by the search
+   *  need the arrangement up front: their witnesses and store lemmas come from
    *  the atoms.
    */
   private def sharesByModel: Boolean = !anyStore() && !anyFunctionEquality && !liaSolver.hasReals
 
-  /** Above this many applications a function's pairs are left to the model. Small groups stay eager: their atoms cost
-   *  little, and guide the search better than a model does (`Peano`, 2.3s here, 10s with every group left to the
-   *  model; at 200 `BraunTree-13` is unfinished at 20s, the whole corpus 214s at 10, 234s at 30, 254s at 200).
+  /** Above this many applications a function's pairs are left to the model.
+   *  Small groups stay eager: their atoms cost little, and guide the search
+   *  better than a model does (`Peano`, 2.3s here, 10s with every group left to
+   *  the model; at 200 `BraunTree-13` is unfinished at 20s, the whole corpus
+   *  214s at 10, 234s at 30, 254s at 200).
    */
   private def eagerGroup: Int = if sharesByModel && !allPairsNow then 10 else Int.MaxValue
   private var allPairsNow = false // for the search after a model that failed
 
-  /** The pairs of integer terms that the theories disagree on in the search's model, new ones only: in one class
-   *  with two values, or arguments of one value and two classes under applications of different values. These
-   *  are the only pairs an arrangement has to settle, which is model-based theory combination (de Moura and
-   *  Bjørner); all pairs of a function's applications come to 428,871 atoms on `BraunTree`.
+  /** The pairs of integer terms that the theories disagree on in the search's
+   *  model, new ones only: in one class with two values, or arguments of one
+   *  value and two classes under applications of different values. These are
+   *  the only pairs an arrangement has to settle, which is model-based theory
+   *  combination (de Moura and Bjørner); all pairs of a function's applications
+   *  come to 428,871 atoms on `BraunTree`.
    */
   private def pairsTheModelBreaks(): ArrayBuffer[(Term, Term)] =
     val broken = ArrayBuffer.empty[(Term, Term)]
@@ -461,29 +467,29 @@ private final class Encoder(
     broken
 
   private def share(a: Term, b: Term): Unit =
-      val e = lit(Formula.Eq(a, b))
-      // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
-      // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
-      // disequality the LIA solver decides by branching, without learning, at every value the
-      // relaxation lands on (hundreds of them on `wisas`).
-      def equalOrApart(x: lia.Var, c: BigInt): Unit =
-        liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
-        // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
-        // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
-        // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
-        val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
-        val above = bound(x, c, false)
-        define(e, Array(e, below, above.neg))
-        // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
-        // here, the search does not have to reach the theory to find that out.
-        if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
-        guidedAtoms += below.variable
-        guidedAtoms += above.variable
-        anySharedAtom = true
-      Term.linear(List((1, a), (-1, b))) match
-        case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
-        case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
-        case difference => equalOrApart(intVar(difference), 0)
+    val e = lit(Formula.Eq(a, b))
+    // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
+    // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
+    // disequality the LIA solver decides by branching, without learning, at every value the
+    // relaxation lands on (hundreds of them on `wisas`).
+    def equalOrApart(x: lia.Var, c: BigInt): Unit =
+      liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
+      // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
+      // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
+      // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
+      val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
+      val above = bound(x, c, false)
+      define(e, Array(e, below, above.neg))
+      // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
+      // here, the search does not have to reach the theory to find that out.
+      if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
+      guidedAtoms += below.variable
+      guidedAtoms += above.variable
+      anySharedAtom = true
+    Term.linear(List((1, a), (-1, b))) match
+      case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
+      case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
+      case difference => equalOrApart(intVar(difference), 0)
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
@@ -624,7 +630,9 @@ private final class Encoder(
   clauses += Array(trueLit)
   eg.disequate(trueTerm, falseTerm, trueLit.index)
 
-  /** The clauses that only say what a variable means (see `cdclt.Solver.relevantOnly`), by position in `clauses`. */
+  /** The clauses that only say what a variable means (see
+   *  `cdclt.Solver.relevantOnly`), by position in `clauses`.
+   */
   private val definedBy = HashMap.empty[Int, cdclt.Var]
 
   private def define(v: Lit, clause: Array[Lit]): Unit =
@@ -966,10 +974,12 @@ private final class Encoder(
   private var booleansRequired = 0
   private val branchesWhileRelevant = 100
 
-  /** A pair of applications of one function that a model would have to give the same arguments and different
-   *  values, when the search did not decide all it could: the equality of integer arguments to decide then, which
-   *  either merges the applications or takes the arguments apart. Two integers that meet nowhere else may have the
-   *  same value and different classes: only this breaks a model, and the simplex gives most of them the value 0.
+  /** A pair of applications of one function that a model would have to give the
+   *  same arguments and different values, when the search did not decide all it
+   *  could: the equality of integer arguments to decide then, which either
+   *  merges the applications or takes the arguments apart. Two integers that
+   *  meet nowhere else may have the same value and different classes: only this
+   *  breaks a model, and the simplex gives most of them the value 0.
    */
   private def neededEquality(): cdclt.Var =
     if liaSolver.branchedOut then

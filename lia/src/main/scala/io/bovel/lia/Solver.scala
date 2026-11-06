@@ -590,9 +590,11 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
-  /** How many branches a [[check]] may open before it stops and says so in [[branchedOut]]: `Sat`, with no
-   *  integer solution behind it. A search that has not decided all its atoms has something better to do than
-   *  to walk a range one value at a time (32768 branches on `PackedFloat8`, 7 ms once its atoms are decided).
+  /** How many branches a [[check]] may open before it stops and says so in
+   *  [[branchedOut]]: `Sat`, with no integer solution behind it. A search that
+   *  has not decided all its atoms has something better to do than to walk a
+   *  range one value at a time (32768 branches on `PackedFloat8`, 7 ms once its
+   *  atoms are decided).
    */
   var branchBudget = Int.MaxValue
   var branchedOut = false

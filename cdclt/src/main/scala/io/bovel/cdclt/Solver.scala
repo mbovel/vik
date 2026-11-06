@@ -172,8 +172,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def isUnassigned(l: Lit): Boolean = value(l.index) == 0
 
-  /** Forgets the saved phases, not the clauses or the decision order: for a search that must not follow the one before
-   *  it. At level 0, between two solves.
+  /** Forgets the saved phases, not the clauses or the decision order: for a
+   *  search that must not follow the one before it. At level 0, between two
+   *  solves.
    */
   def forgetPhases(): Unit =
     java.util.Arrays.fill(phase, false)
@@ -190,7 +191,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def addClause(lits: Array[Lit]): Unit = addClause(lits, -1)
 
-  /** Adds a clause; with `definedBy` a variable, one of its definition: see [[relevantOnly]]. */
+  /** Adds a clause; with `definedBy` a variable, one of its definition: see
+   *  [[relevantOnly]].
+   */
   def addClause(lits: Array[Lit], definedBy: Var): Unit =
     backtrack(0) // a clause added between two solves leaves the previous model
     val c = lits.distinct
@@ -381,11 +384,14 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     vmtfStamp(v) = vmtfTime
     if value(Lit(v).index) == 0 then vmtfSearch = v
 
-  /** Whether a `Sat` may leave variables unassigned: the search stops when the clauses that are not definitions,
-   *  the definitions of the variables assigned and the [[require]]d variables are satisfied. Whatever is left is
-   *  then extended by the theories' model: an atom takes its value there, and a variable its definition's. Each
-   *  decision that nothing needs costs a round of the theories, and most of the atoms of an unrolling are behind
-   *  a guard that is false. `theory.neededDecision` says what the theories' model cannot do without.
+  /** Whether a `Sat` may leave variables unassigned: the search stops when the
+   *  clauses that are not definitions, the definitions of the variables
+   *  assigned and the [[require]]d variables are satisfied. Whatever is left is
+   *  then extended by the theories' model: an atom takes its value there, and a
+   *  variable its definition's. Each decision that nothing needs costs a round
+   *  of the theories, and most of the atoms of an unrolling are behind a guard
+   *  that is false. `theory.neededDecision` says what the theories' model
+   *  cannot do without.
    */
   var relevantOnly = false
 
@@ -396,9 +402,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Has `v` decided even if nothing needs it: see [[relevantOnly]]. */
   def require(v: Var): Unit = required += v
 
-  /** How far the clauses to satisfy have been walked and found satisfied: roots, the trail with the definitions
-   *  of the current literal, the required variables. All that stays true deeper in the search, so each level
-   *  takes over from the one before, and these are put back to their value at the decision on backtracking.
+  /** How far the clauses to satisfy have been walked and found satisfied:
+   *  roots, the trail with the definitions of the current literal, the required
+   *  variables. All that stays true deeper in the search, so each level takes
+   *  over from the one before, and these are put back to their value at the
+   *  decision on backtracking.
    */
   private var rootsDone = 0
   private var trailDone = 0
@@ -411,8 +419,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     walkMarks += rootsDone += trailDone += definitionsDone += requiredDone
     theory.push()
 
-  /** The unassigned variable most recently in a conflict of the clause, if it is not satisfied, otherwise `-1`;
-   *  `wanted` is then the literal that is its first choice.
+  /** The unassigned variable most recently in a conflict of the clause, if it
+   *  is not satisfied, otherwise `-1`; `wanted` is then the literal that is its
+   *  first choice.
    */
   private var wanted: Lit = Lit(0)
   private def unsatisfiedIn(clause: Array[Lit]): Var =
@@ -451,8 +460,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       requiredDone += 1
     -1
 
-  /** The variable to decide next: the first unassigned of the move-to-front list, `-1` if none; or when only what
-   *  is relevant is decided, one that has been in a conflict if there is one, and else what the clauses need.
+  /** The variable to decide next: the first unassigned of the move-to-front
+   *  list, `-1` if none; or when only what is relevant is decided, one that has
+   *  been in a conflict if there is one, and else what the clauses need.
    */
   private def nextDecision(): Var =
     while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)

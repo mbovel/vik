@@ -34,8 +34,11 @@ class SessionTest extends munit.FunSuite:
     // The values the relaxation picks are equal until the equality is decided.
     assertModelHolds("""(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
       (assert (and (<= 0 a) (<= a 1) (<= 0 b) (<= b 1) (not (= (f a) (f b)))))""")
-    assertModelHolds("""(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
-      (assert (and (<= 0 a) (<= a 0) (<= 0 b) (<= b 0) (not (= (f a) (f b)))))""", expected = false)
+    assertModelHolds(
+      """(declare-fun f (Int) Int) (declare-const a Int) (declare-const b Int)
+      (assert (and (<= 0 a) (<= a 0) (<= 0 b) (<= b 0) (not (= (f a) (f b)))))""",
+      expected = false
+    )
   }
 
   // Twelve applications: a group that large has its pairs left to the model (`Encoder.pairsTheModelBreaks`).
