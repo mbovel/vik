@@ -1,0 +1,27 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/RequireEnsuringMessagesStaticChecks.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFBVDT)
+(declare-fun start!5 () Bool)
+(assert start!5)
+(declare-datatypes ((MyClass!6 0))(
+  ( (MyClass!7 (a!9 (_ BitVec 32))) )
+))
+(declare-fun mc!1 () MyClass!6)
+(assert (=> start!5 (bvsle (a!9 mc!1) #b00000000000000000000000000000000)))
+(declare-fun inv!0 (MyClass!6) Bool)
+(assert (=> start!5 (inv!0 mc!1)))
+(declare-fun bs!2 () Bool)
+(assert (= bs!2 start!5))
+(declare-fun m!3 () Bool)
+(assert (=> bs!2 m!3))
+(set-info :status unsat)
+(check-sat-assuming ((not start!5)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!3 () Bool)
+(assert (=> d!3 (= (inv!0 mc!1) (bvsgt (a!9 mc!1) #b00000000000000000000000000000000))))
+(assert (=> start!5 d!3))
+(set-info :status unsat)
+(check-sat)

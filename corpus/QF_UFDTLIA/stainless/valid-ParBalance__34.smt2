@@ -1,0 +1,32 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/ParBalance.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!329 () Bool)
+(assert start!329)
+(declare-fun res!891 () Bool)
+(declare-fun e!1281 () Bool)
+(assert (=> start!329 (=> (not res!891) (not e!1281))))
+(declare-datatypes ((tuple2!16 0))(
+  ( (tuple2!17 (_1!8 Int) (_2!8 Int)) )
+))
+(declare-fun p!8 () tuple2!16)
+(assert (=> start!329 (= res!891 (and (>= (_1!8 p!8) 0) (>= (_2!8 p!8) 0)))))
+(assert (=> start!329 e!1281))
+(assert (=> start!329 true))
+(declare-fun b!2205 () Bool)
+(assert (=> b!2205 (= e!1281 false)))
+(declare-fun lt!858 () Bool)
+(declare-datatypes ((List!31 0))(
+  ( (Cons!31 (head!204 Int) (tail!187 List!31)) (Nil!31) )
+))
+(declare-fun list!120 () List!31)
+(declare-fun balanced_withReduce!0 (List!31 tuple2!16) Bool)
+(assert (=> b!2205 (= lt!858 (balanced_withReduce!0 list!120 p!8))))
+(assert (= (and start!329 res!891) b!2205))
+(declare-fun m!2383 () Bool)
+(assert (=> b!2205 m!2383))
+(set-info :status unsat)
+(check-sat-assuming ((not b!2205)))
+(set-info :status unsat)
+(check-sat)

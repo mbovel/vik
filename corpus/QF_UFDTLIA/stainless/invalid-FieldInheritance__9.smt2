@@ -1,0 +1,31 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/FieldInheritance.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!19 () Bool)
+(assert start!19)
+(assert (=> start!19 false))
+(declare-datatypes ((X!16 0))(
+  ( (X!17 (val!9 Int)) )
+))
+(declare-datatypes ((Foo!11 0))(
+  ( (FooExt!10 (__x!12 Int) (weird!43 X!16) (thisIsIt!29 Int)) (Bar!11 (thisIsIt!30 Int) (weird!44 X!16)) (Baz!11 (weird!45 X!16)) )
+))
+(declare-fun lt!2 () Foo!11)
+(declare-fun thiss!24 () Foo!11)
+(assert (=> start!19 (= lt!2 thiss!24)))
+(declare-fun e!29 () Bool)
+(get-info :version)
+(assert (=> start!19 (and e!29 ((_ is Baz!11) lt!2))))
+(declare-fun b!87 () Bool)
+(declare-fun tp_is_empty!19 () Bool)
+(assert (=> b!87 (= e!29 tp_is_empty!19)))
+(declare-fun b!88 () Bool)
+(assert (=> b!88 (= e!29 tp_is_empty!19)))
+(declare-fun b!89 () Bool)
+(assert (=> b!89 (= e!29 tp_is_empty!19)))
+(assert (= (and start!19 ((_ is FooExt!10) thiss!24)) b!87))
+(assert (= (and start!19 ((_ is Bar!11) thiss!24)) b!88))
+(assert (= (and start!19 ((_ is Baz!11) thiss!24)) b!89))
+(set-info :status unsat)
+(check-sat-assuming (tp_is_empty!19))

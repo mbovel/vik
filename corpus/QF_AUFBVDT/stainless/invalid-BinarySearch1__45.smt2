@@ -1,0 +1,32 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/BinarySearch1.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_AUFBVDT)
+(declare-fun start!257 () Bool)
+(assert start!257)
+(declare-fun x!1 () (_ BitVec 32))
+(declare-datatypes ((array!136 0))(
+  ( (array!137 (arr!52 (Array (_ BitVec 32) (_ BitVec 32))) (size!46 (_ BitVec 32))) )
+))
+(declare-fun arr!0 () array!136)
+(declare-fun lo!0 () (_ BitVec 32))
+(declare-fun hi!0 () (_ BitVec 32))
+(declare-datatypes ((tuple4!6 0))(
+  ( (tuple4!7 (_1!3 array!136) (_2!3 (_ BitVec 32)) (_3!3 (_ BitVec 32)) (_4!3 (_ BitVec 32))) )
+))
+(assert (=> start!257 (and (bvsle lo!0 hi!0) (let ((i!0 (bvsdiv (bvadd lo!0 hi!0) #b00000000000000000000000000000010))) (let ((y!0 (select (arr!52 arr!0) i!0))) (and (not (= x!1 y!0)) (not (bvslt x!1 y!0)) (let ((lo!5 (bvadd i!0 #b00000000000000000000000000000001))) (and (bvsle lo!5 hi!0) (let ((i!5 (bvsdiv (bvadd lo!5 hi!0) #b00000000000000000000000000000010))) (let ((y!5 (select (arr!52 arr!0) i!5))) (and (not (= x!1 y!5)) (bvslt x!1 y!5) (= (tuple4!7 arr!0 x!1 lo!0 hi!0) (tuple4!7 arr!0 x!1 lo!5 (bvsub i!5 #b00000000000000000000000000000001))))))))))))))
+(assert (=> start!257 true))
+(declare-fun array_inv!46 (array!136) Bool)
+(assert (=> start!257 (array_inv!46 arr!0)))
+(declare-fun bs!51 () Bool)
+(assert (= bs!51 start!257))
+(declare-fun m!1049 () Bool)
+(assert (=> bs!51 m!1049))
+(declare-fun m!1051 () Bool)
+(assert (=> bs!51 m!1051))
+(declare-fun m!1053 () Bool)
+(assert (=> bs!51 m!1053))
+(set-info :status unsat)
+(check-sat-assuming ((not start!257)))
+(set-info :status unsat)
+(check-sat)

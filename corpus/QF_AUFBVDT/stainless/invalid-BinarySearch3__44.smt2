@@ -1,0 +1,32 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/BinarySearch3.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_AUFBVDT)
+(declare-fun start!253 () Bool)
+(assert start!253)
+(declare-fun x!1 () (_ BitVec 32))
+(declare-datatypes ((array!133 0))(
+  ( (array!134 (arr!50 (Array (_ BitVec 32) (_ BitVec 32))) (size!45 (_ BitVec 32))) )
+))
+(declare-fun arr!0 () array!133)
+(declare-fun lo!0 () (_ BitVec 32))
+(declare-fun hi!0 () (_ BitVec 32))
+(declare-datatypes ((tuple4!4 0))(
+  ( (tuple4!5 (_1!2 array!133) (_2!2 (_ BitVec 32)) (_3!2 (_ BitVec 32)) (_4!2 (_ BitVec 32))) )
+))
+(assert (=> start!253 (and (bvsle #b00000000000000000000000000000000 lo!0) (bvsle lo!0 (bvadd hi!0 #b00000000000000000000000000000001)) (bvslt hi!0 (size!45 arr!0)) (bvsle lo!0 hi!0) (let ((i!0 (bvsdiv (bvadd lo!0 hi!0) #b00000000000000000000000000000010))) (let ((y!0 (select (arr!50 arr!0) i!0))) (and (not (= x!1 y!0)) (bvslt x!1 y!0) (let ((hi!4 (bvsub i!0 #b00000000000000000000000000000001))) (and (bvsle lo!0 (bvadd hi!4 #b00000000000000000000000000000001)) (bvslt hi!4 (size!45 arr!0)) (bvsle lo!0 hi!4) (let ((i!4 (bvsdiv (bvadd lo!0 hi!4) #b00000000000000000000000000000010))) (let ((y!4 (select (arr!50 arr!0) i!4))) (and (not (= x!1 y!4)) (bvslt x!1 y!4) (= (tuple4!5 arr!0 x!1 lo!0 hi!0) (tuple4!5 arr!0 x!1 lo!0 (bvsub i!4 #b00000000000000000000000000000001))))))))))))))
+(assert (=> start!253 true))
+(declare-fun array_inv!45 (array!133) Bool)
+(assert (=> start!253 (array_inv!45 arr!0)))
+(declare-fun bs!49 () Bool)
+(assert (= bs!49 start!253))
+(declare-fun m!1071 () Bool)
+(assert (=> bs!49 m!1071))
+(declare-fun m!1073 () Bool)
+(assert (=> bs!49 m!1073))
+(declare-fun m!1075 () Bool)
+(assert (=> bs!49 m!1075))
+(set-info :status unsat)
+(check-sat-assuming ((not start!253)))
+(set-info :status unsat)
+(check-sat)
