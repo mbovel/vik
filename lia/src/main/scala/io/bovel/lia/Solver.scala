@@ -53,6 +53,43 @@ object Solver:
       strict: Boolean = false // a real disequality splits into strict sides
   )
 
+  /** A set of variables with its smallest at hand: a binary min-heap. */
+  private final class VarHeap:
+    private var heap = new Array[Int](16)
+    private var count = 0
+    private var present = new Array[Boolean](16)
+
+    def nonEmpty: Boolean = count > 0
+    def isEmpty: Boolean = count == 0
+    def min: Var = heap(0)
+
+    def +=(x: Var): Unit =
+      if x >= present.length then present = java.util.Arrays.copyOf(present, math.max(x + 1, 2 * present.length))
+      if !present(x) then
+        present(x) = true
+        if count == heap.length then heap = java.util.Arrays.copyOf(heap, 2 * count)
+        var i = count
+        count += 1
+        while i > 0 && heap((i - 1) / 2) > x do
+          heap(i) = heap((i - 1) / 2)
+          i = (i - 1) / 2
+        heap(i) = x
+
+    def removeMin(): Unit =
+      present(heap(0)) = false
+      count -= 1
+      val x = heap(count)
+      var i = 0
+      var moving = true
+      while moving do
+        var c = 2 * i + 1
+        if c + 1 < count && heap(c + 1) < heap(c) then c += 1
+        if c < count && heap(c) < x then
+          heap(i) = heap(c)
+          i = c
+        else moving = false
+      heap(i) = x
+
   /** A row of the tableau: the non-basic variables it mentions, in increasing
    *  order, with their coefficients — parallel arrays, so that a variable is
    *  found by a binary search and a row is walked by index, with no boxing of
@@ -167,6 +204,12 @@ final class Solver:
 
   /** For each variable, the basic variables whose rows mention it. */
   private val columns = ArrayBuffer.empty[Column]
+
+  /** Every basic variable violating a bound, and possibly others that no longer
+   *  do: whatever moves a value or tightens a bound offers the variable through
+   *  [[suspect]], so [[simplex]] needs no scan of all the variables per pivot.
+   */
+  private val suspects = VarHeap()
 
   /** Whether the variable stands for an expression, and then the gcd of the
    *  expression's coefficients: the variable holds the expression divided by
@@ -380,6 +423,7 @@ final class Solver:
     boundMagnitude = boundMagnitude.max(c.r.num.abs)
     moved += x
     if rows(x) == null && (if isUpper then compareValue(x, c) > 0 else compareValue(x, c) < 0) then update(x, c)
+    suspect(x)
     tightened += x
     Result.Sat
 
@@ -523,6 +567,7 @@ final class Solver:
       val a = rows(b).nn(x)
       values(b) = values(b) + moved * a
       if anyReal then valuesD(b) = valuesD(b) + movedD * a
+      suspect(b)
       i += 1
     values(x) = v.r
     if anyReal then valuesD(x) = v.d
@@ -547,8 +592,10 @@ final class Solver:
         val c = rows(k).nn(n)
         values(k) = values(k) + theta * c
         if anyReal then valuesD(k) = valuesD(k) + thetaD * c
+        suspect(k)
       i += 1
     pivot(b, n)
+    suspect(n)
 
   /** Swaps the basic `b` and the non-basic `n` of its row: solves the row for
    *  `n` and substitutes the result in the other rows mentioning `n`.
@@ -871,9 +918,9 @@ final class Solver:
    */
   private def simplex(): Result =
     while true do
-      var b = 0
-      while b < numVars && !(rows(b) != null && violates(b)) do b += 1
-      if b == numVars then return Result.Sat
+      while suspects.nonEmpty && (rows(suspects.min) == null || !violates(suspects.min)) do suspects.removeMin()
+      if suspects.isEmpty then return Result.Sat
+      val b = suspects.min // stays on the heap: it still violates if this returns, and goes next round if it pivots
       val row = rows(b).nn
       val l = lower(b)
       val u = upper(b)
@@ -911,6 +958,8 @@ final class Solver:
     val l = lower(x)
     val u = upper(x)
     (l != null && compareValue(x, l.value) < 0) || (u != null && compareValue(x, u.value) > 0)
+
+  private def suspect(x: Var): Unit = if violates(x) then suspects += x
 
   private def canRaise(x: Var): Boolean =
     val u = upper(x)
