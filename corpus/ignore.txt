@@ -299,6 +299,7 @@ QF_UFBV/smt-lib/20241113-Certora__1977.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__1999.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2007.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2053.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid__BitsTricksSlow_35.smt2	timeout (5 s limit)
 QF_UFBVDT/dotty/alpha-list_zip_2-0757c679b587.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-list_zip_2-2221f1ece327.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-list_zip_2-3b60979baa36.smt2	ill-sorted dump: the parser refuses it, as z3 does
