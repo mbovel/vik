@@ -338,6 +338,7 @@ QF_UFBVDT/dotty/alpha-self_reference-d91e663a4e35.smt2	ill-sorted dump: the pars
 QF_UFBVDT/dotty/alpha-self_reference-e2687e6f81f5.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFBVDT/dotty/alpha-unstable_prefix_neg-0fc6bee9a7a1.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
 QF_UFBVDT/stainless/invalid__BraunTree_13.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/valid__Peano_12.smt2	timeout (5 s limit)
 QF_UFDT/stainless/valid__Factorial_0.smt2	timeout (5 s limit), passes on main
 QF_UFDTLIA/dotty/alpha-beta_reduce-0c97f5909e14.smt2	ill-sorted dump: the parser refuses it, as z3 does
 QF_UFDTLIA/dotty/alpha-beta_reduce-1077069fc90a.smt2	ill-sorted dump: the parser refuses it, as z3 does
