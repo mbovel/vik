@@ -500,41 +500,54 @@ final class Solver:
   /** Derives the bounds the row of `b` implies (see [[propagateBounds]]). */
   private def propagateRow(b: Var): Result = boundary:
     val row = rows(b).nn
-    // The lowest and highest values of the row given the bounds, when every variable has the bound needed.
-    var low = Delta.zero
-    var high = Delta.zero
-    var lowMissing = 0
-    var highMissing = 0
-    val lowPremises = ArrayBuffer.empty[Bound]
-    val highPremises = ArrayBuffer.empty[Bound]
+    // Whether every variable has the bound needed for the lowest and for the highest value of the row: a row
+    // with neither derives nothing, and most rows are such, so finding that out does no arithmetic.
+    var hasLow = true
+    var hasHigh = true
     var i = 0
     while i < row.size do
       val j = row.varAt(i)
-      val a = row.coefAt(i)
-      val forLow = if a.signum > 0 then lower(j) else upper(j)
-      val forHigh = if a.signum > 0 then upper(j) else lower(j)
-      if forLow == null then lowMissing += 1
-      else
-        low = low + forLow.value * a
-        lowPremises += forLow
-      if forHigh == null then highMissing += 1
-      else
-        high = high + forHigh.value * a
-        highPremises += forHigh
+      val positive = row.coefAt(i).signum > 0
+      val forLow = if positive then lower(j) else upper(j)
+      val forHigh = if positive then upper(j) else lower(j)
+      if forLow == null then hasLow = false
+      if forHigh == null then hasHigh = false
+      if !hasLow && !hasHigh then break(Result.Sat)
       i += 1
+    // The lowest and highest values of the row given the bounds.
+    var low = Delta.zero
+    var high = Delta.zero
+    i = 0
+    while i < row.size do
+      val j = row.varAt(i)
+      val a = row.coefAt(i)
+      if hasLow then low = low + (if a.signum > 0 then lower(j) else upper(j)).nn.value * a
+      if hasHigh then high = high + (if a.signum > 0 then upper(j) else lower(j)).nn.value * a
+      i += 1
+    // The bounds behind `low` or `high`, plus `extra`. Most visits derive nothing, so only those that do build this.
+    def premises(forLowest: Boolean, extra: Bound | Null): Array[Bound] =
+      val out = new Array[Bound](if extra == null then row.size else row.size + 1)
+      var k = 0
+      while k < row.size do
+        val j = row.varAt(k)
+        out(k) = (if (row.coefAt(k).signum > 0) == forLowest then lower(j) else upper(j)).nn
+        k += 1
+      if extra != null then out(row.size) = extra
+      out
     def derive(x: Var, c: Delta, premises: Array[Bound], isUpper: Boolean): Unit =
       val rounded = if isInt(x) then Delta(Rational(if isUpper then c.floor else c.ceil)) else c
       assertBound(x, Bound(rounded, -1, premises), isUpper) match
         case Result.Sat => ()
         case unsat => break(unsat)
-    if lowMissing == 0 && (lower(b) == null || low > lower(b).nn.value) then derive(b, low, lowPremises.toArray, false)
-    if highMissing == 0 && (upper(b) == null || high < upper(b).nn.value) then
-      derive(b, high, highPremises.toArray, true)
+    if hasLow && (lower(b) == null || low > lower(b).nn.value) then derive(b, low, premises(true, null), false)
+    if hasHigh && (upper(b) == null || high < upper(b).nn.value) then derive(b, high, premises(false, null), true)
     // a × x_j = b − (the rest of the row), bounded by a bound of b and the lowest or highest value of the rest.
     val u = upper(b)
     val l = lower(b)
-    val upperRoom = if u != null && lowMissing == 0 then u.value - low else null
-    val lowerRoom = if l != null && highMissing == 0 then high - l.value else null
+    val upperRoom = if u != null && hasLow then u.value - low else null
+    val lowerRoom = if l != null && hasHigh then high - l.value else null
+    if upperRoom == null && lowerRoom == null then break(Result.Sat)
+    // Taken together before the first derivation, which changes the bounds they read.
     var withUpper: Array[Bound] | Null = null
     var withLower: Array[Bound] | Null = null
     i = 0
@@ -546,13 +559,14 @@ final class Solver:
       // What x_j can move the row by: with no more room than that, a bound of b says something of x_j. Most
       // variables of a row over bits have less, so most of the divisions below need not happen.
       val moves = if forLow != null && forHigh != null then (forHigh.value - forLow.value) * a else null
+      val fromUpper = upperRoom != null && (moves == null || upperRoom < moves)
+      val fromLower = lowerRoom != null && (moves == null || lowerRoom < moves)
+      if (fromUpper || fromLower) && withUpper == null && withLower == null then
+        if upperRoom != null then withUpper = premises(true, u)
+        if lowerRoom != null then withLower = premises(false, l)
       // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
-      if upperRoom != null && (moves == null || upperRoom < moves) then
-        if withUpper == null then withUpper = (lowPremises += u.nn).toArray
-        derive(j, (upperRoom + forLow.nn.value * a) / a, withUpper.nn, a.signum > 0)
-      if lowerRoom != null && (moves == null || lowerRoom < moves) then
-        if withLower == null then withLower = (highPremises += l.nn).toArray
-        derive(j, (forHigh.nn.value * a - lowerRoom) / a, withLower.nn, a.signum < 0)
+      if fromUpper then derive(j, (upperRoom.nn + forLow.nn.value * a) / a, withUpper.nn, a.signum > 0)
+      if fromLower then derive(j, (forHigh.nn.value * a - lowerRoom.nn) / a, withLower.nn, a.signum < 0)
       i += 1
     Result.Sat
 
