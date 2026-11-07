@@ -67,6 +67,15 @@ answers every form as it does the file (but one, whose `List` datatype z3 takes 
 files of one form have contradicting statuses. A similarity
 joins variants: at 0.9, two of the synthesis queries of `2017-BuchwaldFried` that differ by one instruction.
 
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."` lists, in each family
+(a directory and the file name up to `__`, or up to the hash of a Scala 3 dump), the trivial files beyond the
+`keep` it keeps. A file is trivial when VIK gives its statuses within `fuel` steps and z3 gives them without a
+conflict. The files kept are, in turn, the trivial file least like any kept so far (by the similarity above, two
+files of different statuses wholly unlike), so a family keeps its sat and unsat variants before a second copy of
+anything; its other files and the files the repository names are always kept. The prefixes are required: the
+regression tests are small on purpose, and the release samples were chosen for their spread. The Scala 3 dumps
+are pruned at `trivial 10 5`.
+
 ## The release samples, per logic
 
 Taken on 2026-09-02 and 2026-09-03 from the release archives (every file up to 200 KB was parsed and lowered;
