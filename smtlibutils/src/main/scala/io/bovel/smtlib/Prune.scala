@@ -9,11 +9,12 @@ import scala.jdk.CollectionConverters.*
 
 import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
 
-/** Prunes the corpus, in one of two ways; with `--delete`, the files found go,
- *  with their `ignore.txt` lines. Usage:
+/** Prunes the corpus, in one of three ways; with `--delete`, the files found
+ *  go, with their `ignore.txt` lines. Usage:
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"`,
- *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"`
- *  — the corpus paths to consider (default all).
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"`,
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."`
+ *  — the corpus paths to consider (default all, but for `trivial`).
  *
  *  `invalid`: the files that neither VIK's parser nor z3's reads. Such
  *  a file is no benchmark: its `:status` answers a question the script does
@@ -36,14 +37,27 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  is. A summary of every level comes first, and the groups whose canonical
  *  forms are one but whose statuses contradict each other, which no pruning
  *  joins: one of the statuses is wrong, or the canonical form is.
+ *
+ *  `trivial`: in each family, the trivial files beyond `keep`. A file is
+ *  trivial when VIK gives its statuses within `fuel` steps and z3 gives them
+ *  without a conflict (in any of its statistics), so that what is easy for
+ *  VIK's preprocessing alone stays; a wrong answer, however quick, is no
+ *  reason to go. The family is the file's directory and
+ *  its name up to `__` (the importer's families) or up to its hash (a Scala 3
+ *  dump's test). The prefixes are required: the regression tests are small and
+ *  easy on purpose, and the release samples were chosen for their spread. See
+ *  [[spread]] for the files kept.
  */
 @main def prune(args: String*): Unit =
   val delete = args.contains("--delete")
   val operands = args.drop(1).filter(_ != "--delete")
-  val usage = "prune invalid [--delete] [prefix ...] | prune alike <level> [--delete] [prefix ...]"
+  val usage = "prune invalid [--delete] [prefix ...] | prune alike <level> [--delete] [prefix ...] | " +
+    "prune trivial <fuel> <keep> [--delete] prefix ..."
   val (find, prefixes) = args.headOption match
     case Some("invalid") => (invalid, operands)
     case Some("alike") if operands.nonEmpty => (alike(_, operands.head, _), operands.drop(1))
+    case Some("trivial") if operands.length > 2 && operands(0).toLongOption.isDefined && operands(1).toIntOption.isDefined =>
+      (trivial(_, operands(0).toLong, operands(1).toInt, _), operands.drop(2))
     case _ => throw IllegalArgumentException(usage)
   val files = Corpus.files.filter(f => prefixes.isEmpty || prefixes.exists(f.startsWith))
   println(s"${files.length} files under ${Corpus.root}")
@@ -204,6 +218,90 @@ private def alike(files: List[String], choice: String, pool: java.util.concurren
     println(s"  ${r.file}")
     for (e, _, s) <- es.sortBy(_._1.file) do println(s"    ${e.file}$s")
   found.map(_._1.file)
+
+/** A file of a family as [[trivial]] weighs it: `easy` when VIK gives its
+ *  statuses within the fuel and z3 without a conflict.
+ */
+private[smtlib] final case class Member(
+    file: String,
+    statuses: List[String],
+    size: Int,
+    pinned: Boolean,
+    easy: Boolean,
+    shape: Alike.Shape
+)
+
+private def trivial(files: List[String], fuel: Long, keep: Int, pool: java.util.concurrent.ExecutorService): List[String] =
+  val ignored = Corpus.ignored
+  val cited = citedFiles()
+  val read = files.map(f =>
+    f -> pool.submit(() =>
+      val text = Corpus.read(f)
+      try
+        val commands = SExprParser.parse(text)
+        val statuses = Alike.statuses(commands)
+        val easy = !ignored.contains(f) && statuses.forall(s => s == "sat" || s == "unsat") &&
+          io.bovel.vik.Session.answers(Parser.parse(text), fuel = fuel, deadline = Some(System.nanoTime + 5_000_000_000L))
+            .map(_.map(if _ then "sat" else "unsat")) == statuses.map(Some(_)) && z3Easy(text, statuses)
+        Some(Member(f, statuses, text.length, cited(Path.of(f).getFileName.toString), easy, Alike.shape(commands)))
+      catch case _: (Unsupported | SExprParser.SyntaxError | StackOverflowError) => None
+    )
+  )
+  val members = read.flatMap(_._2.get())
+  val families = members.groupBy(m => family(m.file)).toList.sortBy(_._1)
+  println(s"${members.length} files read, ${members.count(_.easy)} trivial (VIK within $fuel steps, z3 without a conflict), " +
+    s"${families.length} families; trivial beyond the first k of their family:")
+  for k <- List(1, 3, 5, 10) do
+    println(f"  k = $k%-3d ${families.map((_, ms) => (ms.count(m => m.easy && !m.pinned) - (k - ms.count(m => m.easy && m.pinned)).max(0)).max(0)).sum}%5d")
+  val gone = families.flatMap { (f, ms) =>
+    val (easy, others) = ms.partition(m => m.easy && !m.pinned)
+    val kept = spread(others, easy, keep - ms.count(m => m.easy && m.pinned))
+    easy.filterNot(kept.contains).map(f -> _)
+  }
+  println(s"trivial $fuel $keep: ${gone.length} trivial files beyond the $keep kept in their family")
+  for ((dir, name), ms) <- gone.groupBy(_._1).toList.sortBy(_._1) do
+    println(s"  $dir/$name: ${ms.length} of ${families.find(_._1 == (dir, name)).fold(0)(_._2.length)}")
+    for (_, m) <- ms.sortBy(_._2.file) do println(s"    ${m.file}")
+  gone.map(_._2.file)
+
+/** Whether z3 gives the statuses with no conflict: it reads the script without
+ *  them (it errors on a status it contradicts), and `-st` names a statistic
+ *  only when it is not zero.
+ */
+private def z3Easy(text: String, statuses: List[String]): Boolean =
+  val script = Files.createTempFile("prune", ".smt2")
+  try
+    Files.writeString(script, withoutStatuses(text))
+    val process = ProcessBuilder("z3", "-smt2", "-st", "-T:10", script.toString).redirectErrorStream(true).start()
+    val output = new String(process.getInputStream.readAllBytes())
+    if !process.waitFor(15, TimeUnit.SECONDS) then process.destroyForcibly()
+    val lines = output.linesIterator.map(_.trim).toList
+    !lines.exists(_.startsWith("(error")) && lines.filter(l => l == "sat" || l == "unsat" || l == "unknown") == statuses &&
+    "conflicts\\s+[1-9]".r.findFirstIn(output).isEmpty
+  finally Files.delete(script)
+
+/** A file's family: its directory, and its name up to `__` or up to its hash. */
+private[smtlib] def family(file: String): (String, String) =
+  val path = Path.of(file)
+  val name = path.getFileName.toString
+  val stem = if name.contains("__") then name.take(name.indexOf("__")) else name.replaceFirst("-[0-9a-f]+\\.smt2$", "")
+  (String.valueOf(path.getParent), stem)
+
+/** The `n` candidates to keep beside the files kept anyway: each in turn the
+ *  candidate least like any file kept so far (farthest-point sampling over the
+ *  shapes, two files of different statuses wholly unlike), the largest on a
+ *  tie — so a family keeps its sat and its unsat variants, and its odd ones,
+ *  before a second copy of anything.
+ */
+private[smtlib] def spread(kept: List[Member], candidates: List[Member], n: Int): List[Member] =
+  def like(a: Member, b: Member) = if a.statuses != b.statuses then 0.0 else Alike.similarity(a.shape, b.shape)
+  val chosen = mutable.ListBuffer.empty[Member]
+  var left = candidates
+  while chosen.length < n && left.nonEmpty do
+    val next = left.minBy(c => ((kept ++ chosen).map(like(c, _)).maxOption.getOrElse(0.0), -c.size, c.file))
+    chosen += next
+    left = left.filterNot(_ eq next)
+  chosen.toList
 
 /** The names of the `.smt2` files the repository's sources and documents
  *  mention, outside the corpus files and `ignore.txt`.

@@ -30,3 +30,19 @@ class ToolingTest extends munit.FunSuite:
       ),
       "(set-option :global-declarations true)\n(declare-const p Bool)\n(assert p)\n"
     )
+
+  test("a file's family is its importer's prefix or its test, in its directory"):
+    assertEquals(family("QF_UFDTLIA/dotty/alpha-list_zip_2-0757c679b587.smt2"), ("QF_UFDTLIA/dotty", "alpha-list_zip_2"))
+    assertEquals(family("QF_BV/smt-lib/sage__app10__bench_42.smt2"), ("QF_BV/smt-lib", "sage"))
+
+  test("the trivial files kept differ most: another status, then another shape"):
+    def member(name: String, status: String, script: String) =
+      val commands = sexpr.SExprParser.parse(script)
+      Member(name, List(status), script.length, false, true, Alike.shape(commands))
+    val decls = "(declare-const x Int)(declare-const y Int)"
+    val big = member("big", "sat", decls + "(assert (> x 0))(assert (> y 0))(assert (< x 9))")
+    val copy = member("copy", "sat", decls + "(assert (> y 0))(assert (> x 0))(assert (< x 8))")
+    val unsat = member("unsat", "unsat", decls + "(assert (> x 0))(assert (> y 0))(assert (< x 0))")
+    val other = member("other", "sat", "(declare-const p Bool)(assert p)")
+    assertEquals(spread(Nil, List(copy, unsat, big), 2).map(_.file), List("big", "unsat"))
+    assertEquals(spread(List(big), List(copy, other), 1).map(_.file), List("other"))
