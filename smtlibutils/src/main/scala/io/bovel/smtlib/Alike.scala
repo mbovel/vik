@@ -92,6 +92,24 @@ object Alike:
       case _ => Nil
     }
 
+  /** The theory operations a script applies: the heads of its applications
+   *  that are not its own symbols (`bvadd`, `select`, the `extract` of
+   *  `(_ extract 7 0)`); a literal such as `(_ bv5 32)` applies none.
+   */
+  def operations(commands: List[SExpr]): Set[String] =
+    val found = mutable.Set.empty[String]
+    def visit(node: Node): Unit = node match
+      case Items(items) =>
+        items.headOption.foreach {
+          case Atom(op) => found += op
+          case Items(Atom("_" | "as") :: Atom(op) :: _) => found += op
+          case _ => ()
+        }
+        items.foreach(visit)
+      case _ => ()
+    Form(commands.filter(!isSetInfo(_)), order = false, Map.empty).commands.foreach(visit)
+    found.toSet
+
   /** The shape of a script: how many times each subtree, cut at depths one to
    *  three and with its names left out, occurs in it once sorted.
    */
