@@ -37,10 +37,35 @@ files in (the origins' layouts and answer formats are in `Import.scala`): every 
 files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
 reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
 
-`sbt "smtlibutils/runMain io.bovel.smtlib.prune [--delete] [prefix ...]"` lists the files that neither VIK's
-parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete` removes
-them and their `ignore.txt` lines: such a file is no benchmark, its statuses answer a question the script does not
-ask. The importer copies only what VIK reads; files added by other means, such as the compiler's dumps, need it.
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"` lists the files that neither
+VIK's parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete`
+removes them and their `ignore.txt` lines: such a file is no benchmark, its statuses answer a question the script
+does not ask. The importer copies only what VIK reads; files added by other means, such as the compiler's dumps,
+need it.
+
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"` lists the files alike one
+it keeps, and `--delete` removes them the same way. The levels are exact, each joining more than the one before:
+`text` (the same S-expressions, comments, layout and `set-info` aside), `names` (the same up to the names of the
+script's own symbols and of bound variables), `order` (the same up to the order of declarations, of assertions
+between two other commands, of the arguments of commutative operations, and of a `let`'s bindings); or a similarity
+between 0 and 1, the weighted Jaccard index of the scripts' subtrees cut at depths one to three, names left out. A
+file is compared only with files of its logic that have the same statuses and the same standing on `ignore.txt`,
+and the files the repository names (benchmark instances, tests, documentation) are always kept. The summary it
+prints first, 2026-11-07, over the 5 462 files:
+
+| Level | Alike a kept file | Of them, Scala 3 dumps |
+| --- | --- | --- |
+| `text` | 195 | 165 |
+| `names` | 2 401 | 2 346 |
+| `order` | 2 461 | 2 396 |
+| similarity ≥ 0.95 | 2 603 | 2 486 |
+| similarity ≥ 0.9 | 2 702 | 2 542 |
+| similarity ≥ 0.8 | 2 961 | 2 706 |
+
+The exact levels only join files that are one problem: the canonical form is the file renamed and reordered, z3
+answers every form as it does the file (but one, whose `List` datatype z3 takes for its built-in one), and no two
+files of one form have contradicting statuses. A similarity
+joins variants: at 0.9, two of the synthesis queries of `2017-BuchwaldFried` that differ by one instruction.
 
 ## The release samples, per logic
 
