@@ -163,6 +163,26 @@ class SolverTest extends munit.FunSuite:
       case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
       case other => fail(s"expected unsat, got $other")
 
+  test("a Gomory cut closes a sliding branch and bound"):
+    // x even and x odd, as below: the cut from the row of the fractional x needs no branch.
+    val s = Solver()
+    val x = s.newVar()
+    val y = s.newVar()
+    val z = s.newVar()
+    val even = s.newSlack(List((BigInt(1), x), (BigInt(-2), y)))
+    val odd = s.newSlack(List((BigInt(1), x), (BigInt(-2), z)))
+    assertEquals(s.assertUpper(even, 0, 1), Result.Sat)
+    assertEquals(s.assertLower(even, 0, 2), Result.Sat)
+    assertEquals(s.assertUpper(odd, 1, 3), Result.Sat)
+    assertEquals(s.assertLower(odd, 1, 4), Result.Sat)
+    s.cutAfter = 0
+    var steps = 100
+    s.keepGoing = () =>
+      steps -= 1; steps >= 0
+    s.check() match
+      case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
+      case other => fail(s"expected unsat, got $other")
+
   test("the small-model box turns a sliding branch and bound into a sound unsat"):
     // x even and x odd: integer-infeasible, rationally satisfiable everywhere, and no single
     // expression's gcd sees it — the branches slide.
@@ -179,6 +199,7 @@ class SolverTest extends munit.FunSuite:
       assertEquals(s.assertLower(odd, 1, 4), Result.Sat)
       s
     val diverging = parity()
+    diverging.cutsPerCheck = 0 // a cut closes it at once (see below)
     var steps = 10000
     diverging.keepGoing = () =>
       steps -= 1; steps >= 0

@@ -589,6 +589,13 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
+  /** How many Gomory cuts a [[check]] may add, once branch and bound has taken
+   *  [[cutAfter]] branches without closing: each cut is a new row, kept for
+   *  good, and more of them, or earlier, slow the bit-vector lowerings down.
+   */
+  private[lia] var cutsPerCheck = 2
+  private[lia] var cutAfter = 500
+
   /** For the tests: pretend the small-model box is this many bits wide. */
   private[lia] var boxBitsOverride: Long = -1
 
@@ -686,6 +693,8 @@ final class Solver:
       if past then boxPruned = true
       past
     val open = ArrayBuffer.empty[Branch]
+    var cuts = 0
+    val branchesBefore = branches
 
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
@@ -694,7 +703,14 @@ final class Solver:
       case Result.Sat =>
         var x = 0
         while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
-        if x < numVars then
+        val cut: Result | Null =
+          if x < numVars && cuts < cutsPerCheck && branches - branchesBefore >= cutAfter then gomoryCut(x) else null
+        if cut != null then
+          cuts += 1
+          cut match
+            case Result.Sat => step()
+            case unsat => unsat
+        else if x < numVars then
           branches += 1
           val v = deltaValue(x)
           Branch(x, v.floor, v.ceil, -branches, Set.empty)
@@ -752,6 +768,42 @@ final class Solver:
                 case Result.Sat => step()
                 case unsat => unsat
     throw AssertionError("unreachable")
+
+  /** A Gomory cut from the row of the basic integer `b`, whose value is
+   *  fractional: `null` when the row mentions a real or a non-basic variable
+   *  away from its bounds.
+   */
+  private def gomoryCut(b: Var): Result | Null = boundary:
+    if rows(b) == null || anyReal then break(null)
+    val row = rows(b).nn
+    val f0 = values(b) - Rational(values(b).floor)
+    val terms = ArrayBuffer.empty[(Rational, Var)]
+    var rhs = Rational.one
+    val premises = ArrayBuffer.empty[Bound]
+    var i = 0
+    while i < row.size do
+      val j = row.varAt(i)
+      val a = row.coefAt(i)
+      if !isInt(j) then break(null)
+      val l = lower(j)
+      val u = upper(j)
+      val atLower = l != null && l.value.r == values(j)
+      if !atLower && (u == null || u.value.r != values(j)) then break(null)
+      val m = if atLower then -a else a
+      val fj = m - Rational(m.floor)
+      if !fj.isZero then
+        val c = if fj <= f0 then fj / f0 else (Rational.one - fj) / (Rational.one - f0)
+        if atLower then
+          terms += ((c, j)); rhs = rhs + c * l.nn.value.r; premises += l.nn
+        else
+          terms += ((-c, j)); rhs = rhs - c * u.nn.value.r; premises += u.nn
+      i += 1
+    if terms.isEmpty then break(null)
+    var lcm = rhs.den
+    for (c, _) <- terms do lcm = lcm / (lcm gcd c.den) * c.den
+    val s = newSlack(terms.map((c, j) => ((c * Rational(lcm)).num, j)))
+    val d = rhs * Rational(lcm) / Rational(scale(s))
+    assertBound(s, Bound(Delta(Rational(d.ceil)), -1, premises.toArray), false)
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the
    *  simplex; `Sat` leaves the integrality to [[check]].
