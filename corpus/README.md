@@ -23,8 +23,8 @@ their `@Param`s.
 | [cvc5](https://github.com/cvc5/cvc5) documentation examples, `examples/api/smtlib` | `<logic>/cvc5-examples/` | the SMT-LIB examples of the API documentation that are in our fragment, answered by `statusstamp` | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3 guide](https://github.com/microsoft/z3guide), `website/docs-smtlib` | `<logic>/z3guide/` | every `z3` code block of the SMT-LIB guide's pages that is in our fragment, one file per block (`<section>__<page>_<n>`), answered by `statusstamp` | MIT, [LICENSES/z3guide.txt](LICENSES/z3guide.txt) |
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
-| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `QF_UFDTLIA/dotty/` | every implication the qualifier solver checked while compiling its test suite, dumped with `-Yqualified-types-smt-dump` (2 032 files, 1.4 s for the whole suite; 1 933 since the 99 ill-formed ones were pruned, see `prune` below): `:status unsat` is what its e-graph proved, `unknown` what it did not — the answer of a complete solver may be `sat` there. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
-| Scala 3 qualified types, bit-vector default (the same branch and commit, dumped with the bit-vector encoding of `Int`) | `QF_UFBVDT/dotty/` | the same implications with `Int` as 32-bit vectors (1 774, 1 739 since the 35 ill-formed ones were pruned) — VIK answers in 281 ms median where the integer set takes a millisecond (queued: the bit-vector lowering's cost), a dozen past the budget, one outside the fragment (`bvsdiv` of two unknowns); the twelve answered `sat` where z3 and cvc5 say `unsat` were a datatype with a bit-vector field losing the selector rule, fixed 2026-09-03 (`9ec447b`, with the range of a bit-vector out of an application, `87fc07b`). Preliminary, `alpha-` prefixed | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `QF_UFDTLIA/dotty/` | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types, bit-vector default (the same branch and commit) | `QF_UFBVDT/dotty/` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) and one generated script, `QF_DT/vik/bmc__stack_k20.smt2`: bounded model checking of a stack of integers, twenty steps, a postcondition (unsat) and a reachability question (sat) per step under `push`/`pop` — datatypes and integers together, the way a BMC tool drives an incremental solver (`bench/gen-bmc-stack.py`) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
@@ -37,10 +37,35 @@ files in (the origins' layouts and answer formats are in `Import.scala`): every 
 files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
 reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
 
-`sbt "smtlibutils/runMain io.bovel.smtlib.prune [--delete] [prefix ...]"` lists the files that neither VIK's
-parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete` removes
-them and their `ignore.txt` lines: such a file is no benchmark, its statuses answer a question the script does not
-ask. The importer copies only what VIK reads; files added by other means, such as the compiler's dumps, need it.
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"` lists the files that neither
+VIK's parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete`
+removes them and their `ignore.txt` lines: such a file is no benchmark, its statuses answer a question the script
+does not ask. The importer copies only what VIK reads; files added by other means, such as the compiler's dumps,
+need it.
+
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"` lists the files alike one
+it keeps, and `--delete` removes them the same way. The levels are exact, each joining more than the one before:
+`text` (the same S-expressions, comments, layout and `set-info` aside), `names` (the same up to the names of the
+script's own symbols and of bound variables), `order` (the same up to the order of declarations, of assertions
+between two other commands, of the arguments of commutative operations, and of a `let`'s bindings); or a similarity
+between 0 and 1, the weighted Jaccard index of the scripts' subtrees cut at depths one to three, names left out. A
+file is compared only with files of its logic that have the same statuses and the same standing on `ignore.txt`,
+and the files the repository names (benchmark instances, tests, documentation) are always kept. The summary it
+printed on 2026-11-07, over the 5 462 files, before the 2 461 files alike at `order` were deleted (3 001 remain):
+
+| Level | Alike a kept file | Of them, Scala 3 dumps |
+| --- | --- | --- |
+| `text` | 195 | 165 |
+| `names` | 2 401 | 2 346 |
+| `order` | 2 461 | 2 396 |
+| similarity ≥ 0.95 | 2 603 | 2 486 |
+| similarity ≥ 0.9 | 2 702 | 2 542 |
+| similarity ≥ 0.8 | 2 961 | 2 706 |
+
+The exact levels only join files that are one problem: the canonical form is the file renamed and reordered, z3
+answers every form as it does the file (but one, whose `List` datatype z3 takes for its built-in one), and no two
+files of one form have contradicting statuses. A similarity
+joins variants: at 0.9, two of the synthesis queries of `2017-BuchwaldFried` that differ by one instruction.
 
 ## The release samples, per logic
 
@@ -79,29 +104,29 @@ lowering expands by substitution, exponentially (queued).
 
 | Logic | Origin | Files | Families | Answered | Out of reach | Skipped |
 |---|---|---|---|---|---|---|
-| `QF_ABV` | smt-lib | 70 | 8 | 36 | 5 | 29 |
-| `QF_ALIA` | smt-lib | 18 | 6 | 5 | 5 | 8 |
-| `QF_AUFBV` | smt-lib | 2 | 2 | 0 | 0 | 2 |
-| `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 3 | 10 |
-| `QF_AUFLIA` | smt-lib | 17 | 7 | 8 | 6 | 3 |
+| `QF_ABV` | smt-lib | 59 | 8 | 26 | 5 | 28 |
+| `QF_ALIA` | smt-lib | 18 | 6 | 6 | 2 | 10 |
+| `QF_AUFBV` | smt-lib | 2 | 2 | 0 | 1 | 1 |
+| `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 2 | 11 |
+| `QF_AUFLIA` | smt-lib | 17 | 7 | 10 | 4 | 3 |
 | `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
-| `QF_BV` | smt-lib | 263 | 52 | 149 | 114 | 0 |
+| `QF_BV` | smt-lib | 247 | 51 | 136 | 111 | 0 |
 | `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
-| `QF_DT` | smt-lib | 76 | 11 | 40 | 12 | 24 |
-| `QF_LIA` | smt-lib | 30 | 23 | 29 | 1 | 0 |
+| `QF_DT` | smt-lib | 69 | 11 | 33 | 12 | 24 |
+| `QF_LIA` | smt-lib | 24 | 19 | 24 | 0 | 0 |
 | `QF_LIA` | smt-lib-incremental | 5 | 1 | 3 | 2 | 0 |
 | `QF_LIRA` | smt-lib | 2 | 1 | 2 | 0 | 0 |
-| `QF_LRA` | smt-lib | 157 | 34 | 137 | 20 | 0 |
-| `QF_UF` | smt-lib | 66 | 25 | 64 | 2 | 0 |
-| `QF_UF` | smt-lib-incremental | 90 | 2 | 90 | 0 | 0 |
-| `QF_UFBV` | smt-lib | 29 | 4 | 5 | 23 | 1 |
-| `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 6 | 7 | 0 |
-| `QF_UFIDL` | smt-lib | 84 | 10 | 46 | 33 | 5 |
-| `QF_UFLIA` | smt-lib | 76 | 7 | 42 | 25 | 9 |
-| `QF_UFLIA` | smt-lib-incremental | 19 | 1 | 15 | 3 | 1 |
-| `QF_UFLRA` | smt-lib | 50 | 6 | 37 | 12 | 1 |
+| `QF_LRA` | smt-lib | 149 | 34 | 133 | 16 | 0 |
+| `QF_UF` | smt-lib | 64 | 25 | 62 | 2 | 0 |
+| `QF_UF` | smt-lib-incremental | 89 | 2 | 89 | 0 | 0 |
+| `QF_UFBV` | smt-lib | 29 | 4 | 6 | 22 | 1 |
+| `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 13 | 0 | 0 |
+| `QF_UFIDL` | smt-lib | 84 | 10 | 50 | 29 | 5 |
+| `QF_UFLIA` | smt-lib | 72 | 6 | 45 | 18 | 9 |
+| `QF_UFLIA` | smt-lib-incremental | 19 | 1 | 18 | 0 | 1 |
+| `QF_UFLRA` | smt-lib | 49 | 6 | 37 | 11 | 1 |
 | `QF_UFLRA` | smt-lib-incremental | 2 | 1 | 2 | 0 | 0 |
 
 ## The SMT-LIB instances of the benchmarks
