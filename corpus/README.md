@@ -1,8 +1,9 @@
 # The corpus of SMT-LIB files
 
-Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_UFIDL`, `QF_BV`,
-`QF_UFBV`, `QF_ABV`, `QF_AUFBV`, `QF_DT`, `QF_LRA`, `QF_LIRA`, `QF_UFLRA`, `QF_AX`, `QF_ALIA`, `QF_AUFLIA`, and the
-verifiers' mixed logics `QF_UFBVLIA`, `QF_AUFBVLIA`, `QF_BVLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
+Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_IDL`, `QF_UFIDL`,
+`QF_BV`, `QF_UFBV`, `QF_ABV`, `QF_AUFBV`, `QF_DT`, `QF_UFDT`, `QF_UFDTLIA`, `QF_UFBVDT`, `QF_LRA`, `QF_LIRA`,
+`QF_UFLRA`, `QF_AX`, `QF_ALIA`, `QF_AUFLIA`, and the verifiers' mixed logics `QF_UFBVLIA`, `QF_AUFBVLIA`, `QF_BVLRA`),
+then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
@@ -23,8 +24,8 @@ their `@Param`s.
 | [cvc5](https://github.com/cvc5/cvc5) documentation examples, `examples/api/smtlib` | `<logic>/cvc5-examples/` | the SMT-LIB examples of the API documentation that are in our fragment, answered by `statusstamp` | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3 guide](https://github.com/microsoft/z3guide), `website/docs-smtlib` | `<logic>/z3guide/` | every `z3` code block of the SMT-LIB guide's pages that is in our fragment, one file per block (`<section>__<page>_<n>`), answered by `statusstamp` | MIT, [LICENSES/z3guide.txt](LICENSES/z3guide.txt) |
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
-| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `QF_UFDTLIA/dotty/` | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
-| Scala 3 qualified types, bit-vector default (the same branch and commit) | `QF_UFBVDT/dotty/` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `<logic>/dotty/`: `QF_UFDTLIA` and the smaller logics a file fits | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types, bit-vector default (the same branch and commit) | `<logic>/dotty/`: `QF_UFBVDT`, `QF_UFBV`, `QF_BV` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) and one generated script, `QF_DT/vik/bmc__stack_k20.smt2`: bounded model checking of a stack of integers, twenty steps, a postcondition (unsat) and a reachability question (sat) per step under `push`/`pop` — datatypes and integers together, the way a BMC tool drives an incremental solver (`bench/gen-bmc-stack.py`) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
@@ -80,6 +81,13 @@ are pruned at `trivial 10 5`.
 no operation of a theory (`bv`, `arith` or `array`): a literal such as `(_ bv5 32)` or a sort is no operation, and
 neither is a symbol the script declares. For the bit-vector Scala 3 dumps, such a file asks what its integer twin
 asks. The prefixes are required, and the files on `ignore.txt` or named by the repository are kept.
+
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune logic [--move] [prefix ...]"` lists the files whose `set-logic`
+claims more than they use, with the smallest standard logic each fits: a logic with a theory less, or the integers
+or the reals of a mixed arithmetic less, that z3 reads the file under (z3 holds a script to its logic: `Int` is an
+unknown sort under `QF_UFDT`), that VIK's parser still reads, and that keeps the uninterpreted functions if the file
+declares a sort. With `--move`, each goes to that logic's directory with its `set-logic` changed and a header line
+saying so; its `ignore.txt` line follows it, and a file the repository names stays. The Scala 3 dumps are moved.
 
 ## The release samples, per logic
 

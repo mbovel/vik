@@ -1,0 +1,22 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `fib_memoized.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/fib_memoized.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)80
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; logic: QF_UFBV, narrowed from QF_UFBVDT, which claims more than the script uses (prune logic)
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status sat)
+(set-logic QF_UFBV)
+(declare-fun sk_fibMemoized_72 () (_ BitVec 32))
+(declare-fun fib_memoized$package$.fib ((_ BitVec 32)) (_ BitVec 32))
+(declare-fun n$3 () (_ BitVec 32))
+(declare-fun n () (_ BitVec 32))
+(declare-fun x0 () (_ BitVec 32))
+(assert (= (fib_memoized$package$.fib sk_fibMemoized_72) (ite (= (_ bv0 32) sk_fibMemoized_72) (_ bv0 32) (ite (= (_ bv1 32) sk_fibMemoized_72) (_ bv1 32) (bvadd (fib_memoized$package$.fib (bvadd (_ bv4294967295 32) sk_fibMemoized_72)) (fib_memoized$package$.fib (bvadd (_ bv4294967294 32) sk_fibMemoized_72)))))))
+(assert (= (fib_memoized$package$.fib n$3) (ite (= (_ bv0 32) n$3) (_ bv0 32) (ite (= (_ bv1 32) n$3) (_ bv1 32) (bvadd (fib_memoized$package$.fib (bvadd (_ bv4294967295 32) n$3)) (fib_memoized$package$.fib (bvadd (_ bv4294967294 32) n$3)))))))
+(assert (= n$3 (bvadd (_ bv4294967295 32) n)))
+(assert (not (= (_ bv1 32) n)))
+(assert (not (= (_ bv0 32) n)))
+(assert (= (fib_memoized$package$.fib sk_fibMemoized_72) x0))
+(assert (not (= (fib_memoized$package$.fib n$3) x0)))
+(check-sat)
