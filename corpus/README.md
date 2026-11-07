@@ -76,6 +76,11 @@ anything; its other files and the files the repository names are always kept. Th
 regression tests are small on purpose, and the release samples were chosen for their spread. The Scala 3 dumps
 are pruned at `trivial 10 5`.
 
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune unused <theory> [--delete] prefix ..."` lists the files that apply
+no operation of a theory (`bv`, `arith` or `array`): a literal such as `(_ bv5 32)` or a sort is no operation, and
+neither is a symbol the script declares. For the bit-vector Scala 3 dumps, such a file asks what its integer twin
+asks. The prefixes are required, and the files on `ignore.txt` or named by the repository are kept.
+
 ## The release samples, per logic
 
 Taken on 2026-09-02 and 2026-09-03 from the release archives (every file up to 200 KB was parsed and lowered;

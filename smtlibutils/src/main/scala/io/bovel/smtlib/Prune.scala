@@ -9,12 +9,13 @@ import scala.jdk.CollectionConverters.*
 
 import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
 
-/** Prunes the corpus, in one of three ways; with `--delete`, the files found
+/** Prunes the corpus, in one of four ways; with `--delete`, the files found
  *  go, with their `ignore.txt` lines. Usage:
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"`,
- *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."`
- *  — the corpus paths to consider (default all, but for `trivial`).
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."`,
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune unused <theory> [--delete] prefix ..."`
+ *  — the corpus paths to consider (default all, but for `trivial` and `unused`).
  *
  *  `invalid`: the files that neither VIK's parser nor z3's reads. Such
  *  a file is no benchmark: its `:status` answers a question the script does
@@ -47,17 +48,26 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  dump's test). The prefixes are required: the regression tests are small and
  *  easy on purpose, and the release samples were chosen for their spread. See
  *  [[spread]] for the files kept.
+ *
+ *  `unused`: the files that apply no operation of the theory (`bv`, `arith`,
+ *  `array`; see [[Alike.operations]]), such as the bit-vector Scala 3 dumps
+ *  that only declare bit-vector symbols and compare them for equality: their
+ *  integer twin asks the same. The prefixes are required, as for `trivial`; a
+ *  file on `ignore.txt` stays, since what VIK fails there is the encoding
+ *  itself, and so does a file the repository names.
  */
 @main def prune(args: String*): Unit =
   val delete = args.contains("--delete")
   val operands = args.drop(1).filter(_ != "--delete")
   val usage = "prune invalid [--delete] [prefix ...] | prune alike <level> [--delete] [prefix ...] | " +
-    "prune trivial <fuel> <keep> [--delete] prefix ..."
+    "prune trivial <fuel> <keep> [--delete] prefix ... | prune unused <theory> [--delete] prefix ..."
   val (find, prefixes) = args.headOption match
     case Some("invalid") => (invalid, operands)
     case Some("alike") if operands.nonEmpty => (alike(_, operands.head, _), operands.drop(1))
     case Some("trivial") if operands.length > 2 && operands(0).toLongOption.isDefined && operands(1).toIntOption.isDefined =>
       (trivial(_, operands(0).toLong, operands(1).toInt, _), operands.drop(2))
+    case Some("unused") if operands.length > 1 && theories.contains(operands(0)) =>
+      (unused(_, operands(0), _), operands.drop(1))
     case _ => throw IllegalArgumentException(usage)
   val files = Corpus.files.filter(f => prefixes.isEmpty || prefixes.exists(f.startsWith))
   println(s"${files.length} files under ${Corpus.root}")
@@ -302,6 +312,35 @@ private[smtlib] def spread(kept: List[Member], candidates: List[Member], n: Int)
     chosen += next
     left = left.filterNot(_ eq next)
   chosen.toList
+
+/** The operations of each theory `unused` knows. */
+private val theories: Map[String, String => Boolean] =
+  val bitVector = Set("concat", "extract", "repeat", "zero_extend", "sign_extend", "rotate_left", "rotate_right") ++
+    Set("ubv_to_int", "sbv_to_int", "int_to_bv", "nat2bv", "int2bv")
+  Map(
+    "bv" -> (op => op.startsWith("bv") || bitVector(op)),
+    "arith" -> Set("+", "-", "*", "/", "div", "mod", "abs", "<", "<=", ">", ">=", "to_real", "to_int", "is_int"),
+    "array" -> Set("select", "store", "const")
+  )
+
+private def unused(files: List[String], theory: String, pool: java.util.concurrent.ExecutorService): List[String] =
+  val ignored = Corpus.ignored
+  val cited = citedFiles()
+  val read = files.map(f =>
+    f -> pool.submit(() =>
+      try Some(Alike.operations(SExprParser.parse(Corpus.read(f))))
+      catch case _: (SExprParser.SyntaxError | StackOverflowError) => None
+    )
+  )
+  val operations = read.flatMap((f, ops) => ops.get().map(f -> _))
+  println(s"${operations.length} files read; applying no operation of " +
+    theories.toList.sortBy(_._1).map((t, of) => s"$t: ${operations.count((_, ops) => !ops.exists(of))}").mkString(", "))
+  val (none, any) = operations.partition((_, ops) => !ops.exists(theories(theory)))
+  val (kept, gone) = none.map(_._1).partition(f => ignored.contains(f) || cited(Path.of(f).getFileName.toString))
+  println(s"unused $theory: ${gone.length} files apply no $theory operation" +
+    (if kept.isEmpty then "" else s" (and ${kept.length} more kept: on ignore.txt or named by the repository)"))
+  for f <- gone do println(s"  $f")
+  gone
 
 /** The names of the `.smt2` files the repository's sources and documents
  *  mention, outside the corpus files and `ignore.txt`.

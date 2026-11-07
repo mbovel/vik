@@ -86,3 +86,11 @@ class AlikeTest extends munit.FunSuite:
     assertEquals(Alike.similarity(a, shape("(declare-const p Int)(declare-const q Int)(assert (< q 7))(assert (> (+ q p) 1))")), 1.0)
     val near = Alike.similarity(a, shape(xy + "(assert (> (+ x y) 2))(assert (< x 7))"))
     assert(near > 0.5 && near < 1, near)
+
+  test("the operations of a script are its theory symbols applied, not its literals or its own symbols"):
+    def operations(s: String) = Alike.operations(SExprParser.parse(s))
+    val bv = "(declare-fun x () (_ BitVec 32))(declare-fun bvfoo ((_ BitVec 32)) (_ BitVec 32))"
+    assertEquals(operations(bv + "(assert (= (bvfoo x) (_ bv5 32)))").filter(_.startsWith("bv")), Set.empty[String])
+    assert(operations(bv + "(assert (bvsle x (_ bv5 32)))").contains("bvsle"))
+    assert(operations(bv + "(assert (= ((_ extract 7 0) x) #x00))").contains("extract"))
+
