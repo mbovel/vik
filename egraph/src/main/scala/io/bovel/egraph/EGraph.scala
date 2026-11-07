@@ -97,7 +97,9 @@ object EGraph:
    *  `into` because the terms `a` (then in the absorbed class) and `b` (then in
    *  the surviving one) were equated for `why`. `time` orders the merges.
    */
-  private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int)
+  private final case class Edge(into: EClassId, a: EClassId, b: EClassId, why: Justification, time: Int):
+    /** The [[explain]] call that last justified this edge (see [[justify]]). */
+    var explained = 0
 
   /** A disequality `a != b` asserted for `reason`. */
   private final case class Diseq(a: EClassId, b: EClassId, reason: Int)
@@ -534,6 +536,7 @@ final class EGraph(rules: Rules = NoRules):
   def explain(x: EClassId, y: EClassId): ArrayBuffer[Int] =
     require(repr(x) == repr(y), "explain: the two terms are not equal")
     val reasons = ArrayBuffer.empty[Int]
+    explanation += 1
     explainInto(x, y, reasons)
     reasons.distinct
 
@@ -576,7 +579,17 @@ final class EGraph(rules: Rules = NoRules):
    *  congruence, the reasons making the two applications' functions and
    *  arguments equal.
    */
-  private def justify(edge: Edge, out: ArrayBuffer[Int]): Unit = edge.why match
+  private def justify(edge: Edge, out: ArrayBuffer[Int]): Unit =
+    // Once per explanation: its reasons are in `out` already. A congruence of deep terms meets the same edges
+    // under many arguments, and justifying them again at each made the work exponential in the depth
+    // (`Factorial-0`).
+    if edge.explained != explanation then
+      edge.explained = explanation
+      justifyOnce(edge, out)
+
+  private var explanation = 0
+
+  private def justifyOnce(edge: Edge, out: ArrayBuffer[Int]): Unit = edge.why match
     case Justification.Asserted(reason) => out += reason
     case Justification.Congruence(n1, n2) =>
       explainInto(n1.app.fun, n2.app.fun, out)
