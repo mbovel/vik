@@ -1,5 +1,12 @@
 # Contributing to VIK
 
+## Guidelines
+
+- KISS: Keep It Short and Simple.
+- Commit messages start with an imperative verb. Short and clear. First line less than 60 chars. Markdown welcome. Example: prefer ``Move `Simplifier` to `vik` `` to `The simplifier joins the solver`. See [How to write a git commit message](https://cbea.ms/git-commit/).
+- Format both halves before pushing: `sbt "scalafmtAll; scalafmtSbt"`. CI checks `scalafmtCheckAll; scalafmtSbtCheck`.
+- Every fixed bug gets a witness: a corpus file under `corpus/<logic>/vik/` or a unit test, and `Fixes #N` in the commit. `bench/runMain io.bovel.bench.evaluation.SolverCheck` and `ModelCheck` check answers and models against other solvers; run `smtlibutils/runMain io.bovel.smtlib.expectstamp` after a change to outputs, and review its diff.
+
 ## Releasing
 
 A release is a git tag: `git tag v0.1.0 && git push origin v0.1.0`. The CI's `publish` job then signs
@@ -18,8 +25,3 @@ One-time setup, done once by the owner:
    `gh secret set SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (the user token's two halves),
    `gh secret set PGP_SECRET` (the armored key, base64 in one line:
    `gpg --armor --export-secret-keys <id> | base64 -w0`), and `PGP_PASSPHRASE`.
-
-## Guidelines
-
-- KISS: Keep it short and simple.
-- Commit messages start with an imperative verb. Short and clear. First line less than 60 chars. Markdown welcome. Example: prefer ``Move `Simplifier` to `vik` `` to `The simplifier joins the solver`. See [How to write a git commit message](https://cbea.ms/git-commit/).
