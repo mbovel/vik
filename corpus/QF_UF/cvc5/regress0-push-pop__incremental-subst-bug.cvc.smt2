@@ -7,7 +7,8 @@
 ; EXPECT: sat
 ; EXPECT: sat
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (declare-sort U 0)
 (declare-fun x () U)
 (declare-fun y () U)

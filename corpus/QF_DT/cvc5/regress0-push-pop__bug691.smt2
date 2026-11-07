@@ -2,7 +2,8 @@
 ; COMMAND-LINE: --incremental
 ; EXPECT: sat
 ; EXPECT: sat
-(set-logic UFDTSLIA)
+; logic: QF_DT, the smallest the script fits, for UFDTSLIA (prune logic)
+(set-logic QF_DT)
 (set-info :smt-lib-version 2.6)
 
 (declare-datatype Response ((Response$Response (Response$Response$success Bool))))

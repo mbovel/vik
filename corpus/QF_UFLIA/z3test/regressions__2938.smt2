@@ -1,4 +1,6 @@
 ; From z3test: 2938.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UFLIA)
 (set-option :model_validate true)
 (declare-fun f (Int Int Int) Int)
 (declare-fun g (Int Int Int) Int)

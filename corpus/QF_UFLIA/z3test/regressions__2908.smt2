@@ -1,4 +1,6 @@
 ; From z3test: 2908.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UFLIA)
 (declare-fun a (Int) Int)
 (declare-fun b () Int)
 (assert (= (ite (= b (a 0)) b (+ 2 b)) (ite (= b (a 0)) b (- 1 b))))

@@ -1,5 +1,7 @@
 ; From z3test: issue-790.smt2 (MIT, LICENSES/z3test.txt)
 ; Copyright (c) 2016 Microsoft Corporation
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 
 (declare-const $0 (_ BitVec 8))
 

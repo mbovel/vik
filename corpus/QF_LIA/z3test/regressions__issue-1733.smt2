@@ -1,7 +1,8 @@
 ; From z3test: issue-1733.smt2 (MIT, LICENSES/z3test.txt)
 ; EXPECT: sat
 ; EXPECT: ((s26 0))
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (define-fun s2 () Int 50)
 (define-fun s4 () Int 24)
 (define-fun s7 () Int 2400)

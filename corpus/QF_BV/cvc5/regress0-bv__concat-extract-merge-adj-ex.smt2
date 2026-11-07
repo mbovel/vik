@@ -1,6 +1,7 @@
 ; From cvc5: regress0/bv/concat-extract-merge-adj-ex.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_BV, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_BV)
 (declare-fun x () (_ BitVec 8))
 (assert (not (= 
 (concat ((_ extract 7 7) x) ((_ extract 5 5) x) ((_ extract 4 4) x) ((_ extract 3 3) x)) 

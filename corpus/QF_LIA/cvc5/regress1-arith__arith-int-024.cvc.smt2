@@ -1,6 +1,7 @@
 ; From cvc5: regress1/arith/arith-int-024.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (set-option :incremental false)
 (declare-fun x0 () Int)
 (declare-fun x1 () Int)

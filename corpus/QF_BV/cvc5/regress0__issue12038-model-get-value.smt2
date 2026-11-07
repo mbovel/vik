@@ -2,7 +2,8 @@
 ; COMMAND-LINE: --produce-models
 ; EXPECT: sat
 ; EXPECT: ((A true))
-(set-logic ALL)
+; logic: QF_BV, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_BV)
 (declare-const A Bool)
 (declare-const b (_ BitVec 4))
 (assert (or (and A (= b #b0001)) (and A (= b #b0000))))

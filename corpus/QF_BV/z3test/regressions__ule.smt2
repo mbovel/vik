@@ -1,4 +1,6 @@
 ; From z3test: ule.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 (declare-const X (_ BitVec 4))
 
 (set-option :model_validate true)

@@ -1,0 +1,5 @@
+; From z3test: 2921.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LRA, the smallest the script fits, for QF_NRA (prune logic)
+(set-logic QF_LRA)
+(set-info :status sat)
+(check-sat-using ctx-solver-simplify)

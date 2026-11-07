@@ -1,5 +1,7 @@
 ; From z3test: o7.smt2 (MIT, LICENSES/z3test.txt)
 ; Copyright (c) 2016 Microsoft Corporation
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-const i Int)
 (declare-const j Int)
 

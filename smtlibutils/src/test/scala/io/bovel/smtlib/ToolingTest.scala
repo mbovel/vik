@@ -47,12 +47,22 @@ class ToolingTest extends munit.FunSuite:
     assertEquals(spread(Nil, List(copy, unsat, big), 2).map(_.file), List("big", "unsat"))
     assertEquals(spread(List(big), List(copy, other), 1).map(_.file), List("other"))
 
-  test("a logic is read as its parts and written back, and a part less is a smaller logic"):
+  test("a logic is read as its parts and written back, and holds the logics within it"):
     for name <- List("QF_AUFBVLIA", "QF_AX", "QF_ALIA", "QF_UFDTLIA", "QF_UFIDL", "QF_BVLRA", "QF_UF") do
       assertEquals(Logic.parse(name).map(_.name), Some(name))
     assertEquals(Logic.parse("ALL"), None)
-    def smaller(name: String) = Logic.parse(name).toList.flatMap(_.smaller).map(_.name).toSet
-    assertEquals(smaller("QF_UFDTLIA"), Set("QF_DTLIA", "QF_UFLIA", "QF_UFDT"))
-    assertEquals(smaller("QF_ALIA"), Set("QF_LIA", "QF_AX"))
-    assertEquals(smaller("QF_LIRA"), Set("QF_", "QF_LIA", "QF_LRA"))
+    def within(a: String, b: String) = Logic.parse(a).get.within(Logic.parse(b).get)
+    assert(within("QF_UFIDL", "QF_UFLIA") && within("QF_LIA", "AUFLIA") && within("QF_LRA", "QF_LIRA"))
+    assert(!within("QF_UF", "QF_LIA") && !within("QF_LIA", "QF_IDL") && !within("AUFLIA", "QF_AUFLIA"))
 
+  test("a script relabeled sets the new logic and says so in its header"):
+    assertEquals(
+      Logic.relabel("; From x\n(set-logic QF_UFDTLIA)\n(check-sat)\n", "QF_UF"),
+      "; From x\n; logic: QF_UF, the smallest the script fits, for QF_UFDTLIA (prune logic)\n(set-logic QF_UF)\n(check-sat)\n"
+    )
+    assertEquals(
+      Logic.relabel("; From x\n(check-sat)\n", "QF_UF"),
+      "; From x\n; logic: QF_UF, the smallest the script fits, which set none (prune logic)\n(set-logic QF_UF)\n(check-sat)\n"
+    )
+    // A set-logic in a comment sets nothing.
+    assertEquals(Logic.claimed(";(set-logic QF_UFNIA)\n(set-logic ALL) ; or (set-logic QF_LIA)\n"), List("ALL"))

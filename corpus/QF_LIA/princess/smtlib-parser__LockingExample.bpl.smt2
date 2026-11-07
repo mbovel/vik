@@ -1,7 +1,8 @@
 ; From princess: smtlib-parser/LockingExample.bpl.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_LIA, the smallest the script fits, for AUFLIRA (prune logic)
 (set-option :produce-models true)
 (set-option :produce-interpolants true)
-(set-logic AUFLIRA)
+(set-logic QF_LIA)
 (set-info :source |
     SMT script generated on 2015/01/29 by Ultimate. http://ultimate.informatik.uni-freiburg.de/
 |)

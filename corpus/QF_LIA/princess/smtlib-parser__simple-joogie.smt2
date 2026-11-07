@@ -2,8 +2,9 @@
 ; EXPECT: sat
 ; EXPECT: ((Block3538_bwd true))
 ; EXPECT: unsat
+; logic: QF_LIA, the smallest the script fits, for AUFLIA (prune logic)
 (reset)
-(set-logic AUFLIA)
+(set-logic QF_LIA)
 (declare-fun Block3538_fwd () Bool)
 (declare-fun DarrSizeIdx__0 () Int)
 (declare-fun r08289__0 () Int)

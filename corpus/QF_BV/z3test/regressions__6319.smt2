@@ -1,4 +1,6 @@
 ; From z3test: 6319.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 (set-option :sat.euf true)
 (set-option :tactic.default_tactic smt)
 (assert (distinct (_ bv1 1) (_ bv0 1)))

@@ -57,11 +57,11 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  file on `ignore.txt` stays, since what VIK fails there is the encoding
  *  itself, and so does a file the repository names.
  *
- *  `logic`: the files whose `set-logic` claims more than they use, each with
- *  the smallest logic it fits (see [[narrowed]]); with `--move`, each goes to
- *  that logic's directory with its `set-logic` changed, a header line saying
- *  so, and its `ignore.txt` line following it — but a file the repository
- *  names, which it may cite by its path.
+ *  `logic`: the files whose `set-logic` or directory is not the smallest
+ *  standard logic they fit ([[Logic.smallest]], which the importer files by
+ *  too); with `--move`, each gets that `set-logic`, with a header line saying
+ *  so, and goes to that logic's directory, its `ignore.txt` line and the paths
+ *  the repository cites it by following it.
  */
 @main def prune(args: String*): Unit =
   val delete = args.contains("--delete")
@@ -108,7 +108,7 @@ private def invalid(files: List[String], pool: java.util.concurrent.ExecutorServ
 /** VIK's parser's error on the script, if it refuses it. A crash is no
  *  refusal: it is VIK's bug, and says nothing of the file.
  */
-private def vikError(text: String): Option[String] =
+private[smtlib] def vikError(text: String): Option[String] =
   try
     Parser.parse(text)
     None
@@ -117,7 +117,7 @@ private def vikError(text: String): Option[String] =
     case _: (RuntimeException | StackOverflowError) => None
 
 /** z3's first error on the script without its solving and option commands. */
-private def z3Error(text: String): Option[String] =
+private[smtlib] def z3Error(text: String): Option[String] =
   val script = Files.createTempFile("prune", ".smt2")
   try
     Files.writeString(script, withoutSolving(text))
@@ -355,85 +355,73 @@ private def unused(files: List[String], theory: String, pool: java.util.concurre
 private def logics(files: List[String], move: Boolean, pool: java.util.concurrent.ExecutorService): List[String] =
   val read = files.map(f =>
     f -> pool.submit(() =>
-      try narrowed(Corpus.read(f))
+      try Logic.smallest(Corpus.read(f))
       catch case _: (SExprParser.SyntaxError | StackOverflowError) => None
     )
   )
-  val found = read.flatMap((f, n) => n.get().map(f -> _))
-  println(s"${found.length} files fit a smaller logic than their own:")
-  for ((from, to), fs) <- found.groupBy(_._2).toList.sortBy((k, fs) => (-fs.length, k)) do
-    println(f"  $from%-12s -> $to%-12s ${fs.length}%5d")
-  for (f, (from, to)) <- found do println(s"    $f: $to")
+  // The files whose `set-logic` or directory is not the smallest logic they fit.
+  val found = read.flatMap((f, l) => l.get().map(f -> _)).map((f, to) => (f, Logic.claimed(Corpus.read(f)), to))
+    .filter((f, claimed, to) => claimed != List(to) || Path.of(f).getName(0).toString != to)
+  def said(claimed: List[String]) = claimed.headOption.getOrElse("none")
+  println(s"${found.length} files whose set-logic or directory is not the smallest logic they fit:")
+  for ((from, dir, to), fs) <- found.groupBy((f, c, to) => (said(c), Path.of(f).getName(0).toString, to)).toList
+      .sortBy((k, fs) => (-fs.length, k))
+  do println(f"  ${from}%-12s in ${dir}%-12s -> $to%-12s ${fs.length}%5d")
+  for (f, _, to) <- found do println(s"    $f: $to")
   if move then
-    val cited = citedFiles()
-    val (stay, go) = found.partition((f, _) => cited(Path.of(f).getFileName.toString))
-    val moved = go.flatMap { case (f, (from, to)) =>
+    val moved = found.flatMap { (f, claimed, to) =>
+      val text = Corpus.read(f)
       val target = Path.of(to).resolve(Path.of(f).subpath(1, Path.of(f).getNameCount)).toString
-      if Files.exists(Corpus.root.resolve(target)) then
+      if target != f && Files.exists(Corpus.root.resolve(target)) then
         println(s"  $f stays: $target exists")
         None
       else
-        val lines = Corpus.read(f).replace(s"(set-logic $from)", s"(set-logic $to)").linesIterator.toList
-        val header = lines.takeWhile(_.startsWith(";"))
-        val note = s"; logic: $to, narrowed from $from, which claims more than the script uses (prune logic)"
         Files.createDirectories(Corpus.root.resolve(target).getParent)
-        Files.writeString(Corpus.root.resolve(target), (header ++ (note :: lines.drop(header.length))).mkString("", "\n", "\n"))
-        Files.delete(Corpus.root.resolve(f))
+        Files.writeString(Corpus.root.resolve(target), if claimed == List(to) then text else Logic.relabel(text, to))
+        if target != f then Files.delete(Corpus.root.resolve(f))
         Some(f -> target)
     }.toMap
     val ignore = Corpus.root.resolve("ignore.txt")
     val (comments, entries) = Files.readAllLines(ignore).asScala.toList.partition(_.startsWith("#"))
     val renamed = entries.map(l => moved.get(l.takeWhile(_ != '\t')).fold(l)(t => t + l.dropWhile(_ != '\t')))
     Files.writeString(ignore, (comments ++ renamed.sorted).mkString("", "\n", "\n"))
-    println(s"${moved.size} files moved" + (if stay.isEmpty then "" else s", ${stay.length} named by the repository stay"))
+    // A path the repository cites (`bench/evaluation-instances.txt`, the CI) follows its file; a name alone still finds it.
+    val paths = moved.filter(_ != _).map((f, t) => s"corpus/$f" -> s"corpus/$t")
+    val cited = repositoryTexts().filter(p => !p.startsWith(Corpus.root)).flatMap { p =>
+      val text = Files.readString(p)
+      val changed = paths.foldLeft(text)((t, path) => t.replace(path._1, path._2))
+      Option.when(changed != text) { Files.writeString(p, changed); Corpus.root.getParent.relativize(p) }
+    }
+    println(s"${moved.count(_ != _)} files moved, ${moved.count(_ == _)} relabeled in place" +
+      (if cited.isEmpty then "" else s"; their paths changed in ${cited.mkString(", ")}"))
   Nil
-
-/** The script's logic and the smallest standard logic it fits, when that is
- *  smaller: down through the logics with a part less, each one z3 reads the
- *  script under (z3 holds a script to its logic's signature: `Int` is unknown
- *  under `QF_UFDT`, a numeral too), VIK's parser still reads, and without
- *  uninterpreted functions only if the script declares no sort, which z3 lets
- *  through. None for a script with no standard `set-logic`, or one z3 refuses
- *  as it is.
- */
-private def narrowed(text: String): Option[(String, String)] =
-  "\\(set-logic ([A-Za-z_]+)\\)".r.findAllMatchIn(text).map(_.group(1).nn).toList.distinct match
-    case List(name) if Logic.standard(name) && z3Error(text).isEmpty =>
-      Logic.parse(name).flatMap { own =>
-        def under(l: Logic) = text.replace(s"(set-logic $name)", s"(set-logic ${l.name})")
-        val sorts = text.contains("(declare-sort ")
-        def fits(l: Logic) =
-          Logic.standard(l.name) && (l.functions || !sorts) && z3Error(under(l)).isEmpty && vikError(under(l)).isEmpty
-        val seen = mutable.Set(own)
-        var frontier = List(own)
-        var best = own
-        while frontier.nonEmpty do
-          frontier = frontier.flatMap(_.smaller).distinct.filter(l => seen.add(l) && fits(l))
-          for l <- frontier if l.size < best.size || l.size == best.size && l.name < best.name do best = l
-        Option.when(best != own)(name -> best.name)
-      }
-    case _ => None
 
 /** The names of the `.smt2` files the repository's sources and documents
  *  mention, outside the corpus files and `ignore.txt`.
  */
 private def citedFiles(): Set[String] =
-  val repository = Corpus.root.getParent
   val ignore = Corpus.root.resolve("ignore.txt")
-  val texts = List(".scala", ".md", ".txt", ".sh", ".py", ".mjs", ".yml")
   val name = """[^\s/"'`()|<>\[\]{},;:*]+\.smt2""".r
-  val found = mutable.Set.empty[String]
+  repositoryTexts().filter(_ != ignore).flatMap(p => name.findAllIn(Files.readString(p))).toSet
+
+/** The repository's sources and documents: its Scala, Markdown, text,
+ *  shell, Python, JavaScript and YAML files, `.github` included, but not the
+ *  build's output, the other hidden directories, or the untracked `paper`.
+ */
+private def repositoryTexts(): List[Path] =
+  val repository = Corpus.root.getParent
+  val texts = List(".scala", ".md", ".txt", ".sh", ".py", ".mjs", ".yml")
+  val found = mutable.ListBuffer.empty[Path]
   Files.walkFileTree(
     repository,
     new SimpleFileVisitor[Path]:
       override def preVisitDirectory(dir: Path, attributes: BasicFileAttributes): FileVisitResult =
         val n = String.valueOf(dir.getFileName)
-        if dir != repository && (n.startsWith(".") || n == "target" || n == "node_modules") then FileVisitResult.SKIP_SUBTREE
+        if dir != repository && (n.startsWith(".") && n != ".github" || Set("target", "node_modules", "paper")(n)) then
+          FileVisitResult.SKIP_SUBTREE
         else FileVisitResult.CONTINUE
       override def visitFile(file: Path, attributes: BasicFileAttributes): FileVisitResult =
-        if file != ignore && texts.exists(file.toString.endsWith) then
-          try found ++= name.findAllIn(Files.readString(file))
-          catch case _: java.io.IOException => ()
+        if texts.exists(file.toString.endsWith) then found += file
         FileVisitResult.CONTINUE
   )
-  found.toSet
+  found.toList.filter(p => scala.util.Try(Files.readString(p)).isSuccess)

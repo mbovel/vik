@@ -4,8 +4,9 @@
 ; EXPECT: (((or (not (<= 0 (+ c13 (- 1)))) (<= 0 (+ c5 (- 1)))) true))
 ; EXPECT: sat
 ; EXPECT: (((or (not (<= 0 (+ c13 (- 1)))) (<= 0 (+ c5 (- 1)))) true))
+; logic: QF_LIA, the smallest the script fits, for AUFLIA (prune logic)
 (reset)
-(set-logic AUFLIA)
+(set-logic QF_LIA)
 (declare-fun R0 () Int)
 (declare-fun R1 () Int)
 (declare-fun R2 () Int)

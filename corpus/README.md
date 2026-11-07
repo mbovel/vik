@@ -1,9 +1,9 @@
 # The corpus of SMT-LIB files
 
-Test inputs and benchmark instances, one directory per logic (`QF_UF`, `QF_LIA`, `QF_UFLIA`, `QF_IDL`, `QF_UFIDL`,
-`QF_BV`, `QF_UFBV`, `QF_ABV`, `QF_AUFBV`, `QF_DT`, `QF_UFDT`, `QF_UFDTLIA`, `QF_UFBVDT`, `QF_LRA`, `QF_LIRA`,
-`QF_UFLRA`, `QF_AX`, `QF_ALIA`, `QF_AUFLIA`, and the verifiers' mixed logics `QF_UFBVLIA`, `QF_AUFBVLIA`, `QF_BVLRA`),
-then per origin. Every file starts with a comment naming its origin, its original path and its license;
+Test inputs and benchmark instances, one directory per logic, the smallest standard logic each file fits (`QF_ABV`,
+`QF_ALIA`, `QF_AUFBV`, `QF_AUFBVLIA`, `QF_AUFLIA`, `QF_AX`, `QF_BV`, `QF_BVLRA`, `QF_DT`, `QF_IDL`, `QF_LIA`,
+`QF_LIRA`, `QF_LRA`, `QF_UF`, `QF_UFBV`, `QF_UFBVDT`, `QF_UFBVLIA`, `QF_UFDT`, `QF_UFDTLIA`, `QF_UFDTLIRA`, `QF_UFIDL`,
+`QF_UFLIA`, `QF_UFLRA`), then per origin. Every file starts with a comment naming its origin, its original path and its license;
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
@@ -24,8 +24,8 @@ their `@Param`s.
 | [cvc5](https://github.com/cvc5/cvc5) documentation examples, `examples/api/smtlib` | `<logic>/cvc5-examples/` | the SMT-LIB examples of the API documentation that are in our fragment, answered by `statusstamp` | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3 guide](https://github.com/microsoft/z3guide), `website/docs-smtlib` | `<logic>/z3guide/` | every `z3` code block of the SMT-LIB guide's pages that is in our fragment, one file per block (`<section>__<page>_<n>`), answered by `statusstamp` | MIT, [LICENSES/z3guide.txt](LICENSES/z3guide.txt) |
 | [princess](https://github.com/uuverifiers/princess), `testcases` | `<logic>/princess/` | every file in our fragment with an answer in its directory's `Answers` log | BSD, [LICENSES/princess.txt](LICENSES/princess.txt) |
-| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `<logic>/dotty/`: `QF_UFDTLIA` and the smaller logics a file fits | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
-| Scala 3 qualified types, bit-vector default (the same branch and commit) | `<logic>/dotty/`: `QF_UFBVDT`, `QF_UFBV`, `QF_BV` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types ([scala3](https://github.com/scala/scala3), branch `qualifiers-vik`, commit e7c4e412ef) | `<logic>/dotty/` | the implications the qualifier solver checked while compiling its test suite (`-Yqualified-types-smt-dump`), less the ones `prune` removes: `unsat` where its e-graph proved them, z3's answer elsewhere. Preliminary, `alpha-` prefixed: the encoding will change | Apache-2.0 (the scala3 repository) |
+| Scala 3 qualified types, bit-vector default (the same branch and commit) | `<logic>/dotty/` | the same implications with `Int` as 32-bit vectors | Apache-2.0 (the scala3 repository) |
 | VIK (this repository) | `<logic>/vik/` | hand-written tests of the fragment's edges (the `Reals_Ints` casts: `to_real`, `to_int`, `is_int` under both polarities) and one generated script, `QF_DT/vik/bmc__stack_k20.smt2`: bounded model checking of a stack of integers, twenty steps, a postcondition (unsat) and a reachability question (sat) per step under `push`/`pop` — datatypes and integers together, the way a BMC tool drives an incremental solver (`bench/gen-bmc-stack.py`) | the repository's |
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
@@ -35,8 +35,9 @@ Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and
 
 `sbt "smtlibutils/runMain io.bovel.smtlib.smt2import <origin> <source root> [files per family]"` copies an origin's
 files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
-files in the supported fragment are copied, with the header and the statuses, and the rejected ones are
-reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
+files in the supported fragment are copied, with the header and the statuses, each into the directory of the
+smallest standard logic it fits (with its `set-logic` changed if it set another, as `prune logic` does), and the
+rejected ones are reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
 
 `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"` lists the files that neither
 VIK's parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete`
@@ -82,12 +83,17 @@ no operation of a theory (`bv`, `arith` or `array`): a literal such as `(_ bv5 3
 neither is a symbol the script declares. For the bit-vector Scala 3 dumps, such a file asks what its integer twin
 asks. The prefixes are required, and the files on `ignore.txt` or named by the repository are kept.
 
-`sbt "smtlibutils/runMain io.bovel.smtlib.prune logic [--move] [prefix ...]"` lists the files whose `set-logic`
-claims more than they use, with the smallest standard logic each fits: a logic with a theory less, or the integers
-or the reals of a mixed arithmetic less, that z3 reads the file under (z3 holds a script to its logic: `Int` is an
-unknown sort under `QF_UFDT`), that VIK's parser still reads, and that keeps the uninterpreted functions if the file
-declares a sort. With `--move`, each goes to that logic's directory with its `set-logic` changed and a header line
-saying so; its `ignore.txt` line follows it, and a file the repository names stays. The Scala 3 dumps are moved.
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune logic [--move] [prefix ...]"` lists the files whose `set-logic` or
+directory is not the smallest standard logic they fit, which the importer files by too. A logic fits when z3 reads
+the file under it (z3 holds a script to its logic: `Int` is an unknown sort under `QF_UFDT`, a product of two unknowns
+is refused under `QF_LIA`), when VIK's parser still reads it, and when it has `UF` or arrays if the file declares a
+sort. Only the logics z3 enforces in full are tried (19 of the 31 standard ones: z3 takes `QF_UFDTLIA`, `QF_LIRA` or
+`QF_ALIA` for `ALL`), and for a file that sets a standard logic, only those within it, its own logic being the
+answer when none fits. Difference logic (`QF_IDL`, `QF_UFIDL`, `QF_RDL`) is kept for the files that set it: z3 lets
+through atoms the standard's definition does not have, such as `(<= x 5)`, and VIK solves it as linear arithmetic.
+With `--move`, each file goes to its logic's directory, with its `set-logic` changed and a header line saying so
+where it set another; its `ignore.txt` line follows it, and so do the paths the repository cites it by
+(`bench/evaluation-instances.txt`, the evaluation page).
 
 ## The release samples, per logic
 
@@ -128,28 +134,33 @@ lowering expands by substitution, exponentially (queued).
 |---|---|---|---|---|---|---|
 | `QF_ABV` | smt-lib | 59 | 8 | 26 | 5 | 28 |
 | `QF_ALIA` | smt-lib | 18 | 6 | 6 | 2 | 10 |
-| `QF_AUFBV` | smt-lib | 2 | 2 | 0 | 1 | 1 |
+| `QF_AUFBV` | smt-lib | 1 | 1 | 0 | 0 | 1 |
 | `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 2 | 11 |
-| `QF_AUFLIA` | smt-lib | 17 | 7 | 10 | 4 | 3 |
-| `QF_AUFLIA` | smt-lib-incremental | 16 | 1 | 13 | 3 | 0 |
+| `QF_AUFLIA` | smt-lib | 14 | 6 | 7 | 4 | 3 |
+| `QF_AUFLIA` | smt-lib-incremental | 15 | 1 | 12 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
-| `QF_BV` | smt-lib | 247 | 51 | 136 | 111 | 0 |
+| `QF_BV` | smt-lib | 250 | 51 | 139 | 111 | 0 |
 | `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
-| `QF_DT` | smt-lib | 69 | 11 | 33 | 12 | 24 |
-| `QF_LIA` | smt-lib | 24 | 19 | 24 | 0 | 0 |
-| `QF_LIA` | smt-lib-incremental | 5 | 1 | 3 | 2 | 0 |
+| `QF_DT` | smt-lib | 21 | 8 | 17 | 4 | 0 |
+| `QF_IDL` | smt-lib | 2 | 1 | 2 | 0 | 0 |
+| `QF_LIA` | smt-lib | 26 | 20 | 26 | 0 | 0 |
+| `QF_LIA` | smt-lib-incremental | 6 | 2 | 4 | 2 | 0 |
 | `QF_LIRA` | smt-lib | 2 | 1 | 2 | 0 | 0 |
-| `QF_LRA` | smt-lib | 149 | 34 | 133 | 16 | 0 |
-| `QF_UF` | smt-lib | 64 | 25 | 62 | 2 | 0 |
+| `QF_LRA` | smt-lib | 154 | 35 | 138 | 16 | 0 |
+| `QF_LRA` | smt-lib-incremental | 1 | 1 | 1 | 0 | 0 |
+| `QF_UF` | smt-lib | 69 | 27 | 67 | 2 | 0 |
 | `QF_UF` | smt-lib-incremental | 89 | 2 | 89 | 0 | 0 |
-| `QF_UFBV` | smt-lib | 29 | 4 | 6 | 22 | 1 |
+| `QF_UFBV` | smt-lib | 27 | 4 | 3 | 23 | 1 |
 | `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 13 | 0 | 0 |
-| `QF_UFIDL` | smt-lib | 84 | 10 | 50 | 29 | 5 |
+| `QF_UFDT` | smt-lib | 16 | 1 | 0 | 1 | 15 |
+| `QF_UFDTLIA` | smt-lib | 16 | 1 | 0 | 7 | 9 |
+| `QF_UFDTLIRA` | smt-lib | 13 | 1 | 13 | 0 | 0 |
+| `QF_UFIDL` | smt-lib | 82 | 10 | 48 | 29 | 5 |
 | `QF_UFLIA` | smt-lib | 72 | 6 | 45 | 18 | 9 |
 | `QF_UFLIA` | smt-lib-incremental | 19 | 1 | 18 | 0 | 1 |
-| `QF_UFLRA` | smt-lib | 49 | 6 | 37 | 11 | 1 |
-| `QF_UFLRA` | smt-lib-incremental | 2 | 1 | 2 | 0 | 0 |
+| `QF_UFLRA` | smt-lib | 43 | 6 | 31 | 11 | 1 |
+| `QF_UFLRA` | smt-lib-incremental | 1 | 1 | 1 | 0 | 0 |
 
 ## The SMT-LIB instances of the benchmarks
 

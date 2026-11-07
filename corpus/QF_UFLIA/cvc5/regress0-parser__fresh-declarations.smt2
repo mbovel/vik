@@ -1,7 +1,8 @@
 ; From cvc5: regress0/parser/fresh-declarations.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; COMMAND-LINE: --no-fresh-declarations
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UFLIA)
 (declare-sort U 0)
 (declare-fun y () U)
 (declare-fun x () Int)

@@ -1,6 +1,7 @@
 ; From cvc5: regress0/proofs/open-pf-datatypes.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (declare-datatypes ((C 0)) (((r) (b))))
 (declare-datatypes ((P 0)) (((a (f C) (s C)))))
 (declare-fun p () P)

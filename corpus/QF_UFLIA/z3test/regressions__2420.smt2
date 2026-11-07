@@ -2,6 +2,8 @@
 ; EXPECT: sat
 ; EXPECT: ((define-fun q ((x!0 Int)) Int 0))
 ; EXPECT: ((q (lambda ((x!0 Int)) 0)))
+; logic: QF_UFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UFLIA)
 (declare-fun q (Int) Int)
 (set-info :status sat)
 (check-sat)

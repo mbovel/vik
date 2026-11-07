@@ -1,4 +1,6 @@
 ; From z3test: 3369.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :opt.priority lex)
 (set-option :opt.optsmt_engine farkas)
 (set-option :model_validate true)

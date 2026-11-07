@@ -1,6 +1,7 @@
 ; From cvc5: regress0/proofs/dd_int_check_rec_elim_shadow.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UFLIA)
 (declare-fun p (Int) Int)
 (define-fun i ((k Int) (a Int)) Int (p 0))
 (define-fun l ((k Int) (x Int) (s Int) (t Int)) Bool (= 0 (i k x)))

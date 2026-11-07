@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
 ; EXPECT: ((define-fun a1 () Bool false) (define-fun a2 () Bool false) (define-fun a3 () Bool false))
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (declare-const a1 Bool)
 (declare-const a2 Bool)
 (declare-const a3 Bool)
