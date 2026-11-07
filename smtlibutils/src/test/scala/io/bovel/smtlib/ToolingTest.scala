@@ -20,3 +20,13 @@ class ToolingTest extends munit.FunSuite:
       withoutStatuses("(set-info :status sat)\n(check-sat)\n(set-info :status unknown)\n(check-sat)\n"),
       "(set-info :status unknown)\n(check-sat)\n(set-info :status unknown)\n(check-sat)\n"
     )
+
+  test("the pruner shows z3 the script, not its solving or its options"):
+    // cvc5's `:incremental` is an error to z3, and so is a `get-value` with no model: neither is about the text.
+    assertEquals(
+      withoutSolving(
+        "(set-option :incremental true)\n(set-option :global-declarations true)\n(declare-const p Bool) ; p\n" +
+          "(assert p)\n(check-sat)\n(get-value (p))\n(check-sat-assuming (p))\n"
+      ),
+      "(set-option :global-declarations true)\n(declare-const p Bool)\n(assert p)\n"
+    )
