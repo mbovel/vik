@@ -1,5 +1,0 @@
-; From z3test: issue-3028.smt2 (MIT, LICENSES/z3test.txt)
-(declare-fun t () Int)
-(assert (> t (bv2nat ((_ int2bv 1) t))))
-(set-info :status sat)
-(check-sat-using (then qfidl smt))
