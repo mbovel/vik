@@ -48,15 +48,18 @@ removes them and their `ignore.txt` lines: such a file is no benchmark, its stat
 does not ask. The importer copies only what VIK reads; files added by other means, such as the compiler's dumps,
 need it.
 
-`sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"` lists the files alike one
-it keeps, and `--delete` removes them the same way. The levels are exact, each joining more than the one before:
+`sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <text|names|order|similarity> [--delete] [prefix ...]"` lists
+the files alike one it keeps, and `--delete` removes them the same way. The levels are exact, each joining more than
+the one before:
 `text` (the same S-expressions, comments, layout and `set-info` aside), `names` (the same up to the names of the
 script's own symbols and of bound variables), `order` (the same up to the order of declarations, of assertions
-between two other commands, of the arguments of commutative operations, and of a `let`'s bindings); or a similarity
-between 0 and 1, the weighted Jaccard index of the scripts' subtrees cut at depths one to three, names left out. A
-file is compared only with files of its logic that have the same statuses and the same standing on `ignore.txt`,
-and the files the repository names (benchmark instances, tests, documentation) are always kept. The summary it
-printed on 2026-11-07, over the 5 462 files, before the 2 461 files alike at `order` were deleted (3 001 remain):
+between two other commands, of the arguments of commutative operations, and of a `let`'s bindings). A number in place
+of the level is a similarity in (0, 1], `prune alike 0.9 QF_UF/stainless` for instance: the files whose weighted
+Jaccard index with a kept file is at least that, over the scripts' subtrees cut at depths one to three, names left
+out. A file is compared only with files of its logic that have the same statuses and the same standing on
+`ignore.txt`, and the files the repository names (benchmark instances, tests, documentation) are always kept. The
+summary it printed on 2026-11-07, over the 5 462 files, before the 2 461 files alike at `order` were deleted (3 001
+remain):
 
 | Level | Alike a kept file | Of them, Scala 3 dumps |
 | --- | --- | --- |

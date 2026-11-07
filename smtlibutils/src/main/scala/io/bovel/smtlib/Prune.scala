@@ -12,7 +12,7 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
 /** Prunes the corpus, in one of four ways, and relabels it, in a fifth; with
  *  `--delete`, the files found go, with their `ignore.txt` lines. Usage:
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"`,
- *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"`,
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <text|names|order|similarity> [--delete] [prefix ...]"`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune unused <theory> [--delete] prefix ..."`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune logic [--move] [prefix ...]"`
@@ -29,9 +29,10 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  `:global-declarations` stays, which changes the scopes. z3 on the PATH.
  *
  *  `alike`: the files alike a file kept (see [[Alike]]): at a level,
- *  `text`, `names` or `order`, those with the canonical form of a file kept; at
- *  a similarity between 0 and 1, those whose shape is at least that similar to
- *  a kept one's. Only files of one logic, with the same statuses and both on
+ *  `text`, `names` or `order`, those with the canonical form of a file kept;
+ *  given a number in place of the level, a similarity in (0, 1] such as
+ *  `prune alike 0.9`, those whose shape is at least that similar to a kept
+ *  one's. Only files of one logic, with the same statuses and both on
  *  `ignore.txt` or both off it, compare: a sat and an unsat variant of one
  *  problem test more than either, and so does a variant VIK fails beside one
  *  it answers. A file the repository names (the benchmarks' instances, a
@@ -67,7 +68,8 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
   val delete = args.contains("--delete")
   val move = args.contains("--move")
   val operands = args.drop(1).filter(a => a != "--delete" && a != "--move")
-  val usage = "prune invalid [--delete] [prefix ...] | prune alike <level> [--delete] [prefix ...] | " +
+  val usage = "prune invalid [--delete] [prefix ...] | " +
+    "prune alike <text|names|order|similarity> [--delete] [prefix ...] | " +
     "prune trivial <fuel> <keep> [--delete] prefix ... | prune unused <theory> [--delete] prefix ... | " +
     "prune logic [--move] [prefix ...]"
   val (find, prefixes) = args.headOption match
