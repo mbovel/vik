@@ -9,12 +9,13 @@ import scala.jdk.CollectionConverters.*
 
 import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
 
-/** Prunes the corpus, in one of four ways; with `--delete`, the files found
- *  go, with their `ignore.txt` lines. Usage:
+/** Prunes the corpus, in one of four ways, and relabels it, in a fifth; with
+ *  `--delete`, the files found go, with their `ignore.txt` lines. Usage:
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune alike <level> [--delete] [prefix ...]"`,
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune trivial <fuel> <keep> [--delete] prefix ..."`,
- *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune unused <theory> [--delete] prefix ..."`
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune unused <theory> [--delete] prefix ..."`,
+ *  `sbt "smtlibutils/runMain io.bovel.smtlib.prune logic [--move] [prefix ...]"`
  *  — the corpus paths to consider (default all, but for `trivial` and `unused`).
  *
  *  `invalid`: the files that neither VIK's parser nor z3's reads. Such
@@ -55,12 +56,20 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  integer twin asks the same. The prefixes are required, as for `trivial`; a
  *  file on `ignore.txt` stays, since what VIK fails there is the encoding
  *  itself, and so does a file the repository names.
+ *
+ *  `logic`: the files whose `set-logic` claims more than they use, each with
+ *  the smallest logic it fits (see [[narrowed]]); with `--move`, each goes to
+ *  that logic's directory with its `set-logic` changed, a header line saying
+ *  so, and its `ignore.txt` line following it — but a file the repository
+ *  names, which it may cite by its path.
  */
 @main def prune(args: String*): Unit =
   val delete = args.contains("--delete")
-  val operands = args.drop(1).filter(_ != "--delete")
+  val move = args.contains("--move")
+  val operands = args.drop(1).filter(a => a != "--delete" && a != "--move")
   val usage = "prune invalid [--delete] [prefix ...] | prune alike <level> [--delete] [prefix ...] | " +
-    "prune trivial <fuel> <keep> [--delete] prefix ... | prune unused <theory> [--delete] prefix ..."
+    "prune trivial <fuel> <keep> [--delete] prefix ... | prune unused <theory> [--delete] prefix ... | " +
+    "prune logic [--move] [prefix ...]"
   val (find, prefixes) = args.headOption match
     case Some("invalid") => (invalid, operands)
     case Some("alike") if operands.nonEmpty => (alike(_, operands.head, _), operands.drop(1))
@@ -68,6 +77,7 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
       (trivial(_, operands(0).toLong, operands(1).toInt, _), operands.drop(2))
     case Some("unused") if operands.length > 1 && theories.contains(operands(0)) =>
       (unused(_, operands(0), _), operands.drop(1))
+    case Some("logic") if !delete => (logics(_, move, _), operands)
     case _ => throw IllegalArgumentException(usage)
   val files = Corpus.files.filter(f => prefixes.isEmpty || prefixes.exists(f.startsWith))
   println(s"${files.length} files under ${Corpus.root}")
@@ -341,6 +351,68 @@ private def unused(files: List[String], theory: String, pool: java.util.concurre
     (if kept.isEmpty then "" else s" (and ${kept.length} more kept: on ignore.txt or named by the repository)"))
   for f <- gone do println(s"  $f")
   gone
+
+private def logics(files: List[String], move: Boolean, pool: java.util.concurrent.ExecutorService): List[String] =
+  val read = files.map(f =>
+    f -> pool.submit(() =>
+      try narrowed(Corpus.read(f))
+      catch case _: (SExprParser.SyntaxError | StackOverflowError) => None
+    )
+  )
+  val found = read.flatMap((f, n) => n.get().map(f -> _))
+  println(s"${found.length} files fit a smaller logic than their own:")
+  for ((from, to), fs) <- found.groupBy(_._2).toList.sortBy((k, fs) => (-fs.length, k)) do
+    println(f"  $from%-12s -> $to%-12s ${fs.length}%5d")
+  for (f, (from, to)) <- found do println(s"    $f: $to")
+  if move then
+    val cited = citedFiles()
+    val (stay, go) = found.partition((f, _) => cited(Path.of(f).getFileName.toString))
+    val moved = go.flatMap { case (f, (from, to)) =>
+      val target = Path.of(to).resolve(Path.of(f).subpath(1, Path.of(f).getNameCount)).toString
+      if Files.exists(Corpus.root.resolve(target)) then
+        println(s"  $f stays: $target exists")
+        None
+      else
+        val lines = Corpus.read(f).replace(s"(set-logic $from)", s"(set-logic $to)").linesIterator.toList
+        val header = lines.takeWhile(_.startsWith(";"))
+        val note = s"; logic: $to, narrowed from $from, which claims more than the script uses (prune logic)"
+        Files.createDirectories(Corpus.root.resolve(target).getParent)
+        Files.writeString(Corpus.root.resolve(target), (header ++ (note :: lines.drop(header.length))).mkString("", "\n", "\n"))
+        Files.delete(Corpus.root.resolve(f))
+        Some(f -> target)
+    }.toMap
+    val ignore = Corpus.root.resolve("ignore.txt")
+    val (comments, entries) = Files.readAllLines(ignore).asScala.toList.partition(_.startsWith("#"))
+    val renamed = entries.map(l => moved.get(l.takeWhile(_ != '\t')).fold(l)(t => t + l.dropWhile(_ != '\t')))
+    Files.writeString(ignore, (comments ++ renamed.sorted).mkString("", "\n", "\n"))
+    println(s"${moved.size} files moved" + (if stay.isEmpty then "" else s", ${stay.length} named by the repository stay"))
+  Nil
+
+/** The script's logic and the smallest standard logic it fits, when that is
+ *  smaller: down through the logics with a part less, each one z3 reads the
+ *  script under (z3 holds a script to its logic's signature: `Int` is unknown
+ *  under `QF_UFDT`, a numeral too), VIK's parser still reads, and without
+ *  uninterpreted functions only if the script declares no sort, which z3 lets
+ *  through. None for a script with no standard `set-logic`, or one z3 refuses
+ *  as it is.
+ */
+private def narrowed(text: String): Option[(String, String)] =
+  "\\(set-logic ([A-Za-z_]+)\\)".r.findAllMatchIn(text).map(_.group(1).nn).toList.distinct match
+    case List(name) if Logic.standard(name) && z3Error(text).isEmpty =>
+      Logic.parse(name).flatMap { own =>
+        def under(l: Logic) = text.replace(s"(set-logic $name)", s"(set-logic ${l.name})")
+        val sorts = text.contains("(declare-sort ")
+        def fits(l: Logic) =
+          Logic.standard(l.name) && (l.functions || !sorts) && z3Error(under(l)).isEmpty && vikError(under(l)).isEmpty
+        val seen = mutable.Set(own)
+        var frontier = List(own)
+        var best = own
+        while frontier.nonEmpty do
+          frontier = frontier.flatMap(_.smaller).distinct.filter(l => seen.add(l) && fits(l))
+          for l <- frontier if l.size < best.size || l.size == best.size && l.name < best.name do best = l
+        Option.when(best != own)(name -> best.name)
+      }
+    case _ => None
 
 /** The names of the `.smt2` files the repository's sources and documents
  *  mention, outside the corpus files and `ignore.txt`.

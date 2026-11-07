@@ -46,3 +46,13 @@ class ToolingTest extends munit.FunSuite:
     val other = member("other", "sat", "(declare-const p Bool)(assert p)")
     assertEquals(spread(Nil, List(copy, unsat, big), 2).map(_.file), List("big", "unsat"))
     assertEquals(spread(List(big), List(copy, other), 1).map(_.file), List("other"))
+
+  test("a logic is read as its parts and written back, and a part less is a smaller logic"):
+    for name <- List("QF_AUFBVLIA", "QF_AX", "QF_ALIA", "QF_UFDTLIA", "QF_UFIDL", "QF_BVLRA", "QF_UF") do
+      assertEquals(Logic.parse(name).map(_.name), Some(name))
+    assertEquals(Logic.parse("ALL"), None)
+    def smaller(name: String) = Logic.parse(name).toList.flatMap(_.smaller).map(_.name).toSet
+    assertEquals(smaller("QF_UFDTLIA"), Set("QF_DTLIA", "QF_UFLIA", "QF_UFDT"))
+    assertEquals(smaller("QF_ALIA"), Set("QF_LIA", "QF_AX"))
+    assertEquals(smaller("QF_LIRA"), Set("QF_", "QF_LIA", "QF_LRA"))
+
