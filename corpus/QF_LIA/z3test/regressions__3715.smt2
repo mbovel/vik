@@ -1,4 +1,6 @@
 ; From z3test: 3715.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :model_validate true)
 (declare-const i5 Int)
 (declare-const i12 Int)

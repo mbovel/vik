@@ -1,5 +1,6 @@
 ; From z3test: 3799.smt2 (MIT, LICENSES/z3test.txt)
-(set-logic HORN)
+; logic: QF_UF, the smallest the script fits, for HORN (prune logic)
+(set-logic QF_UF)
 (set-option :fp.engine bmc)
 (set-info :status sat)
 (check-sat)

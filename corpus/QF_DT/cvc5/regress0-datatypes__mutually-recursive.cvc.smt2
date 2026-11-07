@@ -1,6 +1,7 @@
 ; From cvc5: regress0/datatypes/mutually-recursive.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (set-option :incremental false)
 (declare-datatypes ((nat 0)(nat2 0)) (((succ (pred nat2)) (zero))((succ2 (pred2 nat)) (zero2))))
 (declare-fun x () nat)

@@ -1,4 +1,6 @@
 ; From z3test: 3220.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (set-option :sat.local_search true)
 (set-option :model_validate true)
 (declare-fun a () Bool)

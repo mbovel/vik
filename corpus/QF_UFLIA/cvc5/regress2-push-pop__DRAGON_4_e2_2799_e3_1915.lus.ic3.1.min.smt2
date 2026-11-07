@@ -27,7 +27,8 @@
 ; EXPECT: unsat
 ; EXPECT: sat
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UFLIA)
 (declare-fun _substvar_577_ () Int)
 (declare-fun _substvar_578_ () Int)
 (declare-fun _substvar_579_ () Int)

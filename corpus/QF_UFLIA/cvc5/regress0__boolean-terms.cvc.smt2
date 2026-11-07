@@ -1,6 +1,7 @@
 ; From cvc5: regress0/boolean-terms.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UFLIA)
 (set-option :incremental false)
 (declare-fun f (Bool) Int)
 (declare-fun x () Int)

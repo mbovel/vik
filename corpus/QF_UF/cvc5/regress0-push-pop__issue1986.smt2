@@ -2,7 +2,8 @@
 ; EXPECT: sat
 ; EXPECT: sat
 ; EXPECT: sat
-(set-logic SAT)
+; logic: QF_UF, the smallest the script fits, for SAT (prune logic)
+(set-logic QF_UF)
 (set-option :incremental true)
 (declare-fun v1 () Bool)
 (declare-fun v2 () Bool)

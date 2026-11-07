@@ -1,4 +1,6 @@
 ; From z3test: 3663.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :proof true) 
 (define-fun a () Int 7) 
 (declare-fun b () Int) 

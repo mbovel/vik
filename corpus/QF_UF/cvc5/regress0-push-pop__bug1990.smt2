@@ -3,7 +3,8 @@
 ; EXPECT: sat
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic QF_SAT)
+; logic: QF_UF, the smallest the script fits, for QF_SAT (prune logic)
+(set-logic QF_UF)
 (declare-fun v1 () Bool)
 (declare-fun v2 () Bool)
 (assert (or v1 v2))

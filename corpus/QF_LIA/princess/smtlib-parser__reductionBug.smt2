@@ -1,7 +1,8 @@
 ; From princess: smtlib-parser/reductionBug.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_LIA, the smallest the script fits, for AUFNIRA (prune logic)
 (set-option :produce-models true)
 (set-option :produce-interpolants false)
-(set-logic AUFNIRA)
+(set-logic QF_LIA)
 (set-info :source |
     SMT script generated on 2015/04/07 by Ultimate. http://ultimate.informatik.uni-freiburg.de/
 |)

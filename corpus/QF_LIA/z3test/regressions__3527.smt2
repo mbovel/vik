@@ -1,4 +1,6 @@
 ; From z3test: 3527.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :sat.local_search true) 
 (define-fun s1 () Int 67) 
 (define-fun s3 () Int 5) 

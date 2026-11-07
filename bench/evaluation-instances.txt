@@ -28,9 +28,9 @@ corpus/QF_BV/smt-lib/20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_15
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v1__v1l20086.cvc.smt2
 corpus/QF_DT/smt-lib/20172804-Barrett__tests__v10__v10l20080.cvc.smt2
 corpus/QF_DT/smt-lib/20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2
-corpus/QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2
+corpus/QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2
 corpus/QF_UFDTLIA/dotty/alpha-093dddceea58.smt2
-corpus/QF_UFDTLIA/dotty/alpha-fib_memoized-36bd61c61979.smt2
+corpus/QF_UFLIA/dotty/alpha-fib_memoized-36bd61c61979.smt2
 corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2
 corpus/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2
 corpus/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2
@@ -39,9 +39,9 @@ corpus/QF_LIA/smt-lib-incremental/lustre__two_counters.bmc_k100.prefix25.smt2
 corpus/QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.prefix25.smt2
 corpus/QF_UFLIA/smt-lib-incremental/kind__MESI_i4.ec.smt2
 corpus/QF_UFLIA/smt-lib-incremental/kind__car_6_e2_893.ec.smt2
-corpus/QF_UFLRA/smt-lib-incremental/cpachecker__diskperf_simpl1.smt2
+corpus/QF_LRA/smt-lib-incremental/cpachecker__diskperf_simpl1.smt2
 corpus/QF_UFLRA/smt-lib-incremental/cpachecker__list_false-unreach-call.smt2
 corpus/QF_BV/smt-lib-incremental/2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2
-corpus/QF_DT/vik/bmc__stack_k20.smt2
+corpus/QF_UFDTLIA/vik/bmc__stack_k20.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__mux.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__illinois.smt2

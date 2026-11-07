@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
 ; EXPECT: ((define-fun a () Int (- 2)) (define-fun b () Int (- 1)) (define-fun c () Int 0))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-const a Int)
 (declare-const b Int)
 (declare-const c Int)

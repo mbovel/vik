@@ -1,4 +1,6 @@
 ; From z3test: 3732.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (declare-sort a)
 (declare-fun b (a a) a)
 (declare-fun c () a)

@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
 ; EXPECT: ((define-fun x11 () Int 0) (define-fun x12 () Int 0) (define-fun x13 () Int 1) (define-fun x21 () Int 0) (define-fun x22 () Int 0) (define-fun x23 () Int 1) (define-fun x31 () Int 0) (define-fun x32 () Int 0) (define-fun x33 () Int 1) (define-fun y1 () Int 0) (define-fun y2 () Int 0) (define-fun y3 () Int 1))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-const x11 Int)
 (declare-const x12 Int)
 (declare-const x13 Int)

@@ -1,4 +1,6 @@
 ; From princess: bitvectors/concatcore.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 (declare-fun x1 () (_ BitVec 8))
 (declare-fun x2 () (_ BitVec 8))
 (declare-fun y () (_ BitVec 2))
