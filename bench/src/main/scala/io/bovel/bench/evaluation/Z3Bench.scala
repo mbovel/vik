@@ -68,7 +68,20 @@ class Z3Bench:
       "asn1jvm__2899.smt2",
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
-      "safari__illinois.smt2"
+      "safari__illinois.smt2",
+      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      "valid-GodelNumbering__167.smt2",
+      "valid-Count__10.smt2",
+      "valid-LawTypeArgsElim__78.smt2",
+      "valid-LawTypeArgsElim__24.smt2",
+      "invalid-BadConcRope__59.smt2",
+      "valid-PropositionalLogic__111.smt2",
+      "invalid-BinarySearch1__39.smt2",
+      "valid-Factorial__0.smt2",
+      "valid-BooleanOps__9.smt2",
+      "invalid-PackedFloat8__11.smt2",
+      "valid-BitsTricksSlow__1.smt2",
+      "valid-BitsTricks__2.smt2"
     )
   )
   var file: String = uninitialized
@@ -135,7 +148,7 @@ class Z3TextBench:
       "20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2",
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
-      "check__array_incompleteness1.smt2"
+      "check__array_incompleteness1.smt2",
       // "stainless-issue-1801__repro.smt2", // check-sat-assuming: the parser drops the assumption
       // "20190906-CLEARSY__0020__00009.smt2", // incremental: the parser flattens the script
       // "lustre__two_counters.bmc_k100.prefix25.smt2", // incremental: the parser flattens the script
@@ -149,6 +162,19 @@ class Z3TextBench:
       // "bmc__stack_k20.smt2", // incremental: the parser flattens the script
       // "safari__mux.smt2", // incremental: the parser flattens the script
       // "safari__illinois.smt2", // incremental: the parser flattens the script
+      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      // "valid-GodelNumbering__167.smt2", // incremental: the parser flattens the script
+      // "valid-Count__10.smt2", // incremental: the parser flattens the script
+      // "valid-LawTypeArgsElim__78.smt2", // incremental: the parser flattens the script
+      // "valid-LawTypeArgsElim__24.smt2", // incremental: the parser flattens the script
+      // "invalid-BadConcRope__59.smt2", // incremental: the parser flattens the script
+      // "valid-PropositionalLogic__111.smt2", // incremental: the parser flattens the script
+      // "invalid-BinarySearch1__39.smt2", // incremental: the parser flattens the script
+      // "valid-Factorial__0.smt2", // incremental: the parser flattens the script
+      // "valid-BooleanOps__9.smt2", // incremental: the parser flattens the script
+      // "invalid-PackedFloat8__11.smt2", // incremental: the parser flattens the script
+      // "valid-BitsTricksSlow__1.smt2", // incremental: the parser flattens the script
+      "valid-BitsTricks__2.smt2"
     )
   )
   var file: String = uninitialized
