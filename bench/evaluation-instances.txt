@@ -42,6 +42,7 @@ corpus/QF_UFLIA/smt-lib-incremental/kind__car_6_e2_893.ec.smt2
 corpus/QF_LRA/smt-lib-incremental/cpachecker__diskperf_simpl1.smt2
 corpus/QF_UFLRA/smt-lib-incremental/cpachecker__list_false-unreach-call.smt2
 corpus/QF_BV/smt-lib-incremental/2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2
+corpus/QF_AUFBVDT/other/asn1jvm__2899.smt2
 corpus/QF_UFDTLIA/vik/bmc__stack_k20.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__mux.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__illinois.smt2

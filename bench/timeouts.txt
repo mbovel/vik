@@ -9,3 +9,6 @@ PrincessBench.api:kind__car_6_e2_893.ec
 PrincessBench.api:bmc__stack_k20
 PrincessBench.api:spear__cvs_v1.11.22__cvs_vc71402
 PrincessBench.api:20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150
+Z3Bench.api:asn1jvm__2899
+Cvc5Bench.api:asn1jvm__2899
+Cvc5Bench.text:asn1jvm__2899
