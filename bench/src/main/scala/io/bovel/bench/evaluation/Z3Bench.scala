@@ -64,6 +64,7 @@ class Z3Bench:
       "cpachecker__diskperf_simpl1.smt2",
       "cpachecker__list_false-unreach-call.smt2",
       "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2",
+      "asn1jvm__2899.smt2",
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
       "safari__illinois.smt2"
@@ -142,6 +143,7 @@ class Z3TextBench:
       // "cpachecker__diskperf_simpl1.smt2", // incremental: the parser flattens the script
       // "cpachecker__list_false-unreach-call.smt2", // incremental: the parser flattens the script
       // "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2", // incremental: the parser flattens the script
+      // "asn1jvm__2899.smt2", // incremental: the parser flattens the script
       // "bmc__stack_k20.smt2", // incremental: the parser flattens the script
       // "safari__mux.smt2", // incremental: the parser flattens the script
       // "safari__illinois.smt2", // incremental: the parser flattens the script
