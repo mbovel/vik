@@ -9,9 +9,9 @@ import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formul
  *  executes per query, before any solver's API is named. [[VikReplay]],
  *  [[Z3Replay]], [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]]
  *  run one against their solver — declarations, term construction, asserts,
- *  `push`/`pop`, `reset-assertions` and every `check-sat`, with the
+ *  `push`/`pop`, `reset-assertions`, every `check-sat`, with the
  *  assumptions of a `check-sat-assuming` asserted under a level of their own,
- *  nothing else: no text is parsed, and
+ *  and every `get-model`, nothing else: no text is parsed, and
  *  VIK's tree is built by VIK's own front end from the terms handed to it.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
@@ -38,6 +38,7 @@ final class Replay(
 ):
   def slotCount: Int = slotSorts.length
   def resets: Boolean = ops.contains(Replay.Op.Reset) || ops.contains(Replay.Op.ResetAll)
+  def models: Boolean = ops.contains(Replay.Op.GetModel)
 
 object Replay:
   /** A solver that answered neither `sat` nor `unsat`: reporting `unknown` as
@@ -112,6 +113,11 @@ object Replay:
      */
     case SetOption(key: String, value: String)
     case Check
+
+    /** `get-model` right after its check: the whole model, as the solver's own
+     *  text, when the check answered `sat`.
+     */
+    case GetModel
 
     /** `reset-assertions`: every assertion and level gone, the declarations
      *  kept, as a script with global declarations has it.
@@ -357,6 +363,8 @@ object Replay:
       case Formula.Let(bindings, body) => formula(body, env ++ bind(bindings, env))
       case Formula.Pred(t) => term(t, env, Sort.Bool)
 
+    var assumed = -1 // the length of `out` right after a `check-sat-assuming`
+
     for command <- script.commands do
       command match
         case Command.SetLogic(l) =>
@@ -421,6 +429,12 @@ object Replay:
           for a <- assumptions do out += Op.Assert(formula(a, Map.empty))
           out += Op.Check
           out += Op.Pop(1)
+          assumed = out.length
+        // Right after its check, where the standard allows it; under the level of a
+        // `check-sat-assuming`, whose assumptions the model must satisfy too.
+        case Command.GetModel =>
+          if out.length == assumed then out.insert(out.length - 1, Op.GetModel)
+          else if out.lastOption.contains(Op.Check) then out += Op.GetModel
         case Command.ResetAssertions => out += Op.Reset // dropped once, which kept every assertion (issue 36)
         case Command.SetOption(":global-declarations", value) =>
           globalDeclarations = value == "true"
@@ -436,5 +450,5 @@ object Replay:
           declSorts.clear()
           macros.clear()
           logic = null
-        case _ => () // get-*, set-*: not part of what the solvers are measured on
+        case _ => () // the other get-*, set-*: not part of what the solvers are measured on
     Replay(out.toArray, slotSorts.toArray, sortCount, declCount, firstLogic, named.toSet)

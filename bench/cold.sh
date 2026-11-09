@@ -84,6 +84,8 @@ while read -r f _; do
   inc=""; pinc=""
   CHECKS=$(grep -c "(check-sat" "$f")
   if [ "$CHECKS" -gt 1 ]; then inc=--incremental; pinc=+incremental; fi
+  # A get-model: cvc5 refuses it without its option, and princess ignores it outside incremental mode.
+  if grep -q "(get-model" "$f"; then inc="$inc --produce-models"; pinc=+incremental; fi
   base=$(basename "$f")
   {
     measure vik-jvm java -cp "$CP" io.bovel.vik.run "$f"
@@ -94,6 +96,8 @@ while read -r f _; do
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"
     measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"
-    measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
+    # Left out where it can be wrong: its check-sat-assuming can stay unsat for good (external-issues.md).
+    grep -q "(check-sat-assuming" "$f" ||
+      measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
   } | while read -r line; do printf "%s\t%s\t%s\n" "$base" "$expected" "$line"; done
 done < "$INSTANCES"

@@ -21,8 +21,8 @@ import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through z3's Java API: what a verifier that builds z3's
  *  terms directly executes per query. The program is replayed in the trial's
- *  context against a fresh solver, so it pays declarations, term construction
- *  and the checks, nothing else.
+ *  context against a fresh solver, so it pays declarations, term construction,
+ *  the checks and the models, nothing else.
  */
 object Z3Replay:
   import Replay.Op
@@ -34,7 +34,7 @@ object Z3Replay:
     if logic == null then ctx.mkSolver() else ctx.mkSolver(logic)
 
   /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
-   *  `pop` and `check-sat` in script order — and returns the answers. The
+   *  `pop`, `check-sat` and `get-model` in script order — and returns the answers. The
    *  solver is reset on the way out: the binding frees a solver's native side
    *  only once the GC has collected its wrapper (`Z3ReferenceQueue`; there is
    *  no release call), and a program that allocates little on the Java side
@@ -196,4 +196,5 @@ object Z3Replay:
             case Status.SATISFIABLE => true
             case Status.UNSATISFIABLE => false
             case status => throw Replay.Undecided("z3", status.toString))
+        case Op.GetModel => if answers.last then solver.getModel.toString
     answers.toList

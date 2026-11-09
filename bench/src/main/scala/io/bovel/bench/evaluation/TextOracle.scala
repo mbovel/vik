@@ -58,15 +58,17 @@ object TextOracle:
     finally ctx.close()
 
   /** cvc5's `InputParser` on a fresh solver, each command invoked as its binary
-   *  would (`incremental` set for a script that pushes, as the binary's command
-   *  line would): the `cvc5` benchmark. The binding's objects are the caller's
-   *  to free, as after [[Cvc5Replay.check]].
+   *  would (`incremental` set for a script that pushes and `produce-models` for
+   *  one that asks for a model, as the binary's command line would): the `cvc5`
+   *  benchmark. The binding's objects are the caller's to free, as after
+   *  [[Cvc5Replay.check]].
    */
   def cvc5(text: String): List[Boolean] =
     val tm = TermManager()
     val solver = Cvc5Solver(tm)
     try
       if text.contains("(push") then solver.setOption("incremental", "true")
+      if text.contains("(get-model") then solver.setOption("produce-models", "true")
       val parser = InputParser(solver)
       parser.setStringInput(InputLanguage.SMT_LIB_2_6, text, "script")
       val symbols = parser.getSymbolManager

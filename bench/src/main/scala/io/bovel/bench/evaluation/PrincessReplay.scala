@@ -14,8 +14,8 @@ import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp}
 import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through princess's API against a fresh prover: symbol
- *  creation, term construction, asserts, `push`/`pop` and every `check-sat`,
- *  nothing else. The API route also sidesteps the SMT-LIB parser's environment,
+ *  creation, term construction, asserts, `push`/`pop`, every `check-sat` and
+ *  every `get-model`, nothing else. The API route also sidesteps the SMT-LIB parser's environment,
  *  which rejects a re-declaration after `pop` (external-issues.md).
  *
  *  Sorts follow princess's own SMT-LIB parser: reals are the `Rationals`
@@ -241,5 +241,6 @@ object PrincessReplay:
               case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true
               case SimpleAPI.ProverStatus.Unsat | SimpleAPI.ProverStatus.Invalid => false
               case status => throw Replay.Undecided("princess", status.toString))
+          case Op.GetModel => if answers.last then p.partialModelAsFormula.toString // what its parser asks for
       answers.toList
     }
