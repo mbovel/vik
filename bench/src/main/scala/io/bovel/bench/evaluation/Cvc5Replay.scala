@@ -2,14 +2,14 @@ package io.bovel.bench.evaluation
 
 import scala.collection.mutable.ArrayBuffer
 
-import io.github.cvc5.{Kind, Solver, Sort, Term, TermManager}
+import io.github.cvc5.{Kind, Result, Solver, Sort, Term, TermManager}
 import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp}
 import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through cvc5's Java API: what a verifier that builds
  *  cvc5's terms directly executes per query. The program is replayed on a fresh
  *  term manager and solver, so it pays declarations, term construction, the
- *  checks and the models, nothing else; a script that pushes gets the
+ *  checks and the models, nothing else; a script that pushes or assumes gets the
  *  `incremental` option and one that asks for a model `produce-models`, as its
  *  text does through the parser.
  *
@@ -21,14 +21,18 @@ object Cvc5Replay:
   import Replay.{Op, decided}
 
   /** Replays the program against a fresh solver — asserts, `push`, `pop`,
-   *  `check-sat` and `get-model` in script order — and returns the answers.
+   *  the checks and `get-model` in script order — and returns the answers.
    */
   def check(program: Replay): List[Boolean] =
     val tm = TermManager()
     val solver = Solver(tm)
     try
       if program.logic != null then solver.setLogic(program.logic)
-      if program.ops.exists(_.isInstanceOf[Op.Push]) || program.resets then solver.setOption("incremental", "true")
+      val incremental = program.ops.exists {
+        case _: (Op.Push | Op.CheckAssuming) => true
+        case _ => false
+      }
+      if incremental || program.resets then solver.setOption("incremental", "true")
       if program.models then solver.setOption("produce-models", "true")
       // What a model reports: the API, unlike `get-model`, is told. The binding's declarations are global.
       val declaredSorts = ArrayBuffer.empty[Sort]
@@ -38,6 +42,8 @@ object Cvc5Replay:
       val testers = new Array[Term](program.declCount) // by the constructor's id
       val sorts = new Array[Sort](program.sortCount)
       val answers = ArrayBuffer.empty[Boolean]
+      def answer(result: Result): Unit =
+        answers += decided(if result.isSat then Some(true) else if result.isUnsat then Some(false) else None, "cvc5")
       def args(is: Array[Int]): Array[Term] = is.map(slots)
       def mk(kind: Kind, is: Array[Int]): Term = tm.mkTerm(kind, args(is))
       def apply(kind: Kind, fun: Term, is: Array[Int]): Term = tm.mkTerm(kind, fun +: args(is))
@@ -183,9 +189,8 @@ object Cvc5Replay:
             solver.resetAssertions()
             declaredSorts.clear()
             declaredFuns.clear()
-          case Op.Check =>
-            val result = solver.checkSat()
-            answers += decided(if result.isSat then Some(true) else if result.isUnsat then Some(false) else None, "cvc5")
+          case Op.Check => answer(solver.checkSat())
+          case Op.CheckAssuming(assumptions) => answer(solver.checkSatAssuming(args(assumptions)))
           case Op.GetModel => if answers.last then solver.getModel(declaredSorts.toArray, declaredFuns.toArray)
       answers.toList
     finally solver.deletePointer()

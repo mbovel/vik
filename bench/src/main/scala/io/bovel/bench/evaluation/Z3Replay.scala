@@ -34,7 +34,7 @@ object Z3Replay:
     if logic == null then ctx.mkSolver() else ctx.mkSolver(logic)
 
   /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
-   *  `pop`, `check-sat` and `get-model` in script order — and returns the answers. The
+   *  `pop`, the checks and `get-model` in script order — and returns the answers. The
    *  solver is reset on the way out: the binding frees a solver's native side
    *  only once the GC has collected its wrapper (`Z3ReferenceQueue`; there is
    *  no release call), and a program that allocates little on the Java side
@@ -60,6 +60,14 @@ object Z3Replay:
     def pairs(is: Array[Int])(f: (Int, Int) => BoolExpr): BoolExpr = // a chainable operator
       if is.length == 2 then f(is(0), is(1))
       else ctx.mkAnd(is.zip(is.tail).map(f(_, _))*)
+    def answer(check: => Status): Unit =
+      // `VIK_REPLAY_DUMP`: the solver's assertions as SMT-LIB before each check, to compare the
+      // replayed problem with the script when their answers differ.
+      if sys.env.contains("VIK_REPLAY_DUMP") then System.err.println(s"; check\n${solver.toString}")
+      answers += (check match
+        case Status.SATISFIABLE => true
+        case Status.UNSATISFIABLE => false
+        case status => throw Replay.Undecided("z3", status.toString))
     for op <- program.ops do
       op match
         case Op.MkSort(id, sort) =>
@@ -188,13 +196,7 @@ object Z3Replay:
         case Op.SetLogic(_) => () // given once, the first, at the start
         case Op.Reset => solver.reset() // the assertions and the levels; the context keeps the declarations
         case Op.ResetAll => solver.reset() // the declarations are made again at new ids; the old ones are harmless
-        case Op.Check =>
-          // `VIK_REPLAY_DUMP`: the solver's assertions as SMT-LIB before each check, to compare the
-          // replayed problem with the script when their answers differ.
-          if sys.env.contains("VIK_REPLAY_DUMP") then System.err.println(s"; check\n${solver.toString}")
-          answers += (solver.check() match
-            case Status.SATISFIABLE => true
-            case Status.UNSATISFIABLE => false
-            case status => throw Replay.Undecided("z3", status.toString))
+        case Op.Check => answer(solver.check())
+        case Op.CheckAssuming(assumptions) => answer(solver.check(assumptions.map(bool)*))
         case Op.GetModel => if answers.last then solver.getModel.toString
     answers.toList
