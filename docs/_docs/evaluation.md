@@ -213,7 +213,9 @@ GraalVM native image of the same code (`bench/graal.sh`). The cold run builds ev
 first, from the tree it measures.
 
 **Times in seconds — lower is better;** the best correct answer of a row is green; a run past the budget
-reads 🐢, and a solver that rejects the file (a sort or a dialect it does not speak) gets a `—`.
+reads 🐢, and a solver that rejects the file (a sort or a dialect it does not speak) gets a `—`, as does
+SMTInterpol on a script with a `check-sat-assuming`, which its command line can answer wrongly
+([external-issues.md](https://github.com/mbovel/vik/blob/main/external-issues.md)).
 
 <div class="table-scroll">
 <table>

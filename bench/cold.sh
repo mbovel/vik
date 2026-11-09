@@ -96,6 +96,8 @@ while read -r f _; do
     measure z3 z3 "$f"
     measure cvc5 cvc5 $inc "$f"
     measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"
-    measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
+    # Left out where it can be wrong: its check-sat-assuming can stay unsat for good (external-issues.md).
+    grep -q "(check-sat-assuming" "$f" ||
+      measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
   } | while read -r line; do printf "%s\t%s\t%s\n" "$base" "$expected" "$line"; done
 done < "$INSTANCES"
