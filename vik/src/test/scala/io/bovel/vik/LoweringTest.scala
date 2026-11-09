@@ -46,6 +46,66 @@ class LoweringTest extends munit.FunSuite:
       )
     )
 
+  private def minted(script: String, prefix: String): Int =
+    Lowering(Parser.parse(script)).commands.count {
+      case Command.DeclareFun(name, _, _) => name.startsWith(prefix + "!")
+      case _ => false
+    }
+  private val rational = "(assert (>= a 0.5))"
+  private val operation = "(assert (= y (bvadd x #x01)))"
+  private val declared = "(declare-const a Real)(declare-const x (_ BitVec 8))(declare-const y (_ BitVec 8))"
+
+  test("what a level minted is minted again after its pop (issue 83)"):
+    assertEquals(minted(s"$declared(push 1)$rational(pop 1)$rational", "rat"), 2)
+    assertEquals(minted(s"$declared(push 1)$operation(pop 1)$operation", "bv"), 2)
+
+  test("what an outer level minted outlives the pops above it (issue 83)"):
+    assertEquals(minted(s"$declared$rational(push 1)(pop 1)$rational", "rat"), 1)
+    assertEquals(minted(s"$declared$operation(push 1)(pop 1)$operation", "bv"), 1)
+    // Level by level: the second use finds the first's, and only the popped level's go.
+    assertEquals(minted(s"$declared(push 1)$rational(push 1)$rational(pop 1)$rational(pop 1)$rational", "rat"), 2)
+    assertEquals(
+      minted(s"$declared$rational(push 1)$rational(assert (<= a 0.25))(pop 1)(assert (<= a 0.25))", "rat"),
+      3
+    )
+
+  test("a definition popped is a definition stated again (issue 83)"):
+    def answer(script: String): List[String] = Session.run(Parser.parse(script))
+    val rationalAgain = "(assert (= a 0.5))(assert (= a 0.25))(check-sat)"
+    assertEquals(answer(s"$declared(push 1)(assert (= a 0.5))(pop 1)$rationalAgain"), List("unsat"))
+    val operationAgain = s"$operation(assert (= x #x00))(assert (= y #x02))(check-sat)"
+    assertEquals(answer(s"$declared(push 1)$operation(pop 1)$operationAgain"), List("unsat"))
+    // The range of an application, asserted at its first use.
+    assertEquals(
+      answer(
+        "(declare-fun f (Int) (_ BitVec 8))(push 1)(assert (= (f 0) #x00))(pop 1)" +
+          "(assert (> (ubv_to_int (f 0)) 255))(check-sat)"
+      ),
+      List("unsat")
+    )
+
+  test("the definitions die with their level under :global-declarations too (issue 83)"):
+    // The constants stay declared there, and so a memo that followed the declarations would keep them.
+    assertEquals(
+      Session.run(Parser.parse(
+        "(set-option :global-declarations true)(declare-const a Real)" +
+          "(push 1)(assert (= a 0.5))(pop 1)(assert (= a 0.5))(assert (= a 0.25))(check-sat)"
+      )),
+      List("unsat")
+    )
+
+  test("what a failed command minted is defined below the next level (issue 83)"):
+    val s = Session()
+    s.run("(declare-const a Real)(declare-const n Int)")
+    // `0.5` is minted, its definition still pending, when the product is refused.
+    intercept[Smt2Error](s.assert("(= (+ a 0.5) (* n n))"))
+    s.push()
+    s.assert("(>= a 1.0)")
+    s.pop()
+    s.assert("(= a 0.5)")
+    s.assert("(>= a 1.0)")
+    assertEquals(s.checkSat(), Some(false))
+
   test("outside the fragment: nonlinear multiplication, integer division"):
     intercept[Smt2Error](lowered("(declare-const x Int) (assert (<= (* x x) 1))"))
     intercept[Unsupported](lowered("(declare-const x Int) (assert (= (div x 2) 1))"))
