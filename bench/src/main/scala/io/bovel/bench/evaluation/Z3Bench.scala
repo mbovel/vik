@@ -167,5 +167,7 @@ class Z3TextBench:
     val solver = Z3Replay.solver(ctx, instance.logic)
     try
       solver.add(ctx.parseSMTLIB2String(instance.text, null, null, null, null)*)
-      solver.check() == Status.SATISFIABLE
+      val sat = solver.check() == Status.SATISFIABLE
+      if sat && instance.replay.models then solver.getModel.toString // the parser drops the `get-model`
+      sat
     finally solver.reset() // see Z3Replay.check

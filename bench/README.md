@@ -22,7 +22,7 @@ script of several checks was inverted. A file the replay cannot compile is repor
 so is a solver's own limit; a solver has `VIK_CHECK_SECONDS` per file, 30 by default, on a thread the
 tool leaves behind past it. The exit code says whether a disagreement was found, which CI runs on the
 hand-written files with VIK. The replay itself covers declarations, terms, asserts, `push`/`pop`,
-`reset-assertions` and `reset`, `check-sat` and `check-sat-assuming`; what it does not (sort parameters)
+`reset-assertions` and `reset`, `check-sat`, `check-sat-assuming` and `get-model`; what it does not (sort parameters)
 is reported, never answered.
 `ModelCheck` takes every `get-model` of the selected files, puts VIK's model into the script in place of
 the declarations it values — abstract elements declared and told apart — and asks z3 whether the script

@@ -8,9 +8,10 @@ import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through cvc5's Java API: what a verifier that builds
  *  cvc5's terms directly executes per query. The program is replayed on a fresh
- *  term manager and solver, so it pays declarations, term construction and the
- *  checks, nothing else; a script that pushes gets the `incremental` option, as
- *  its text does through the parser.
+ *  term manager and solver, so it pays declarations, term construction, the
+ *  checks and the models, nothing else; a script that pushes gets the
+ *  `incremental` option and one that asks for a model `produce-models`, as its
+ *  text does through the parser.
  *
  *  The binding keeps every term, sort and solver it creates until
  *  `Context.deletePointers()` frees them all at once — the caller's call, after
@@ -19,8 +20,8 @@ import io.bovel.smtlib.Sort as SmtSort
 object Cvc5Replay:
   import Replay.{Op, decided}
 
-  /** Replays the program against a fresh solver — asserts, `push`, `pop` and
-   *  `check-sat` in script order — and returns the answers.
+  /** Replays the program against a fresh solver — asserts, `push`, `pop`,
+   *  `check-sat` and `get-model` in script order — and returns the answers.
    */
   def check(program: Replay): List[Boolean] =
     val tm = TermManager()
@@ -28,6 +29,10 @@ object Cvc5Replay:
     try
       if program.logic != null then solver.setLogic(program.logic)
       if program.ops.exists(_.isInstanceOf[Op.Push]) || program.resets then solver.setOption("incremental", "true")
+      if program.models then solver.setOption("produce-models", "true")
+      // What a model reports: the API, unlike `get-model`, is told. The binding's declarations are global.
+      val declaredSorts = ArrayBuffer.empty[Sort]
+      val declaredFuns = ArrayBuffer.empty[Term]
       val slots = new Array[Term](program.slotCount)
       val decls = new Array[Term](program.declCount)
       val testers = new Array[Term](program.declCount) // by the constructor's id
@@ -48,7 +53,9 @@ object Cvc5Replay:
               case SmtSort.BitVec(width) => tm.mkBitVectorSort(width)
               case _ => throw IllegalStateException(s"not a built-in sort: $sort")
           case Op.ArraySort(id, index, element) => sorts(id) = tm.mkArraySort(sorts(index), sorts(element))
-          case Op.DeclareSort(id, name) => sorts(id) = tm.mkUninterpretedSort(name)
+          case Op.DeclareSort(id, name) =>
+            sorts(id) = tm.mkUninterpretedSort(name)
+            declaredSorts += sorts(id)
           case Op.DeclareDatatypes(datatypes, sortIds, ctorIds, selectorIds) =>
             // A field sort naming a datatype of the group is an unresolved sort, resolved with the group.
             val unresolved = datatypes.map(d => d.name -> tm.mkUnresolvedDatatypeSort(d.name)).toMap
@@ -75,6 +82,7 @@ object Cvc5Replay:
             decls(id) =
               if argSorts.isEmpty then tm.mkConst(sorts(result), name)
               else tm.mkConst(tm.mkFunctionSort(argSorts.map(sorts), sorts(result)), name)
+            declaredFuns += decls(id)
           case Op.Const(dst, decl) =>
             val fun = decls(decl)
             slots(dst) = if fun.getSort.isDatatypeConstructor then tm.mkTerm(Kind.APPLY_CONSTRUCTOR, fun) else fun
@@ -171,9 +179,13 @@ object Cvc5Replay:
           case Op.SetOption(_, _) => () // for VIK's session; the binding's declarations are global
           case Op.SetLogic(_) => () // given once, the first, at the start
           case Op.Reset => solver.resetAssertions() // the terms declared through the API stay valid
-          case Op.ResetAll => solver.resetAssertions()
+          case Op.ResetAll =>
+            solver.resetAssertions()
+            declaredSorts.clear()
+            declaredFuns.clear()
           case Op.Check =>
             val result = solver.checkSat()
             answers += decided(if result.isSat then Some(true) else if result.isUnsat then Some(false) else None, "cvc5")
+          case Op.GetModel => if answers.last then solver.getModel(declaredSorts.toArray, declaredFuns.toArray)
       answers.toList
     finally solver.deletePointer()

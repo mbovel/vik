@@ -84,6 +84,8 @@ while read -r f _; do
   inc=""; pinc=""
   CHECKS=$(grep -c "(check-sat" "$f")
   if [ "$CHECKS" -gt 1 ]; then inc=--incremental; pinc=+incremental; fi
+  # A get-model: cvc5 refuses it without its option, and princess ignores it outside incremental mode.
+  if grep -q "(get-model" "$f"; then inc="$inc --produce-models"; pinc=+incremental; fi
   base=$(basename "$f")
   {
     measure vik-jvm java -cp "$CP" io.bovel.vik.run "$f"

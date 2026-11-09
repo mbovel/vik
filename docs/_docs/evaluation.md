@@ -125,7 +125,7 @@ The 95% confidence intervals (Student's t over the samples of a cell) average 4%
 
 Every column receives the problem already built: *VIK (API)*, *Z3 (API)*, *CVC5 (API)*, *Princess (API)*
 and *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
-asserts, `push`, `pop` and every `check-sat` — which is what an embedding verifier pays. The same run also
+asserts, `push`, `pop`, every `check-sat` and every `get-model` — which is what an embedding verifier pays. The same run also
 measures VIK, z3 and cvc5 handed the *text* of the script, parsing it themselves (the `text` suites, in the
 results file linked above, and in the table on request: `bench/warm2md.py results.json --columns …`); those
 columns are not shown, the API being the faster side on nearly every instance, and the gap being the
