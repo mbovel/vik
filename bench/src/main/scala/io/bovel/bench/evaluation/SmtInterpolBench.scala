@@ -52,6 +52,7 @@ class SmtInterpolBench:
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
       "check__array_incompleteness1.smt2",
+      // "stainless-issue-1801__repro.smt2", // a logic SMTInterpol does not know (QF_AUFBVDT: SMT-LIB has none)
       "20190906-CLEARSY__0020__00009.smt2",
       "lustre__two_counters.bmc_k100.prefix25.smt2",
       "lustre__ex3.bmc_k100.prefix25.smt2",

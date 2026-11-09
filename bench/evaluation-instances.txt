@@ -34,6 +34,7 @@ corpus/QF_UFLIA/dotty/alpha-fib_memoized-36bd61c61979.smt2
 corpus/QF_AX/smt-lib/storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2
 corpus/QF_AX/smt-lib/swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2
 corpus/QF_AUFLIA/smt-lib/check__array_incompleteness1.smt2
+corpus/QF_AUFBVDT/other/stainless-issue-1801__repro.smt2
 corpus/QF_UF/smt-lib-incremental/20190906-CLEARSY__0020__00009.smt2
 corpus/QF_LIA/smt-lib-incremental/lustre__two_counters.bmc_k100.prefix25.smt2
 corpus/QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.prefix25.smt2
