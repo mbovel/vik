@@ -156,7 +156,7 @@ Every column receives the problem already built: *VIK (API)*, *Z3 (API)*, *CVC5 
 and *SMTInterpol (API)* are handed the script's own terms through each solver's API — declarations, terms,
 asserts, `push`, `pop`, every `check-sat` and every `get-model` — which is what an embedding verifier pays. The same run also
 measures VIK, z3 and cvc5 handed the *text* of the script, parsing it themselves (the `text` suites, in the
-results file linked above, and in the table on request: `bench/warm2md.py results.json --columns …`); those
+raw data linked below, and in the table on request: the `--columns` option of `bench/warm2md.py`); those
 columns are not shown, the API being the faster side on nearly every instance, and the gap being the
 parser. Each of the five
 replays is checked against the solver's own front end run in process on the same text
@@ -351,11 +351,15 @@ finish agree on `sat`).
 ## Reproducing
 
 ```sh
-bench/fetch-native.sh     # once: the z3 and cvc5 libraries and binaries of the versions above (Linux x86-64)
-bench/evaluate.sh all     # the warm JMH groups, the cold run, and the tables of this page
-bench/evaluate.sh warm    # or one half: the warm table only
-bench/evaluate.sh cold    # the cold table only; it builds VIK's binaries first, every platform
+bench/fetch-native.sh        # once: the z3 and cvc5 libraries and binaries of the versions above (Linux x86-64)
+bench/evaluate.sh all        # every solver: the cold run, the warm JMH run, and the tables of this page
+bench/evaluate.sh vik        # VIK alone, after a change to it; the cold run builds VIK's binaries first, every platform
+bench/evaluate.sh others     # the other solvers alone, after a change of version, replay or instances
+bench/evaluate.sh all warm   # one table only: `warm` or `cold` after any of the three
 ```
+
+A run is appended to the history in `bench/results/evaluation`, a row per solver, instance and run, and the
+tables are rebuilt from it.
 
 `bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per
 solver in `bench/src/main/scala/io/bovel/bench/evaluation`, list the instances each solver takes and,

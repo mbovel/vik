@@ -5,50 +5,60 @@
 # them built here first, from the tree being measured: a binary left behind by a rename or an older build
 # lost a column, or measured older code, in silence.
 #
-# Usage, from the repository root: bench/cold.sh [instances-file] [repetitions] [timeout-seconds] > results.tsv
+# Usage, from the repository root:
+#   bench/cold.sh [instances-file] [repetitions] [timeout-seconds] [vik|others|all] > results.tsv
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
 # The instances file holds one path per line (what follows the path on the line, and `#` lines, are
-# skipped). Every run is repeated, and the median (with the extremes) is reported, so a scheduling hiccup
-# does not decide a number.
+# skipped). Every run is repeated and every repetition's time is reported: the readers take the median, so
+# a scheduling hiccup does not decide a number. The last argument names the solvers to run: VIK's five
+# platforms, the other four solvers (nothing of VIK is built then), or all nine, the default.
 set -u
 cd "$(dirname "$0")/.."
 PATH="$PWD/bench/native/bin:$PATH" # the z3 and cvc5 binaries of bench/fetch-native.sh, pinned versions
 INSTANCES="${1:-bench/evaluation-instances.txt}"
 REPETITIONS="${2:-3}"
 TIMEOUT="${3:-10}"  # the ten-second budget: past it the cell says 🐢, and nobody waits
+WHO="${4:-all}"
+case "$WHO" in vik|others|all) ;; *) echo "cold.sh: the solvers are vik, others or all, not '$WHO'" >&2; exit 2 ;; esac
 
-# The native toolchain, before minutes of builds: clang on the PATH, or a user-space LLVM named by LLVM_BIN
-# with the flags it needs in VIK_NATIVE_FLAGS (laraserver4's: `-stdlib=libc++ -fuse-ld=lld -Wl,-rpath,<its
-# lib/x86_64-unknown-linux-gnu> -Wl,--disable-new-dtags`, see build.sbt). The compiler is run once: one
-# whose own libraries are missing from LD_LIBRARY_PATH fails here, not at the link.
-if [ -n "${LLVM_BIN:-}" ]; then
-  "$LLVM_BIN/clang" --version >/dev/null 2>&1 ||
-    { echo "cold.sh: LLVM_BIN=$LLVM_BIN has no clang that runs (its libraries on LD_LIBRARY_PATH?)" >&2; exit 1; }
-  [ -n "${VIK_NATIVE_FLAGS:-}" ] ||
-    { echo "cold.sh: VIK_NATIVE_FLAGS is unset: the flags the toolchain of LLVM_BIN needs (see build.sbt)" >&2; exit 1; }
-elif ! command -v clang >/dev/null; then
-  echo "cold.sh: no clang on the PATH and LLVM_BIN unset: export LLVM_BIN and VIK_NATIVE_FLAGS for the native link" >&2
-  exit 1
+if [ "$WHO" != others ]; then
+  # The native toolchain, before minutes of builds: clang on the PATH, or a user-space LLVM named by LLVM_BIN
+  # with the flags it needs in VIK_NATIVE_FLAGS (laraserver4's: `-stdlib=libc++ -fuse-ld=lld -Wl,-rpath,<its
+  # lib/x86_64-unknown-linux-gnu> -Wl,--disable-new-dtags`, see build.sbt). The compiler is run once: one
+  # whose own libraries are missing from LD_LIBRARY_PATH fails here, not at the link.
+  if [ -n "${LLVM_BIN:-}" ]; then
+    "$LLVM_BIN/clang" --version >/dev/null 2>&1 ||
+      { echo "cold.sh: LLVM_BIN=$LLVM_BIN has no clang that runs (its libraries on LD_LIBRARY_PATH?)" >&2; exit 1; }
+    [ -n "${VIK_NATIVE_FLAGS:-}" ] ||
+      { echo "cold.sh: VIK_NATIVE_FLAGS is unset: the flags the toolchain of LLVM_BIN needs (see build.sbt)" >&2; exit 1; }
+  elif ! command -v clang >/dev/null; then
+    echo "cold.sh: no clang on the PATH and LLVM_BIN unset: export LLVM_BIN and VIK_NATIVE_FLAGS for the native link" >&2
+    exit 1
+  fi
+  # The builds first, their output on stderr (stdout is the table). --server runs them in this process, no
+  # thin client — a client racing a half-dead background server answered with empty stdout on three of four
+  # CI runs. A build that fails ends the run here, loudly — not as thirty silent `error` rows or a lost column.
+  sbt --server --no-colors "vikNative/nativeLink; docsAssets" 1>&2 ||
+    { echo "cold.sh: linking the native binary or the WebAssembly module failed" >&2; exit 1; }
+  bench/graal.sh 1>&2 || { echo "cold.sh: building the GraalVM image failed" >&2; exit 1; }
+  bench/aot.sh "$INSTANCES" 1>&2 || { echo "cold.sh: training the AOT cache failed" >&2; exit 1; }
+  # The binary just linked, the newest: a move to another Scala version leaves the old one beside it
+  # (target/out/native0.5/scala-<version>), and the first that `find` names can be that one.
+  NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.run" -type f -printf '%T@ %p\n' 2>/dev/null |
+    sort -rn | head -1 | cut -d' ' -f2-)
+  GRAAL=target/graal/vik
+  AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
+  AOT_CP=$(cat target/aot/classpath.txt)
+  MODULE=docs/_assets/js/vik/main.js
+  NODE_RUNNER=bench/vik-node.mjs
+  for built in "$NATIVE" "$GRAAL" "$AOT" "$MODULE"; do
+    [ -s "$built" ] || { echo "cold.sh: built nothing at '$built'" >&2; exit 1; }
+  done
 fi
-# The builds first, their output on stderr (stdout is the table). --server runs them in this process, no
-# thin client — a client racing a half-dead background server answered with empty stdout on three of four
-# CI runs. A build that fails ends the run here, loudly — not as thirty silent `error` rows or a lost column.
-sbt --server --no-colors "vikNative/nativeLink; docsAssets" 1>&2 ||
-  { echo "cold.sh: linking the native binary or the WebAssembly module failed" >&2; exit 1; }
-bench/graal.sh 1>&2 || { echo "cold.sh: building the GraalVM image failed" >&2; exit 1; }
-bench/aot.sh "$INSTANCES" 1>&2 || { echo "cold.sh: training the AOT cache failed" >&2; exit 1; }
+# The classpath of VIK on the JVM, and of princess and SMTInterpol.
 CP=$(sbt --server --no-colors "print bench/runtimeClasspath" | grep -E "^/" | tail -1)
 java -cp "$CP" io.bovel.vik.run /dev/null >/dev/null 2>&1 ||
   { echo "cold.sh: classpath canary failed (CP length ${#CP}: ${CP:0:120})" >&2; exit 1; }
-NATIVE=$(find target/out/native0.5 -path "*/native/io.bovel.vik.run" -type f 2>/dev/null | head -1)
-GRAAL=target/graal/vik
-AOT=target/aot/vik.aot # with the classpath it was trained on: the cache holds for no other
-AOT_CP=$(cat target/aot/classpath.txt)
-MODULE=docs/_assets/js/vik/main.js
-NODE_RUNNER=bench/vik-node.mjs
-for built in "$NATIVE" "$GRAAL" "$AOT" "$MODULE"; do
-  [ -s "$built" ] || { echo "cold.sh: built nothing at '$built'" >&2; exit 1; }
-done
 
 seconds() { # the wall-clock time of one run, and the answers (comma-separated for an incremental script);
   # `timeout` when it does not finish, `error` when it stops before answering every check-sat
@@ -63,7 +73,7 @@ seconds() { # the wall-clock time of one run, and the answers (comma-separated f
   printf "%s\t%.3f" "$out" "$(echo "$end - $start" | bc)"
 }
 
-measure() { # name, command...: repeats the run and reports the median, the minimum and the maximum
+measure() { # name, command...: repeats the run and reports the last answer and every repetition's time
   local name=$1; shift
   local times=() answer="" line
   for _ in $(seq "$REPETITIONS"); do
@@ -71,11 +81,10 @@ measure() { # name, command...: repeats the run and reports the median, the mini
     answer=$(cut -f1 <<< "$line")
     times+=("$(cut -f2 <<< "$line")")
   done
-  local sorted=($(printf "%s\n" "${times[@]}" | sort -n))
-  printf "%s\t%s\t%s\t%s\t%s\n" "$name" "$answer" "${sorted[$((${#sorted[@]} / 2))]}" "${sorted[0]}" "${sorted[-1]}"
+  printf "%s\t%s\t%s\n" "$name" "$answer" "${times[*]}"
 }
 
-printf "file\texpected\tsolver\tanswer\tmedian\tmin\tmax\n"
+printf "file\texpected\tsolver\tanswer\tseconds\n"
 while read -r f _; do
   [ -z "$f" ] || [ "${f:0:1}" = "#" ] && continue
   [ -r "$f" ] || { echo "cold.sh: no such instance: $f" >&2; exit 1; }
@@ -88,16 +97,20 @@ while read -r f _; do
   if grep -q "(get-model" "$f"; then inc="$inc --produce-models"; pinc=+incremental; fi
   base=$(basename "$f")
   {
-    measure vik-jvm java -cp "$CP" io.bovel.vik.run "$f"
-    measure vik-native "$NATIVE" "$f"
-    measure vik-graal "$GRAAL" "$f"
-    measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.run "$f"
-    measure vik-node node "$NODE_RUNNER" "$f"
-    measure z3 z3 "$f"
-    measure cvc5 cvc5 $inc "$f"
-    measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"
-    # Left out where it can be wrong: its check-sat-assuming can stay unsat for good (external-issues.md).
-    grep -q "(check-sat-assuming" "$f" ||
-      measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
+    if [ "$WHO" != others ]; then
+      measure vik-jvm java -cp "$CP" io.bovel.vik.run "$f"
+      measure vik-native "$NATIVE" "$f"
+      measure vik-graal "$GRAAL" "$f"
+      measure vik-jvm-aot java -XX:AOTCache="$AOT" -cp "$AOT_CP" io.bovel.vik.run "$f"
+      measure vik-node node "$NODE_RUNNER" "$f"
+    fi
+    if [ "$WHO" != vik ]; then
+      measure z3 z3 "$f"
+      measure cvc5 cvc5 $inc "$f"
+      measure princess java -cp "$CP" ap.CmdlMain $pinc "$f"
+      # Left out where it can be wrong: its check-sat-assuming can stay unsat for good (external-issues.md).
+      grep -q "(check-sat-assuming" "$f" ||
+        measure smtinterpol java -cp "$CP" de.uni_freiburg.informatik.ultimate.smtinterpol.Main -q "$f"
+    fi
   } | while read -r line; do printf "%s\t%s\t%s\n" "$base" "$expected" "$line"; done
 done < "$INSTANCES"

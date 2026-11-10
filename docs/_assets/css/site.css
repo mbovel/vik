@@ -108,6 +108,11 @@
   z-index: 1;
   background: var(--background-main);
 }
+.table-scroll caption { /* the runs behind the columns, under the table: a caption wraps to the table's width */
+  caption-side: bottom;
+  text-align: left;
+  padding-top: 0.6em;
+}
 .table-scroll td[align="right"] { white-space: nowrap; }
 .table-scroll td:first-child a { /* instance names: a fixed narrow column */
   display: inline-block;

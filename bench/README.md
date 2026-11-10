@@ -11,7 +11,7 @@ files. The workloads and the results are kept per module:
 | `lia` | `lia.LiaBench` | [results/lia](results/lia/README.md) |
 | `smtlib` | `smtlib.SExprBench` (the reader), `smtlib.SmtlibBench` (the parser and the printer) | [results/sexpr](results/sexpr/README.md), [results/smtlib](results/smtlib/README.md) |
 | `vik` (random integer and datatype instances through the API) | `vik.UfliaBench`, `vik.AdtBench` | [results/smt](results/smt/README.md) |
-| `evaluation` (VIK, z3, cvc5, princess and SMTInterpol in process on the SMT-LIB instances of the evaluation) | `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`; `SolverCheck`, `ModelCheck`, `replaycheck` | [results/smt](results/smt/README.md) |
+| `evaluation` (VIK, z3, cvc5, princess and SMTInterpol in process on the SMT-LIB instances of the evaluation) | `evaluation.VikBench`, `Z3Bench`, `Z3TextBench`, `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`; `SolverCheck`, `ModelCheck`, `replaycheck` | [results/evaluation](results/evaluation/README.md), and [results/smt](results/smt/README.md) up to September 2026 |
 
 ## The checkers
 
@@ -36,17 +36,28 @@ hand-written files that way on Scala.js and Scala Native; the corpus test itself
 ## The evaluation page
 
 [evaluate.sh](evaluate.sh) reproduces the two tables of
-[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place. The warm table is one
+[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place. The warm table is a
 JMH run of the suites of `io.bovel.bench.evaluation` — one per solver, `VikBench`, `Z3Bench` and `Z3TextBench`,
 `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`, each listing the instances it takes and, commented, the ones
-it does not and why:
+it does not and why. VIK and the other solvers are measured apart: the others are pinned, and a change to
+VIK does not move their times.
 
 ```sh
-bench/evaluate.sh all     # everything below, in order
-bench/evaluate.sh warm    # the in-process JMH table       (the z3 and cvc5 bindings of fetch-native.sh)
-bench/evaluate.sh cold    # the process-per-question table (the z3 and cvc5 binaries of fetch-native.sh)
-bench/evaluate.sh regen   # only regenerate the page from the newest dated results (seconds)
+bench/evaluate.sh vik      # VIK alone, both tables: the run a change to VIK calls for
+bench/evaluate.sh others   # z3, cvc5, princess and SMTInterpol alone
+bench/evaluate.sh all      # both families in one run
+bench/evaluate.sh regen    # only regenerate the page from the history (seconds)
 ```
+
+A second word keeps a run to one table: `warm`, the in-process JMH one (the z3 and cvc5 bindings of
+fetch-native.sh), or `cold`, the process-per-question one (their binaries).
+
+Every run is appended to the history in [results/evaluation](results/evaluation/README.md): four CSV files, a
+row per solver, instance and run, with the version measured and the raw samples. A table shows each solver's
+newest run and names, in its caption, the version and the time of each. The other solvers are therefore
+due a new run when one of them or the JDK changes version, when a replay or the list of instances changes,
+and on another machine; and `all` is the run to make when the columns of a table must come from the same
+hours, the machine being shared.
 
 Every single measurement holds to a ten-second budget. A warm operation past it is halted by a watchdog
 ([Budget.scala](src/main/scala/io/bovel/bench/evaluation/Budget.scala)) and noted on [timeouts.txt](timeouts.txt) —
@@ -58,9 +69,11 @@ The instances of both tables, in their order, are [evaluation-instances.txt](eva
 
 It checks its prerequisites first (the Python venv above, `bench/fetch-native.sh`) and fails with the
 command to run; the cold run builds VIK's own binaries — the native one, the WebAssembly module, the GraalVM
-image, the AOT cache — from the tree it measures, so no column is stale or missing. Results land in `results/smt/` as `<date>-<host>-*.{json,tsv}`; `regen`
-always reads the newest set, so committed results are the reference and a fresh machine reproduces the
-trends, not the exact milliseconds.
+image, the AOT cache — from the tree it measures, so no VIK column is stale or missing. What JMH and
+`cold.sh` wrote stays in `target/evaluation/`; the history is what is committed, so it is the reference:
+`regen` rebuilds the page from it, and a fresh machine reproduces the trends, not the exact milliseconds.
+The runs up to September 2026, a JSON and a TSV file per day with every solver in each, are in
+[results/smt](results/smt/README.md).
 
 ## Running
 
@@ -94,4 +107,5 @@ forks (JMH's own `Error` column is a 99.9% interval). Its only dependency, `scip
 ## Results
 
 One file per run under `results/<module>/`, named by date and host (plus a tag when a day has several runs), with the
-raw JMH JSON next to it; each module's README holds its current results and the list of all runs.
+raw JMH JSON next to it; each module's README holds its current results and the list of all runs. The runs of
+the evaluation are kept differently, as rows of the four files of [results/evaluation](results/evaluation/README.md).
