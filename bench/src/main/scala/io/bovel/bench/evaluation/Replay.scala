@@ -9,10 +9,9 @@ import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formul
  *  executes per query, before any solver's API is named. [[VikReplay]],
  *  [[Z3Replay]], [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]]
  *  run one against their solver — declarations, term construction, asserts,
- *  `push`/`pop`, `reset-assertions`, every `check-sat`, with the
- *  assumptions of a `check-sat-assuming` asserted under a level of their own,
- *  and every `get-model`, nothing else: no text is parsed, and
- *  VIK's tree is built by VIK's own front end from the terms handed to it.
+ *  `push`/`pop`, `reset-assertions`, every `check-sat` and `check-sat-assuming`,
+ *  and every `get-model`, nothing else: no text is parsed, and VIK's tree is
+ *  built by VIK's own front end from the terms handed to it.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
  *  what every solver's front end does with the text: a `let` binding becomes a
@@ -39,6 +38,35 @@ final class Replay(
   def slotCount: Int = slotSorts.length
   def resets: Boolean = ops.contains(Replay.Op.Reset) || ops.contains(Replay.Op.ResetAll)
   def models: Boolean = ops.contains(Replay.Op.GetModel)
+
+  /** The program for a solver whose assumptions cannot be used: each
+   *  `check-sat-assuming` a level of its own, the assumptions asserted under
+   *  it and the `get-model` that may follow still inside it, since the model
+   *  must satisfy them too.
+   */
+  def leveled: Array[Replay.Op] =
+    import Replay.Op
+    val out = ArrayBuffer.empty[Op]
+    var open = false // a level of assumptions, waiting for the `get-model` of its check
+    def close(): Unit =
+      if open then out += Op.Pop(1)
+      open = false
+    for op <- ops do
+      op match
+        case Op.CheckAssuming(assumptions) =>
+          close()
+          out += Op.Push(1)
+          out ++= assumptions.map(Op.Assert(_))
+          out += Op.Check
+          open = true
+        case Op.GetModel =>
+          out += op
+          close()
+        case _ =>
+          close()
+          out += op
+    close()
+    out.toArray
 
 object Replay:
   /** A solver that answered neither `sat` nor `unsat`: reporting `unknown` as
@@ -113,6 +141,13 @@ object Replay:
      */
     case SetOption(key: String, value: String)
     case Check
+
+    /** `check-sat-assuming`: through the solver's own assumptions where it has
+     *  usable ones, what a verifier would call and what a solver can be faster
+     *  on than on a level per check (z3 is, by 5× on `valid-Longs__12`); see
+     *  [[Replay.leveled]] for the others.
+     */
+    case CheckAssuming(assumptions: Array[Int])
 
     /** `get-model` right after its check: the whole model, as the solver's own
      *  text, when the check answered `sat`.
@@ -363,8 +398,6 @@ object Replay:
       case Formula.Let(bindings, body) => formula(body, env ++ bind(bindings, env))
       case Formula.Pred(t) => term(t, env, Sort.Bool)
 
-    var assumed = -1 // the length of `out` right after a `check-sat-assuming`
-
     for command <- script.commands do
       command match
         case Command.SetLogic(l) =>
@@ -422,19 +455,13 @@ object Replay:
           for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
           out += Op.Pop(levels)
         case Command.CheckSat => out += Op.Check
-        // The assumptions asserted under a level of their own: the same answer, through what every
-        // solver's API has.
         case Command.CheckSatAssuming(assumptions) =>
-          out += Op.Push(1)
-          for a <- assumptions do out += Op.Assert(formula(a, Map.empty))
-          out += Op.Check
-          out += Op.Pop(1)
-          assumed = out.length
-        // Right after its check, where the standard allows it; under the level of a
-        // `check-sat-assuming`, whose assumptions the model must satisfy too.
+          out += Op.CheckAssuming(assumptions.map(formula(_, Map.empty)).toArray)
+        // Right after its check, where the standard allows it.
         case Command.GetModel =>
-          if out.length == assumed then out.insert(out.length - 1, Op.GetModel)
-          else if out.lastOption.contains(Op.Check) then out += Op.GetModel
+          out.lastOption match
+            case Some(Op.Check | _: Op.CheckAssuming) => out += Op.GetModel
+            case _ => ()
         case Command.ResetAssertions => out += Op.Reset // dropped once, which kept every assertion (issue 36)
         case Command.SetOption(":global-declarations", value) =>
           globalDeclarations = value == "true"

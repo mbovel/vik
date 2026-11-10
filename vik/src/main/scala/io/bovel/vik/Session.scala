@@ -82,7 +82,15 @@ final class Session(
   def pop(): Unit = run(s2.Script(List(s2.Command.Pop(1))))
 
   /** `check-sat`: `Some(true)` for sat, `None` for unknown. */
-  def checkSat(): Option[Boolean] = play(List(Command.CheckSat)).head match
+  def checkSat(): Option[Boolean] = decision(play(List(Command.CheckSat)))
+
+  /** `check-sat-assuming`: [[checkSat]] with `assumptions` holding for this
+   *  check alone.
+   */
+  def checkSatAssuming(assumptions: List[s2.Formula]): Option[Boolean] =
+    decision(run(s2.Script(List(s2.Command.CheckSatAssuming(assumptions)))))
+
+  private def decision(responses: List[String]): Option[Boolean] = responses.head match
     case "sat" => Some(true)
     case "unsat" => Some(false)
     case _ => None

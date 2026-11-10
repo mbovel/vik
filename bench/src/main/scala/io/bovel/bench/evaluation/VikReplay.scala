@@ -7,7 +7,7 @@ import io.bovel.vik.Session
 
 /** Runs a [[Replay]] through VIK's [[Session]] — the API a tool that embeds the
  *  solver calls with the trees of `io.bovel.smtlib` — against a fresh session:
- *  declarations, term construction, asserts, `push`/`pop`, every `check-sat`
+ *  declarations, term construction, asserts, `push`/`pop`, every check
  *  and every `get-model`, nothing else. The trees are the ones VIK's parser builds from
  *  the same text — a Boolean equality is an `Iff`, a Boolean-sorted term in a
  *  formula position a `Pred`, a formula in a term position a `Bool` — so the
@@ -85,6 +85,7 @@ object VikReplay:
         case Op.Push(levels) => for _ <- 1 to levels do s.push()
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()
         case Op.Check => answers += decided(s.checkSat(), "VIK")
+        case Op.CheckAssuming(assumptions) => answers += decided(s.checkSatAssuming(formulas(assumptions)), "VIK")
         case Op.GetModel => if answers.last then run(Command.GetModel)
         case Op.SetOption(key, value) => run(Command.SetOption(key, value))
         case Op.SetLogic(logic) => run(Command.SetLogic(logic))
