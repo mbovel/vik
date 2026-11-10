@@ -71,9 +71,10 @@ object PrincessReplay:
       def isDeclaration(op: Op): Boolean = op match
         case _: (Op.MkSort | Op.ArraySort | Op.DeclareSort | Op.DeclareDatatypes | Op.DeclareFun) => true
         case _ => false
+      val ops = program.leveled // `SimpleAPI` has no assumptions
       val (first, rest) =
-        if program.resets then (program.ops.filter(isDeclaration), program.ops.filterNot(isDeclaration))
-        else (Array.empty[Op], program.ops)
+        if program.resets then (ops.filter(isDeclaration), ops.filterNot(isDeclaration))
+        else (Array.empty[Op], ops)
       for op <- first do execute(op)
       if program.resets then
         p.push()
@@ -241,6 +242,7 @@ object PrincessReplay:
               case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true
               case SimpleAPI.ProverStatus.Unsat | SimpleAPI.ProverStatus.Invalid => false
               case status => throw Replay.Undecided("princess", status.toString))
+          case Op.CheckAssuming(_) => throw IllegalStateException("assumptions are leveled for princess")
           case Op.GetModel => if answers.last then p.partialModelAsFormula.toString // what its parser asks for
       answers.toList
     }
