@@ -16,21 +16,22 @@ committed next to the results.
 
 ## What was measured
 
-Fifty-eight instances. Forty-four are of the [SMT-LIB library](https://smt-lib.org), release 2025, but for one
+Sixty-one instances. Forty-four are of the [SMT-LIB library](https://smt-lib.org), release 2025, but for one
 generated here and two dumped by the Scala 3 compiler's qualified-types checker — spread over the logics VIK
 supports and small enough that the comparison is about the solvers rather than about one hard instance: eight
 `QF_UF`, eight `QF_LIA`, six `QF_UFLIA`, six with datatypes (three of them `QF_UFDTLIA`), six `QF_BV`, five over
 the reals, five with arrays. Two are `QF_AUFBVDT` files from elsewhere (`corpus/QF_AUFBVDT/other`): the bit
 stream of the verified ASN.1/ACN serialization work, and the reproduction of
-[Stainless issue 1801](https://github.com/epfl-lara/stainless/issues/1801). Twelve are solver sessions of
+[Stainless issue 1801](https://github.com/epfl-lara/stainless/issues/1801). Fifteen are solver sessions of
 [Stainless](https://github.com/epfl-lara/stainless) (`corpus/<logic>/stainless`): what its unrolling issues to
 one incremental solver while it verifies one function — from three assertions and one `check-sat` to two
-thousand assertions and forty-two `check-sat`s, most of them over datatypes, functions and integers together
-(`QF_UFDTLIA`, nearly two thirds of its 3 580 sessions and five of the twelve), the others with bit-vectors or
-arrays too. The twelve were chosen to spread over the time VIK takes on them, from a millisecond to past the
-budget, and to hold the sessions the solver's recent changes move the most, faster and slower. Twenty-three of the
-fifty-eight are incremental scripts — several `check-sat`s under `push`/`pop` or `check-sat-assuming`, the
-*Incremental* column — and there the whole script is the question. The two tables hold the same fifty-eight, in
+thousand assertions and forty-seven `check-sat`s, most of them over datatypes, functions and integers together
+(`QF_UFDTLIA`, nearly two thirds of its 3 580 sessions and five of the fifteen), the others with bit-vectors or
+arrays too. The fifteen were chosen to spread over the time VIK takes on them, from a millisecond to past the
+budget, to hold the sessions the solver's recent changes move the most, faster and slower, and to hold sessions
+where z3 is far ahead of VIK. Twenty-six of the sixty-one are incremental scripts — several `check-sat`s under
+`push`/`pop` or `check-sat-assuming`, the
+*Incremental* column — and there the whole script is the question. The two tables hold the same sixty-one, in
 the same order
 ([`bench/evaluation-instances.txt`](https://github.com/mbovel/vik/blob/main/bench/evaluation-instances.txt)).
 They are part of the
@@ -137,8 +138,11 @@ cell deliberately left out, for the reasons below.
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFDT/stainless/valid-Factorial__0.smt2" title="valid-Factorial__0">valid-Factorial__<wbr>0</a></td><td>QF_UFDT</td><td>✓</td><td>42 checks</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBV/stainless/valid-BooleanOps__9.smt2" title="valid-BooleanOps__9">valid-BooleanOps__<wbr>9</a></td><td>QF_UFBV</td><td>✓</td><td>3 checks</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDT/stainless/invalid-PackedFloat8__11.smt2" title="invalid-PackedFloat8__11">invalid-PackedFloat…</a></td><td>QF_UFBVDT</td><td>✓</td><td>3 checks</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
-<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVLIA/stainless/valid-BitsTricksSlow__1.smt2" title="valid-BitsTricksSlow__1">valid-BitsTricksSlo…</a></td><td>QF_UFBVLIA</td><td>✓</td><td>7 checks</td><td align="right">—</td><td align="right">—</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVLIA/stainless/valid-BitsTricksSlow__1.smt2" title="valid-BitsTricksSlow__1">valid-BitsTricksSlo…</a></td><td>QF_UFBVLIA</td><td>✓</td><td>7 checks</td><td align="right">—</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_BV/stainless/valid-BitsTricks__2.smt2" title="valid-BitsTricks__2">valid-BitsTricks__<wbr>2</a></td><td>QF_BV</td><td>✗</td><td>unsat</td><td align="right">—</td><td align="right">—</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDT/stainless/invalid-BraunTree__4.smt2" title="invalid-BraunTree__4">invalid-BraunTree__<wbr>4</a></td><td>QF_UFBVDT</td><td>✓</td><td>9 checks</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDTLIA/stainless/invalid-AddNaturals2__1.smt2" title="invalid-AddNaturals2__1">invalid-AddNaturals…</a></td><td>QF_UFBVDTLIA</td><td>✓</td><td>47 checks</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AUFBVDTLIA/stainless/invalid-BinarySearch2__36.smt2" title="invalid-BinarySearch2__36">invalid-BinarySearc…</a></td><td>QF_AUFBVDTLIA</td><td>✓</td><td>5 checks</td><td align="right"><span class="worst">🐢</span></td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -300,6 +304,9 @@ SMTInterpol on a script with a `check-sat-assuming`, which its command line can 
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDT/stainless/invalid-PackedFloat8__11.smt2" title="invalid-PackedFloat8__11">invalid-PackedFloat…</a></td><td>QF_UFBVDT</td><td>✓</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVLIA/stainless/valid-BitsTricksSlow__1.smt2" title="valid-BitsTricksSlow__1">valid-BitsTricksSlo…</a></td><td>QF_UFBVLIA</td><td>✓</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_BV/stainless/valid-BitsTricks__2.smt2" title="valid-BitsTricks__2">valid-BitsTricks__<wbr>2</a></td><td>QF_BV</td><td>✗</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDT/stainless/invalid-BraunTree__4.smt2" title="invalid-BraunTree__4">invalid-BraunTree__<wbr>4</a></td><td>QF_UFBVDT</td><td>✓</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UFBVDTLIA/stainless/invalid-AddNaturals2__1.smt2" title="invalid-AddNaturals2__1">invalid-AddNaturals…</a></td><td>QF_UFBVDTLIA</td><td>✓</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
+<tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_AUFBVDTLIA/stainless/invalid-BinarySearch2__36.smt2" title="invalid-BinarySearch2__36">invalid-BinarySearc…</a></td><td>QF_AUFBVDTLIA</td><td>✓</td><td>—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td><td align="right">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -327,7 +334,7 @@ finish agree on `sat`).
 ## Limitations
 
 - One machine, shared with other users; the numbers are medians and confidence intervals, not guarantees.
-- Fifty-eight instances, chosen small and inside VIK's fragment. On the competition's hard instances VIK is
+- Sixty-one instances, chosen small and inside VIK's fragment. On the competition's hard instances VIK is
   far behind z3 and cvc5, and on some of them it does not finish at all — the
   [corpus](https://github.com/mbovel/vik/tree/main/corpus) records that: of its 6284 files, 396 are marked as
   out of the solver's reach or over the tests' five-second budget.

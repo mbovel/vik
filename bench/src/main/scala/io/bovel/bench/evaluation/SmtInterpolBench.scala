@@ -65,7 +65,7 @@ class SmtInterpolBench:
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
       "safari__illinois.smt2",
-      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
       "valid-GodelNumbering__167.smt2",
       "valid-Count__10.smt2",
       "valid-LawTypeArgsElim__78.smt2",
@@ -77,7 +77,10 @@ class SmtInterpolBench:
       "valid-BooleanOps__9.smt2",
       "invalid-PackedFloat8__11.smt2",
       "valid-BitsTricksSlow__1.smt2",
-      "valid-BitsTricks__2.smt2"
+      "valid-BitsTricks__2.smt2",
+      "invalid-BraunTree__4.smt2"
+      // "invalid-AddNaturals2__1.smt2", // a logic SMTInterpol does not know
+      // "invalid-BinarySearch2__36.smt2", // a logic SMTInterpol does not know
     )
   )
   var file: String = uninitialized

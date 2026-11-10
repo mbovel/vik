@@ -68,19 +68,22 @@ class PrincessBench:
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
       "safari__illinois.smt2",
-      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
       "valid-GodelNumbering__167.smt2",
       "valid-Count__10.smt2",
       "valid-LawTypeArgsElim__78.smt2",
       "valid-LawTypeArgsElim__24.smt2",
       "invalid-BadConcRope__59.smt2",
-      "valid-PropositionalLogic__111.smt2",
+      // "valid-PropositionalLogic__111.smt2", // princess throws on it (a LazyList that refers to itself)
       "invalid-BinarySearch1__39.smt2",
       "valid-Factorial__0.smt2",
       "valid-BooleanOps__9.smt2",
       "invalid-PackedFloat8__11.smt2",
       "valid-BitsTricksSlow__1.smt2",
-      "valid-BitsTricks__2.smt2"
+      "valid-BitsTricks__2.smt2",
+      "invalid-BraunTree__4.smt2",
+      "invalid-AddNaturals2__1.smt2",
+      "invalid-BinarySearch2__36.smt2"
     )
   )
   var file: String = uninitialized

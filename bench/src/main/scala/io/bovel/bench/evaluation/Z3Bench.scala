@@ -69,7 +69,7 @@ class Z3Bench:
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
       "safari__illinois.smt2",
-      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
       "valid-GodelNumbering__167.smt2",
       "valid-Count__10.smt2",
       "valid-LawTypeArgsElim__78.smt2",
@@ -81,7 +81,10 @@ class Z3Bench:
       "valid-BooleanOps__9.smt2",
       "invalid-PackedFloat8__11.smt2",
       "valid-BitsTricksSlow__1.smt2",
-      "valid-BitsTricks__2.smt2"
+      "valid-BitsTricks__2.smt2",
+      "invalid-BraunTree__4.smt2",
+      "invalid-AddNaturals2__1.smt2",
+      "invalid-BinarySearch2__36.smt2"
     )
   )
   var file: String = uninitialized
@@ -162,7 +165,7 @@ class Z3TextBench:
       // "bmc__stack_k20.smt2", // incremental: the parser flattens the script
       // "safari__mux.smt2", // incremental: the parser flattens the script
       // "safari__illinois.smt2", // incremental: the parser flattens the script
-      // Stainless's solver sessions, the twelve of bench/evaluation-instances.txt
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
       // "valid-GodelNumbering__167.smt2", // incremental: the parser flattens the script
       // "valid-Count__10.smt2", // incremental: the parser flattens the script
       // "valid-LawTypeArgsElim__78.smt2", // incremental: the parser flattens the script
@@ -175,6 +178,9 @@ class Z3TextBench:
       // "invalid-PackedFloat8__11.smt2", // incremental: the parser flattens the script
       // "valid-BitsTricksSlow__1.smt2", // incremental: the parser flattens the script
       "valid-BitsTricks__2.smt2"
+      // "invalid-BraunTree__4.smt2", // incremental: the parser flattens the script
+      // "invalid-AddNaturals2__1.smt2", // incremental: the parser flattens the script
+      // "invalid-BinarySearch2__36.smt2", // incremental: the parser flattens the script
     )
   )
   var file: String = uninitialized

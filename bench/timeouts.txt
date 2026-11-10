@@ -16,8 +16,11 @@ VikBench.api:valid-LawTypeArgsElim__24
 VikBench.text:valid-LawTypeArgsElim__24
 VikBench.api:valid-BitsTricks__2
 VikBench.text:valid-BitsTricks__2
-VikBench.api:valid-BitsTricksSlow__1
 PrincessBench.api:valid-Factorial__0
 PrincessBench.api:invalid-BadConcRope__59
 PrincessBench.api:valid-LawTypeArgsElim__24
 PrincessBench.api:valid-LawTypeArgsElim__78
+PrincessBench.api:invalid-BraunTree__4
+PrincessBench.api:invalid-AddNaturals2__1
+PrincessBench.api:invalid-BinarySearch2__36
+SmtInterpolBench.api:valid-BitsTricksSlow__1
