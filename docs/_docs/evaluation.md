@@ -29,7 +29,10 @@ thousand assertions and forty-seven `check-sat`s, most of them over datatypes, f
 (`QF_UFDTLIA`, nearly two thirds of its 3 580 sessions and five of the fifteen), the others with bit-vectors or
 arrays too. The fifteen were chosen to spread over the time VIK takes on them, from a millisecond to past the
 budget, to hold the sessions the solver's recent changes move the most, faster and slower, and to hold sessions
-where z3 is far ahead of VIK. Twenty-six of the sixty-one are incremental scripts — several `check-sat`s under
+where z3 is far ahead of VIK. They are picked, not sampled: the changes they were chosen for move them more
+than they move Stainless's sessions as a whole, and a claim about Stainless is to be measured on all 3 580
+([`StainlessReplay`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/io/bovel/bench/stainless/StainlessReplay.scala)).
+Twenty-six of the sixty-one are incremental scripts — several `check-sat`s under
 `push`/`pop` or `check-sat-assuming`, the
 *Incremental* column — and there the whole script is the question. The two tables hold the same sixty-one, in
 the same order
@@ -357,7 +360,8 @@ bench/evaluate.sh cold    # the cold table only; it builds VIK's binaries first,
 `bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per
 solver in `bench/src/main/scala/io/bovel/bench/evaluation`, list the instances each solver takes and,
 commented, the ones it does not and why (the blanked cells); `bench/timeouts.txt` is the ledger of the warm
-combinations past the ten-second budget, never run again.
+combinations past the ten-second budget, never run again — so a change that brings one under the budget
+removes its line, or its cell stays 🐢.
 
 The raw data of this page, committed in the repository:
 [cold](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-08-laraserver4-cold.tsv) and

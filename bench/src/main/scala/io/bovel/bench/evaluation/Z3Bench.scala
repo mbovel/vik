@@ -106,7 +106,8 @@ class Z3Bench:
 /** z3 parsing the text itself: the parsed assertions go to a fresh solver for
  *  the script's logic (z3's parser does not pass `set-logic` on, and the solver
  *  for a logic is what the binary runs). The parser takes a set of assertions,
- *  so a script of several `check-sat`s under `push`/`pop` is another question
+ *  so a script of several `check-sat`s — under `push`/`pop`, or with the
+ *  assumptions of `check-sat-assuming`, which it drops — is another question
  *  here and sits out: those instances are commented below, and [[Z3Bench]]
  *  replays them through the API.
  */
