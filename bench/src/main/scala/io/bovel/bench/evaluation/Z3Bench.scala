@@ -42,8 +42,6 @@ class Z3Bench:
       "keymaera__division_dijkstra-node701.smt2",
       "Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2",
       "RandomDecoupled__pb_real_30_60_45_28.smt2",
-      "sage__app7__bench_8505.smt2",
-      "bmc-bv__adpcm.smt2",
       "bench_ab__a649test0047.smt2",
       "sage__app2__bench_512.smt2",
       "spear__cvs_v1.11.22__cvs_vc71402.smt2",
@@ -53,6 +51,8 @@ class Z3Bench:
       "20172804-Barrett__tests__v10__v10l20080.cvc.smt2",
       "20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2",
       "20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2",
+      "alpha-093dddceea58.smt2",
+      "alpha-fib_memoized-36bd61c61979.smt2",
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
       "check__array_incompleteness1.smt2",
@@ -68,7 +68,23 @@ class Z3Bench:
       "asn1jvm__2899.smt2",
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
-      "safari__illinois.smt2"
+      "safari__illinois.smt2",
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
+      "valid-GodelNumbering__167.smt2",
+      "valid-Count__10.smt2",
+      "valid-LawTypeArgsElim__78.smt2",
+      "valid-LawTypeArgsElim__24.smt2",
+      "invalid-BadConcRope__59.smt2",
+      "valid-PropositionalLogic__111.smt2",
+      "invalid-BinarySearch1__39.smt2",
+      "valid-Factorial__0.smt2",
+      "valid-BooleanOps__9.smt2",
+      "invalid-PackedFloat8__11.smt2",
+      "valid-BitsTricksSlow__1.smt2",
+      "valid-BitsTricks__2.smt2",
+      "invalid-BraunTree__4.smt2",
+      "invalid-AddNaturals2__1.smt2",
+      "invalid-BinarySearch2__36.smt2"
     )
   )
   var file: String = uninitialized
@@ -90,7 +106,8 @@ class Z3Bench:
 /** z3 parsing the text itself: the parsed assertions go to a fresh solver for
  *  the script's logic (z3's parser does not pass `set-logic` on, and the solver
  *  for a logic is what the binary runs). The parser takes a set of assertions,
- *  so a script of several `check-sat`s under `push`/`pop` is another question
+ *  so a script of several `check-sat`s — under `push`/`pop`, or with the
+ *  assumptions of `check-sat-assuming`, which it drops — is another question
  *  here and sits out: those instances are commented below, and [[Z3Bench]]
  *  replays them through the API.
  */
@@ -122,8 +139,6 @@ class Z3TextBench:
       "keymaera__division_dijkstra-node701.smt2",
       "Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2",
       "RandomDecoupled__pb_real_30_60_45_28.smt2",
-      "sage__app7__bench_8505.smt2",
-      "bmc-bv__adpcm.smt2",
       "bench_ab__a649test0047.smt2",
       "sage__app2__bench_512.smt2",
       "spear__cvs_v1.11.22__cvs_vc71402.smt2",
@@ -133,9 +148,11 @@ class Z3TextBench:
       "20172804-Barrett__tests__v10__v10l20080.cvc.smt2",
       "20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2",
       "20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2",
+      "alpha-093dddceea58.smt2",
+      "alpha-fib_memoized-36bd61c61979.smt2",
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
-      "check__array_incompleteness1.smt2"
+      "check__array_incompleteness1.smt2",
       // "stainless-issue-1801__repro.smt2", // check-sat-assuming: the parser drops the assumption
       // "20190906-CLEARSY__0020__00009.smt2", // incremental: the parser flattens the script
       // "lustre__two_counters.bmc_k100.prefix25.smt2", // incremental: the parser flattens the script
@@ -149,6 +166,22 @@ class Z3TextBench:
       // "bmc__stack_k20.smt2", // incremental: the parser flattens the script
       // "safari__mux.smt2", // incremental: the parser flattens the script
       // "safari__illinois.smt2", // incremental: the parser flattens the script
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
+      // "valid-GodelNumbering__167.smt2", // incremental: the parser flattens the script
+      // "valid-Count__10.smt2", // incremental: the parser flattens the script
+      // "valid-LawTypeArgsElim__78.smt2", // incremental: the parser flattens the script
+      // "valid-LawTypeArgsElim__24.smt2", // incremental: the parser flattens the script
+      // "invalid-BadConcRope__59.smt2", // incremental: the parser flattens the script
+      // "valid-PropositionalLogic__111.smt2", // incremental: the parser flattens the script
+      // "invalid-BinarySearch1__39.smt2", // incremental: the parser flattens the script
+      // "valid-Factorial__0.smt2", // incremental: the parser flattens the script
+      // "valid-BooleanOps__9.smt2", // incremental: the parser flattens the script
+      // "invalid-PackedFloat8__11.smt2", // incremental: the parser flattens the script
+      // "valid-BitsTricksSlow__1.smt2", // incremental: the parser flattens the script
+      "valid-BitsTricks__2.smt2"
+      // "invalid-BraunTree__4.smt2", // incremental: the parser flattens the script
+      // "invalid-AddNaturals2__1.smt2", // incremental: the parser flattens the script
+      // "invalid-BinarySearch2__36.smt2", // incremental: the parser flattens the script
     )
   )
   var file: String = uninitialized

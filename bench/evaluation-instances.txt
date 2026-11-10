@@ -47,3 +47,27 @@ corpus/QF_AUFBVDT/other/asn1jvm__2899.smt2
 corpus/QF_UFDTLIA/vik/bmc__stack_k20.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__mux.smt2
 corpus/QF_AUFLIA/smt-lib-incremental/safari__illinois.smt2
+# Twelve of Stainless's solver sessions (corpus/<logic>/stainless): what its unrolling issues to one
+# incremental solver while it verifies one function. Chosen on 2026-11-08 at 9b6b6b0d to spread over the
+# time VIK takes on them (from a millisecond to past the budget), over the logics the 3 580 sessions use
+# (QF_UFDTLIA for nearly two thirds), and to hold the sessions the performance pull requests of that week
+# (#62, #68, #70, #71, #72, #77, #78, #79, #80) move the most, faster and slower. Picked, not sampled: a
+# claim about Stainless as a whole is to be measured on all 3 580 sessions (StainlessReplay).
+corpus/QF_UFDTLIA/stainless/valid-GodelNumbering__167.smt2
+corpus/QF_UFDTLIA/stainless/valid-Count__10.smt2
+corpus/QF_UFDTLIA/stainless/valid-LawTypeArgsElim__78.smt2
+corpus/QF_UFDTLIA/stainless/valid-LawTypeArgsElim__24.smt2
+corpus/QF_UFDTLIA/stainless/invalid-BadConcRope__59.smt2
+corpus/QF_UFBVDTLIA/stainless/valid-PropositionalLogic__111.smt2
+corpus/QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__39.smt2
+corpus/QF_UFDT/stainless/valid-Factorial__0.smt2
+corpus/QF_UFBV/stainless/valid-BooleanOps__9.smt2
+corpus/QF_UFBVDT/stainless/invalid-PackedFloat8__11.smt2
+corpus/QF_UFBVLIA/stainless/valid-BitsTricksSlow__1.smt2
+corpus/QF_BV/stainless/valid-BitsTricks__2.smt2
+# Three more of those sessions, added on 2026-11-10 from a comparison with z3 5.3.3 on all 3 580: sessions VIK
+# takes a second or more on and z3 well under one, for the largest such loss of a family the twelve do not hold
+# (BraunTree) and for the two logics where the twelve hold only sessions VIK is fast on.
+corpus/QF_UFBVDT/stainless/invalid-BraunTree__4.smt2
+corpus/QF_UFBVDTLIA/stainless/invalid-AddNaturals2__1.smt2
+corpus/QF_AUFBVDTLIA/stainless/invalid-BinarySearch2__36.smt2

@@ -38,8 +38,6 @@ class SmtInterpolBench:
       "keymaera__division_dijkstra-node701.smt2",
       "Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005.smt2",
       "RandomDecoupled__pb_real_30_60_45_28.smt2",
-      "sage__app7__bench_8505.smt2",
-      "bmc-bv__adpcm.smt2",
       "bench_ab__a649test0047.smt2",
       "sage__app2__bench_512.smt2",
       "spear__cvs_v1.11.22__cvs_vc71402.smt2",
@@ -49,6 +47,8 @@ class SmtInterpolBench:
       "20172804-Barrett__tests__v10__v10l20080.cvc.smt2",
       "20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0.smt2",
       "20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2",
+      "alpha-093dddceea58.smt2",
+      "alpha-fib_memoized-36bd61c61979.smt2",
       "storeinv__storeinv_t2_np_nf_ai_00001_001.cvc.smt2",
       "swap__swap_invalid_t3_np_nf_ai_00002_009.cvc.smt2",
       "check__array_incompleteness1.smt2",
@@ -64,7 +64,23 @@ class SmtInterpolBench:
       // "asn1jvm__2899.smt2", // a logic SMTInterpol does not know (QF_AUFBVDT: SMT-LIB has none)
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
-      "safari__illinois.smt2"
+      "safari__illinois.smt2",
+      // Stainless's solver sessions, the fifteen of bench/evaluation-instances.txt
+      "valid-GodelNumbering__167.smt2",
+      "valid-Count__10.smt2",
+      "valid-LawTypeArgsElim__78.smt2",
+      "valid-LawTypeArgsElim__24.smt2",
+      "invalid-BadConcRope__59.smt2",
+      // "valid-PropositionalLogic__111.smt2", // a logic SMTInterpol does not know
+      // "invalid-BinarySearch1__39.smt2", // a logic SMTInterpol does not know
+      "valid-Factorial__0.smt2",
+      "valid-BooleanOps__9.smt2",
+      "invalid-PackedFloat8__11.smt2",
+      "valid-BitsTricksSlow__1.smt2",
+      "valid-BitsTricks__2.smt2",
+      "invalid-BraunTree__4.smt2"
+      // "invalid-AddNaturals2__1.smt2", // a logic SMTInterpol does not know
+      // "invalid-BinarySearch2__36.smt2", // a logic SMTInterpol does not know
     )
   )
   var file: String = uninitialized
