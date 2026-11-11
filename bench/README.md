@@ -53,8 +53,9 @@ A second word keeps a run to one table: `warm`, the in-process JMH one (the z3 a
 fetch-native.sh), or `cold`, the process-per-question one (their binaries).
 
 Every run joins the history in [results/evaluation](results/evaluation/README.md): for each table it
-measured, a CSV file named by its time and its machine, with a row of raw samples per solver and instance,
-and beside it a JSON file with the commit, the JDK and the versions measured. A table shows each solver's
+measured, a CSV file for VIK and one for the other solvers, named by the run's time and machine, with a row
+of raw samples per solver and instance, and beside each a JSON file with the commit, the JDK and the
+versions measured. A table shows each solver's
 newest run and names, in its caption, the version and the time of each. The other solvers are therefore
 due a new run when one of them or the JDK changes version, when a replay or the list of instances changes,
 and on another machine; and `all` is the run to make when the columns of a table must come from the same

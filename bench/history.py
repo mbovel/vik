@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""The history of the evaluation: a CSV file per run and table, with a JSON file about the run beside it.
+"""The history of the evaluation: the CSV files of every run, each with a JSON file about the run beside it.
 
     history.py warm --into DIR --run RUN --vik VERSION --classpath CP results.json   # a JMH run of the suites
     history.py cold --into DIR --run RUN --vik VERSION --classpath CP results.tsv    # the output of cold.sh
 
-Each call writes `<run>-<host>-<solvers>-<table>.csv` (`2026-11-11T0200Z-laraserver4-all-warm.csv`) and the
-`.json` of the same name. The name says the minute the run started, in UTC, the machine, the solvers
-measured (`vik`, `others` or `all`: the other solvers are pinned, so bench/evaluate.sh measures either
-family alone) and the table the rows feed. The CSV file holds the measurements, a row per solver and
+Each call writes `<run>-<host>-<solvers>-<table>.csv` (`2026-11-11T0200Z-laraserver4-vik-warm.csv`) and the
+`.json` of the same name, once for VIK and once for the other solvers: `vik` and `others` are two series
+of files, because the other solvers are pinned and bench/evaluate.sh measures either family alone. A run
+of both writes both, under the same `run`. The name says the minute the run started, in UTC, the machine,
+the family and the table the rows feed. The CSV file holds the measurements, a row per solver and
 instance: the raw samples, or one of `WORDS` when there is no time to show. The JSON file holds what is
-the same for every row: the commit of this repository, the JDK and the versions of the other solvers, read
-off the classpath (the JVM solvers and the JavaSMT bindings) and off bench/native/VERSIONS (the z3 and cvc5
-binaries). Both are written once and never changed; bench/results/evaluation/README.md describes them.
+the same for every row: the commit of this repository, the JDK and, for the other solvers, their versions,
+read off the classpath (the JVM solvers and the JavaSMT bindings) and off bench/native/VERSIONS (the z3 and
+cvc5 binaries). Both are written once and never changed; bench/results/evaluation/README.md describes them.
 
 `latest` picks the rows the tables show (bench/warm2md.py, bench/cold2md.py), `provenance` says which.
 """
@@ -20,7 +21,7 @@ import argparse, csv, decimal, json, pathlib, re, socket, subprocess, sys
 BENCH = pathlib.Path(__file__).resolve().parent
 COLUMNS = {"warm": ["solver", "instance", "samples_ms"], "cold": ["solver", "instance", "samples_s"]}
 RUN = r"\d{4}-\d\d-\d\dT\d{4}Z"
-NAME = re.compile(rf"(?P<run>{RUN})-(?P<host>.+)-(?:vik|others|all)-(?:warm|cold)\.csv")
+NAME = re.compile(rf"(?P<run>{RUN})-(?P<host>.+)-(?P<solvers>vik|others)-(?:warm|cold)\.csv")
 # What a row holds in place of its samples, the worst first: an answer against the file's status, a run
 # past the ten-second budget, a run that did not answer every check, a solver that gave up.
 WORDS = ["wrong", "timeout", "error", "unknown"]
@@ -58,17 +59,16 @@ def latest(directory, mode):
 def provenance(rows, solvers, names):
     """The runs behind the columns `solvers` of a table, and the version each measured.
 
-    `Measured on laraserver4. Run of 2026-11-12 09:14 UTC: VIK (JVM) and VIK (Node) 1a2b3c4. Run of
-    2026-11-10 14:30 UTC: Z3 4.14.0; CVC5 1.3.3.` The newest run first, each a link to its file when the
-    file is in the repository; the solvers of a run that share a version (VIK's platforms) are named
-    together.
+    `Measured on laraserver4. Run of 2026-11-12 09:14 UTC (data: VIK): VIK (JVM) and VIK (Node) 1a2b3c4. Run
+    of 2026-11-10 14:30 UTC (data: others): Z3 4.14.0; CVC5 1.3.3.` The newest run first, with the files of
+    it that the columns come from, VIK's and the other solvers', each a link when the file is in the
+    repository; the solvers of a run that share a version (VIK's platforms) are named together.
     """
     def listing(items):
         return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
-    def run_of(path):
-        run = NAME.fullmatch(path.name)["run"]
-        text = f"Run of {run[:10]} {run[11:13]}:{run[13:15]} UTC"
+    def data(path):
+        text = "VIK" if NAME.fullmatch(path.name)["solvers"] == "vik" else "others"
         try:
             inside = path.resolve().relative_to(BENCH.parent)
         except ValueError:  # a dry run's directory, outside the repository
@@ -76,12 +76,17 @@ def provenance(rows, solvers, names):
         return f'<a href="https://github.com/mbovel/vik/blob/main/{inside}">{text}</a>'
 
     of = {r["solver"]: r for r in rows}
-    runs = {}  # file -> version -> the columns' names, in the table's order
+    runs = {}  # run -> version -> the columns' names, in the table's order
+    files = {}  # run -> the files of the run behind these columns
     for s in solvers:
         if s in of:
-            runs.setdefault(of[s]["file"], {}).setdefault(of[s]["version"], []).append(names[s])
-    parts = [f"{run_of(path)}: " + "; ".join(f"{listing(shown)} {version}" for version, shown in runs[path].items())
-             + "." for path in sorted(runs, key=lambda path: path.name, reverse=True)]
+            runs.setdefault(of[s]["run"], {}).setdefault(of[s]["version"], []).append(names[s])
+            files.setdefault(of[s]["run"], set()).add(of[s]["file"])
+    parts = []
+    for run in sorted(runs, reverse=True):
+        linked = ", ".join(data(path) for path in sorted(files[run], reverse=True))  # `vik` before `others`
+        parts.append(f"Run of {run[:10]} {run[11:13]}:{run[13:15]} UTC (data: {linked}): "
+                     + "; ".join(f"{listing(shown)} {version}" for version, shown in runs[run].items()) + ".")
     return f"Measured on {rows[0]['host']}. {' '.join(parts)}"
 
 
@@ -164,19 +169,26 @@ def record(mode, into, run, vik, classpath, results):
     jdk, rows = (warm_rows if mode == "warm" else cold_rows)(results)
     if not rows:
         raise SystemExit(f"history: {results} holds no measurement")
-    others = list(dict.fromkeys(solver for solver, _, _ in rows if not is_vik(solver)))
-    solvers = "vik" if not others else "all" if any(is_vik(solver) for solver, _, _ in rows) else "others"
-    path = pathlib.Path(into) / f"{run}-{socket.gethostname().split('.')[0]}-{solvers}-{mode}.csv"
-    if path.exists():
-        raise SystemExit(f"history: {path} exists, and the files of a run are written once")
-    about = {"commit": vik, "jdk": jdk, "versions": {solver: version_of(mode, solver, classpath) for solver in others}}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.with_suffix(".json").write_text(json.dumps(about, indent=2) + "\n")
-    with open(path, "x", newline="") as f:
-        out = csv.writer(f, lineterminator="\n")
-        out.writerow(COLUMNS[mode])
-        out.writerows(rows)
-    print(f"history: {len(rows)} rows written to {path}")
+    host = socket.gethostname().split(".")[0]
+    files = {}  # the file of each family measured -> what its JSON file says, its rows
+    for family in ("vik", "others"):
+        mine = [row for row in rows if is_vik(row[0]) == (family == "vik")]
+        if mine:
+            about = {"commit": vik, "jdk": jdk}
+            if family == "others":
+                about["versions"] = {solver: version_of(mode, solver, classpath) for solver, _, _ in mine}
+            files[pathlib.Path(into) / f"{run}-{host}-{family}-{mode}.csv"] = (about, mine)
+    for path in files:  # every file checked before any is written
+        if path.exists():
+            raise SystemExit(f"history: {path} exists, and the files of a run are written once")
+    for path, (about, mine) in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.with_suffix(".json").write_text(json.dumps(about, indent=2) + "\n")
+        with open(path, "x", newline="") as f:
+            out = csv.writer(f, lineterminator="\n")
+            out.writerow(COLUMNS[mode])
+            out.writerows(mine)
+        print(f"history: {len(mine)} rows written to {path}")
 
 
 if __name__ == "__main__":
