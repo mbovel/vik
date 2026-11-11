@@ -2,23 +2,24 @@
 
 Every run of [bench/evaluate.sh](../../evaluate.sh) leaves its measurements here, and the two tables of
 [the evaluation](../../../docs/_docs/evaluation.md) are built from them. For each table it measures, a run
-writes two files of the same name: a CSV file of the measurements, a row per solver and instance, and a
-JSON file that says what was measured. Neither is changed afterwards.
+writes a CSV file of the measurements, a row per solver and instance, and a JSON file of the same name that
+says what was measured: one such pair for VIK, one for the other solvers. None is changed afterwards.
 
 ## Names
 
-`<run>-<host>-<solvers>-<table>`, as in `2026-11-11T0200Z-laraserver4-all-warm.csv`:
+`<run>-<host>-<solvers>-<table>`, as in `2026-11-11T0200Z-laraserver4-vik-warm.csv`:
 
 | Part | Meaning |
 |---|---|
 | `run` | The minute `evaluate.sh` started, in UTC. The files of one invocation share it, and the names sort by it. |
 | `host` | The machine. Times of two machines do not compare. |
-| `solvers` | `vik` for VIK alone, `others` for z3, cvc5, princess and SMTInterpol, `all` for both. |
+| `solvers` | `vik` for VIK, `others` for z3, cvc5, princess and SMTInterpol. |
 | `table` | `warm` for the JMH run of the suites, `cold` for the run of [cold.sh](../../cold.sh), a process per instance. |
 
-VIK and the other solvers can be measured separately because the others are pinned: `bench/evaluate.sh vik`
-after a change to VIK writes files with VIK's rows only, and `bench/evaluate.sh others` is due when a
-version, a replay or the list of instances changes.
+VIK and the other solvers are two series of files because they are measured separately: the others are
+pinned, so `bench/evaluate.sh vik` after a change to VIK adds to VIK's series only, and `bench/evaluate.sh
+others` is due when a version, a replay or the list of instances changes. `bench/evaluate.sh all` adds to
+both series, under the same `run`.
 
 ## The CSV file
 
@@ -55,7 +56,7 @@ with the statuses by a tool of its own, `SolverCheck` ([the checkers](../../READ
 
 ## The JSON file
 
-What is the same for every row of the CSV file beside it:
+What is the same for every row of the CSV file beside it, here for the other solvers of a cold run:
 
 ```json
 {
@@ -74,7 +75,7 @@ What is the same for every row of the CSV file beside it:
 |---|---|
 | `commit` | The commit of this repository that was measured, which is VIK's version; `-dirty` follows it when the tree differed from the commit in more than results and pages. |
 | `jdk` | The JDK that ran the JVM solvers. |
-| `versions` | For each of the other solvers of the CSV file, under its name there: the version of the JVM library (princess, SMTInterpol), of the JavaSMT binding (z3 and cvc5, warm) or of the binary (z3 and cvc5, cold). Empty after a run of VIK alone. |
+| `versions` | In the files of the other solvers only. For each solver of the CSV file, under its name there: the version of the JVM library (princess, SMTInterpol), of the JavaSMT binding (z3 and cvc5, warm) or of the binary (z3 and cvc5, cold). |
 
 ## From the files to the page
 
@@ -86,7 +87,7 @@ when the table is built.
 
 On the host of the newest run, each solver's column is that solver's own newest run, whole
 (`latest` in [history.py](../../history.py)); the caption of the table names the version and the time of
-each, and links the run's CSV file. A solver that was not measured on an instance in its newest run has no
+each, and links the files. A solver that was not measured on an instance in its newest run has no
 number there, whatever an older run measured.
 
 The runs made before these files existed, up to September 2026, are in [../smt](../smt/README.md): a JMH

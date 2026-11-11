@@ -1,7 +1,7 @@
 #!/bin/bash
 # The evaluation, one command: measures VIK, the other solvers or both, adds the run to the history
-# (bench/results/evaluation, a CSV file per run and table, see bench/history.py) and regenerates
-# docs/_docs/evaluation.md. Does not commit.
+# (bench/results/evaluation: the CSV files of the run, VIK's apart from the others', see bench/history.py)
+# and regenerates docs/_docs/evaluation.md. Does not commit.
 #
 #   bench/evaluate.sh vik [warm|cold]      # VIK alone: what a change to VIK calls for
 #   bench/evaluate.sh others [warm|cold]   # z3, cvc5, princess and SMTInterpol alone
