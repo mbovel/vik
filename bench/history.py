@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""The history of the evaluation: four append-only CSV files, a row per solver, instance and run.
+"""The history of the evaluation: a CSV file per run and table, with a JSON file about the run beside it.
 
     history.py warm --into DIR --run RUN --vik VERSION --classpath CP results.json   # a JMH run of the suites
     history.py cold --into DIR --run RUN --vik VERSION --classpath CP results.tsv    # the output of cold.sh
 
-`vik-warm.csv` and `others-warm.csv` take the rows of a JMH run, `vik-cold.csv` and `others-cold.csv` those of
-cold.sh. VIK and the other solvers are kept apart because they are measured apart: a change to VIK moves
-VIK's times only, and the other solvers are pinned (bench/evaluate.sh runs either family). A row says what
-was measured and on what, and holds the raw samples; bench/results/evaluation/README.md describes the
-columns. The versions of the other solvers are read off the classpath (the JVM solvers and the JavaSMT
-bindings) and off bench/native/VERSIONS (the z3 and cvc5 binaries), so a row names what ran.
+Each call writes `<run>-<host>-<solvers>-<table>.csv` (`2026-11-11T0200Z-laraserver4-all-warm.csv`) and the
+`.json` of the same name. The name says the minute the run started, in UTC, the machine, the solvers
+measured (`vik`, `others` or `all`: the other solvers are pinned, so bench/evaluate.sh measures either
+family alone) and the table the rows feed. The CSV file holds the measurements, a row per solver and
+instance: the raw samples, or one of `WORDS` when there is no time to show. The JSON file holds what is
+the same for every row: the commit of this repository, the JDK and the versions of the other solvers, read
+off the classpath (the JVM solvers and the JavaSMT bindings) and off bench/native/VERSIONS (the z3 and cvc5
+binaries). Both are written once and never changed; bench/results/evaluation/README.md describes them.
 
 `latest` picks the rows the tables show (bench/warm2md.py, bench/cold2md.py), `provenance` says which.
 """
-import argparse, csv, decimal, json, pathlib, re, socket, subprocess
+import argparse, csv, decimal, json, pathlib, re, socket, subprocess, sys
 
 BENCH = pathlib.Path(__file__).resolve().parent
-COLUMNS = {
-    "warm": ["run", "host", "jdk", "solver", "version", "instance", "samples_ms"],
-    "cold": ["run", "host", "jdk", "solver", "version", "instance", "expected", "answer", "samples_s"],
-}
+COLUMNS = {"warm": ["solver", "instance", "samples_ms"], "cold": ["solver", "instance", "samples_s"]}
+RUN = r"\d{4}-\d\d-\d\dT\d{4}Z"
+NAME = re.compile(rf"(?P<run>{RUN})-(?P<host>.+)-(?:vik|others|all)-(?:warm|cold)\.csv")
+# What a row holds in place of its samples, the worst first: an answer against the file's status, a run
+# past the ten-second budget, a run that did not answer every check, a solver that gave up.
+WORDS = ["wrong", "timeout", "error", "unknown"]
 
 
 def is_vik(solver):
@@ -27,42 +31,57 @@ def is_vik(solver):
     return solver.lower().startswith("vik")
 
 
-def latest(paths):
+def latest(directory, mode):
     """The rows a table shows: on the host of the newest run, each solver's rows from its own newest run.
 
     A solver's column is one whole run, never a mix: a combination its suite stopped measuring does not
-    come back from an older run. Files that do not exist yet hold no rows.
+    come back from an older run. Each row also says where it comes from: its `run` and its `host`, read
+    off the name of its `file`, and the `version` measured, read from the JSON file beside it.
     """
-    rows = [r for p in paths if pathlib.Path(p).exists() for r in csv.DictReader(open(p, newline=""))]
-    if not rows:
-        raise SystemExit(f"history: no run recorded in {', '.join(map(str, paths))}")
-    host = max(rows, key=lambda r: r["run"])["host"]
-    rows = [r for r in rows if r["host"] == host]
-    newest = {}
-    for r in rows:
-        newest[r["solver"]] = max(newest.get(r["solver"], ""), r["run"])
-    return [r for r in rows if r["run"] == newest[r["solver"]]]
+    files = sorted(((m["run"], m["host"], path) for path in pathlib.Path(directory).glob(f"*-{mode}.csv")
+                    if (m := NAME.fullmatch(path.name))), reverse=True)
+    if not files:
+        raise SystemExit(f"history: no {mode} run recorded in {directory}")
+    host = files[0][1]
+    rows, seen = [], set()
+    for run, where, path in files:  # the newest first
+        if where == host:
+            about = json.loads(path.with_suffix(".json").read_text())
+            new = [r for r in csv.DictReader(open(path, newline="")) if r["solver"] not in seen]
+            for r in new:
+                version = about["commit"] if is_vik(r["solver"]) else about["versions"][r["solver"]]
+                rows.append(r | {"run": run, "host": host, "file": path, "version": version})
+            seen |= {r["solver"] for r in new}
+    return rows
 
 
 def provenance(rows, solvers, names):
     """The runs behind the columns `solvers` of a table, and the version each measured.
 
-    `Run of 2026-11-12 09:14: VIK (JVM) and VIK (Node) 1a2b3c4. Run of 2026-11-10 14:30: Z3 4.14.0; CVC5
-    1.3.3.` The newest run first; the solvers of a run that share a version (VIK's platforms) are named
+    `Measured on laraserver4. Run of 2026-11-12 09:14 UTC: VIK (JVM) and VIK (Node) 1a2b3c4. Run of
+    2026-11-10 14:30 UTC: Z3 4.14.0; CVC5 1.3.3.` The newest run first, each a link to its file when the
+    file is in the repository; the solvers of a run that share a version (VIK's platforms) are named
     together.
     """
     def listing(items):
         return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
-    of = {r["solver"]: (r["run"], r["version"]) for r in rows}
-    runs = {}  # run -> version -> the columns' names, in the table's order
+    def run_of(path):
+        run = NAME.fullmatch(path.name)["run"]
+        text = f"Run of {run[:10]} {run[11:13]}:{run[13:15]} UTC"
+        try:
+            inside = path.resolve().relative_to(BENCH.parent)
+        except ValueError:  # a dry run's directory, outside the repository
+            return text
+        return f'<a href="https://github.com/mbovel/vik/blob/main/{inside}">{text}</a>'
+
+    of = {r["solver"]: r for r in rows}
+    runs = {}  # file -> version -> the columns' names, in the table's order
     for s in solvers:
         if s in of:
-            run, version = of[s]
-            runs.setdefault(run, {}).setdefault(version, []).append(names[s])
-    parts = [f"Run of {run.replace('T', ' ')}: "
-             + "; ".join(f"{listing(shown)} {version}" for version, shown in runs[run].items()) + "."
-             for run in sorted(runs, reverse=True)]
+            runs.setdefault(of[s]["file"], {}).setdefault(of[s]["version"], []).append(names[s])
+    parts = [f"{run_of(path)}: " + "; ".join(f"{listing(shown)} {version}" for version, shown in runs[path].items())
+             + "." for path in sorted(runs, key=lambda path: path.name, reverse=True)]
     return f"Measured on {rows[0]['host']}. {' '.join(parts)}"
 
 
@@ -71,10 +90,8 @@ def digits(x):
     return format(decimal.Decimal(f"{x:.4g}"), "f")
 
 
-def version_of(mode, solver, vik, classpath):
-    """The version a solver's rows carry; no row is written without one."""
-    if is_vik(solver):
-        return vik
+def version_of(mode, solver, classpath):
+    """The version of one of the other solvers; no run is recorded without the version of each."""
     for prefix, artifact in [("princess", "princess_[0-9.]+"), ("smtinterpol", "smtinterpol"),
                              ("z3", "javasmt-solver-z3"), ("cvc5", "javasmt-solver-cvc5")]:
         if solver.lower().startswith(prefix):
@@ -90,51 +107,84 @@ def version_of(mode, solver, vik, classpath):
 
 
 def warm_rows(path):
-    """(solver, instance, jdk, samples) of a JMH results file; no samples for a combination on the ledger."""
+    """The JDK of a JMH results file, and its rows: solver, instance and samples, or `timeout` for a
+    combination on the ledger."""
     ledger = {tuple(line.split(":", 1)) for line in (BENCH / "timeouts.txt").read_text().splitlines() if line}
-    for r in json.load(open(path)):
+    results = json.load(open(path))
+    rows = []
+    for r in results:
         solver = ".".join(r["benchmark"].split(".")[-2:])
         instance = r["params"]["file"].removesuffix(".smt2")
-        samples = [] if (solver, instance) in ledger else [x for fork in r["primaryMetric"]["rawData"] for x in fork]
-        yield solver, instance, r["jdkVersion"], [" ".join(map(digits, samples))]
+        samples = " ".join(digits(x) for fork in r["primaryMetric"]["rawData"] for x in fork)
+        rows.append([solver, instance, "timeout" if (solver, instance) in ledger else samples])
+    return ", ".join(sorted({r["jdkVersion"] for r in results})), rows
+
+
+def verdict(expected, answer):
+    """What the answers of one run are worth against the statuses of its file: `ok`, or one of `WORDS`.
+
+    `timeout` and `error` are cold.sh's own words for a run. Otherwise both are sequences, an entry per
+    check-sat: a `sat` against an `unsat` is `wrong`, an `unknown` against either is a solver that gave
+    up, and a check whose status is unknown accepts any answer.
+    """
+    if answer in ("timeout", "error"):
+        return answer
+    if answer.count(",") != expected.count(","):  # the statuses of the file do not line up with its checks
+        return "error"
+    pairs = list(zip(answer.split(","), expected.split(",")))
+    if any({a, status} == {"sat", "unsat"} for a, status in pairs):
+        return "wrong"
+    if any(a == "unknown" and status in ("sat", "unsat") for a, status in pairs):
+        return "unknown"
+    return "ok"
 
 
 def cold_rows(path):
-    """(solver, instance, jdk, expected, answer and seconds) of the output of cold.sh."""
+    """The JDK cold.sh started, and the rows of its output: solver, instance and seconds.
+
+    The seconds are those of the repetitions when every one of them answered as the statuses say; else
+    the row holds the worst of their verdicts. This is where the answers are checked: they are not kept.
+    """
     banner = subprocess.run(["java", "-version"], capture_output=True, text=True).stderr
     jdk = re.search(r'version "([^"]+)"', banner).group(1)  # the JDK on the PATH is the one cold.sh starts
+    rows = []
     for r in csv.DictReader(open(path, newline=""), delimiter="\t"):
-        yield r["solver"], r["file"].removesuffix(".smt2"), jdk, [r["expected"], r["answer"], r["seconds"]]
+        verdicts = {verdict(r["expected"], answer) for answer in r["answer"].split("|")}
+        word = next((w for w in WORDS if w in verdicts), None)
+        if word == "wrong":
+            print(f"history: WRONG ANSWER of {r['solver']} on {r['file']}: {r['answer']}, the status being"
+                  f" {r['expected']}", file=sys.stderr)
+        rows.append([r["solver"], r["file"].removesuffix(".smt2"), word or r["seconds"]])
+    return jdk, rows
 
 
 def record(mode, into, run, vik, classpath, results):
-    host = socket.gethostname().split(".")[0]
-    rows = {"vik": [], "others": []}
-    for solver, instance, jdk, measured in (warm_rows if mode == "warm" else cold_rows)(results):
-        version = version_of(mode, solver, vik, classpath)
-        rows["vik" if is_vik(solver) else "others"].append([run, host, jdk, solver, version, instance] + measured)
-    header = ",".join(COLUMNS[mode])
-    files = {family: pathlib.Path(into) / f"{family}-{mode}.csv" for family, lines in rows.items() if lines}
-    for path in files.values():  # both files checked before either is written
-        if path.exists() and (first := open(path).readline().strip()) != header:
-            raise SystemExit(f"history: {path} starts with `{first}`, not `{header}`")
-    for family, path in files.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        new = not path.exists()
-        with open(path, "a", newline="") as f:
-            out = csv.writer(f, lineterminator="\n")
-            if new:
-                out.writerow(COLUMNS[mode])
-            out.writerows(rows[family])
-        print(f"history: {len(rows[family])} rows of run {run} added to {path}")
+    if not re.fullmatch(RUN, run):
+        raise SystemExit(f"history: the run is named by its start in UTC, as 2026-11-12T0914Z, not `{run}`")
+    jdk, rows = (warm_rows if mode == "warm" else cold_rows)(results)
+    if not rows:
+        raise SystemExit(f"history: {results} holds no measurement")
+    others = list(dict.fromkeys(solver for solver, _, _ in rows if not is_vik(solver)))
+    solvers = "vik" if not others else "all" if any(is_vik(solver) for solver, _, _ in rows) else "others"
+    path = pathlib.Path(into) / f"{run}-{socket.gethostname().split('.')[0]}-{solvers}-{mode}.csv"
+    if path.exists():
+        raise SystemExit(f"history: {path} exists, and the files of a run are written once")
+    about = {"commit": vik, "jdk": jdk, "versions": {solver: version_of(mode, solver, classpath) for solver in others}}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.with_suffix(".json").write_text(json.dumps(about, indent=2) + "\n")
+    with open(path, "x", newline="") as f:
+        out = csv.writer(f, lineterminator="\n")
+        out.writerow(COLUMNS[mode])
+        out.writerows(rows)
+    print(f"history: {len(rows)} rows written to {path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Appends a run of the evaluation to its history.")
+    parser = argparse.ArgumentParser(description="Writes a run of the evaluation into its history.")
     parser.add_argument("mode", choices=["warm", "cold"])
-    parser.add_argument("--into", required=True, help="the directory of the four files")
-    parser.add_argument("--run", required=True, help="the start of the run, as 2026-11-12T09:14")
-    parser.add_argument("--vik", required=True, help="VIK's version: the commit measured")
+    parser.add_argument("--into", required=True, help="the directory of the history")
+    parser.add_argument("--run", required=True, help="the start of the run in UTC, as 2026-11-12T0914Z")
+    parser.add_argument("--vik", required=True, help="the commit measured, `-dirty` after it for a tree that differs")
     parser.add_argument("--classpath", required=True, help="bench/runtimeClasspath, for the other solvers' versions")
     parser.add_argument("results", help="JMH's JSON results (warm) or the TSV of cold.sh (cold)")
     args = parser.parse_args()

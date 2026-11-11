@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""A markdown table from the cold history of the evaluation: cold2md.py vik-cold.csv others-cold.csv
+"""A markdown table from the cold history of the evaluation: cold2md.py bench/results/evaluation
 
-The files are those of bench/history.py (the runs of cold.sh), and a solver's column is its newest run in
-them (`history.latest`); the table's caption names each column's version and run. One row per instance —
-linked to its corpus file, with its logic, whether the script is incremental and its
+The directory holds the files of bench/history.py, and a solver's column is its newest run among the cold
+ones, those of cold.sh (`history.latest`); the table's caption names each column's version and run. One
+row per instance — linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the median of the repetitions in seconds, the best of the row highlighted
 (`<span class="best">`, styled by the site's `tables.css`) and the worst too (`<span class="worst">`: the 🐢
-of a solver that did not finish, else the slowest correct answer); the answer in bold when it disagrees
-with the file's status. `--order file`
+of a solver that did not finish, else the slowest). A row the history holds as a word has no time: 🐢 for
+`timeout`, `—` for `error`, and `wrong` or `unknown` in bold, a wrong answer being named on stderr as
+well. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
 instance measured but not listed is left out, one listed but not measured gets a row of `—`. `--columns a,b`
 shows those solvers instead of every one measured. Run from the repository root, where `corpus/` is.
@@ -18,14 +19,17 @@ import history
 
 
 def corpus(base):
-    """The corpus file of an instance, and what the table says about it: logic, incremental."""
+    """The corpus file of an instance, and what the table says about it: logic, incremental, status."""
     path = next(iter(pathlib.Path("corpus").glob(f"*/*/{base}")), None)
     if path is None:
-        return None, "?", ""
+        return None, "?", "", ""
     text = path.read_text(errors="replace")
     logic = m.group(1) if (m := re.search(r"\(set-logic ([A-Z_]+)\)", text)) else str(path.parts[1])
     incremental = "✓" if text.count("(check-sat") > 1 or "(push" in text else "✗"
-    return path, logic, incremental
+    checks = text.count("(check-sat")
+    m = re.search(r"\(set-info :status (sat|unsat)\)", text)  # the command: a comment can name statuses too
+    status = f"{checks} checks" if checks > 1 else m.group(1) if m else "unknown"
+    return path, logic, incremental, status
 
 
 def fmt(x):
@@ -46,7 +50,7 @@ if "--columns" in arguments:
     columns = arguments[i + 1].split(",")
     arguments = arguments[:i] + arguments[i + 2:]
 
-rows = history.latest(arguments)
+rows = history.latest(arguments[0], "cold")
 measured = {r["solver"] for r in rows}
 # The columns in an order that puts like next to like: the JVM solvers, then VIK's other platforms, then the
 # native binaries of z3 and cvc5; a column per solver the history holds.
@@ -56,17 +60,10 @@ solvers = columns or [s for s in [
 names = {"princess": "Princess (JVM)", "smtinterpol": "SMTInterpol (JVM)", "vik-jvm": "VIK (JVM)",
          "vik-jvm-aot": "VIK (JVM AOT)", "vik-node": "VIK (Node)", "vik-native": "VIK (Scala Native)",
          "vik-graal": "VIK (Native Image)", "z3": "Z3", "cvc5": "CVC5"}
-def agrees(answer, expected):
-    """Answer sequences match the statuses; a check whose status is unknown accepts either answer."""
-    a, e = answer.split(","), expected.split(",")
-    return len(a) == len(e) and all(x == y or y == "unknown" for x, y in zip(a, e))
-
-
-by = collections.defaultdict(dict)
-status = {}
+by = collections.defaultdict(dict)  # instance -> solver -> the median of the row, or the word it holds instead
 for r in rows:
-    by[r["instance"]][r["solver"]] = (r["answer"], statistics.median(float(x) for x in r["samples_s"].split()))
-    status[r["instance"]] = r["expected"]
+    cell = r["samples_s"]
+    by[r["instance"]][r["solver"]] = cell if cell in history.WORDS else statistics.median(map(float, cell.split()))
 
 print('<div class="table-scroll">')
 print("<table>")
@@ -75,35 +72,31 @@ print("<thead><tr>" + "".join(f"<th>{h}</th>" for h in ["Instance", "Theory", "I
       + "".join(f"<th>{names[s]}</th>" for s in solvers) + "</tr></thead>")
 print("<tbody>")
 for instance in (order_of if order_of is not None else list(by)):
-    answers = by.get(instance, {})
-    expected = status.get(instance, "")
-    correct = [median for answer, median in answers.values() if agrees(answer, expected)]
-    best = min(correct, default=None)
-    # The worst of the row: a timeout when there is one, else the slowest correct answer.
-    timed_out = any(answer == "timeout" for answer, _ in answers.values())
-    worst = None if timed_out else max(correct, default=None)
+    row = by.get(instance, {})
+    medians = [cell for cell in row.values() if cell not in history.WORDS]
+    best = min(medians, default=None)
+    # The worst of the row: a timeout when there is one, else the slowest.
+    worst = None if "timeout" in row.values() else max(medians, default=None)
     cells = []
     for s in solvers:
-        answer, median = answers.get(s, ("missing", 0.0))
-        if answer == "timeout":
+        cell = row.get(s, "error")  # not measured reads as an error does: `—`
+        if cell == "timeout":
             cells.append('<span class="worst">🐢</span>')
-        elif answer in ("error", "missing"):
+        elif cell == "error":
             cells.append("—")
-        elif agrees(answer, expected):
-            text = fmt(median)
-            cells.append(f'<span class="best">{text}</span>' if median == best
-                         else f'<span class="worst">{text}</span>' if median == worst and best != worst else text)
-        elif "," in answer or "," in expected:
-            cells.append(f"<strong>wrong</strong> {fmt(median)}")
+        elif cell in history.WORDS:
+            cells.append(f"<strong>{cell}</strong>")
+            if cell == "wrong":
+                print(f"cold2md: the table shows a wrong answer, of {names[s]} on {instance}", file=sys.stderr)
         else:
-            cells.append(f"<strong>{answer}</strong> {fmt(median)}")
-    path, logic, incremental = corpus(instance + ".smt2")
+            text = fmt(cell)
+            cells.append(f'<span class="best">{text}</span>' if cell == best
+                         else f'<span class="worst">{text}</span>' if cell == worst and best != worst else text)
+    path, logic, incremental, status = corpus(instance + ".smt2")
     short = instance if len(instance) <= 20 else instance[:19] + "…"  # the link's title carries the full name
     label = short.replace("__", "__<wbr>")  # long names may wrap there, and only there
     name = f'<a href="https://github.com/mbovel/vik/blob/main/{path}" title="{instance}">{label}</a>' if path else label
-    checks = expected.count(",") + 1
-    shown = (expected or "—") if checks == 1 else f"{checks} checks"
-    print(f"<tr><td>{name}</td><td>{logic}</td><td>{incremental}</td><td>{shown}</td>"
+    print(f"<tr><td>{name}</td><td>{logic}</td><td>{incremental}</td><td>{status}</td>"
           + "".join(f'<td align="right">{c}</td>' for c in cells) + "</tr>")
 
 print("</tbody>")

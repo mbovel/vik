@@ -65,8 +65,10 @@ Two families of solvers appear:
 | princess | `io.github.uuverifiers:princess:2026-05-20` |
 | SMTInterpol | `de.uni-freiburg.informatik.ultimate:smtinterpol:2.5-1388-ga5a4ab0c` |
 
-The machine is shared, so numbers taken hours apart are not comparable; every table here comes from one run,
-and the two tables were taken the same morning.
+The machine is shared, so numbers taken hours apart are not comparable. The caption of each table names the
+run behind every column: the columns of one run were measured in the same hours, and VIK's can come from a
+later run than the other solvers', whose versions are pinned and which are not measured again for every
+change to VIK.
 
 ## Warm: the solver as a library
 
@@ -83,7 +85,7 @@ cell deliberately left out, for the reasons below.
 
 <div class="table-scroll">
 <table>
-<caption>Measured on laraserver4. Run of 2026-11-11 02:00: Princess (API) 2026-05-20; SMTInterpol (API) 2.5-1388-ga5a4ab0c; VIK (API) 32e844fc; Z3 (API) 4.14.0; CVC5 (API) 2026-02-26-d22638a.</caption>
+<caption>Measured on laraserver4. <a href="https://github.com/mbovel/vik/blob/main/bench/results/evaluation/2026-11-11T0200Z-laraserver4-all-warm.csv">Run of 2026-11-11 02:00 UTC</a>: Princess (API) 2026-05-20; SMTInterpol (API) 2.5-1388-ga5a4ab0c; VIK (API) 32e844fc; Z3 (API) 4.14.0; CVC5 (API) 2026-02-26-d22638a.</caption>
 <thead><tr><th>Instance</th><th>Theory</th><th>Incremental</th><th>Status</th><th>Princess (API)</th><th>SMTInterpol (API)</th><th>VIK (API)</th><th>Z3 (API)</th><th>CVC5 (API)</th></tr></thead>
 <tbody>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2" title="QG-classification__qg5__iso_brn001">QG-classification__<wbr>…</a></td><td>QF_UF</td><td>✗</td><td>sat</td><td align="right"><span class="worst">21.58</span></td><td align="right">1.11</td><td align="right"><span class="best">0.68</span></td><td align="right">2.02</td><td align="right">5.06</td></tr>
@@ -248,7 +250,7 @@ SMTInterpol on a script with a `check-sat-assuming`, which its command line can 
 
 <div class="table-scroll">
 <table>
-<caption>Measured on laraserver4. Run of 2026-11-11 02:00: Princess (JVM) 2026-05-20; SMTInterpol (JVM) 2.5-1388-ga5a4ab0c; VIK (JVM), VIK (JVM AOT), VIK (Node), VIK (Scala Native) and VIK (Native Image) 32e844fc; Z3 4.14.0; CVC5 1.3.3.</caption>
+<caption>Measured on laraserver4. <a href="https://github.com/mbovel/vik/blob/main/bench/results/evaluation/2026-11-11T0200Z-laraserver4-all-cold.csv">Run of 2026-11-11 02:00 UTC</a>: Princess (JVM) 2026-05-20; SMTInterpol (JVM) 2.5-1388-ga5a4ab0c; VIK (JVM), VIK (JVM AOT), VIK (Node), VIK (Scala Native) and VIK (Native Image) 32e844fc; Z3 4.14.0; CVC5 1.3.3.</caption>
 <thead><tr><th>Instance</th><th>Theory</th><th>Incremental</th><th>Status</th><th>Princess (JVM)</th><th>SMTInterpol (JVM)</th><th>VIK (JVM)</th><th>VIK (JVM AOT)</th><th>VIK (Node)</th><th>VIK (Scala Native)</th><th>VIK (Native Image)</th><th>Z3</th><th>CVC5</th></tr></thead>
 <tbody>
 <tr><td><a href="https://github.com/mbovel/vik/blob/main/corpus/QF_UF/smt-lib/QG-classification__qg5__iso_brn001.smt2" title="QG-classification__qg5__iso_brn001">QG-classification__<wbr>…</a></td><td>QF_UF</td><td>✗</td><td>sat</td><td align="right"><span class="worst">0.89</span></td><td align="right">0.15</td><td align="right">0.35</td><td align="right">0.19</td><td align="right">0.10</td><td align="right">0.02</td><td align="right">0.01</td><td align="right">0.02</td><td align="right"><span class="best">0.01</span></td></tr>
@@ -360,8 +362,8 @@ bench/evaluate.sh others     # the other solvers alone, after a change of versio
 bench/evaluate.sh all warm   # one table only: `warm` or `cold` after any of the three
 ```
 
-A run is appended to the history in `bench/results/evaluation`, a row per solver, instance and run, and the
-tables are rebuilt from it.
+A run leaves a CSV file per table in `bench/results/evaluation`, a row per solver and instance, and the
+tables are rebuilt from these files.
 
 `bench/evaluation-instances.txt` lists the instances, in the order of both tables; the warm suites, one per
 solver in `bench/src/main/scala/io/bovel/bench/evaluation`, list the instances each solver takes and,
@@ -369,6 +371,6 @@ commented, the ones it does not and why (the blanked cells); `bench/timeouts.txt
 combinations past the ten-second budget, never run again — so a change that brings one under the budget
 removes its line, or its cell stays 🐢.
 
-The raw data of this page, committed in the repository:
-[cold](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-08-laraserver4-cold.tsv) and
-[warm](https://github.com/mbovel/vik/blob/main/bench/results/smt/2026-09-08-laraserver4-warm.json).
+The raw data of this page is committed in
+[`bench/results/evaluation`](https://github.com/mbovel/vik/tree/main/bench/results/evaluation), the samples
+of every run in a file of its own: the caption of each table links the files its columns come from.

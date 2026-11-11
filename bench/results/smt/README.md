@@ -44,9 +44,9 @@ solver on every instance and reports disagreements with the expected status.
 answer and the wall clock of every repetition, JVM start-up included for VIK, princess and SMTInterpol. z3 and cvc5 are
 the binaries of `bench/fetch-native.sh`; princess and SMTInterpol run from the classpath of the `bench` project.
 
-The runs of the evaluation itself (`bench/evaluate.sh`) are no longer recorded here: since November 2026 they are
-rows of the four CSV files of [../evaluation](../evaluation/README.md), VIK and the other solvers apart. The
-`*-warm.json` and `*-cold.tsv` files of this directory are the runs up to 2026-09-08.
+The runs of the evaluation itself (`bench/evaluate.sh`) are no longer recorded here: since November 2026 each
+leaves its CSV files in [../evaluation](../evaluation/README.md), VIK and the other solvers measured apart or
+together. The `*-warm.json` and `*-cold.tsv` files of this directory are the runs up to 2026-09-08.
 
 ## Current results
 

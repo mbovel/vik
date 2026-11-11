@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""A markdown table from the warm history of the evaluation: warm2md.py vik-warm.csv others-warm.csv
+"""A markdown table from the warm history of the evaluation: warm2md.py bench/results/evaluation
 
-The files are those of bench/history.py, and a solver's column is its newest run in them (`history.latest`);
-the table's caption names each column's version and run. One row per instance — linked to its corpus
-file, with its logic, whether the script is incremental and its
+The directory holds the files of bench/history.py, and a solver's column is its newest run among the warm
+ones (`history.latest`); the table's caption names each column's version and run. One row per instance —
+linked to its corpus file, with its logic, whether the script is incremental and its
 status — and one column per solver: the mean over the samples in milliseconds, the best of the row
 highlighted (`<span class="best">`, styled by the site's `tables.css`) and the worst too (`<span class="worst">`:
 the 🐢 of a solver past the budget, else the slowest). A note after the table summarizes the
 95% confidence intervals (Student's t over the samples of a cell) and names the widest. `--timeouts file` reads the ledger the benchmarks' Budget watchdog keeps (one
 `solver:instance` per line): those cells say 🐢, whatever a run measured before the line was written, as
-do the rows the history holds without samples. `--order file`
+do the rows the history holds as `timeout`. `--order file`
 (bench/evaluation-instances.txt: a corpus path first on each line) fixes the rows and their order: an
 instance measured but not listed is left out, one listed but not measured gets a row of `—`. `--columns a,b`
 shows those suites (JMH names) instead of the five API ones. Run from the repository root, where `corpus/` is.
@@ -68,13 +68,13 @@ if "--columns" in arguments:  # the suites to show, by their JMH names, comma-se
 
 by = collections.defaultdict(dict)
 samples = {}  # per solver, the samples of its cells (forks × iterations)
-rows = history.latest(arguments)
+rows = history.latest(arguments[0], "warm")
 for r in rows:
     solver, instance = r["solver"], r["instance"]
-    xs = [float(x) for x in r["samples_ms"].split()]
-    if not xs:  # on the ledger when the run was recorded
+    if r["samples_ms"] == "timeout":  # on the ledger when the run was recorded
         timeouts.add((solver, instance))
         continue
+    xs = [float(x) for x in r["samples_ms"].split()]
     mean = statistics.mean(xs)
     ci = t.ppf(0.975, len(xs) - 1) * statistics.stdev(xs) / len(xs) ** 0.5 if len(xs) > 1 else 0.0
     by[instance][solver] = (mean, ci)
