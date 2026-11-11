@@ -36,7 +36,9 @@ hand-written files that way on Scala.js and Scala Native; the corpus test itself
 ## The evaluation page
 
 [evaluate.sh](evaluate.sh) reproduces the two tables of
-[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place. The warm table is a
+[the evaluation](../docs/_docs/evaluation.md) end to end and rewrites the page in place; the chart of the
+page is drawn from those tables in the browser ([evaluation.js](../docs/_assets/js/evaluation.js)), so it
+follows them. The warm table is a
 JMH run of the suites of `io.bovel.bench.evaluation` — one per solver, `VikBench`, `Z3Bench` and `Z3TextBench`,
 `Cvc5Bench`, `PrincessBench`, `SmtInterpolBench`, each listing the instances it takes and, commented, the ones
 it does not and why. VIK and the other solvers are measured apart: the others are pinned, and a change to
