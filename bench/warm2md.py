@@ -38,7 +38,7 @@ def corpus(base):
     logic = m.group(1) if (m := re.search(r"\(set-logic ([A-Z_]+)\)", text)) else str(path.parts[1])
     incremental = "✓" if text.count("(check-sat") > 1 or "(push" in text else "✗"
     checks = text.count("(check-sat")
-    m = re.search(r":status (sat|unsat)", text)
+    m = re.search(r"\(set-info :status (sat|unsat)\)", text)  # the command: a comment can name statuses too
     status = f"{checks} checks" if checks > 1 else m.group(1) if m else "unknown"
     return path, logic, incremental, status
 
