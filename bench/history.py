@@ -95,6 +95,14 @@ def digits(x):
     return format(decimal.Decimal(f"{x:.4g}"), "f")
 
 
+def cell(text, seconds=None):
+    """A solver's cell of a table. A time is also there unrounded, in seconds whatever the unit of the
+    table, as `data-seconds`: the chart of the page is drawn from the tables (docs/_assets/js/evaluation.js),
+    and `<0.01` is no length for a bar."""
+    exact = "" if seconds is None else f' data-seconds="{digits(seconds)}"'
+    return f'<td align="right"{exact}>{text}</td>'
+
+
 def version_of(mode, solver, classpath):
     """The version of one of the other solvers; no run is recorded without the version of each."""
     for prefix, artifact in [("princess", "princess_[0-9.]+"), ("smtinterpol", "smtinterpol"),

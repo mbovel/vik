@@ -85,6 +85,12 @@ and a column per solver, built by [warm2md.py](../../warm2md.py) from the warm f
 (its theory, whether it is incremental, its status) is not in the files: it is read from the corpus file
 when the table is built.
 
+The chart of the page is these two tables, drawn in the reader's browser
+([evaluation.js](../../../docs/_assets/js/evaluation.js)): it reads the rows, the columns and the times off
+them, and nothing else. For it, a cell with a time also holds the time in seconds whatever the unit of its
+table, to the four digits of the files, as `data-seconds`; the tables are found by their ids, `warm-times`
+and `cold-times`.
+
 On the host of the newest run, each solver's column is that solver's own newest run, whole
 (`latest` in [history.py](../../history.py)); the caption of the table names the version and the time of
 each, and links the files. A solver that was not measured on an instance in its newest run has no
