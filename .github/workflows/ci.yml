@@ -234,6 +234,29 @@ jobs:
         with:
           name: docs
           path: target/unidoc
+      - name: The release of the runner's image, for the key of the cache below
+        id: image
+        run: echo "release=$(. /etc/os-release && echo "$VERSION_ID")" >> "$GITHUB_OUTPUT"
+      - name: The package of lftp, cached by the release it installs on
+        # The upload needs lftp, which the image does not have, and apt's mirrors do not always answer a
+        # runner: on 2026-11-11 their names did not resolve for two attempts of this job, twenty minutes,
+        # the documentation built. lftp is one package, its dependencies being in the image, so the file
+        # is kept, and apt is asked only when there is none or it no longer installs.
+        uses: actions/cache@v4
+        with:
+          path: ~/lftp
+          key: lftp-ubuntu-${{ steps.image.outputs.release }}-${{ runner.arch }}
+      - name: lftp
+        # On pull requests too: what the upload needs is then known to install before the merge.
+        run: |
+          deb=$(ls ~/lftp/lftp_*.deb 2>/dev/null || true)
+          if [ -z "$deb" ] || ! sudo dpkg -i "$deb"; then
+            rm -rf ~/lftp && mkdir ~/lftp
+            sudo apt-get update -qq
+            (cd ~/lftp && apt-get download -qq lftp)
+            sudo dpkg -i ~/lftp/lftp_*.deb
+          fi
+          lftp --version | sed -n 1p
       - name: Upload to the documentation server
         # `--ignore-time`: Scaladoc writes every page afresh on every build, so their times always differ
         # and the mirror sent all of them, 19 MB, four minutes. Sizes it is, which leaves a page whose
@@ -244,7 +267,6 @@ jobs:
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
           # The directory may already be there, and this server answers 550 to `mkdir` then: best effort.
           lftp -c "set ssl:verify-certificate no; open -u \"$FTP_USER\",\"$FTP_PASS\" \"$FTP_HOST\"; mkdir -p /vik" || true
           lftp -c "
