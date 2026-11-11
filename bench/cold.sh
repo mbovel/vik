@@ -10,7 +10,8 @@
 # The default instances are the ones of the evaluation page, in bench/evaluation-instances.txt.
 # The instances file holds one path per line (what follows the path on the line, and `#` lines, are
 # skipped). Every run is repeated and every repetition's time is reported: the readers take the median, so
-# a scheduling hiccup does not decide a number. The last argument names the solvers to run: VIK's five
+# a scheduling hiccup does not decide a number. The answer reported is the one of every repetition: where
+# they differ, each is given (`sat|timeout|sat`). The last argument names the solvers to run: VIK's five
 # platforms, the other four solvers (nothing of VIK is built then), or all nine, the default.
 set -u
 cd "$(dirname "$0")/.."
@@ -73,13 +74,18 @@ seconds() { # the wall-clock time of one run, and the answers (comma-separated f
   printf "%s\t%.3f" "$out" "$(echo "$end - $start" | bc)"
 }
 
-measure() { # name, command...: repeats the run and reports the last answer and every repetition's time
+measure() { # name, command...: repeats the run and reports every repetition's time, and the answer: the one
+  # the repetitions agree on, else the answer of each, separated by `|`
   local name=$1; shift
-  local times=() answer="" line
+  local times=() answers=() line answer a
   for _ in $(seq "$REPETITIONS"); do
     line=$(seconds "$@")
-    answer=$(cut -f1 <<< "$line")
+    answers+=("$(cut -f1 <<< "$line")")
     times+=("$(cut -f2 <<< "$line")")
+  done
+  answer=${answers[0]}
+  for a in "${answers[@]}"; do
+    [ "$a" = "${answers[0]}" ] || answer=$(IFS='|'; echo "${answers[*]}")
   done
   printf "%s\t%s\t%s\n" "$name" "$answer" "${times[*]}"
 }

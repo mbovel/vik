@@ -1,6 +1,6 @@
 #!/bin/bash
-# The evaluation, one command: measures VIK, the other solvers or both, appends the run to the history
-# (bench/results/evaluation, four CSV files, see bench/history.py) and regenerates
+# The evaluation, one command: measures VIK, the other solvers or both, adds the run to the history
+# (bench/results/evaluation, a CSV file per run and table, see bench/history.py) and regenerates
 # docs/_docs/evaluation.md. Does not commit.
 #
 #   bench/evaluate.sh vik [warm|cold]      # VIK alone: what a change to VIK calls for
@@ -30,7 +30,7 @@ cd "$(dirname "$0")/.."
 R=${VIK_EVALUATION_RESULTS:-bench/results/evaluation}
 INSTANCES=${VIK_EVALUATION_INSTANCES:-bench/evaluation-instances.txt}
 T=target/evaluation # what JMH and cold.sh wrote, kept out of git: the history holds the samples
-RUN=$(date +%FT%H:%M)
+RUN=$(date -u +%FT%H%MZ) # the name of the run, in the names of its files: its start, in UTC on any machine
 
 usage() { echo "usage: bench/evaluate.sh vik|others|all [warm|cold] | regen"; exit 2; }
 preflight() {
@@ -44,9 +44,9 @@ preflight_cold() {
     { echo "missing the z3 and cvc5 binaries — run: bench/fetch-native.sh"; exit 1; }
 }
 
-# What the rows of this run will say was measured, taken before anything is built or written: VIK's commit,
-# `-dirty` when the tree differs from it in more than results and pages, and the classpath, whose jar names
-# carry the versions of the other solvers.
+# What the files of this run will say was measured, taken before anything is built or written: VIK's
+# commit, `-dirty` when the tree differs from it in more than results and pages, and the classpath, whose
+# jar names carry the versions of the other solvers.
 start() {
   VIK=$(git rev-parse --short HEAD)
   [ -z "$(git status --porcelain --untracked-files=no -- . ':!bench/results' ':!docs/_docs')" ] || VIK=$VIK-dirty
@@ -55,7 +55,7 @@ start() {
   mkdir -p "$T"
 }
 
-# A step's rows join the history once the step is over, whole: a run that fails leaves no row. If the
+# A step's file joins the history once the step is over, whole: a run that fails leaves none. If the
 # recording itself fails, the measurements are still in the file named here.
 record() { # warm|cold, the results file
   python3 bench/history.py "$1" --into "$R" --run "$RUN" --vik "$VIK" --classpath "$CP" "$2" ||
@@ -76,7 +76,7 @@ warm() {
     others) suites="-e io.bovel.bench.evaluation.VikBench io.bovel.bench.evaluation.*" ;;
     all) suites="io.bovel.bench.evaluation.*" ;;
   esac
-  local json="$PWD/$T/${RUN/:/}-$WHO-warm.json"
+  local json="$PWD/$T/$RUN-$WHO-warm.json"
   local chain="bench/Jmh/run -foe true -rf json -rff $json $suites ${VIK_EVALUATION_JMH:-}"
   # The ceiling catches a wedged run; -k because sbt can ignore TERM while its fork lives. Six hours: the
   # 454 benchmarks of `all` take three at the least (three forks of six one-second iterations each), and
@@ -95,24 +95,23 @@ warm() {
 }
 
 cold() {
-  local tsv="$T/${RUN/:/}-$WHO-cold.tsv"
+  local tsv="$T/$RUN-$WHO-cold.tsv"
   bench/cold.sh "$INSTANCES" 3 10 "$WHO" > "$tsv"
   record cold "$tsv"
 }
 
-# Each table from its two files, a solver's column being its newest run (history.py); a table that has no
-# run in the history yet stays as the page has it.
+# Each table from the files of its kind, a solver's column being its newest run (history.py); a table that
+# has no run in the history yet stays as the page has it.
 regen() {
   local tmp; tmp=$(mktemp -d)
   local warm_md=- cold_md=-
-  if [ -s "$R/vik-warm.csv" ] || [ -s "$R/others-warm.csv" ]; then
+  if compgen -G "$R/*-warm.csv" > /dev/null; then
     warm_md=$tmp/warm.md
-    bench/.venv/bin/python bench/warm2md.py "$R/vik-warm.csv" "$R/others-warm.csv" \
-      --order "$INSTANCES" --timeouts bench/timeouts.txt > "$warm_md"
+    bench/.venv/bin/python bench/warm2md.py "$R" --order "$INSTANCES" --timeouts bench/timeouts.txt > "$warm_md"
   fi
-  if [ -s "$R/vik-cold.csv" ] || [ -s "$R/others-cold.csv" ]; then
+  if compgen -G "$R/*-cold.csv" > /dev/null; then
     cold_md=$tmp/cold.md
-    bench/.venv/bin/python bench/cold2md.py "$R/vik-cold.csv" "$R/others-cold.csv" --order "$INSTANCES" > "$cold_md"
+    bench/.venv/bin/python bench/cold2md.py "$R" --order "$INSTANCES" > "$cold_md"
   fi
   [ "$warm_md$cold_md" != "--" ] || { echo "no run in $R yet — run: bench/evaluate.sh all"; exit 1; }
   python3 bench/splice.py "$warm_md" "$cold_md"

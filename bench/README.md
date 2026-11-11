@@ -52,8 +52,9 @@ bench/evaluate.sh regen    # only regenerate the page from the history (seconds)
 A second word keeps a run to one table: `warm`, the in-process JMH one (the z3 and cvc5 bindings of
 fetch-native.sh), or `cold`, the process-per-question one (their binaries).
 
-Every run is appended to the history in [results/evaluation](results/evaluation/README.md): four CSV files, a
-row per solver, instance and run, with the version measured and the raw samples. A table shows each solver's
+Every run joins the history in [results/evaluation](results/evaluation/README.md): for each table it
+measured, a CSV file named by its time and its machine, with a row of raw samples per solver and instance,
+and beside it a JSON file with the commit, the JDK and the versions measured. A table shows each solver's
 newest run and names, in its caption, the version and the time of each. The other solvers are therefore
 due a new run when one of them or the JDK changes version, when a replay or the list of instances changes,
 and on another machine; and `all` is the run to make when the columns of a table must come from the same
@@ -108,4 +109,4 @@ forks (JMH's own `Error` column is a 99.9% interval). Its only dependency, `scip
 
 One file per run under `results/<module>/`, named by date and host (plus a tag when a day has several runs), with the
 raw JMH JSON next to it; each module's README holds its current results and the list of all runs. The runs of
-the evaluation are kept differently, as rows of the four files of [results/evaluation](results/evaluation/README.md).
+the evaluation are kept differently, as the CSV files of [results/evaluation](results/evaluation/README.md).
