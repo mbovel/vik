@@ -165,7 +165,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_AUFLIA` | smt-lib-incremental | 15 | 1 | 12 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
 | `QF_BV` | smt-lib | 250 | 51 | 139 | 111 | 0 |
-| `QF_BV` | smt-lib-incremental | 33 | 6 | 25 | 3 | 5 |
+| `QF_BV` | smt-lib-incremental | 33 | 6 | 26 | 2 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
 | `QF_DT` | smt-lib | 21 | 8 | 17 | 4 | 0 |
 | `QF_IDL` | smt-lib | 2 | 1 | 2 | 0 | 0 |
