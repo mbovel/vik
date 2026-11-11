@@ -65,6 +65,10 @@ class Z3Bench:
       "cpachecker__diskperf_simpl1.smt2",
       "cpachecker__list_false-unreach-call.smt2",
       "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2",
+      // "2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8.smt2", // bvcomp is not in z3's Java API
+      "20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300.smt2",
+      "20250315-BMC_WMM__dartagnan-3859612464.ll.smt2",
+      "20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2.smt2",
       "asn1jvm__2899.smt2",
       "bmc__stack_k20.smt2",
       "safari__mux.smt2",
@@ -162,6 +166,10 @@ class Z3TextBench:
       // "cpachecker__diskperf_simpl1.smt2", // incremental: the parser flattens the script
       // "cpachecker__list_false-unreach-call.smt2", // incremental: the parser flattens the script
       // "2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max.smt2", // incremental: the parser flattens the script
+      // "2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8.smt2", // incremental: the parser flattens the script
+      // "20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300.smt2", // incremental: the parser flattens the script
+      // "20250315-BMC_WMM__dartagnan-3859612464.ll.smt2", // incremental: the parser flattens the script
+      // "20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2.smt2", // incremental: the parser flattens the script
       // "asn1jvm__2899.smt2", // incremental: the parser flattens the script
       // "bmc__stack_k20.smt2", // incremental: the parser flattens the script
       // "safari__mux.smt2", // incremental: the parser flattens the script
