@@ -18,7 +18,7 @@ their `@Param`s.
 | Origin | Directory | What | License |
 |---|---|---|---|
 | SMT-LIB release 2025, non-incremental ([Zenodo 16740866](https://zenodo.org/records/16740866)) | `<logic>/smt-lib/` | a representative sample per logic (see below): up to fourteen files per family spread over the sizes, run under the suite's budget, then about two thirds that VIK answers — the fastest of each family where the files are alike, one slower one for the spread — and one third it does not, on `ignore.txt` with the reason; plus the instances the evaluation uses | CC BY 4.0 for the release; a family may state its own license in its header (Rodin and CLEARSY: CC BY-NC 4.0 — kept out of new imports) |
-| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the same sampling per logic (several `check-sat` per file, `push`/`pop`), plus the evaluation's `kind`, `safari` and `cpachecker` picks | CC BY 4.0 |
+| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the same sampling per logic (several `check-sat` per file, `push`/`pop`), plus the evaluation's `kind`, `safari` and `cpachecker` picks, and the first rounds of four scripts too long for it (`prefix` in their names: `lustre`, `2019-Mann`, `Heizmann`) | CC BY 4.0 |
 | [SMT-LIB benchmark submission](https://github.com/SMT-LIB/benchmark-submission), the staging repository for the 2026 release | `<logic>/submission/` | the files in our fragment (a snapshot: not the final 2026 release) | as stated in each file's `:license` header |
 | [cvc5](https://github.com/cvc5/cvc5) regression tests, `test/regress/cli` | `<logic>/cvc5/` | every regression file in our fragment with `; EXPECT:` answers (options in `; COMMAND-LINE:` are ignored) | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3test](https://github.com/Z3Prover/z3test), `regressions/smt2` | `<logic>/z3test/` | every file in our fragment whose `.expected.out` is made of answers | MIT, [LICENSES/z3test.txt](LICENSES/z3test.txt) |
@@ -111,6 +111,26 @@ Mixed logics: `QF_UFBVLIA`, `QF_AUFBVLIA` and `QF_BVLRA` (bit-vectors with integ
 only in the incremental release, from the software verifiers; there is no `QF_AUFLIRA` in SMT-LIB 2025, and
 `QF_LIRA` has two files.
 
+The incremental release again (2026-11-11): its bit-vector logics were sampled on 2026-09-03, before the
+lowering took the bitwise operations, products, shifts and divisions by unknowns, and not again once it did.
+Of the files up to 200 KB that were not here, 525 were run under the suite's budget, taken across the sizes
+of each family: 396 answer, 54 lower and do not answer, 44 run past 25 s, 24 overflow the parser's stack and
+7 exhaust a 2 GB heap. Added, 37 files: `QF_ABV`, `QF_AUFBV` and `QF_UFBV` get their first incremental files
+(`CPAchecker`'s k-induction queries with arrays, `2018-Goel-hwbench` with functions, and the hardware model
+checks of `2018-Wolf-fmbench` and `2019-Wolf-fmbench`, none of which answers), and `QF_BV` four families
+(`20170501-Heizmann-UltimateAutomizer`, `2019-Mann`, `20210110-Coffin`, `20250315-BMC_WMM`) and nine more
+files of `2018-Goel-hwbench`, which had three. Left as they were: the families that had their fourteen,
+`CPAchecker` in the three other logics and `20240414-mapf_r`, whose 307 files run all answer.
+
+The sessions with the most `push` and `pop` are over 200 KB and are not here whole: the model checkers'
+unrollings (`2018-Mann`, `2019-Mann`, the `unrolled` files of the two `Wolf-fmbench` families,
+`kratos_systemC_swmc`), most of `20250315-BMC_WMM`, and twelve of the thirteen sessions of Ultimate
+Automizer, of four thousand `check-sat`s each. Of the 121 up to 32 MB, 119 lower; within 20 s VIK answers the
+first one to seven rounds of a hardware unrolling of ten to a hundred, and 35 to 550 of Ultimate Automizer's
+rounds. Two are here cut to their first rounds, for the evaluation, as the two `lustre` unrollings are:
+`2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8` and
+`20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300`.
+
 Divisions by an unknown divisor (2026-09-04, "Divisions by an unknown divisor") close `QF_BV`: of the five
 smallest files per family, 377 of 386 lower — the nine left are five a parser error rejects and four whose
 `define-fun` nest the lowering expands past two minutes. They added 26 files, of which 12 answer. One release
@@ -136,14 +156,16 @@ lowering expands by substitution, exponentially (queued).
 | Logic | Origin | Files | Families | Answered | Out of reach | Skipped |
 |---|---|---|---|---|---|---|
 | `QF_ABV` | smt-lib | 59 | 8 | 26 | 5 | 28 |
+| `QF_ABV` | smt-lib-incremental | 13 | 1 | 9 | 4 | 0 |
 | `QF_ALIA` | smt-lib | 18 | 6 | 6 | 2 | 10 |
 | `QF_AUFBV` | smt-lib | 1 | 1 | 0 | 0 | 1 |
+| `QF_AUFBV` | smt-lib-incremental | 4 | 3 | 2 | 0 | 2 |
 | `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 2 | 11 |
 | `QF_AUFLIA` | smt-lib | 14 | 6 | 7 | 4 | 3 |
 | `QF_AUFLIA` | smt-lib-incremental | 15 | 1 | 12 | 3 | 0 |
 | `QF_AX` | smt-lib | 10 | 4 | 6 | 0 | 4 |
 | `QF_BV` | smt-lib | 250 | 51 | 139 | 111 | 0 |
-| `QF_BV` | smt-lib-incremental | 19 | 2 | 14 | 0 | 5 |
+| `QF_BV` | smt-lib-incremental | 33 | 6 | 25 | 3 | 5 |
 | `QF_BVLRA` | smt-lib-incremental | 14 | 1 | 13 | 1 | 0 |
 | `QF_DT` | smt-lib | 21 | 8 | 17 | 4 | 0 |
 | `QF_IDL` | smt-lib | 2 | 1 | 2 | 0 | 0 |
@@ -155,6 +177,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_UF` | smt-lib | 69 | 27 | 67 | 2 | 0 |
 | `QF_UF` | smt-lib-incremental | 89 | 2 | 89 | 0 | 0 |
 | `QF_UFBV` | smt-lib | 27 | 4 | 3 | 23 | 1 |
+| `QF_UFBV` | smt-lib-incremental | 6 | 3 | 2 | 4 | 0 |
 | `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 13 | 0 | 0 |
 | `QF_UFDT` | smt-lib | 16 | 1 | 0 | 1 | 15 |
 | `QF_UFDTLIA` | smt-lib | 16 | 1 | 0 | 7 | 9 |
