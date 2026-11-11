@@ -24,3 +24,8 @@ PrincessBench.api:invalid-BraunTree__4
 PrincessBench.api:invalid-AddNaturals2__1
 PrincessBench.api:invalid-BinarySearch2__36
 SmtInterpolBench.api:valid-BitsTricksSlow__1
+VikBench.api:2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8
+VikBench.text:2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8
+PrincessBench.api:2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8
+SmtInterpolBench.api:2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8
+PrincessBench.api:20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2
