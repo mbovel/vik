@@ -1,0 +1,28 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/GhostClass.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!5 () Bool)
+(assert start!5)
+(declare-fun x!13 () Int)
+(declare-datatypes ((MyGhostClass!6 0))(
+  ( (MyGhostClass!7 (i!12 Int)) )
+))
+(declare-fun thiss!2 () MyGhostClass!6)
+(declare-fun ghostFn!0 (Int) Int)
+(assert (=> start!5 (not (= (ghostFn!0 (+ x!13 (i!12 thiss!2))) (+ x!13 (i!12 thiss!2))))))
+(assert (=> start!5 true))
+(declare-fun bs!4 () Bool)
+(assert (= bs!4 start!5))
+(declare-fun m!5 () Bool)
+(assert (=> bs!4 m!5))
+(set-info :status unsat)
+(check-sat-assuming ((not start!5)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!3 () Bool)
+(assert (=> d!3 (= (ghostFn!0 (+ x!13 (i!12 thiss!2))) (+ x!13 (i!12 thiss!2)))))
+(assert (=> start!5 d!3))
+(set-info :status unsat)
+(check-sat)

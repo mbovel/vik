@@ -1,0 +1,27 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/InnerClassesInvariants.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!31 () Bool)
+(assert start!31)
+(declare-datatypes ((Local!60 0))(
+  ( (Local!61 (w!16 Int) (x!75 Int)) )
+))
+(declare-fun thiss!26 () Local!60)
+(assert (=> start!31 (or (>= 0 (x!75 thiss!26)) (>= (x!75 thiss!26) 10))))
+(declare-fun inv!6 (Local!60) Bool)
+(assert (=> start!31 (inv!6 thiss!26)))
+(declare-fun bs!16 () Bool)
+(assert (= bs!16 start!31))
+(declare-fun m!27 () Bool)
+(assert (=> bs!16 m!27))
+(set-info :status unsat)
+(check-sat-assuming ((not start!31)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!15 () Bool)
+(assert (=> d!15 (= (inv!6 thiss!26) (and (< 0 (x!75 thiss!26)) (< (x!75 thiss!26) 10) (< (w!16 thiss!26) (+ (x!75 thiss!26) 10))))))
+(assert (=> start!31 d!15))
+(set-info :status unsat)
+(check-sat)

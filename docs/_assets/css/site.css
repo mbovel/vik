@@ -108,6 +108,11 @@
   z-index: 1;
   background: var(--background-main);
 }
+.table-scroll caption { /* the runs behind the columns, under the table: a caption wraps to the table's width */
+  caption-side: bottom;
+  text-align: left;
+  padding-top: 0.6em;
+}
 .table-scroll td[align="right"] { white-space: nowrap; }
 .table-scroll td:first-child a { /* instance names: a fixed narrow column */
   display: inline-block;
@@ -124,4 +129,209 @@
      the scrolling wrapper. */
   .table-scroll { overflow-x: auto; }
   .table-scroll th { position: static; }
+}
+
+/* ---- The chart of the evaluation (see js/evaluation.js). ---- */
+
+/* A hue per solver, the same in both tables, and five steps of VIK's blue for its platforms in the cold
+   one. Checked for colour-blind readers in the order of the bars of a group — princess, SMTInterpol, VIK,
+   z3, cvc5 — against the background of each theme, which is why the dark theme has steps of its own. Its
+   rules carry the id: this sheet loads before the theme's, whose `#content` rules would win otherwise. */
+#evaluation-chart {
+  --princess: #eda100;
+  --smtinterpol: #e87ba4;
+  --vik: #2a78d6;
+  --vik-1: #86b6ef;
+  --vik-2: #5598e7;
+  --vik-3: #2a78d6;
+  --vik-4: #1c5cab;
+  --vik-5: #104281;
+  --z3: #eb6834;
+  --cvc5: #1baf7a;
+  --other: var(--text-secondary); /* a solver this sheet does not know yet */
+  --names: 14em; /* the column of the instances' names */
+  container-type: inline-size;
+  font-size: 13px;
+  line-height: 1.3;
+  margin: calc(3 * var(--base-spacing)) 0;
+  position: relative;
+}
+:root.theme-dark #evaluation-chart {
+  --princess: #c98500;
+  --smtinterpol: #d55181;
+  --vik: #3987e5;
+  --vik-1: #9ec5f4;
+  --vik-2: #6da7ec;
+  --vik-3: #3987e5;
+  --vik-4: #256abf;
+  --vik-5: #184f95;
+  --z3: #d95926;
+  --cvc5: #199e70;
+}
+
+/* The selectors: radio buttons, hidden under their labels, which are the pills. */
+#evaluation-chart .chart-controls { display: flex; flex-wrap: wrap; gap: 0.6em 1.8em; }
+#evaluation-chart .chart-choice { align-items: center; display: flex; flex-wrap: wrap; gap: 0.3em; }
+#evaluation-chart .chart-choice-title { color: var(--text-secondary); margin-right: 0.3em; }
+#evaluation-chart .chart-choice label {
+  border: 1px solid var(--border-strong);
+  border-radius: 1em;
+  cursor: pointer;
+  padding: 0.15em 0.7em;
+}
+#evaluation-chart .chart-choice input { opacity: 0; pointer-events: none; position: absolute; }
+#evaluation-chart .chart-choice label:has(:checked) {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--background-main);
+}
+#evaluation-chart .chart-choice label:has(:focus-visible) { outline: 2px solid var(--vik); outline-offset: 2px; }
+
+/* The legend and the axis stay under the site's header while the bars scroll, as the headers of the
+   tables do. */
+#evaluation-chart .chart-head {
+  background: var(--background-main);
+  padding-top: 1em;
+  position: sticky;
+  top: var(--header-height);
+  z-index: 1;
+}
+#evaluation-chart :is(.chart-legend, .chart-marks) { display: flex; flex-wrap: wrap; gap: 0.2em 1.2em; }
+#evaluation-chart .chart-key {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  display: inline-flex;
+  font: inherit;
+  gap: 0.4em;
+  padding: 0.1em 0;
+}
+#evaluation-chart .chart-key::before {
+  background: var(--colour);
+  border-radius: 2px;
+  content: "";
+  height: 10px;
+  width: 10px;
+}
+#evaluation-chart button.chart-key { cursor: pointer; }
+#evaluation-chart .chart-key[aria-pressed="false"] { color: var(--text-secondary); text-decoration: line-through; }
+#evaluation-chart .chart-key[aria-pressed="false"]::before {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--text-secondary);
+}
+#evaluation-chart span.chart-key { --colour: var(--text-secondary); color: var(--text-secondary); }
+#evaluation-chart .chart-key-timeout::before {
+  background: var(--stripes);
+  border-radius: 0;
+  height: 5px;
+  width: 18px;
+}
+#evaluation-chart .chart-key-none::before { border-radius: 0; height: 1px; width: 9px; }
+
+/* Which way is better, over the two ends of the axis. */
+#evaluation-chart .chart-ends {
+  color: var(--text-secondary);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  margin: 0.7em 0 0 var(--names);
+}
+#evaluation-chart .chart-axis {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  height: 1.7em;
+  margin: 0.15em 0 0 var(--names);
+  position: relative;
+}
+/* Each label centred on its hairline; the last one ends at the edge, and the first one may reach over
+   the column of the names. */
+#evaluation-chart .chart-tick { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+#evaluation-chart .chart-tick:last-child { transform: translateX(-100%); }
+
+/* The bars: a row per instance, its name and logic before a group of bars, one per solver, thin, with the
+   background showing between two of them. A hairline per decade runs behind all the rows. */
+#evaluation-chart .chart-plot { position: relative; }
+#evaluation-chart .chart-plot::before {
+  background: linear-gradient(to right, var(--border-default) 1px, transparent 1px) 0 0 /
+    calc(100% / var(--decades)) 100%;
+  border-right: 1px solid var(--border-default);
+  content: "";
+  inset: 0 0 0 var(--names);
+  position: absolute;
+}
+/* Where the bars start: the left edge for times, 1× for times relative to VIK's. */
+#evaluation-chart .chart-plot::after {
+  border-left: 1px solid var(--text-secondary);
+  content: "";
+  inset: 0 auto 0 calc(var(--names) + (100% - var(--names)) * var(--base));
+  position: absolute;
+}
+#evaluation-chart .chart-row {
+  align-items: center;
+  display: grid;
+  grid-template-columns: var(--names) 1fr;
+  padding: 5px 0;
+  position: relative; /* over the hairlines */
+}
+#evaluation-chart .chart-row:is(:hover, :focus-within) { background: rgba(128, 128, 128, 0.14); }
+#evaluation-chart .chart-name { min-width: 0; padding-right: 0.8em; white-space: nowrap; }
+#evaluation-chart .chart-name small { color: var(--text-secondary); display: block; font-size: 11px; }
+/* A name too long for the column loses the end of its first part, not its last twelve letters. No
+   underline but under the pointer: most names have underscores, which it hides. */
+#evaluation-chart .chart-instance { color: var(--text-primary); display: flex; text-decoration: none; }
+#evaluation-chart a.chart-instance:hover { text-decoration: underline; }
+#evaluation-chart .chart-instance :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#evaluation-chart .chart-bars { display: flex; flex-direction: column; gap: 2px; }
+#evaluation-chart .chart-bar { background: var(--colour); border-radius: 0 3px 3px 0; height: 5px; min-width: 2px; }
+#evaluation-chart .chart-faster { border-radius: 3px 0 0 3px; } /* a bar that runs left of where the bars start */
+/* Past the budget: to the edge, hatched, since the time is not known. */
+#evaluation-chart .chart-timeout { background: var(--stripes); border-radius: 0; }
+#evaluation-chart .chart-timeout, #evaluation-chart .chart-key-timeout {
+  --stripes: repeating-linear-gradient(135deg, var(--colour) 0 2px, transparent 2px 4px);
+}
+/* No time: a dash, as in the tables, where an empty place would read as a time too short to see. */
+#evaluation-chart .chart-none { background: var(--text-secondary); height: 1px; margin: 2px 0; width: 9px; }
+#evaluation-chart .chart-count, #evaluation-chart .chart-empty { color: var(--text-secondary); margin: 0.8em 0 0; }
+#evaluation-chart .chart-empty { margin-left: var(--names); padding-left: 0.8em; }
+
+/* The times of the instance under the pointer, or of the one that has the focus. */
+#evaluation-chart .chart-tip {
+  background: var(--background-main);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  max-width: 30em;
+  padding: 0.6em 0.8em;
+  pointer-events: none;
+  position: absolute;
+  width: max-content;
+  z-index: 2;
+}
+#evaluation-chart .chart-tip strong { display: block; overflow-wrap: anywhere; }
+#evaluation-chart .chart-tip-about { color: var(--text-secondary); }
+#evaluation-chart .chart-tip-times {
+  align-items: center;
+  display: grid;
+  gap: 0.15em 0.7em;
+  grid-template-columns: auto 1fr auto;
+  margin-top: 0.5em;
+}
+#evaluation-chart .chart-tip-relative { grid-template-columns: auto 1fr auto auto; } /* the ratio after the time */
+#evaluation-chart .chart-tip-times i { background: var(--colour); border-radius: 2px; height: 3px; width: 12px; }
+#evaluation-chart .chart-tip-times :is(b, .chart-tip-time) { font-variant-numeric: tabular-nums; text-align: right; }
+#evaluation-chart .chart-tip-times span.chart-tip-time { color: var(--text-secondary); }
+
+@container (max-width: 700px) {
+  /* A narrow page: the name goes over its bars, which take the whole width, every other label of the axis
+     goes, and the legend and the axis scroll with the rest. */
+  #evaluation-chart .chart-head, #evaluation-chart .chart-plot { --names: 0px; }
+  #evaluation-chart .chart-head { position: static; } /* nine names would hold a third of a phone's screen */
+  #evaluation-chart .chart-row { display: block; }
+  #evaluation-chart .chart-name { align-items: baseline; display: flex; gap: 0.6em; padding: 0 0 3px; }
+  #evaluation-chart .chart-instance { min-width: 0; }
+  #evaluation-chart .chart-tick-odd { display: none; }
+  #evaluation-chart .chart-tick:first-child { transform: none; } /* no column on its left to reach over */
+  #evaluation-chart .chart-tip { max-width: 90cqw; }
 }

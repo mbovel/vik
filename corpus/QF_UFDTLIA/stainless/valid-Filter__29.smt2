@@ -1,0 +1,27 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/Filter.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!246 () Bool)
+(assert start!246)
+(declare-fun res!533 () Bool)
+(declare-fun e!673 () Bool)
+(assert (=> start!246 (=> (not res!533) (not e!673))))
+(declare-datatypes ((List!33 0))(
+  ( (Nil!31) (Cons!31 (h!143 Int) (t!224 List!33)) )
+))
+(declare-fun l!141 () List!33)
+(declare-fun n!41 () Int)
+(declare-fun size!17 (List!33) Int)
+(assert (=> start!246 (= res!533 (<= (size!17 l!141) n!41))))
+(assert (=> start!246 e!673))
+(assert (=> start!246 true))
+(declare-fun b!1054 () Bool)
+(assert (=> b!1054 (= e!673 false)))
+(assert (= (and start!246 res!533) b!1054))
+(declare-fun m!761 () Bool)
+(assert (=> start!246 m!761))
+(set-info :status unsat)
+(check-sat-assuming ((not start!246)))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,53 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/ExternField.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!37 () Bool)
+(assert start!37)
+(declare-fun res!62 () Bool)
+(declare-fun e!23 () Bool)
+(assert (=> start!37 (=> (not res!62) (not e!23))))
+(declare-datatypes ((Object!6 0))(
+  ( (Open!6 (value!31 Int)) )
+))
+(declare-datatypes ((TrieMapWrapper!14 0))(
+  ( (TrieMapWrapper!15 (theMap!9 Object!6)) )
+))
+(declare-datatypes ((Unit!7 0))(
+  ( (Unit!8) )
+))
+(declare-datatypes ((tuple2!6 0))(
+  ( (tuple2!7 (_1!3 TrieMapWrapper!14) (_2!3 Unit!7)) )
+))
+(declare-fun lt!32 () tuple2!6)
+(declare-datatypes ((K!20 0))(
+  ( (K!21 (val!1 Int)) )
+))
+(declare-fun k0!10 () K!20)
+(declare-fun contains!7 (TrieMapWrapper!14 K!20) Bool)
+(assert (=> start!37 (= res!62 (contains!7 (_1!3 lt!32) k0!10))))
+(declare-datatypes ((V!18 0))(
+  ( (V!19 (val!2 Int)) )
+))
+(declare-fun v!2 () V!18)
+(declare-fun thiss!21 () TrieMapWrapper!14)
+(declare-fun choose!23 (TrieMapWrapper!14 K!20 V!18) tuple2!6)
+(assert (=> start!37 (= lt!32 (choose!23 thiss!21 k0!10 v!2))))
+(assert (=> start!37 e!23))
+(assert (=> start!37 true))
+(declare-fun tp_is_empty!3 () Bool)
+(assert (=> start!37 tp_is_empty!3))
+(declare-fun tp_is_empty!5 () Bool)
+(assert (=> start!37 tp_is_empty!5))
+(declare-fun b!23 () Bool)
+(assert (=> b!23 (= e!23 (not (contains!7 (_1!3 lt!32) k0!10)))))
+(assert (= (and start!37 res!62) b!23))
+(declare-fun m!67 () Bool)
+(assert (=> start!37 m!67))
+(declare-fun m!69 () Bool)
+(assert (=> start!37 m!69))
+(assert (=> b!23 m!67))
+(set-info :status unsat)
+(check-sat-assuming ((not start!37) (not b!23) tp_is_empty!3 tp_is_empty!5))
+(set-info :status unsat)
+(check-sat)

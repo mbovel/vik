@@ -1,0 +1,25 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/NaturalBuiltin.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!1 () Bool)
+(assert start!1)
+(declare-datatypes ((Nat!4 0))(
+  ( (Nat!5 (toBigInt!5 Int)) )
+))
+(declare-fun +!0 (Nat!4 Nat!4) Nat!4)
+(assert (=> start!1 (not (= (+!0 (Nat!5 0) (Nat!5 0)) (Nat!5 0)))))
+(declare-fun bs!1 () Bool)
+(assert (= bs!1 start!1))
+(declare-fun m!27 () Bool)
+(assert (=> bs!1 m!27))
+(set-info :status unsat)
+(check-sat-assuming ((not start!1)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!1 () Bool)
+(assert (=> d!1 (= (+!0 (Nat!5 0) (Nat!5 0)) (Nat!5 (+ (toBigInt!5 (Nat!5 0)) (toBigInt!5 (Nat!5 0)))))))
+(assert (=> start!1 d!1))
+(set-info :status unsat)
+(check-sat)

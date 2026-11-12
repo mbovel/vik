@@ -1,0 +1,25 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/Methods.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!31 () Bool)
+(assert start!31)
+(assert (=> start!31 false))
+(declare-datatypes ((A!19 0))(
+  ( (D!10) (C!10 (x!37 Int)) (E!10) )
+))
+(declare-fun lt!20 () A!19)
+(declare-fun thiss!8 () A!19)
+(assert (=> start!31 (= lt!20 thiss!8)))
+(declare-fun inv!2 (A!19) Bool)
+(get-info :version)
+(assert (=> start!31 (and (inv!2 thiss!8) (or ((_ is C!10) lt!20) ((_ is E!10) lt!20)))))
+(assert (=> start!31 true))
+(declare-fun bs!17 () Bool)
+(assert (= bs!17 start!31))
+(declare-fun m!31 () Bool)
+(assert (=> bs!17 m!31))
+(set-info :status unsat)
+(check-sat-assuming ((not start!31)))
+(set-info :status unsat)
+(check-sat)

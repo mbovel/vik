@@ -1,0 +1,30 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/BinarySearch1.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_AUFBVDT)
+(declare-fun start!251 () Bool)
+(assert start!251)
+(declare-fun x!1 () (_ BitVec 32))
+(declare-datatypes ((array!131 0))(
+  ( (array!132 (arr!48 (Array (_ BitVec 32) (_ BitVec 32))) (size!44 (_ BitVec 32))) )
+))
+(declare-fun arr!0 () array!131)
+(declare-fun lo!0 () (_ BitVec 32))
+(declare-fun hi!0 () (_ BitVec 32))
+(declare-datatypes ((tuple4!2 0))(
+  ( (tuple4!3 (_1!1 array!131) (_2!1 (_ BitVec 32)) (_3!1 (_ BitVec 32)) (_4!1 (_ BitVec 32))) )
+))
+(assert (=> start!251 (and (bvsle lo!0 hi!0) (let ((i!0 (bvsdiv (bvadd lo!0 hi!0) #b00000000000000000000000000000010))) (let ((y!0 (select (arr!48 arr!0) i!0))) (and (not (= x!1 y!0)) (not (bvslt x!1 y!0)) (= (tuple4!3 arr!0 x!1 lo!0 hi!0) (tuple4!3 arr!0 x!1 (bvadd i!0 #b00000000000000000000000000000001) hi!0))))))))
+(assert (=> start!251 true))
+(declare-fun array_inv!44 (array!131) Bool)
+(assert (=> start!251 (array_inv!44 arr!0)))
+(declare-fun bs!47 () Bool)
+(assert (= bs!47 start!251))
+(declare-fun m!1039 () Bool)
+(assert (=> bs!47 m!1039))
+(declare-fun m!1041 () Bool)
+(assert (=> bs!47 m!1041))
+(set-info :status unsat)
+(check-sat-assuming ((not start!251)))
+(set-info :status unsat)
+(check-sat)

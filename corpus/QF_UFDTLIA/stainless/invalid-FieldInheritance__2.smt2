@@ -1,0 +1,30 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/FieldInheritance.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!5 () Bool)
+(assert start!5)
+(declare-datatypes ((A!15 0))(
+  ( (A!16 (val!2 Int)) )
+))
+(declare-datatypes ((Foo!4 0))(
+  ( (FooExt!3 (__x!5 Int) (weird!22 A!15) (thisIsIt!15 Int)) (Bar!4 (thisIsIt!16 Int) (weird!23 A!15)) (Baz!4 (weird!24 A!15)) )
+))
+(declare-fun f!1 () Foo!4)
+(get-info :version)
+(assert (=> start!5 (not (= (ite ((_ is FooExt!3) f!1) (thisIsIt!15 f!1) (ite ((_ is Bar!4) f!1) (thisIsIt!16 f!1) 1)) 1))))
+(declare-fun e!8 () Bool)
+(assert (=> start!5 e!8))
+(declare-fun b!24 () Bool)
+(declare-fun tp_is_empty!5 () Bool)
+(assert (=> b!24 (= e!8 tp_is_empty!5)))
+(declare-fun b!25 () Bool)
+(assert (=> b!25 (= e!8 tp_is_empty!5)))
+(declare-fun b!26 () Bool)
+(assert (=> b!26 (= e!8 tp_is_empty!5)))
+(assert (= (and start!5 ((_ is FooExt!3) f!1)) b!24))
+(assert (= (and start!5 ((_ is Bar!4) f!1)) b!25))
+(assert (= (and start!5 ((_ is Baz!4) f!1)) b!26))
+(set-info :status sat)
+(check-sat-assuming (tp_is_empty!5))
+(get-model)

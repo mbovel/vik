@@ -75,14 +75,22 @@ final class Session(
     case _ => play(lowerer.commands(List(c)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
-  // Through the lowerer, like the script commands: a `pop` clears the caches whose defining
+  // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
   // assertions die with the level, and a `pop` that bypassed it left a cached rational constant
   // without its definition (issue 22).
   def push(): Unit = run(s2.Script(List(s2.Command.Push(1))))
   def pop(): Unit = run(s2.Script(List(s2.Command.Pop(1))))
 
   /** `check-sat`: `Some(true)` for sat, `None` for unknown. */
-  def checkSat(): Option[Boolean] = play(List(Command.CheckSat)).head match
+  def checkSat(): Option[Boolean] = decision(play(List(Command.CheckSat)))
+
+  /** `check-sat-assuming`: [[checkSat]] with `assumptions` holding for this
+   *  check alone.
+   */
+  def checkSatAssuming(assumptions: List[s2.Formula]): Option[Boolean] =
+    decision(run(s2.Script(List(s2.Command.CheckSatAssuming(assumptions)))))
+
+  private def decision(responses: List[String]): Option[Boolean] = responses.head match
     case "sat" => Some(true)
     case "unsat" => Some(false)
     case _ => None

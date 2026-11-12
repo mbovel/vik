@@ -1,0 +1,26 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/AmortizedQueue.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFBVDTLIA)
+(declare-fun start!392 () Bool)
+(assert start!392)
+(declare-fun lt!1182 () Bool)
+(declare-datatypes ((List!40 0))(
+  ( (Cons!39 (head!115 (_ BitVec 32)) (tail!68 List!40)) (Nil!39) )
+))
+(declare-fun rear!14 () List!40)
+(declare-fun front!14 () List!40)
+(declare-fun size!0 (List!40) Int)
+(assert (=> start!392 (= lt!1182 (<= (size!0 rear!14) (size!0 front!14)))))
+(assert (=> start!392 false))
+(assert (=> start!392 true))
+(declare-fun bs!153 () Bool)
+(assert (= bs!153 start!392))
+(declare-fun m!5851 () Bool)
+(assert (=> bs!153 m!5851))
+(declare-fun m!5853 () Bool)
+(assert (=> bs!153 m!5853))
+(set-info :status unsat)
+(check-sat-assuming ((not start!392)))
+(set-info :status unsat)
+(check-sat)
