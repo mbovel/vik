@@ -12,7 +12,11 @@ java -XX:+PrintFlagsFinal -version 2>/dev/null | grep -q AOTCacheOutput ||
 CP=$(sbt --server --no-colors "vik/package; print vik/runtimeClasspath" | grep -E "^/" | tail -1)
 [ -n "$CP" ] || { echo "aot.sh: no classpath from sbt" >&2; exit 1; }
 mkdir -p target/aot
-files=$(grep -o '^corpus/[^ ]*' "$INSTANCES" | tr '\n' ' ')
+# One process solves every instance in turn, so one the solver does not answer holds the training run for
+# good: the instances on bench/timeouts.txt (the warm table's ledger, VikBench.text) sit the training out.
+files=$(grep -o '^corpus/[^ ]*' "$INSTANCES" | while read -r f; do
+  grep -qxF "VikBench.text:$(basename "$f" .smt2)" bench/timeouts.txt || echo "$f"
+done | tr '\n' ' ')
 # shellcheck disable=SC2086
 java -XX:AOTCacheOutput=target/aot/vik.aot -cp "$CP" io.bovel.vik.run $files > /dev/null
 echo "$CP" > target/aot/classpath.txt

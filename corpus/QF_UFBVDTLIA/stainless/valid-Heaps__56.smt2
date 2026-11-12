@@ -1,0 +1,33 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/Heaps.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFBVDTLIA)
+(declare-fun start!414 () Bool)
+(assert start!414)
+(declare-fun res!398 () Bool)
+(declare-fun e!938 () Bool)
+(assert (=> start!414 (=> (not res!398) (not e!938))))
+(declare-datatypes ((Node!114 0) (Heap!57 0))(
+  ( (Node!115 (rank!89 Int) (elem!90 (_ BitVec 32)) (nodes!89 Heap!57)) )
+  ( (Empty!57) (Nodes!57 (head!157 Node!114) (tail!109 Heap!57)) )
+))
+(declare-fun h!258 () Heap!57)
+(get-info :version)
+(assert (=> start!414 (= res!398 (not ((_ is Empty!57) h!258)))))
+(assert (=> start!414 e!938))
+(assert (=> start!414 true))
+(declare-fun b!1634 () Bool)
+(assert (=> b!1634 (= e!938 false)))
+(declare-datatypes ((OptInt!5 0))(
+  ( (Some!10 (value!152 (_ BitVec 32))) (None!10) )
+))
+(declare-fun lt!690 () OptInt!5)
+(declare-fun findMin!0 (Heap!57) OptInt!5)
+(assert (=> b!1634 (= lt!690 (findMin!0 (tail!109 h!258)))))
+(assert (= (and start!414 res!398) b!1634))
+(declare-fun m!2721 () Bool)
+(assert (=> b!1634 m!2721))
+(set-info :status unsat)
+(check-sat-assuming ((not b!1634)))
+(set-info :status unsat)
+(check-sat)

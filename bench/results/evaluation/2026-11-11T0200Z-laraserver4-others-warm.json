@@ -1,0 +1,12 @@
+{
+  "commit": "32e844fc",
+  "jdk": "25.0.5",
+  "versions": {
+    "Cvc5Bench.api": "2026-02-26-d22638a",
+    "Cvc5Bench.text": "2026-02-26-d22638a",
+    "PrincessBench.api": "2026-05-20",
+    "SmtInterpolBench.api": "2.5-1388-ga5a4ab0c",
+    "Z3Bench.api": "4.14.0",
+    "Z3TextBench.text": "4.14.0"
+  }
+}
