@@ -5,6 +5,8 @@
 ; EXPECT: ((x 1))
 ; EXPECT: ((y 0))
 ; EXPECT: ((z 2))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-fun x () Int)
 (declare-fun y () Int)
 (declare-fun z () Int)

@@ -1,6 +1,8 @@
 ; From z3test: 5710.smt2 (MIT, LICENSES/z3test.txt)
 ; EXPECT: sat
 ; EXPECT: ((PARAM1 19) (PARAM2 4) (PARAM3 0) (PARAM4 0) (PARAM5 0))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-fun PARAM4 () Int)
 (declare-fun REG1.VALUE.BitWidth () Int)
 (declare-fun REG1.VALUE.BitOffset () Int)

@@ -4,6 +4,8 @@
 ; EXPECT: ((define-fun x () Int 1) (define-fun y () Int 1) (define-fun z () Int 5))
 ; EXPECT: sat
 ; EXPECT: ((:reason-unknown incomplete))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-const x Int)
 (declare-const y Int)
 (declare-const z Int)

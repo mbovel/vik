@@ -1,6 +1,7 @@
 ; From cvc5: regress0/wiki.14.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :incremental false)
 (declare-fun a () Bool)
 (declare-fun b () Bool)

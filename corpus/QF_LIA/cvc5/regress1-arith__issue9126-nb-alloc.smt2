@@ -1,6 +1,7 @@
 ; From cvc5: regress1/arith/issue9126-nb-alloc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic AUFNIRA)
+; logic: QF_LIA, the smallest the script fits, for AUFNIRA (prune logic)
+(set-logic QF_LIA)
 (declare-const a Int)
 (declare-const b Int)
 (declare-const c Int)

@@ -1,6 +1,7 @@
 ; From cvc5: regress0/bv/bv-card-conflict.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_BV, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_BV)
 (declare-const a (_ BitVec 2))
 (declare-const b (_ BitVec 2))
 (declare-const c (_ BitVec 2))

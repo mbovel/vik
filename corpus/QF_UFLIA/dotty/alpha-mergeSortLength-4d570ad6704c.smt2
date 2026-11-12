@@ -1,0 +1,31 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik, commit e7c4e412ef), one implication checked by the qualifier solver while compiling the test `mergeSortLength.scala`
+; original path: tests/*-custom-args/qualified-types/mergeSortLength.scala, dumped with -Yqualified-types-smt-dump
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: (param)54
+; untyped: T
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; logic: QF_UFLIA, narrowed from QF_UFDTLIA, which claims more than the script uses (prune logic)
+(set-info :source |qualified types implication; e-graph: not proved|)
+(set-info :status sat)
+(set-logic QF_UFLIA)
+(declare-sort SafeSeq_T 0)
+(declare-sort scala.math.Ordering_T 0)
+(declare-sort Any 0)
+(declare-fun x0 () SafeSeq_T)
+(declare-fun SafeSeq.len@SafeSeq_T (SafeSeq_T) Int)
+(declare-fun sk_merge_66 () Int)
+(declare-fun ord () scala.math.Ordering_T)
+(declare-fun left () SafeSeq_T)
+(declare-fun SafeSeq.head@SafeSeq_T (SafeSeq_T) Any)
+(declare-fun right () SafeSeq_T)
+(declare-fun Ordering.lt@scala.math.Ordering_T (scala.math.Ordering_T Any Any) Bool)
+(assert (<= 0 (SafeSeq.len@SafeSeq_T x0)))
+(assert (<= 0 sk_merge_66))
+(assert (<= 0 (SafeSeq.len@SafeSeq_T x0)))
+(assert (not (Ordering.lt@scala.math.Ordering_T ord (SafeSeq.head@SafeSeq_T left) (SafeSeq.head@SafeSeq_T right))))
+(assert (and (< 0 (SafeSeq.len@SafeSeq_T left)) (< 0 (SafeSeq.len@SafeSeq_T right))))
+(assert (<= 0 (SafeSeq.len@SafeSeq_T left)))
+(assert (<= 0 (SafeSeq.len@SafeSeq_T right)))
+(assert (= (SafeSeq.len@SafeSeq_T x0) sk_merge_66))
+(assert (not (= 1 (SafeSeq.len@SafeSeq_T x0))))
+(check-sat)

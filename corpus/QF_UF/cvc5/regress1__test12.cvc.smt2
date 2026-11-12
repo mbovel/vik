@@ -30,7 +30,8 @@
 ; EXPECT: unsat
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (declare-sort A 0)
 (declare-fun P_1 () Bool)
 (declare-fun P_2 () Bool)

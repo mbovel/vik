@@ -2,8 +2,9 @@
 ; In this example, it previously happened that the formula
 ; (= b (> x 42)) was eliminated, because "b" did not occur in
 ; the proof goal facts, although the formula was actually still needed
+; logic: QF_LIA, the smallest the script fits, for AUFLIA (prune logic)
 
-(set-logic AUFLIA)
+(set-logic QF_LIA)
 
 (declare-fun b () Bool)
 (declare-fun x () Int)

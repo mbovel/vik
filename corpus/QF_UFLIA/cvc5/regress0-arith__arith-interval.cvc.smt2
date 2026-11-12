@@ -1,6 +1,7 @@
 ; From cvc5: regress0/arith/integers/arith-interval.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UFLIA)
 (set-option :incremental false)
 (declare-fun x () Int)
 (declare-fun P (Int) Bool)

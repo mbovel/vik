@@ -2,7 +2,8 @@
 ; EXPECT: unsat
 ;; define-const is not supported in Alethe
 ; DISABLE-TESTER: alethe
-(set-logic UF)
+; logic: QF_UF, the smallest the script fits, for UF (prune logic)
+(set-logic QF_UF)
 (declare-const x Bool)
 (define-const p Bool x)
 (assert false)

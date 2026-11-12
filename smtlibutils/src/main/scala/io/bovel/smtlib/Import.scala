@@ -49,24 +49,21 @@ object Import:
       name: String = ""
   )
 
-  /** The directory of the corpus for a file: its `set-logic`, or what it uses
-   *  when that is `ALL`.
+  /** The directory of the corpus for a file: the smallest standard logic it
+   *  fits ([[Logic.smallest]]), or, where z3 cannot tell, the logic it sets if
+   *  standard, else a guess from what it declares.
    */
-  def classify(text: String): String =
-    val logic = "\\(set-logic ([A-Za-z_]+)\\)".r.findFirstMatchIn(text).map(_.group(1).nn).getOrElse("ALL")
-    logic match
-      case "QF_UF" | "QF_LIA" | "QF_UFLIA" | "QF_DT" | "QF_BV" | "QF_LRA" | "QF_UFLRA" | "QF_AX" | "QF_ALIA" | "QF_AUFLIA" | "QF_LIRA"
-          | "QF_ABV" | "QF_AUFBV" | "QF_UFBV" | "QF_UFBVLIA" | "QF_AUFBVLIA" | "QF_BVLRA" | "QF_IDL" | "QF_UFIDL" =>
-        logic // difference logic keeps its directory: integers to the solver, but its own fragment
-      case "QF_UFLIRA" => "QF_LIRA"
-      case "QF_UFDT" | "QF_UFDTLIA" | "QF_DTLIA" | "QF_UFDTLIRA" => "QF_DT"
-      case "BV" => "QF_BV"
-      case _ if text.contains("declare-datatype") => "QF_DT"
-      case _ if "\\(_ bv\\d+ \\d+\\)|\\(_ BitVec".r.findFirstIn(text).isDefined => "QF_BV"
-      case _ if "\\bInt\\b".r.findFirstIn(text).isDefined =>
+  def classify(text: String): String = Logic.smallest(text).getOrElse(fallback(text))
+
+  private def fallback(text: String): String = Logic.claimed(text) match
+    case List(name) if Logic.standard.contains(name) => name
+    case _ =>
+      if text.contains("declare-datatype") then "QF_DT"
+      else if "\\(_ bv\\d+ \\d+\\)|\\(_ BitVec".r.findFirstIn(text).isDefined then "QF_BV"
+      else if "\\bInt\\b".r.findFirstIn(text).isDefined then
         if "\\(declare-fun \\S+ \\([^)]".r.findFirstIn(text).isDefined || text.contains("declare-sort") then "QF_UFLIA"
         else "QF_LIA"
-      case _ => "QF_UF"
+      else "QF_UF"
 
   /** The `z3` code blocks of a page of the z3 guide (not the `z3-duo`,
    *  `z3-py`, `z3-js` ones), each a script of its own.
@@ -194,7 +191,15 @@ object Import:
     val lowered = chosen.map { c =>
       val content = s"; From $origin: ${c.rel} (${licenses(origin)})\n" +
         c.expected.fold(c.text)(withStatuses(c.text, _))
-      val outcome = pool.submit[Try[Unit]](() => Try(io.bovel.vik.Lowering(Parser.parse(content))).map(_ => ()))
+      // The file goes to the smallest logic it fits, and says so (`Logic.relabel`) where it set another.
+      val outcome = pool.submit[Try[(String, String)]](() =>
+        Try {
+          io.bovel.vik.Lowering(Parser.parse(content))
+          Logic.smallest(content) match
+            case Some(logic) => (logic, if Logic.claimed(content) == List(logic) then content else Logic.relabel(content, logic))
+            case None => (fallback(content), content)
+        }
+      )
       (c, content, outcome)
     }
     for (c, content, outcome) <- lowered do
@@ -202,12 +207,12 @@ object Import:
         case _: java.util.concurrent.TimeoutException =>
           scala.util.Failure(RuntimeException(s"lowering past $loweringSeconds s"))
       } match
-        case scala.util.Success(_) =>
-          val dir = Corpus.root.resolve(classify(c.text)).resolve(origin)
+        case scala.util.Success((logic, text)) =>
+          val dir = Corpus.root.resolve(logic).resolve(origin)
           Files.createDirectories(dir)
           val file = if c.name.nonEmpty then c.name else Path.of(c.rel).getFileName.toString
           val name = s"${c.family}__$file".replace("/", "_")
-          Files.writeString(dir.resolve(name), content)
+          Files.writeString(dir.resolve(name), text)
           copied += 1
         case scala.util.Failure(e) =>
           val message = s"${e.getClass.getSimpleName}: ${e.getMessage}".take(60)

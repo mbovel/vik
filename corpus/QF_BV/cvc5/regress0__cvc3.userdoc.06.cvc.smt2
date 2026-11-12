@@ -2,7 +2,8 @@
 ; COMMAND-LINE: --incremental
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_BV, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_BV)
 (declare-fun x () (_ BitVec 8))
 (declare-fun y () (_ BitVec 8))
 (declare-fun z () (_ BitVec 12))

@@ -1,5 +1,7 @@
 ; From z3test: 3742.smt2 (MIT, LICENSES/z3test.txt)
 ;(set-logic QF_UFNIA)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :model_validate true)
 (set-option :rewriter.flat false)
 (set-option :smt.arith.solver 6)

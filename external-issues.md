@@ -252,6 +252,25 @@ February 2025; `2.5-916-ga5843d8b` until 2026-09-02).
   2026-09-04 the replays reported `unknown` as `unsat`, which made a solver that gave up look like one that
   decided.
 
+### 3. `unsat` for good after a `check-sat-assuming` whose assumption the assertions refute (2026-11-09)
+
+- **Observed**: the check answers `unsat`, rightly, and so does every check after it, whatever it assumes, on
+  the command line and through `Script.checkSatAssuming` alike. Two assumptions refuted only together do not
+  do it (`(assert (or a b))` under `(not a)` and `(not b)`), and neither does `push`, asserting the assumption,
+  `check-sat` and `pop`, which answers correctly.
+- **Reproduce**:
+  ```smt2
+  (set-logic QF_UF)
+  (declare-fun a () Bool)
+  (assert a)
+  (check-sat-assuming ((not a))) ; unsat
+  (check-sat)                    ; unsat, where z3, cvc5 and VIK answer sat
+  ```
+- **Consequence here**: a wrong answer on the Stainless sessions, whose scripts assume before they check:
+  the second check of `valid-BooleanOps__9`, of status `sat`. The API replay asserts the assumptions under a
+  level of their own and is not affected; `bench/cold.sh` does not run SMTInterpol on a script with a
+  `check-sat-assuming`, so its cell in the cold table reads `—`.
+
 ## princess
 
 Version: `io.github.uuverifiers:princess:2026-05-20` (Maven, for3Use2_13).

@@ -1,5 +1,6 @@
 ; From princess: smtlib-parser/define-fun-bug.smt2 (BSD, LICENSES/princess.txt)
-(set-logic AUFLIA)
+; logic: QF_LIA, the smallest the script fits, for AUFLIA (prune logic)
+(set-logic QF_LIA)
 (define-fun p1 () Bool true)
 (define-fun p2 ((x Int)) Bool (> x 0))
 

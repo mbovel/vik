@@ -2,7 +2,8 @@
 ; EXPECT: sat
 ; EXPECT: unsat
 ; EXPECT: ()
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :incremental true)
 (set-option :produce-unsat-assumptions true)
 (set-option :produce-unsat-cores true)

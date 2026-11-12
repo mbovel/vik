@@ -2,7 +2,8 @@
 ; COMMAND-LINE: --incremental
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic UF)
+; logic: QF_UF, the smallest the script fits, for UF (prune logic)
+(set-logic QF_UF)
 (push 1)
 (assert false)
 (set-info :status unsat)

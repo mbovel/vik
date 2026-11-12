@@ -1,6 +1,7 @@
 ; From princess: smtlib-parser/define-fun-interpolation.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_LIA, the smallest the script fits, for AUFLIA (prune logic)
 
-(set-logic AUFLIA)
+(set-logic QF_LIA)
 
 (set-option :produce-interpolants true)
 

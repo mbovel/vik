@@ -3,7 +3,8 @@
 ; EXPECT: unsat
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (declare-fun x () Int)
 (define-fun y () Int (+ x 1))
 (define-fun z () Int (- 10))

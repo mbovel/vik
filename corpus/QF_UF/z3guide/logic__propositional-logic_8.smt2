@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: unsat
 ; EXPECT: (+p -p-or-q)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (set-option :produce-unsat-cores true)
 (declare-const p Bool)
 (declare-const q Bool)

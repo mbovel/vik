@@ -3,6 +3,8 @@
 ; EXPECT: sat
 ; EXPECT: ((define-fun x () A @A!0) (define-fun f ((x!0 A)) A (ite (= x!0 @A!0) @A!0 @A!0)))
 ; EXPECT: unsat
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (declare-sort A)
 (declare-fun f (A) A)
 (declare-const x A)
