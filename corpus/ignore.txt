@@ -51,6 +51,7 @@ QF_ALIA/smt-lib/qlock2__qlock.induction.6.smt2	skip: out of memory at 2 GB befor
 QF_AUFBV/smt-lib-incremental/2018-Wolf-fmbench__VexRiscv-regch0-15-compact.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
 QF_AUFBV/smt-lib-incremental/2019-Wolf-fmbench__2019B__marlann_compute_fail1_QF_AUFBV.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
 QF_AUFBV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
+QF_AUFBVDT/other/asn1jvm__2899.smt2	timeout (5 s limit): over a minute with the sign extension and shift circuits, 0.3 s without
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__29.smt2	timeout (5 s limit)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__30.smt2	timeout (5 s limit)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__34.smt2	timeout (5 s limit)
@@ -198,6 +199,7 @@ QF_BV/smt-lib/millionaires__millionaires.t1.i27.71e39139.smt2	timeout (5 s limit
 QF_BV/smt-lib/pipe__pipe-noabs.atlas.qf_bv.smt2	timeout (5 s limit)
 QF_BV/smt-lib/rubik__6moves_mti_5-Atd_00004_bmc.smt2	timeout (5 s limit)
 QF_BV/smt-lib/spear__openldap_v2.3.35__servers_slapd_a_vc149921.smt2	timeout (5 s limit)
+QF_BV/smt-lib/spear__samba_v3.0.24__bin_libsmbsharemodes_vc4083.smt2	beyond the search today (the fuel, two million steps, runs out with the sign extension and shift circuits)
 QF_BV/smt-lib/spear__zebra_v0.95a__bgpd_bgpd_vc75770.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uclid_contrib_smtcomp09__nt_bv_formula.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uclid_contrib_smtcomp09__std_bv_formula.smt2	timeout (5 s limit)
