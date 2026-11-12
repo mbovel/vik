@@ -56,7 +56,7 @@ corpus/QF_AUFLIA/smt-lib-incremental/safari__illinois.smt2
 # time VIK takes on them (from a millisecond to past the budget), over the logics the 3 580 sessions use
 # (QF_UFDTLIA for nearly two thirds), and to hold the sessions the performance pull requests of that week
 # (#62, #68, #70, #71, #72, #77, #78, #79, #80) move the most, faster and slower. Picked, not sampled: a
-# claim about Stainless as a whole is to be measured on all 3 580 sessions (StainlessReplay).
+# claim about Stainless as a whole is to be measured on all 3 580 sessions (CorpusRun with /stainless/).
 corpus/QF_UFDTLIA/stainless/valid-GodelNumbering__167.smt2
 corpus/QF_UFDTLIA/stainless/valid-Count__10.smt2
 corpus/QF_UFDTLIA/stainless/valid-LawTypeArgsElim__78.smt2
