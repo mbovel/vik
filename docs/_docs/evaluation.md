@@ -37,7 +37,8 @@ arrays too. The fifteen were chosen to spread over the time VIK takes on them, f
 budget, to hold the sessions the solver's recent changes move the most, faster and slower, and to hold sessions
 where z3 is far ahead of VIK. They are picked, not sampled: the changes they were chosen for move them more
 than they move Stainless's sessions as a whole, and a claim about Stainless is to be measured on all 3 580
-([`StainlessReplay`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/io/bovel/bench/stainless/StainlessReplay.scala)).
+([`CorpusRun`](https://github.com/mbovel/vik/blob/main/bench/src/main/scala/io/bovel/bench/vik/CorpusRun.scala)
+with `/stainless/`).
 Thirty of the sixty-five are incremental scripts — several `check-sat`s under
 `push`/`pop` or `check-sat-assuming`, the
 *Incremental* column — and there the whole script is the question. The two tables hold the same sixty-five, in
