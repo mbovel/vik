@@ -150,10 +150,15 @@ private final class Lowerer:
   // A left shift by a literal stays in the integers up to this many places: its overflow count ranges over
   // 2^k values, a few cases for the SAT solver, past them an unknown with 2^width as its coefficient.
   private val shlIntMax: Int = sys.props.get("vik.blast.shl").map(_.toInt).getOrElse(2)
-  /** The widest division by an unknown that is a circuit: a divider has width² cells. */
+
+  /** The widest division by an unknown that is a circuit: a divider has width²
+   *  cells.
+   */
   private val divCircuitWidth: Int = sys.props.get("vik.blast.divwidth").map(_.toInt).getOrElse(16)
-  /** The widest operand of a run mask that is decomposed into bits: past it (256-bit words), a mask is a
-   *  division in the integers, where bits of the masked operand would drag its sums into wide adders.
+
+  /** The widest operand of a run mask that is decomposed into bits: past it
+   *  (256-bit words), a mask is a division in the integers, where bits of the
+   *  masked operand would drag its sums into wide adders.
    */
   private val maskBitsWidth: Int = sys.props.get("vik.blast.maskwidth").map(_.toInt).getOrElse(64)
   private def contiguous(mask: BigInt, width: Int): Boolean =
@@ -1022,10 +1027,11 @@ private final class Lowerer:
       // A run of low or high bits under a mask is a division in the integers (the sign bit a
       // comparison): no decomposition of the other operand unless it already is bits.
       val runMask = op match
-        case BvOp.And | BvOp.Or | BvOp.Xor if ws.head > maskBitsWidth => args match
-          case List(s2.Term.Bits(m, w), _) => contiguous(m, w)
-          case List(_, s2.Term.Bits(m, w)) => contiguous(m, w)
-          case _ => false
+        case BvOp.And | BvOp.Or | BvOp.Xor if ws.head > maskBitsWidth =>
+          args match
+            case List(s2.Term.Bits(m, w), _) => contiguous(m, w)
+            case List(_, s2.Term.Bits(m, w)) => contiguous(m, w)
+            case _ => false
         case _ => false
       if runMask then
         val List(a, b) = args.map(term(_, env)): @unchecked
