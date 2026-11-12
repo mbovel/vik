@@ -1,4 +1,6 @@
 ; From z3test: 3934.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (set-option :model_validate true)
 (set-option :proof true)
 (set-option :smt.arith.random_initial_value true)

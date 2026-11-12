@@ -1,0 +1,27 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/GodelNumbering.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDT)
+(declare-fun start!769 () Bool)
+(assert start!769)
+(declare-fun res!1570 () Bool)
+(declare-fun e!1807 () Bool)
+(assert (=> start!769 (=> (not res!1570) (not e!1807))))
+(declare-datatypes ((Nat!103 0))(
+  ( (Zero!103) (Succ!103 (n!1528 Nat!103)) )
+))
+(declare-fun n1!687 () Nat!103)
+(declare-fun n2!698 () Nat!103)
+(declare-fun <!0 (Nat!103 Nat!103) Bool)
+(assert (=> start!769 (= res!1570 (<!0 n1!687 n2!698))))
+(assert (=> start!769 e!1807))
+(assert (=> start!769 true))
+(declare-fun b!3135 () Bool)
+(assert (=> b!3135 (= e!1807 false)))
+(assert (= (and start!769 res!1570) b!3135))
+(declare-fun m!3973 () Bool)
+(assert (=> start!769 m!3973))
+(set-info :status unsat)
+(check-sat-assuming ((not start!769)))
+(set-info :status unsat)
+(check-sat)

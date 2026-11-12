@@ -1,0 +1,23 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/SimpleQuantification.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UF)
+(declare-fun start!13 () Bool)
+(assert start!13)
+(declare-fun b_free!15 () Bool)
+(declare-fun b_next!15 () Bool)
+(assert (=> start!13 (= b_free!15 (not b_next!15))))
+(declare-fun tp!25 () Bool)
+(declare-fun b_and!49 () Bool)
+(assert (=> start!13 (= tp!25 b_and!49)))
+(declare-fun b_free!17 () Bool)
+(declare-fun b_next!17 () Bool)
+(assert (=> start!13 (= b_free!17 (not b_next!17))))
+(declare-fun tp!26 () Bool)
+(declare-fun b_and!51 () Bool)
+(assert (=> start!13 (= tp!26 b_and!51)))
+(assert (=> start!13 false))
+(assert (=> start!13 tp!25))
+(assert (=> start!13 tp!26))
+(set-info :status unsat)
+(check-sat-assuming (b_and!51 b_and!49 (not b_next!15) (not b_next!17)))

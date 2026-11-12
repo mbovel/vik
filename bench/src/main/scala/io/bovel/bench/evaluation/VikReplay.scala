@@ -7,8 +7,8 @@ import io.bovel.vik.Session
 
 /** Runs a [[Replay]] through VIK's [[Session]] — the API a tool that embeds the
  *  solver calls with the trees of `io.bovel.smtlib` — against a fresh session:
- *  declarations, term construction, asserts, `push`/`pop` and every
- *  `check-sat`, nothing else. The trees are the ones VIK's parser builds from
+ *  declarations, term construction, asserts, `push`/`pop`, every check
+ *  and every `get-model`, nothing else. The trees are the ones VIK's parser builds from
  *  the same text — a Boolean equality is an `Iff`, a Boolean-sorted term in a
  *  formula position a `Pred`, a formula in a term position a `Bool` — so the
  *  session lowers exactly what it would have parsed, and the lowering is part
@@ -34,6 +34,8 @@ object VikReplay:
     def formulas(is: Array[Int]): List[Formula] = is.toList.map(formula)
     def boolean(i: Int): Boolean = program.slotSorts(i) == Sort.Bool
     def run(command: Command): Unit = s.run(Script(List(command)))
+    // Up front, as a script says it: a session keeps no model of a check made before it was asked.
+    if program.models then run(Command.SetOption(":produce-models", "true"))
     for op <- program.ops do
       op match
         case Op.MkSort(id, sort) => sorts(id) = sort
@@ -83,6 +85,8 @@ object VikReplay:
         case Op.Push(levels) => for _ <- 1 to levels do s.push()
         case Op.Pop(levels) => for _ <- 1 to levels do s.pop()
         case Op.Check => answers += decided(s.checkSat(), "VIK")
+        case Op.CheckAssuming(assumptions) => answers += decided(s.checkSatAssuming(formulas(assumptions)), "VIK")
+        case Op.GetModel => if answers.last then run(Command.GetModel)
         case Op.SetOption(key, value) => run(Command.SetOption(key, value))
         case Op.SetLogic(logic) => run(Command.SetLogic(logic))
         case Op.Reset => run(Command.ResetAssertions)

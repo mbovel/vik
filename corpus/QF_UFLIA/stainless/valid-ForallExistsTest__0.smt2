@@ -1,0 +1,23 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/ForallExistsTest.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFLIA)
+(declare-fun start!1 () Bool)
+(assert start!1)
+(declare-fun res!21 () Bool)
+(declare-fun e!5 () Bool)
+(assert (=> start!1 (=> (not res!21) (not e!5))))
+(declare-fun lambda!6 () Int)
+(declare-fun Exists!1 (Int) Bool)
+(assert (=> start!1 (= res!21 (Exists!1 lambda!6))))
+(assert (=> start!1 e!5))
+(declare-fun b!9 () Bool)
+(assert (=> b!9 (= e!5 (not (Exists!1 lambda!6)))))
+(assert (= (and start!1 res!21) b!9))
+(declare-fun m!1 () Bool)
+(assert (=> start!1 m!1))
+(assert (=> b!9 m!1))
+(set-info :status unsat)
+(check-sat-assuming ((not start!1) (not b!9)))
+(set-info :status unsat)
+(check-sat)

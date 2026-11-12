@@ -10,7 +10,7 @@ import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through SMTInterpol's `Script` interface — the one
  *  Ultimate embeds — against a fresh solver: declarations, term construction,
- *  asserts, `push`/`pop` and every `check-sat`, nothing else. The interface
+ *  asserts, `push`/`pop`, every `check-sat` and `get-model`, nothing else. The interface
  *  takes SMT-LIB's own names and is n-ary where the standard is, so an
  *  operation is one `term` call.
  */
@@ -33,7 +33,9 @@ object SmtInterpolReplay:
     def args(is: Array[Int]): Array[ItpTerm] = is.map(slots)
     def numeral(value: BigInt): ItpTerm =
       if value.signum < 0 then s.term("-", s.numeral((-value).bigInteger)) else s.numeral(value.bigInteger)
-    for op <- program.ops do
+    // Not its own assumptions: an assumption the assertions refute leaves it `unsat` for every later
+    // check (external-issues.md).
+    for op <- program.leveled do
       op match
         case Op.MkSort(id, sort) =>
           sorts(id) = sort match
@@ -110,4 +112,6 @@ object SmtInterpolReplay:
             case ItpScript.LBool.SAT => true
             case ItpScript.LBool.UNSAT => false
             case answer => throw Replay.Undecided("SMTInterpol", answer.toString))
+        case Op.CheckAssuming(_) => throw IllegalStateException("assumptions are leveled for SMTInterpol")
+        case Op.GetModel => if answers.last then s.getModel.toString
     answers.toList

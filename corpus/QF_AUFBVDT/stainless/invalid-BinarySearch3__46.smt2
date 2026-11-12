@@ -1,0 +1,32 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/BinarySearch3.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_AUFBVDT)
+(declare-fun start!257 () Bool)
+(assert start!257)
+(declare-fun x!1 () (_ BitVec 32))
+(declare-datatypes ((array!137 0))(
+  ( (array!138 (arr!54 (Array (_ BitVec 32) (_ BitVec 32))) (size!47 (_ BitVec 32))) )
+))
+(declare-fun arr!0 () array!137)
+(declare-fun lo!0 () (_ BitVec 32))
+(declare-fun hi!0 () (_ BitVec 32))
+(declare-datatypes ((tuple4!8 0))(
+  ( (tuple4!9 (_1!4 array!137) (_2!4 (_ BitVec 32)) (_3!4 (_ BitVec 32)) (_4!4 (_ BitVec 32))) )
+))
+(assert (=> start!257 (and (bvsle #b00000000000000000000000000000000 lo!0) (bvsle lo!0 (bvadd hi!0 #b00000000000000000000000000000001)) (bvslt hi!0 (size!47 arr!0)) (bvsle lo!0 hi!0) (let ((i!0 (bvsdiv (bvadd lo!0 hi!0) #b00000000000000000000000000000010))) (let ((y!0 (select (arr!54 arr!0) i!0))) (and (not (= x!1 y!0)) (not (bvslt x!1 y!0)) (let ((lo!6 (bvadd i!0 #b00000000000000000000000000000001))) (and (bvsle #b00000000000000000000000000000000 lo!6) (bvsle lo!6 (bvadd hi!0 #b00000000000000000000000000000001)) (bvsle lo!6 hi!0) (let ((i!6 (bvsdiv (bvadd lo!6 hi!0) #b00000000000000000000000000000010))) (let ((y!6 (select (arr!54 arr!0) i!6))) (and (not (= x!1 y!6)) (not (bvslt x!1 y!6)) (= (tuple4!9 arr!0 x!1 lo!0 hi!0) (tuple4!9 arr!0 x!1 (bvadd i!6 #b00000000000000000000000000000001) hi!0)))))))))))))
+(assert (=> start!257 true))
+(declare-fun array_inv!47 (array!137) Bool)
+(assert (=> start!257 (array_inv!47 arr!0)))
+(declare-fun bs!53 () Bool)
+(assert (= bs!53 start!257))
+(declare-fun m!1083 () Bool)
+(assert (=> bs!53 m!1083))
+(declare-fun m!1085 () Bool)
+(assert (=> bs!53 m!1085))
+(declare-fun m!1087 () Bool)
+(assert (=> bs!53 m!1087))
+(set-info :status unsat)
+(check-sat-assuming ((not start!257)))
+(set-info :status unsat)
+(check-sat)

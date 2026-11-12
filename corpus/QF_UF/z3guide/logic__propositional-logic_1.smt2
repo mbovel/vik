@@ -1,5 +1,7 @@
 ; From z3guide: 01 - logic/03 - propositional-logic.md (block 1) (MIT, LICENSES/z3guide.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (declare-const p Bool)
 (declare-const q Bool)
 (declare-const r Bool)

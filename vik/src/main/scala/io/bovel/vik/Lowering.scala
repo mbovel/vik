@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, Sort}
 import io.bovel.smtlib as s2
@@ -85,7 +85,33 @@ private final class Lowerer:
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
-  private val rangedApplications = HashSet.empty[Term] // bit-vector applications whose range is asserted
+
+  /** What the lowering minted, by what it was minted for. An entry stands for
+   *  constants whose defining assertions went out at its level, and that
+   *  level's `pop` retires them: found here after it, a constant would be
+   *  unconstrained, and `(= a 0.5)` would accept any `a`. So an entry goes with
+   *  the level that made it, under `:global-declarations` too (the constants
+   *  stay declared then, their definitions do not), and the entries of the
+   *  outer levels stay. Dropping one is always sound, the next use minting and
+   *  defining again, and an entry is never replaced: a `pop` only ever has
+   *  entries to drop, nothing to restore.
+   */
+  private final class Memo[K, V]:
+    private val entries = HashMap.empty[K, V]
+    def get(key: K): Option[V] = entries.get(key)
+    def contains(key: K): Boolean = entries.contains(key)
+    def apply(key: K): V = entries(key)
+    def getOrElseUpdate(key: K, value: => V): V =
+      entries.getOrElseUpdate(
+        key, {
+          if scopes.nonEmpty then scopes.last += (() => entries -= key)
+          value
+        }
+      )
+    def update(key: K, value: V): Unit = getOrElseUpdate(key, value)
+    def clear(): Unit = entries.clear()
+
+  private val rangedApplications = Memo[Term, Unit]() // bit-vector applications whose range is asserted
 
   /** The lowering of a bit-vector operation, once per level: the second
    *  occurrence of `bvmul 4 (bvadd 1 x)` in an assertion gets the constants of
@@ -94,16 +120,18 @@ private final class Lowerer:
    *  1 = r + 2^32 k` with `r` in `[0, 2^32)` pins `r`, but the solver has to
    *  see it), which branch and bound walked for minutes on
    *  `x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`; one chain makes the equality syntactic. Keyed
-   *  on the operation and its lowered operands; cleared with the rational
-   *  caches, since the definitions live at the level of the use.
+   *  on the operation and its lowered operands.
    */
-  private val loweredOperations = HashMap.empty[(String, List[Term], List[BigInt]), Term]
-  private val loweredDivisions = HashMap.empty[(Term, BigInt, BigInt), (Term, Term)]
-  private val loweredSignedDivisions = HashMap.empty[(Term, Int, BigInt, Boolean), (Term, Term)]
-  private val loweredBits = HashMap.empty[(Term, Int), IndexedSeq[Formula]]
-  private val bitConstants = HashMap.empty[Formula, Term] // a bit back to the `{0, 1}` constant that carries it
+  private val loweredOperations = Memo[(String, List[Term], List[BigInt]), Term]()
+  private val loweredDivisions = Memo[(Term, BigInt, BigInt), (Term, Term)]()
+  private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
+  private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
+  private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
 
-  private def clearLowered(): Unit =
+  private def clearMemos(): Unit =
+    rationals.clear()
+    rationalProducts.clear()
+    rangedApplications.clear()
     loweredOperations.clear()
     loweredDivisions.clear()
     loweredSignedDivisions.clear()
@@ -456,22 +484,13 @@ private final class Lowerer:
       flush(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
     case s2.Command.Push(levels) =>
       for _ <- 1 to levels do scopes += ArrayBuffer.empty
-      List(Command.Push(levels))
+      // What a command that failed halfway minted goes out before the level opens: its entries are below it.
+      flush(Command.Push(levels))
     case s2.Command.Pop(levels) =>
       for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
-      // A defining assertion lives and dies with its level: a rational constant
-      // cached across the pop would come back without its definition, so later
-      // uses mint a fresh one, defined again.
-      rationals.clear()
-      rationalProducts.clear()
-      rangedApplications.clear()
-      clearLowered()
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
-      rationals.clear()
-      rationalProducts.clear()
-      rangedApplications.clear()
-      clearLowered()
+      clearMemos()
       // What a declaration says is asserted, and `reset-assertions` drops the assertions: said again
       // here, or a bit-vector constant would be an integer of any size (a wrong `sat`, fixed 2026-09-04).
       Command.ResetAssertions +: functions.toList.sortBy(_._1).flatMap(facts)
@@ -480,12 +499,9 @@ private final class Lowerer:
       globalDeclarations = false
       functions.clear()
       macros.clear()
-      rationals.clear()
-      rationalProducts.clear()
       rationalValues.clear()
       storeSymbols.clear()
-      rangedApplications.clear()
-      clearLowered()
+      clearMemos()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
@@ -507,10 +523,7 @@ private final class Lowerer:
       val declared = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort))
       introduced.clear()
       definitions.clear()
-      rationals.clear() // a constant minted here has no definition: later uses must not find it
-      rationalProducts.clear()
-      rangedApplications.clear()
-      clearLowered()
+      clearMemos() // a constant minted here has no definition: later uses must not find it
       declared :+ Command.GetValue(lowered, defined)
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
@@ -797,7 +810,7 @@ private final class Lowerer:
     val (d, r) = p /% q
     if r.signum != 0 && r.signum != q.signum then d - 1 else d
 
-  private val rationals = HashMap.empty[(BigInt, BigInt), Term]
+  private val rationals = Memo[(BigInt, BigInt), Term]()
 
   /** The value `p / q` of every term made by [[rationalConst]], for the literal
    *  folding of products and divisions.
@@ -858,7 +871,7 @@ private final class Lowerer:
         }
       )
 
-  private val rationalProducts = HashMap.empty[(BigInt, BigInt, Term), Term]
+  private val rationalProducts = Memo[(BigInt, BigInt, Term), Term]()
 
   /** The `store!N` function symbol for arrays of `sort`, declared on first use:
    *  `store` is not a function of the tree, each array sort gets its own
@@ -900,13 +913,12 @@ private final class Lowerer:
 
   /** A bit-vector that comes out of an application — of a function, a selector,
    *  an array — is an integer the solver knows nothing about: its range is
-   *  asserted at its first use, as a declared constant's is at the declaration.
-   *  Once per term since the last pop: the assertion lives at the level of the
-   *  use ([[rangedApplications]] is cleared where the rational caches are).
+   *  asserted at its first use, as a declared constant's is at the declaration,
+   *  once per term at a level: the assertion lives at the level of the use.
    */
   private def ranged(t: Term, sort: Sort): Term =
     sort match
-      case Sort.BitVec(w) if rangedApplications.add(t) => definitions += range(t, w)
+      case Sort.BitVec(w) => rangedApplications.getOrElseUpdate(t, definitions += range(t, w))
       case _ => ()
     t
 

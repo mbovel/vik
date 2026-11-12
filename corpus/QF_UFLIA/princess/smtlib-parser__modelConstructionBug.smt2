@@ -24,12 +24,13 @@
 ; EXPECT: ((PRED1 true))
 ; EXPECT: ((PRED3 true))
 ; EXPECT: ((PRED4 true))
+; logic: QF_UFLIA, the smallest the script fits, for AUFLIA (prune logic)
 
 ; Previously, the last get-value command of the script would lead
 ; to an exception
 
 (reset)
-(set-logic AUFLIA)
+(set-logic QF_UFLIA)
 (set-option :produce-interpolants true)
 ; setConstructProofs(true)
 (declare-fun __VERIFIER_nondet_uint@2 () Int)

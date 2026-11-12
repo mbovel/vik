@@ -1,7 +1,10 @@
 # path, a tab, the reason: the files the tests expect to fail (see README.md); kept sorted (byte order)
+QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--net--irda--litelink-sir.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	timeout (5 s limit)
+QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_7a_cilled_linux-3.8-rc1-drivers--misc--phantom.ko-main.cil.out_smt-query.0.smt2	timeout (5 s limit)
+QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__recursive_list_smt-query.1.smt2	timeout (5 s limit)
+QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__test10_smt-query.0.smt2	timeout (5 s limit)
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_clnt.blast.01.i.cil-1.c_4.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_clnt.blast.02.i.cil-2.c_4.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
-QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_clnt.blast.03.i.cil-1.c_4.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_srvr.blast.01.i.cil-1.c_0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_srvr.blast.01.i.cil-1.c_2.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_srvr.blast.06.i.cil-1.c_3.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -45,8 +48,16 @@ QF_ALIA/smt-lib/cvc__read2.smt2	timeout (5 s limit)
 QF_ALIA/smt-lib/qlock2__qlock.base.5.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_ALIA/smt-lib/qlock2__qlock.induction.5.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_ALIA/smt-lib/qlock2__qlock.induction.6.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
-QF_AUFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
+QF_AUFBV/smt-lib-incremental/2018-Wolf-fmbench__VexRiscv-regch0-15-compact.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
+QF_AUFBV/smt-lib-incremental/2019-Wolf-fmbench__2019B__marlann_compute_fail1_QF_AUFBV.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
 QF_AUFBV/smt-lib/20210301-Alive2__sqlite3__906_sqlite3.smt2	skip: out of memory at 2 GB before the search (the array lemmas), which would end the suite
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__29.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__30.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__34.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__40.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch2__27.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch2__30.smt2	timeout (5 s limit)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch3__29.smt2	beyond the search today (answers unknown where z3 answers)
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--ppp--ppp_generic.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--wireless--mwifiex--mwifiex_sdio.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--input--misc--atlas_btns.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -79,14 +90,15 @@ QF_BV/cvc5/regress0-bv__bitvec3.smtv1.smt2	timeout (5 s limit)
 QF_BV/cvc5/regress0-bv__extract-concat.smt2	timeout (5 s limit)
 QF_BV/cvc5/regress0-bv__extract-extract.smt2	timeout (5 s limit)
 QF_BV/cvc5/regress0-proofs__eval-rhs.smt2	timeout (5 s limit)
-QF_BV/princess/bitvectors__ext_con_004_001_0016.smt2	timeout (5 s limit)
 QF_BV/princess/bitvectors__extractcore.smt2	timeout (5 s limit)
 QF_BV/princess/bitvectors__splitcore.smt2	timeout (5 s limit)
+QF_BV/smt-lib-incremental/20170501-Heizmann-UltimateAutomizer__modulus_true-unreach-call_true-no-overflow.i.smt2	timeout (5 s limit)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__linux-3.14_complex_emg_linux-kernel-locking-spinlock_drivers-net-can-softing-softing.cil_smt-query.0.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_floodmax.3.3.ufo.UNBOUNDED.pals.c.v+lhb-reducer_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_floodmax.4.2.ufo.UNBOUNDED.pals_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_floodmax.4.3.ufo.BOUNDED-8.pals.c.v+nlh-reducer_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
 QF_BV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__pals_lcr.4.1.ufo.BOUNDED-8.pals_smt-query.1.smt2	skip: the parser's recursion overflows the stack (a deep nest)
+QF_BV/smt-lib-incremental/20210110-Coffin__domain.smt2	timeout (5 s limit)
 QF_BV/smt-lib/2017-BuchwaldFried__counterexample.dump.ia32_Mul_base_disp--Add32.load32.Mul32.Mulh_u32.0005.smt2	timeout (5 s limit)
 QF_BV/smt-lib/2017-BuchwaldFried__synthesis.dump.ia32_RorMem_base_index_scale_disp2--Add32.Add32.Add32.Add32.load32.Or32.Or32.store32.am_shl32.0001.smt2	timeout (5 s limit)
 QF_BV/smt-lib/2017-BuchwaldFried__synthesis.dump.ia32_RorMem_base_index_scale_disp2--Add32.Add32.Add32.Add32.load32.Shl32.Shr32.store32.am_shl32.0001.smt2	timeout (5 s limit)
@@ -108,7 +120,6 @@ QF_BV/smt-lib/20221012-MCMPC__dualexecution__dualexecution.t1.i16.e7c172b6.smt2	
 QF_BV/smt-lib/20221012-MCMPC__mean__simplemean.t1.i4.1b9e49d5.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__millionaires__millionaires.t1.i11.38d7c4be.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__millionaires__millionaires.t1.i24.01a5fe45.smt2	timeout (5 s limit)
-QF_BV/smt-lib/20221012-MCMPC__simplemean__simplemean.t1.i4.1b9e49d5.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__wage__wage.t1.i32.bbcf072f.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__wage__wage.t1.i33.1f0f7856.smt2	timeout (5 s limit)
 QF_BV/smt-lib/20221012-MCMPC__wage__wage.t1.i33.e282d06f.smt2	timeout (5 s limit)
@@ -167,7 +178,6 @@ QF_BV/smt-lib/calypto__problem_4.smt2	timeout (5 s limit)
 QF_BV/smt-lib/calypto__problem_9.smt2	timeout (5 s limit)
 QF_BV/smt-lib/challenge__integerOverflow.smt2	timeout (5 s limit)
 QF_BV/smt-lib/challenge__multiplyOverflow.smt2	timeout (5 s limit)
-QF_BV/smt-lib/core__ext_con_004_001_0016.smt2	timeout (5 s limit)
 QF_BV/smt-lib/core__ext_con_004_001_0032.smt2	timeout (5 s limit)
 QF_BV/smt-lib/core__ext_con_004_001_0064.smt2	timeout (5 s limit)
 QF_BV/smt-lib/crafted__bitvec5.smt2	timeout (5 s limit)
@@ -191,9 +201,7 @@ QF_BV/smt-lib/millionaires__millionaires.t1.i27.71e39139.smt2	timeout (5 s limit
 QF_BV/smt-lib/pipe__pipe-noabs.atlas.qf_bv.smt2	timeout (5 s limit)
 QF_BV/smt-lib/rubik__6moves_mti_5-Atd_00004_bmc.smt2	timeout (5 s limit)
 QF_BV/smt-lib/spear__openldap_v2.3.35__servers_slapd_a_vc149921.smt2	timeout (5 s limit)
-QF_BV/smt-lib/spear__openldap_v2.3.35__servers_slapd_a_vc149922.smt2	timeout (5 s limit)
 QF_BV/smt-lib/spear__zebra_v0.95a__bgpd_bgpd_vc75770.smt2	timeout (5 s limit)
-QF_BV/smt-lib/spear__zebra_v0.95a__bgpd_bgpd_vc75771.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uclid__tcas__tcas45_k_0.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uclid__tcas__tcas60_k_0.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uclid_contrib_smtcomp09__nt_bv_formula.smt2	timeout (5 s limit)
@@ -202,6 +210,8 @@ QF_BV/smt-lib/uum__uum4.smt2	timeout (5 s limit)
 QF_BV/smt-lib/uum__uum8.smt2	timeout (5 s limit)
 QF_BV/smt-lib/wienand-cav2008__Commute__commute08.sf.smt2	timeout (5 s limit)
 QF_BV/smt-lib/wienand-cav2008__Commute__commute16.sf.smt2	timeout (5 s limit)
+QF_BV/stainless/valid-BitsTricksSlow__41.smt2	timeout (5 s limit)
+QF_BV/stainless/valid-BitsTricks__2.smt2	timeout (5 s limit)
 QF_BV/submission/20260613-cryptol-bv-math__arith_correct_union_16.smt2	timeout (5 s limit)
 QF_BV/submission/20260613-cryptol-bv-math__arith_correct_union_32.smt2	timeout (5 s limit)
 QF_BV/submission/20260613-cryptol-bv-math__arith_correct_union_4.smt2	timeout (5 s limit)
@@ -211,56 +221,21 @@ QF_BVLRA/smt-lib-incremental/20240414-mapf_r__makespan__coef_2__grid__grid_02x02
 QF_DT/smt-lib/20210312-Bouvier__vlsat3_b07.smt2	timeout (5 s limit)
 QF_DT/smt-lib/20210312-Bouvier__vlsat3_b40.smt2	timeout (5 s limit)
 QF_DT/smt-lib/20210312-Bouvier__vlsat3_b49.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e03.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e07.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e09.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e12.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e18.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e23.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e30.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e31.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e35.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e39.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e46.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e54.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e58.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e64.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e70.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20210312-Bouvier__vlsat3_e80.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__17512_5c1021b0faa6b6e1791b_19_QF_UFDTLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__3106_1c933134166dbad31f79_40_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__3106_1c933134166dbad31f79_41_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_55_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_57_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__41958_32933c5a1384696720a2_63_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_34_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_36_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__52759_af0c476fe3b544b9a8507f3e42472c43_12_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_5_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_8_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_70_QF_UFDTLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__72771_f9d228efc97cf1458e38_64_QF_UFDTLIA.smt2	timeout (5 s limit)
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_1_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_DT/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_3_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
 QF_DT/smt-lib/20230720-blocksworld__from_14_0_3_to_12_4_1_bmc_7.smt2	timeout (5 s limit)
+QF_IDL/princess/special__diamonds.16.3.i.a.u.smt2	timeout (5 s limit)
 QF_LIA/cvc5/regress1-arith__arith-int-013.cvc.smt2	timeout (5 s limit)
 QF_LIA/cvc5/regress1-arith__arith-int-024.cvc.smt2	timeout (5 s limit)
 QF_LIA/cvc5/regress3__arith_prp-13-24.smt2	timeout (5 s limit)
 QF_LIA/princess/smtlib-parser__int_incompleteness2.smt2	timeout (5 s limit)
 QF_LIA/princess/smtlib-parser__int_incompleteness3.smt2	timeout (5 s limit)
-QF_LIA/princess/special__diamonds.16.3.i.a.u.smt2	timeout (5 s limit)
 QF_LIA/smt-lib-incremental/lustre__ex3.bmc_k100.smt2	timeout (5 s limit)
 QF_LIA/smt-lib-incremental/lustre__traffic.bmc_k100.smt2	timeout (5 s limit)
-QF_LIA/z3guide/logic__basiccommands_4.smt2	skip: the `p` after its level's pop is an error, as z3 and cvc5 say (issue 40); the whole script is read before it is played, so the two answers before the error are not given
-QF_LIA/z3test/regressions__z3.29.smt2	skip: the `p` after its level's pop is an error, as z3 and cvc5 say (issue 40); the whole script is read before it is played, so the two answers before the error are not given
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___count_by_k.i_3_3_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___overflow1.i_3_8_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/2017-Heizmann-UltimateInvariantSynthesis___standard_two_index_06.i_3_2_2.bpl_7.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/CooperatingT2__agafp.t2.c_Iteration1_Lasso_4-pieceTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/CooperatingT2__heidy7-simple.t2.c_Iteration2_Lasso_4-pieceTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/SV-COMP__HarrisLalNoriRajamani-2010SAS-Fig1_true-termination.c_Iteration1_Lasso_4-pieceTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
-QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Lasso_5-phaseTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Lasso_6-phaseTemplate.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_LRA/smt-lib/Ultimate__Braverman-2006CAV-Ex1-int.bpl_Iteration1_Loop_5-phaseTemplate.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/blending__13.smt2	beyond the search today (minutes of simplex, or not answered within them)
@@ -276,6 +251,11 @@ QF_UF/cvc5/regress3__hole9.cvc.smt2	timeout (5 s limit)
 QF_UF/smt-lib/PEQ__PEQ018_size5.smt2	timeout (5 s limit)
 QF_UF/smt-lib/SEQ__SEQ009_size10.smt2	timeout (5 s limit)
 QF_UF/z3test/regressions__fp-rounding_mode-3.smt2	the parser refuses RoundingMode, a floating-point sort it does not support
+QF_UFBV/dotty/alpha-mergeSortBounds2-beed69a33f4e.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
+QF_UFBV/smt-lib-incremental/2018-Goel-hwbench__QF_UFBV_bv_bv_elevator_planning.2.prop1_ab_fp_max.smt2	timeout (5 s limit)
+QF_UFBV/smt-lib-incremental/2018-Goel-hwbench__QF_UFBV_bv_bv_v_FIFO_ab_min_max.smt2	timeout (5 s limit)
+QF_UFBV/smt-lib-incremental/2018-Wolf-fmbench__zipcpu-zipmmu-compact.smt2	timeout (5 s limit)
+QF_UFBV/smt-lib-incremental/2019-Wolf-fmbench__2019B__marlann_compute_cp_fail1_QF_UFBV.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_needham.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_train-gate.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_at.1.prop1_ab_cti_max.smt2	timeout (5 s limit)
@@ -283,6 +263,7 @@ QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_brp2.2.prop3_ab_reg_max.smt2	ti
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_iprotocol.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_peterson.2.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_resistance.2.prop1_ab_cti_max.smt2	timeout (5 s limit)
+QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-nomem.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFBV/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_55_QF_UFBV.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__0261.smt2	timeout (5 s limit)
@@ -299,143 +280,56 @@ QF_UFBV/smt-lib/20241113-Certora__1977.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__1999.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2007.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/20241113-Certora__2053.smt2	timeout (5 s limit)
-QF_UFBVDT/dotty/alpha-list_zip_2-0757c679b587.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-list_zip_2-2221f1ece327.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-list_zip_2-3b60979baa36.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-list_zip_2-a0eb269b2d63.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-list_zip_2-d2d8823cb868.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-list_zip_2-d3083344bbd9.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds-0ada9cb5ea1f.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds-89a9131605c7.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds-95e13d2d7ca8.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds-a56cafc1e0cc.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-0c8c6dbc1703.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-0eb3fa59cccd.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-19e802c04d3c.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-3ae6ee5d7fce.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-50064603c49e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-beed69a33f4e.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
-QF_UFBVDT/dotty/alpha-mergeSortBounds2-db07f8f71f50.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-02c98afacadd.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-0d801a6f2c9b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-269101b7e767.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-4e38eca7f5b6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-53bcf0326d5a.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-62139a894175.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-831792b3778d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-89a38c1fcd2b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-ab621e7fc25e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-b166095e37ec.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-bf5fba4ed74d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-bf8bafbcdf7a.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-bfe740a3c832.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-c5246ca97c67.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-c8e52177738b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-c9600a9ed93e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-d91e663a4e35.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-self_reference-e2687e6f81f5.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFBVDT/dotty/alpha-unstable_prefix_neg-0fc6bee9a7a1.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
-QF_UFBVDT/stainless/invalid__PackedFloat8_11.smt2	timeout (5 s limit)
-QF_UFBVDT/stainless/valid__PackedFloat8_11.smt2	timeout (5 s limit)
-QF_UFDTLIA/dotty/alpha-beta_reduce-0c97f5909e14.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-1077069fc90a.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-215e83cb297a.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-25edf6e1f4a2.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-298561988e99.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-2a4c82e552db.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-2cf174d49626.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-2d43569ab766.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-2e0a67e8623a.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-2f2b07a05d95.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-3133352b6ff2.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-33cd63e82f2d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-357e058a031b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-3747962fb0cc.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-378188bbfb6e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-3cb4ac0ff262.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-4b3d664f5ecf.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-4b3fddacd8bd.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-52d2262af4c6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-684e256aa501.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-6853dd28c381.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-6b4c3c7d4d03.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-7570be074925.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-825b2bee1492.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-85b2bc8757c0.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-8955b34535a7.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-89fb9eb8dd01.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-90f28eca15a6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-932bafde0fe6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-9349762226b1.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-9b8a10968834.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-9bcd53772259.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-a0148373eaff.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-a749a757255c.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-aa7b1b4eb820.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-ae38af6a294c.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-b6b6ad62d103.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-b8395a0bacfe.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-ba2312d865a3.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-c78993590fcb.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-d1ccd7add629.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-d3df23425f39.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-d4ffdc74ac90.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-dd41e17f7257.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-e4c281c15d37.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-e56dd0b5d225.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-eac183eb0f11.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-ed9cab0cbbfb.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-f760b112e07d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-f7b06b616222.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-fb0b3205bd58.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-beta_reduce-fe500ceea342.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-04e1ad7cdab9.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-1d2aa701cc0d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-2b1b1e5c0a09.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-4b6ac7f981e0.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-4eb03feae699.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized-535a0a306499.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-2971e2f9bca6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-42dcf9260de5.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-5cd058cb39e6.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-687cf34c9b96.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-6a48562c1485.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-fib_memoized2-eec1e2d029e1.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-121ece4acbab.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-173b45b6fd04.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-1fd3e23cea54.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-3ceda8788f15.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-4ba6e9ff6243.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-list_zip_2-c45aabda7eac.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds-12ae2bebc20b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds-275c4fa2a723.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds-bc90333062eb.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds-bdec665970bc.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-519a3e2bf5a9.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-5436202510fe.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-7bf16017788c.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-be6e9a37141d.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-c9517a584d94.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-mergeSortBounds2-e3aca9ac5217.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-17eaf822ce00.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-23a2d750e86b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-24ee20c87ad2.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-2e921884372b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-3abbb249213b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-6388a8d44c07.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-6b50cdc2259c.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-77a2c968ef03.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-8d8f46e99e96.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-9cf36f000e6e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-a42600cb8723.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-a68a79273c3b.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-ba0f075b3dfd.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-d33d4870228e.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-dbf71dd36295.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-f41b2d19e344.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-f8149c055572.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-self_reference-f8c77796eed0.smt2	ill-sorted dump: the parser refuses it, as z3 does
-QF_UFDTLIA/dotty/alpha-unstable_prefix_neg-cc8f6db106e5.smt2	skip: a function symbol used as a value, refused since the higher-order fragment went
+QF_UFBV/stainless/valid-AnonymousClasses1__4.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-BitsTricksSlow__35.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-BitsTricksSlow__44.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-BitsTricksSlow__6.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-BitsTricks__11.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-Longs__12.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-Longs__6.smt2	timeout (5 s limit)
+QF_UFBV/stainless/valid-Longs__7.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-BraunTree__13.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-BraunTree__17.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-PackedFloat8__1.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-PackedFloat8__11.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-RedBlackTree2__28.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/invalid-RedBlackTree__33.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/valid-PackedFloat8__11.smt2	timeout (5 s limit)
+QF_UFBVDT/stainless/valid-Peano__12.smt2	timeout (5 s limit)
+QF_UFBVLIA/stainless/valid-BitsTricksSlow__0.smt2	timeout (5 s limit)
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e03.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e07.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e09.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e12.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e18.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e23.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e30.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e31.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e35.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e39.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e46.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e54.smt2	timeout (5 s limit)
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e58.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e64.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e70.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDT/smt-lib/20210312-Bouvier__vlsat3_e80.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__17512_5c1021b0faa6b6e1791b_19_QF_UFDTLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__3106_1c933134166dbad31f79_40_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__3106_1c933134166dbad31f79_41_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_55_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_57_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__41958_32933c5a1384696720a2_63_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_34_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_36_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__52759_af0c476fe3b544b9a8507f3e42472c43_12_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_5_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_8_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_70_QF_UFDTLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72771_f9d228efc97cf1458e38_64_QF_UFDTLIA.smt2	timeout (5 s limit)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_1_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_3_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
+QF_UFDTLIA/stainless/valid-LawTypeArgsElim__24.smt2	beyond the search today (answers unknown where z3 answers)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f21.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f42.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f52.smt2	timeout (5 s limit)
@@ -488,7 +382,6 @@ QF_UFLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_70
 QF_UFLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_71_QF_UFLIA.smt2	skip: out of memory at 2 GB (the sharing of a large QF_UFLIA instance)
 QF_UFLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_0_UFLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_UFLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_3_UFLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_UFLIA/smt-lib/hard__hard13.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/mathsat__EufLaArithmetic__hard__hard13.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/mathsat__Hash__hash_sat_09_08.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/mathsat__Hash__hash_sat_10_20.smt2	skip: the parser's recursion overflows the stack (a deep nest)
@@ -499,6 +392,7 @@ QF_UFLIA/smt-lib/wisas__xs_32_52.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_35_45.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_38_38.smt2	timeout (5 s limit)
 QF_UFLIA/smt-lib/wisas__xs_40_60.smt2	timeout (5 s limit)
+QF_UFLIA/stainless/invalid-ForallAssoc__0.smt2	timeout (5 s limit)
 QF_UFLIA/submission/20260311-TPTP__ARI654_1.smt2	timeout (5 s limit)
 QF_UFLIA/submission/20260311-TPTP__ARI692_1.smt2	timeout (5 s limit)
 QF_UFLRA/smt-lib/RandomDecoupled__pb_real_30_60_45_19.smt2	timeout (5 s limit)

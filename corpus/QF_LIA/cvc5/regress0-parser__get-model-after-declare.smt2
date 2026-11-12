@@ -1,7 +1,8 @@
 ; From cvc5: regress0/parser/get-model-after-declare.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
 ; EXPECT: ((define-fun x () Int 1))
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (set-option :produce-models true)
 (declare-fun x () Int)
 (assert (> x 0))

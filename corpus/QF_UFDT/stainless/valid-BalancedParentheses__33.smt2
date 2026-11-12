@@ -1,0 +1,30 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/BalancedParentheses.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDT)
+(declare-fun start!355 () Bool)
+(assert start!355)
+(declare-fun res!199 () Bool)
+(declare-fun e!357 () Bool)
+(assert (=> start!355 (=> (not res!199) (not e!357))))
+(declare-datatypes ((Parenthesis!35 0))(
+  ( (CloseParenthesis!35) (OpenParenthesis!35) )
+))
+(declare-datatypes ((List!57 0))(
+  ( (Cons!57 (head!97 Parenthesis!35) (tail!97 List!57)) (Nil!57) )
+))
+(declare-fun xs!116 () List!57)
+(declare-fun isEmpty!37 (List!57) Bool)
+(assert (=> start!355 (= res!199 (not (isEmpty!37 xs!116)))))
+(assert (=> start!355 e!357))
+(assert (=> start!355 true))
+(declare-fun b!668 () Bool)
+(get-info :version)
+(assert (=> b!668 (= e!357 false)))
+(assert (= (and start!355 res!199) b!668))
+(declare-fun m!1105 () Bool)
+(assert (=> start!355 m!1105))
+(set-info :status unsat)
+(check-sat-assuming ((not start!355)))
+(set-info :status unsat)
+(check-sat)

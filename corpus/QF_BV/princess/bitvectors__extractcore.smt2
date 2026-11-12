@@ -1,6 +1,8 @@
 ; From princess: bitvectors/extractcore.smt2 (BSD, LICENSES/princess.txt)
 ; Try and see if concat breaks this:
 ; manually rewrite this to without concat and see if it works!
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 
 (declare-fun a () (_ BitVec 8))
 (declare-fun dummy () (_ BitVec 2))

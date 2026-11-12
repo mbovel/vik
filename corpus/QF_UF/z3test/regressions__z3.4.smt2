@@ -1,4 +1,6 @@
 ; From z3test: z3.4.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 
 ; Copyright (c) 2015 Microsoft Corporation
 (set-option :auto-config true)

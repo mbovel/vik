@@ -1,6 +1,7 @@
 ; From cvc5: regress0/precedence/not-eq.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (set-option :incremental false)
 (declare-fun A () Int)
 (declare-fun B () Int)

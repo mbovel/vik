@@ -7,7 +7,8 @@
 ; EXPECT: sat
 ; EXPECT: unsat
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (declare-fun x () Bool)
 (declare-fun y () Bool)
 (assert (or x y))

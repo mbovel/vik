@@ -1,0 +1,20 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/InnerFunctions.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_LIA)
+(declare-fun start!13 () Bool)
+(assert start!13)
+(declare-fun y!30 () Int)
+(declare-fun z!10 () Int)
+(declare-fun x!41 () Int)
+(declare-fun w!3 () Int)
+(assert (=> start!13 (and (< 0 x!41) (< x!41 10) (= y!30 x!41) (= z!10 (+ y!30 10)) (< w!3 z!10) (>= w!3 20))))
+(assert (=> start!13 true))
+(declare-fun lt!16 () Int)
+(assert (=> start!13 (= lt!16 y!30)))
+(assert (=> start!13 (= lt!16 x!41)))
+(declare-fun lt!17 () Int)
+(assert (=> start!13 (= lt!17 z!10)))
+(assert (=> start!13 (= lt!17 (+ y!30 10))))
+(set-info :status unsat)
+(check-sat)

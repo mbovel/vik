@@ -2,7 +2,8 @@
 ; COMMAND-LINE: --incremental
 ; EXPECT: unsat
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (set-info :status unsat)

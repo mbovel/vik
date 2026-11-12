@@ -3,6 +3,8 @@
 ; GitHub issue
 ; EXPECT: sat
 ; EXPECT: ((define-fun x () Int 0))
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 
 (set-option :produce-models true)
 (declare-fun x () Int)

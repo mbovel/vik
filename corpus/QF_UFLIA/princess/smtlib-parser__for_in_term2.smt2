@@ -1,6 +1,7 @@
 ; From princess: smtlib-parser/for_in_term2.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_UFLIA, the smallest the script fits, for AUFLIA (prune logic)
 
-(set-logic AUFLIA)
+(set-logic QF_UFLIA)
 
 (declare-fun a () Int)
 (declare-fun b () Int)

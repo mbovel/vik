@@ -1,0 +1,28 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/LambdaEquality2.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!35 () Bool)
+(assert start!35)
+(declare-fun b!114 () Bool)
+(assert (=> b!114 true))
+(declare-datatypes ((Y!2 0))(
+  ( (Y!3 (val!0 Int)) )
+))
+(declare-fun y2!1 () Y!2)
+(declare-fun lambda!53 () Int)
+(declare-fun lambda!52 () Int)
+(declare-fun y1!1 () Y!2)
+(assert (=> b!114 (= (= y2!1 y1!1) (= lambda!53 lambda!52))))
+(assert (=> b!114 true))
+(declare-fun res!36 () Bool)
+(declare-fun e!44 () Bool)
+(assert (=> start!35 (=> (not res!36) (not e!44))))
+(assert (=> start!35 (= res!36 (= y1!1 y2!1))))
+(assert (=> start!35 e!44))
+(declare-fun tp_is_empty!1 () Bool)
+(assert (=> start!35 tp_is_empty!1))
+(assert (=> b!114 (= e!44 (not (= lambda!52 lambda!53)))))
+(assert (= (and start!35 res!36) b!114))
+(set-info :status unsat)
+(check-sat-assuming (tp_is_empty!1))

@@ -1,0 +1,25 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/ADTInvariantCheck.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!31 () Bool)
+(assert start!31)
+(declare-datatypes ((Foo!12 0))(
+  ( (Foo!13 (x!54 Int)) )
+))
+(declare-fun inv!0 (Foo!12) Bool)
+(assert (=> start!31 (not (inv!0 (Foo!13 1)))))
+(declare-fun bs!14 () Bool)
+(assert (= bs!14 start!31))
+(declare-fun m!23 () Bool)
+(assert (=> bs!14 m!23))
+(set-info :status unsat)
+(check-sat-assuming ((not start!31)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!19 () Bool)
+(assert (=> d!19 (= (inv!0 (Foo!13 1)) (not (= (x!54 (Foo!13 1)) 0)))))
+(assert (=> start!31 d!19))
+(set-info :status unsat)
+(check-sat)

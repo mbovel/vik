@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
 ; EXPECT: ((define-fun a () Int 1) (define-fun b () Int 0) (define-fun f ((x!0 Int)) Int (ite (= x!0 10) 1 1)))
+; logic: QF_UFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UFLIA)
 (declare-fun f (Int) Int)
 (declare-fun a () Int) ; a is a constant
 (declare-const b Int) ; syntax sugar for (declare-fun b () Int)

@@ -1,0 +1,36 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/BalancedParentheses.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!591 () Bool)
+(assert start!591)
+(declare-fun lt!286 () Int)
+(declare-datatypes ((Parenthesis!63 0))(
+  ( (CloseParenthesis!63) (OpenParenthesis!63) )
+))
+(declare-datatypes ((List!91 0))(
+  ( (Cons!91 (head!131 Parenthesis!63) (tail!131 List!91)) (Nil!91) )
+))
+(declare-fun xs!140 () List!91)
+(declare-fun lambda!748 () Int)
+(declare-fun foldRight!49 (List!91 Int Int) Int)
+(assert (=> start!591 (= lt!286 (foldRight!49 xs!140 0 lambda!748))))
+(declare-datatypes ((Balance!96 0))(
+  ( (Balance!97 (extraOpen!88 Int) (extraClose!88 Int)) )
+))
+(declare-fun lt!285 () Balance!96)
+(declare-fun lambda!747 () Int)
+(declare-fun foldRight!50 (List!91 Balance!96 Int) Balance!96)
+(assert (=> start!591 (= lt!285 (foldRight!50 xs!140 (Balance!97 0 0) lambda!747))))
+(assert (=> start!591 false))
+(assert (=> start!591 true))
+(declare-fun bs!427 () Bool)
+(assert (= bs!427 start!591))
+(declare-fun m!1841 () Bool)
+(assert (=> bs!427 m!1841))
+(declare-fun m!1843 () Bool)
+(assert (=> bs!427 m!1843))
+(set-info :status unsat)
+(check-sat-assuming ((not start!591)))
+(set-info :status unsat)
+(check-sat)

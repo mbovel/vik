@@ -1,5 +1,6 @@
 ; From z3test: 3730.smt2 (MIT, LICENSES/z3test.txt)
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :proof true)
 (declare-fun _substvar_3_ () Bool)
 (set-info :status sat)
