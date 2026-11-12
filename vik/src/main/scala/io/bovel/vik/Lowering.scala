@@ -142,6 +142,23 @@ private final class Lowerer:
    */
   private val blast = !sys.props.get("vik.blast").contains("false")
 
+  // Below, the integer view of an operation stays the integers' unless one of its operands' bits are known.
+  // The exceptions, each where the integer view is worse for the search:
+  // A sign extension of unknown bits is a circuit: in the integers, the chains of wrapped subtractions on it
+  // (`Longs`) are overflow cases for the search where adders propagate.
+  private val sextInt = sys.props.get("vik.blast.sext").contains("int")
+  // A left shift by a literal stays in the integers up to this many places: its overflow count ranges over
+  // 2^k values, a few cases for the SAT solver, past them an unknown with 2^width as its coefficient.
+  private val shlIntMax: Int = sys.props.get("vik.blast.shl").map(_.toInt).getOrElse(2)
+  /** The widest division by an unknown that is a circuit: a divider has width² cells. */
+  private val divCircuitWidth: Int = sys.props.get("vik.blast.divwidth").map(_.toInt).getOrElse(16)
+  /** The widest operand of a run mask that is decomposed into bits: past it (256-bit words), a mask is a
+   *  division in the integers, where bits of the masked operand would drag its sums into wide adders.
+   */
+  private val maskBitsWidth: Int = sys.props.get("vik.blast.maskwidth").map(_.toInt).getOrElse(64)
+  private def contiguous(mask: BigInt, width: Int): Boolean =
+    (0 to width).exists(k => mask == modulus(k) - 1 || mask == modulus(width) - modulus(k))
+
   /** The circuit outputs, by their integer stand-in: their bits and width. */
   private val circuits = HashMap.empty[Term, IndexedSeq[Formula]]
 
@@ -1000,6 +1017,17 @@ private final class Lowerer:
     case _ if !blast => integerBv(op, args, env)
     case _ =>
       val ws = args.map(width(_, env))
+      // A run of low or high bits under a mask is a division in the integers (the sign bit a
+      // comparison): no decomposition of the other operand unless it already is bits.
+      val runMask = op match
+        case BvOp.And | BvOp.Or | BvOp.Xor if ws.head > maskBitsWidth => args match
+          case List(s2.Term.Bits(m, w), _) => contiguous(m, w)
+          case List(_, s2.Term.Bits(m, w)) => contiguous(m, w)
+          case _ => false
+        case _ => false
+      if runMask then
+        val List(a, b) = args.map(term(_, env)): @unchecked
+        if !isCircuit(a) && !isCircuit(b) then return bitwise(op, a, b, ws.head)
       val ts = args.map(term(_, env))
       val w = ws.head
       def unknown = ts.zip(ws).forall((t, w) => t.isInstanceOf[Num] || knownBits(t, w).isEmpty)
@@ -1012,10 +1040,11 @@ private final class Lowerer:
         // A division in the integers, a few rows where a circuit drags its operands into bits (a
         // divider is rows of adders); bits once an operand's are known.
         case BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod =>
-          unknown
+          (ts(1).isInstanceOf[Num] || w > divCircuitWidth) && unknown
         // A shift of an unknown by an unknown likewise: a barrel shifter is rows of multiplexers for the SAT
         // solver. A literal shifted by an unknown (`1 << n`) is a decoder, which the SAT solver handles well.
         // A shift by a literal is a product or a division by a power of two.
+        case BvOp.Shl if ts(1).isInstanceOf[Num] && ts(1).asInstanceOf[Num].value > shlIntMax => false
         case BvOp.Shl | BvOp.Lshr | BvOp.Ashr =>
           !ts(0).isInstanceOf[Num] && unknown
         // An extract, a concatenation, an extension or a rotation of numbers whose bits are not known is a
@@ -1023,6 +1052,7 @@ private final class Lowerer:
         // not become adders because its low byte is compared).
         // A complement is `2^w − 1 − t`.
         case BvOp.Not => unknown
+        case BvOp.SignExtend(_) if !sextInt => false
         case _ if structural(op) => unknown
         case _ => false
       if linear && structural(op) && !ts.exists(isCircuit) then
@@ -1270,7 +1300,13 @@ private final class Lowerer:
 
   private def circuit(op: BvOp, args: List[(Term, Int)]): Term =
     val w = args.head._2
-    def bs(i: Int): IndexedSeq[Formula] = bitsOf(args(i)._1, args(i)._2)
+    def bs(i: Int): IndexedSeq[Formula] = args match
+      // Under the sign mask, the bit a comparison: no decomposition of the other operand.
+      case List((t, w), (Num(m), _)) if op == BvOp.And && i == 0 && m == modulus(w - 1) && knownBits(t, w).isEmpty =>
+        IndexedSeq.fill(w - 1)(False) :+ Ge(t, Num(modulus(w - 1)))
+      case List((Num(m), w), (t, _)) if op == BvOp.And && i == 1 && m == modulus(w - 1) && knownBits(t, w).isEmpty =>
+        IndexedSeq.fill(w - 1)(False) :+ Ge(t, Num(modulus(w - 1)))
+      case _ => bitsOf(args(i)._1, args(i)._2)
     def fold(f: (IndexedSeq[Formula], IndexedSeq[Formula]) => IndexedSeq[Formula]): IndexedSeq[Formula] =
       args.indices.map(bs).reduceLeft(f)
     def sign(x: IndexedSeq[Formula]) = x(x.length - 1)
