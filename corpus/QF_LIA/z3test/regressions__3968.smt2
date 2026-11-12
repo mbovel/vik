@@ -1,5 +1,7 @@
 ; From z3test: 3968.smt2 (MIT, LICENSES/z3test.txt)
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
+; logic: QF_LIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_LIA)
 (declare-fun a () Int)
 (declare-fun b () Int)
 (assert (distinct a b))

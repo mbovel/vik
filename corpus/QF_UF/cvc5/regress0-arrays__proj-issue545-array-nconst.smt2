@@ -1,7 +1,8 @@
 ; From cvc5: regress0/arrays/proj-issue545-array-nconst.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; SCRUBBER: sed -e 's/((f.*/((f/g'
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :produce-models true)
 (declare-sort u 0)
 (declare-const x u)

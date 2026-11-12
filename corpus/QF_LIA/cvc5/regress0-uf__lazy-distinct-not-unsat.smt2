@@ -1,0 +1,15 @@
+; From cvc5: regress0/uf/lazy-distinct-not-unsat.smt2 (modified BSD, LICENSES/cvc5.txt)
+; EXPECT: unsat
+; logic: QF_LIA, the smallest the script fits, for QF_UFLIA (prune logic)
+(set-logic QF_LIA)
+(declare-fun a () Int)
+(declare-fun b () Int)
+(declare-fun c () Int)
+(declare-fun d () Int)
+(declare-fun e () Int)
+(declare-fun f () Int)
+(assert (not (distinct a b c d e f)))
+(assert 
+(and (not (= a b)) (not (= a c)) (not (= a d)) (not (= a e)) (not (= a f)) (not (= b c)) (not (= b d)) (not (= b e)) (not (= b f)) (not (= c d)) (not (= c e)) (not (= c f)) (not (= d e)) (not (= d f)) (not (= e f))))
+(set-info :status unsat)
+(check-sat)

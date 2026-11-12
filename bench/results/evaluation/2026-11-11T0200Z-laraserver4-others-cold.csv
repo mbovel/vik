@@ -1,0 +1,230 @@
+solver,instance,samples_s
+z3,QG-classification__qg5__iso_brn001,0.017 0.016 0.015
+cvc5,QG-classification__qg5__iso_brn001,0.011 0.010 0.010
+princess,QG-classification__qg5__iso_brn001,0.891 0.915 0.870
+smtinterpol,QG-classification__qg5__iso_brn001,0.151 0.152 0.153
+z3,QG-classification__qg5__iso_icl662,0.019 0.018 0.019
+cvc5,QG-classification__qg5__iso_icl662,0.023 0.022 0.022
+princess,QG-classification__qg5__iso_icl662,1.460 1.569 1.526
+smtinterpol,QG-classification__qg5__iso_icl662,0.219 0.210 0.199
+z3,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.015 0.013 0.013
+cvc5,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.007 0.005 0.005
+princess,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.514 0.551 0.530
+smtinterpol,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.109 0.109 0.108
+z3,20170829-Rodin__smt3534838651727683253,0.013 0.013 0.013
+cvc5,20170829-Rodin__smt3534838651727683253,0.006 0.005 0.005
+princess,20170829-Rodin__smt3534838651727683253,0.491 0.514 0.502
+smtinterpol,20170829-Rodin__smt3534838651727683253,0.106 0.109 0.107
+z3,20190906-CLEARSY__0016__00003,0.014 0.013 0.013
+cvc5,20190906-CLEARSY__0016__00003,0.007 0.005 0.005
+princess,20190906-CLEARSY__0016__00003,0.636 0.637 0.647
+smtinterpol,20190906-CLEARSY__0016__00003,0.117 0.116 0.114
+z3,TypeSafe__z3.1184131,0.014 0.013 0.013
+cvc5,TypeSafe__z3.1184131,0.006 0.005 0.005
+princess,TypeSafe__z3.1184131,0.521 0.517 0.517
+smtinterpol,TypeSafe__z3.1184131,0.111 0.112 0.110
+z3,NEQ__NEQ004_size4,0.019 0.019 0.018
+cvc5,NEQ__NEQ004_size4,0.036 0.036 0.035
+princess,NEQ__NEQ004_size4,timeout
+smtinterpol,NEQ__NEQ004_size4,0.345 0.357 0.356
+z3,CAV_2009_benchmarks__20-vars__problem__001,0.018 0.017 0.016
+cvc5,CAV_2009_benchmarks__20-vars__problem__001,0.036 0.035 0.034
+princess,CAV_2009_benchmarks__20-vars__problem__001,0.579 0.610 0.593
+smtinterpol,CAV_2009_benchmarks__20-vars__problem__001,0.139 0.136 0.134
+z3,cut_lemmas__10-vars__cut_lemma_01_001,0.016 0.015 0.015
+cvc5,cut_lemmas__10-vars__cut_lemma_01_001,0.007 0.005 0.005
+princess,cut_lemmas__10-vars__cut_lemma_01_001,0.527 0.522 0.510
+smtinterpol,cut_lemmas__10-vars__cut_lemma_01_001,0.132 0.130 0.130
+z3,dillig__20-4,0.019 0.018 0.019
+cvc5,dillig__20-4,0.042 0.042 0.043
+princess,dillig__20-4,0.643 0.609 0.639
+smtinterpol,dillig__20-4,0.158 0.161 0.156
+z3,prime-cone__prime_cone_unsat_3,0.018 0.017 0.017
+cvc5,prime-cone__prime_cone_unsat_3,0.010 0.008 0.010
+princess,prime-cone__prime_cone_unsat_3,0.525 0.523 0.535
+smtinterpol,prime-cone__prime_cone_unsat_3,0.140 0.128 0.132
+z3,convert__convert-tiff2jpg-query-1831,0.015 0.014 0.015
+cvc5,convert__convert-tiff2jpg-query-1831,0.008 0.007 0.007
+princess,convert__convert-tiff2jpg-query-1831,0.545 0.545 0.559
+smtinterpol,convert__convert-tiff2jpg-query-1831,0.163 0.157 0.147
+z3,mathsat__FISCHER1-1-fair,0.015 0.014 0.014
+cvc5,mathsat__FISCHER1-1-fair,0.008 0.006 0.006
+princess,mathsat__FISCHER1-1-fair,0.633 0.642 0.616
+smtinterpol,mathsat__FISCHER1-1-fair,0.143 0.135 0.142
+z3,wisas__xs_8_8,0.018 0.016 0.016
+cvc5,wisas__xs_8_8,0.013 0.012 0.012
+princess,wisas__xs_8_8,0.869 0.849 0.876
+smtinterpol,wisas__xs_8_8,0.189 0.185 0.177
+z3,TwoSquares__smtlib.598294,0.015 0.014 0.014
+cvc5,TwoSquares__smtlib.598294,0.007 0.005 0.006
+princess,TwoSquares__smtlib.598294,0.588 0.595 0.595
+smtinterpol,TwoSquares__smtlib.598294,0.115 0.112 0.120
+z3,mathsat__Wisa__xs-09-05-2-4-4-5,0.017 0.017 0.016
+cvc5,mathsat__Wisa__xs-09-05-2-4-4-5,0.015 0.014 0.014
+princess,mathsat__Wisa__xs-09-05-2-4-4-5,0.891 0.925 0.916
+smtinterpol,mathsat__Wisa__xs-09-05-2-4-4-5,0.278 0.276 0.286
+z3,keymaera__division_dijkstra-node701,0.014 0.013 0.013
+cvc5,keymaera__division_dijkstra-node701,0.006 0.005 0.005
+princess,keymaera__division_dijkstra-node701,0.511 0.478 0.516
+smtinterpol,keymaera__division_dijkstra-node701,0.109 0.111 0.108
+z3,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.014 0.014 0.013
+cvc5,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.006 0.005 0.005
+princess,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.673 0.613 0.627
+smtinterpol,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.117 0.128 0.125
+z3,RandomDecoupled__pb_real_30_60_45_28,0.020 0.019 0.018
+cvc5,RandomDecoupled__pb_real_30_60_45_28,0.019 0.018 0.018
+princess,RandomDecoupled__pb_real_30_60_45_28,5.905 5.899 5.846
+smtinterpol,RandomDecoupled__pb_real_30_60_45_28,0.241 0.244 0.249
+z3,bench_ab__a649test0047,0.017 0.015 0.016
+cvc5,bench_ab__a649test0047,0.011 0.010 0.010
+princess,bench_ab__a649test0047,0.642 0.643 0.630
+smtinterpol,bench_ab__a649test0047,0.157 0.157 0.157
+z3,sage__app2__bench_512,0.074 0.078 0.076
+cvc5,sage__app2__bench_512,0.049 0.048 0.048
+princess,sage__app2__bench_512,0.690 0.694 0.673
+smtinterpol,sage__app2__bench_512,0.195 0.187 0.197
+z3,pspace__ndist.a.20000,timeout
+cvc5,pspace__ndist.a.20000,0.006 0.005 0.005
+princess,pspace__ndist.a.20000,0.582 0.593 0.598
+smtinterpol,pspace__ndist.a.20000,0.228 0.215 0.221
+z3,spear__cvs_v1.11.22__cvs_vc71402,0.015 0.013 0.013
+cvc5,spear__cvs_v1.11.22__cvs_vc71402,0.011 0.009 0.009
+princess,spear__cvs_v1.11.22__cvs_vc71402,0.713 0.699 0.759
+smtinterpol,spear__cvs_v1.11.22__cvs_vc71402,0.288 0.269 0.263
+z3,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,0.020 0.020 0.019
+cvc5,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,0.021 0.020 0.019
+princess,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,timeout
+smtinterpol,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,2.316 2.277 2.296
+z3,20172804-Barrett__tests__v1__v1l20086.cvc,0.014 0.013 0.013
+cvc5,20172804-Barrett__tests__v1__v1l20086.cvc,0.007 0.007 0.005
+princess,20172804-Barrett__tests__v1__v1l20086.cvc,0.640 0.641 0.646
+smtinterpol,20172804-Barrett__tests__v1__v1l20086.cvc,0.113 0.110 0.110
+z3,20172804-Barrett__tests__v10__v10l20080.cvc,0.015 0.015 0.013
+cvc5,20172804-Barrett__tests__v10__v10l20080.cvc,0.006 0.005 0.005
+princess,20172804-Barrett__tests__v10__v10l20080.cvc,0.815 0.799 0.806
+smtinterpol,20172804-Barrett__tests__v10__v10l20080.cvc,0.110 0.111 0.115
+z3,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.015 0.014 0.015
+cvc5,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.007 0.005 0.005
+princess,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.666 0.685 0.667
+smtinterpol,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.122 0.124 0.118
+z3,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.038 0.036 0.036
+cvc5,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.115 0.115 0.125
+princess,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,2.015 2.059 1.986
+smtinterpol,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.424 0.415 0.428
+z3,alpha-093dddceea58,0.016 0.014 0.014
+cvc5,alpha-093dddceea58,0.007 0.006 0.006
+princess,alpha-093dddceea58,0.616 0.609 0.612
+smtinterpol,alpha-093dddceea58,0.139 0.136 0.145
+z3,alpha-fib_memoized-36bd61c61979,0.017 0.016 0.014
+cvc5,alpha-fib_memoized-36bd61c61979,0.009 0.008 0.010
+princess,alpha-fib_memoized-36bd61c61979,0.659 0.668 0.670
+smtinterpol,alpha-fib_memoized-36bd61c61979,0.146 0.148 0.149
+z3,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.015 0.013 0.013
+cvc5,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.006 0.005 0.005
+princess,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.736 0.733 0.747
+smtinterpol,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.114 0.116 0.111
+z3,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.014 0.013 0.013
+cvc5,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.006 0.005 0.005
+princess,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.807 0.785 0.823
+smtinterpol,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.122 0.115 0.120
+z3,check__array_incompleteness1,0.015 0.013 0.013
+cvc5,check__array_incompleteness1,0.007 0.006 0.005
+princess,check__array_incompleteness1,0.748 0.755 0.788
+smtinterpol,check__array_incompleteness1,0.118 0.122 0.115
+z3,stainless-issue-1801__repro,0.016 0.016 0.016
+cvc5,stainless-issue-1801__repro,0.006 0.005 0.006
+princess,stainless-issue-1801__repro,error
+z3,20190906-CLEARSY__0020__00009,0.019 0.019 0.018
+cvc5,20190906-CLEARSY__0020__00009,0.031 0.031 0.030
+princess,20190906-CLEARSY__0020__00009,error
+smtinterpol,20190906-CLEARSY__0020__00009,0.259 0.246 0.246
+z3,lustre__two_counters.bmc_k100.prefix25,0.021 0.020 0.021
+cvc5,lustre__two_counters.bmc_k100.prefix25,0.012 0.011 0.012
+princess,lustre__two_counters.bmc_k100.prefix25,1.255 1.302 1.234
+smtinterpol,lustre__two_counters.bmc_k100.prefix25,0.220 0.235 0.225
+z3,lustre__ex3.bmc_k100.prefix25,0.184 0.185 0.188
+cvc5,lustre__ex3.bmc_k100.prefix25,0.302 0.301 0.302
+princess,lustre__ex3.bmc_k100.prefix25,timeout
+smtinterpol,lustre__ex3.bmc_k100.prefix25,0.512 0.545 0.491
+z3,kind__MESI_i4.ec,0.028 0.026 0.025
+cvc5,kind__MESI_i4.ec,0.095 0.093 0.093
+princess,kind__MESI_i4.ec,2.543 2.622 2.424
+smtinterpol,kind__MESI_i4.ec,0.279 0.279 0.279
+z3,kind__car_6_e2_893.ec,0.099 0.098 0.100
+cvc5,kind__car_6_e2_893.ec,0.890 0.889 0.892
+princess,kind__car_6_e2_893.ec,timeout
+smtinterpol,kind__car_6_e2_893.ec,0.558 0.572 0.597
+z3,cpachecker__diskperf_simpl1,0.016 0.016 0.016
+cvc5,cpachecker__diskperf_simpl1,0.013 0.012 0.012
+princess,cpachecker__diskperf_simpl1,0.943 1.008 0.977
+smtinterpol,cpachecker__diskperf_simpl1,0.166 0.160 0.164
+z3,cpachecker__list_false-unreach-call,0.025 0.025 0.025
+cvc5,cpachecker__list_false-unreach-call,0.041 0.040 0.040
+princess,cpachecker__list_false-unreach-call,2.003 2.045 2.005
+smtinterpol,cpachecker__list_false-unreach-call,0.287 0.281 0.284
+z3,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.020 0.017 0.017
+cvc5,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.007 0.006 0.006
+princess,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.727 0.697 0.694
+smtinterpol,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.162 0.161 0.157
+z3,asn1jvm__2899,timeout
+cvc5,asn1jvm__2899,timeout
+princess,asn1jvm__2899,1.222 1.155 1.156
+smtinterpol,asn1jvm__2899,error
+z3,bmc__stack_k20,0.022 0.020 0.019
+cvc5,bmc__stack_k20,0.387 0.385 0.386
+princess,bmc__stack_k20,timeout
+smtinterpol,bmc__stack_k20,0.711 0.739 0.707
+z3,safari__mux,0.028 0.027 0.027
+cvc5,safari__mux,0.043 0.042 0.041
+princess,safari__mux,3.210 3.194 3.196
+smtinterpol,safari__mux,0.293 0.298 0.305
+z3,safari__illinois,0.045 0.044 0.044
+cvc5,safari__illinois,0.094 0.093 0.094
+princess,safari__illinois,5.019 4.901 5.165
+smtinterpol,safari__illinois,0.497 0.459 0.466
+z3,valid-GodelNumbering__167,0.014 0.015 0.014
+cvc5,valid-GodelNumbering__167,0.015 0.013 0.013
+princess,valid-GodelNumbering__167,error
+z3,valid-Count__10,0.055 0.054 0.053
+cvc5,valid-Count__10,0.058 0.056 0.057
+princess,valid-Count__10,error
+z3,valid-LawTypeArgsElim__78,0.052 0.052 0.051
+cvc5,valid-LawTypeArgsElim__78,0.182 0.182 0.179
+princess,valid-LawTypeArgsElim__78,error
+z3,valid-LawTypeArgsElim__24,0.038 0.039 0.043
+cvc5,valid-LawTypeArgsElim__24,0.130 0.128 0.128
+princess,valid-LawTypeArgsElim__24,error
+z3,invalid-BadConcRope__59,0.033 0.031 0.031
+cvc5,invalid-BadConcRope__59,0.102 0.101 0.103
+princess,invalid-BadConcRope__59,error
+z3,valid-PropositionalLogic__111,0.020 0.020 0.020
+cvc5,valid-PropositionalLogic__111,0.028 0.028 0.026
+princess,valid-PropositionalLogic__111,error
+z3,invalid-BinarySearch1__39,0.025 0.025 0.023
+cvc5,invalid-BinarySearch1__39,0.065 0.063 0.064
+princess,invalid-BinarySearch1__39,error
+z3,valid-Factorial__0,0.944 0.915 0.914
+cvc5,valid-Factorial__0,0.521 0.520 0.522
+princess,valid-Factorial__0,error
+z3,valid-BooleanOps__9,0.015 0.014 0.013
+cvc5,valid-BooleanOps__9,0.009 0.007 0.007
+princess,valid-BooleanOps__9,error
+z3,invalid-PackedFloat8__11,0.019 0.018 0.018
+cvc5,invalid-PackedFloat8__11,0.012 0.011 0.011
+princess,invalid-PackedFloat8__11,error
+z3,valid-BitsTricksSlow__1,0.024 0.023 0.024
+cvc5,valid-BitsTricksSlow__1,0.034 0.033 0.033
+princess,valid-BitsTricksSlow__1,error
+z3,valid-BitsTricks__2,0.017 0.015 0.016
+cvc5,valid-BitsTricks__2,0.007 0.006 0.006
+princess,valid-BitsTricks__2,0.750 0.786 0.766
+smtinterpol,valid-BitsTricks__2,0.212 0.229 0.214
+z3,invalid-BraunTree__4,0.087 0.085 0.086
+cvc5,invalid-BraunTree__4,0.205 0.210 0.205
+princess,invalid-BraunTree__4,error
+z3,invalid-AddNaturals2__1,0.178 0.173 0.172
+cvc5,invalid-AddNaturals2__1,0.189 0.200 0.189
+princess,invalid-AddNaturals2__1,error
+z3,invalid-BinarySearch2__36,0.059 0.053 0.055
+cvc5,invalid-BinarySearch2__36,0.425 0.387 0.418
+princess,invalid-BinarySearch2__36,error

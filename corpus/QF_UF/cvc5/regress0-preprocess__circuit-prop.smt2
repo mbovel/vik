@@ -7,9 +7,10 @@
 ; EXPECT: unsat
 ; EXPECT: unsat
 ; EXPECT: unsat
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
 
 ;;;;; iteEvalThen(true)
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
@@ -22,7 +23,7 @@
 (reset)
 
 ;;;;; iteEvalThen(false)
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
@@ -36,7 +37,7 @@
 (reset)
 
 ;;;;; iteEvalElse(true)
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
@@ -49,7 +50,7 @@
 (reset)
 
 ;;;;; iteEvalElse(false)
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
@@ -62,7 +63,7 @@
 
 (reset)
 
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
@@ -76,14 +77,14 @@
 
 (reset)
 
-(set-logic ALL)
+(set-logic QF_UF)
 (assert false)
 (set-info :status unsat)
 (check-sat)
 
 (reset)
 
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun x () Bool)
 (declare-fun z () Bool)
 (assert (= x z))
@@ -94,7 +95,7 @@
 
 (reset)
 
-(set-logic ALL)
+(set-logic QF_UF)
 (declare-fun x3 () Bool)
 (declare-fun x9 () Bool)
 (assert (not x3))

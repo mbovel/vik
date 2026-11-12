@@ -1,0 +1,28 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/CopyInv.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!1 () Bool)
+(assert start!1)
+(declare-fun y!1 () Int)
+(declare-datatypes ((Foo!4 0))(
+  ( (Foo!5 (x!18 Int)) )
+))
+(declare-fun inv!0 (Foo!4) Bool)
+(assert (=> start!1 (not (inv!0 (Foo!5 y!1)))))
+(assert (=> start!1 true))
+(declare-fun bs!1 () Bool)
+(assert (= bs!1 start!1))
+(declare-fun m!1 () Bool)
+(assert (=> bs!1 m!1))
+(set-info :status unsat)
+(check-sat-assuming ((not start!1)))
+(set-info :status sat)
+(check-sat)
+(get-model)
+(declare-fun d!1 () Bool)
+(assert (=> d!1 (= (inv!0 (Foo!5 y!1)) (> (x!18 (Foo!5 y!1)) 0))))
+(assert (=> start!1 d!1))
+(set-info :status sat)
+(check-sat)
+(get-model)

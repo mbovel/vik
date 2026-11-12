@@ -1,6 +1,7 @@
 ; From cvc5: regress0/datatypes/boolean-terms-datatype.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (set-option :incremental false)
 (declare-datatypes ((List 0)) (((cons (car Bool) (cdr List)) (nil))))
 (declare-fun x () List)

@@ -1,7 +1,8 @@
 ; From cvc5: regress0/datatypes/tree-get-value.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
 ; EXPECT: (((left x) leaf))
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (set-option :incremental false)
 (set-option :produce-models true)
 (declare-datatypes ((tree 0)) (((node (left tree) (right tree)) (leaf))))

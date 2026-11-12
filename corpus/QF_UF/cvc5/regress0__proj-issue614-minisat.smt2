@@ -1,7 +1,8 @@
 ; From cvc5: regress0/proj-issue614-minisat.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :check-unsat-cores true)
 (set-option :incremental true)
 (set-option :produce-proofs true)

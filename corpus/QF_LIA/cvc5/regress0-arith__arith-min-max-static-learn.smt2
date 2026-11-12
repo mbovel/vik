@@ -1,6 +1,7 @@
 ; From cvc5: regress0/arith/arith-min-max-static-learn.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_LIA)
 (declare-fun a () Int)
 (define-fun b () Int 1)
 (declare-fun d () Int)

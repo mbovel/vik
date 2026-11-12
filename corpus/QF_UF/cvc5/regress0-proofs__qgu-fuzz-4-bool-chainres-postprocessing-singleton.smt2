@@ -1,6 +1,7 @@
 ; From cvc5: regress0/proofs/qgu-fuzz-4-bool-chainres-postprocessing-singleton.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (declare-fun b () Bool)
 (declare-fun c () Bool)
 (declare-fun d () Bool)

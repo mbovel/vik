@@ -1,4 +1,6 @@
 ; From z3test: 3116.smt2 (MIT, LICENSES/z3test.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 (declare-fun a () Bool)
 (declare-fun b () Bool)
 (assert (or (not (and a b)) (not a)))

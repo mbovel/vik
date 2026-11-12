@@ -1,0 +1,31 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/ListMonad.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!142 () Bool)
+(assert start!142)
+(declare-fun lt!390 () Bool)
+(declare-datatypes ((T!149 0))(
+  ( (T!150 (val!35 Int)) )
+))
+(declare-datatypes ((List!39 0))(
+  ( (Nil!37) (Cons!37 (h!106 T!149) (t!168 List!39)) )
+))
+(declare-fun list!50 () List!39)
+(declare-fun right_unit_law!2 (List!39) Bool)
+(assert (=> start!142 (= lt!390 (right_unit_law!2 list!50))))
+(assert (=> start!142 false))
+(declare-fun e!522 () Bool)
+(assert (=> start!142 e!522))
+(declare-fun b!736 () Bool)
+(declare-fun tp_is_empty!67 () Bool)
+(declare-fun tp!225 () Bool)
+(assert (=> b!736 (= e!522 (and tp_is_empty!67 tp!225))))
+(get-info :version)
+(assert (= (and start!142 ((_ is Cons!37) list!50)) b!736))
+(declare-fun m!611 () Bool)
+(assert (=> start!142 m!611))
+(set-info :status unsat)
+(check-sat-assuming ((not start!142) (not b!736) tp_is_empty!67))
+(set-info :status unsat)
+(check-sat)

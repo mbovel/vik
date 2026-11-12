@@ -2,6 +2,8 @@
 ; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-09-03)
 ; EXPECT: sat
 ; EXPECT: ((define-fun a () (_ BitVec 4) #b1000) (define-fun b () (_ BitVec 4) #b0000))
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 (declare-const a (_ BitVec 4))
 (declare-const b (_ BitVec 4))
 (assert (not (= (bvule a b) (bvsle a b))))

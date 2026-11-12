@@ -1,0 +1,23 @@
+; origin: Scala 3 qualified types (scala3-rt branch qualifiers-vik), one implication checked by the qualifier solver while compiling the test `sized_vec1.scala`, Int/Long as 32/64-bit vectors
+; original path: tests/*-custom-args/qualified-types/sized_vec1.scala, dumped with -Yqualified-types-smt-dump (bit-vector default)
+; license: Apache-2.0 (the scala3 repository); :status unsat = proved by the e-graph, unknown = not proved
+; untyped: Vec
+; logic: QF_UFBV, narrowed from QF_UFBVDT, which claims more than the script uses (prune logic)
+(set-info :source |qualified types implication; e-graph: proved|)
+(set-info :status unsat)
+(set-logic QF_UFBV)
+(declare-sort Any 0)
+(declare-fun sized_vec1$package$.vec ((_ BitVec 32)) Any)
+(declare-fun v3 () Any)
+(declare-fun sized_vec1$package$.size (Any) (_ BitVec 32))
+(declare-fun v4 () Any)
+(declare-fun x0 () Any)
+(assert (= (sized_vec1$package$.vec (_ bv3 32)) v3))
+(assert (= (_ bv3 32) (sized_vec1$package$.size (sized_vec1$package$.vec (_ bv3 32)))))
+(assert (= (_ bv3 32) (sized_vec1$package$.size v3)))
+(assert (= (sized_vec1$package$.vec (_ bv4 32)) v4))
+(assert (= (_ bv4 32) (sized_vec1$package$.size (sized_vec1$package$.vec (_ bv4 32)))))
+(assert (= (_ bv4 32) (sized_vec1$package$.size v4)))
+(assert (= (sized_vec1$package$.size x0) (bvadd (sized_vec1$package$.size v3) (sized_vec1$package$.size v4))))
+(assert (not (= (sized_vec1$package$.size x0) (_ bv7 32))))
+(check-sat)

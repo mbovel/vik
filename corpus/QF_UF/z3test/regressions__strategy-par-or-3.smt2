@@ -1,5 +1,7 @@
 ; From z3test: strategy-par-or-3.smt2 (MIT, LICENSES/z3test.txt)
 ;; Copyright (c) 2016 Microsoft Corporation 
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
 
 (set-info :source |Written by D. B. Staple for GitHub issue #629.|)
 (set-info :status sat)

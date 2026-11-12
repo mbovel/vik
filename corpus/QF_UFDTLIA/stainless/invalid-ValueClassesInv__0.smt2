@@ -1,0 +1,33 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/invalid/ValueClassesInv.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_UFDTLIA)
+(declare-fun start!2 () Bool)
+(assert start!2)
+(declare-fun res!65 () Bool)
+(declare-fun e!18 () Bool)
+(assert (=> start!2 (=> (not res!65) (not e!18))))
+(declare-datatypes ((List!4 0))(
+  ( (Cons!2 (h!61 Int) (t!71 List!4)) (Nil!2) )
+))
+(declare-datatypes ((tuple2!0 0))(
+  ( (tuple2!1 (_1!0 List!4) (_2!0 Int)) )
+))
+(declare-fun d!1 () tuple2!0)
+(declare-fun inv!3 (tuple2!0) Bool)
+(assert (=> start!2 (= res!65 (inv!3 d!1))))
+(assert (=> start!2 e!18))
+(declare-fun lt!2 () tuple2!0)
+(assert (=> start!2 (= lt!2 d!1)))
+(assert (=> start!2 (inv!3 lt!2)))
+(declare-fun b!9 () Bool)
+(assert (=> b!9 (= e!18 false)))
+(assert (= (and start!2 res!65) b!9))
+(declare-fun m!1 () Bool)
+(assert (=> start!2 m!1))
+(declare-fun m!3 () Bool)
+(assert (=> start!2 m!3))
+(set-info :status unsat)
+(check-sat-assuming ((not start!2)))
+(set-info :status unsat)
+(check-sat)

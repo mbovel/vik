@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The generator of corpus/QF_DT/vik/bmc__stack_k20.smt2: gen-bmc-stack.py [steps=20] > file.smt2
+"""The generator of corpus/QF_UFDTLIA/vik/bmc__stack_k20.smt2: gen-bmc-stack.py [steps=20] > file.smt2
 
 Bounded model checking over a datatype, the way a BMC tool drives an incremental solver: a stack of
 integers takes push and pop moves, unrolled step by step; at each depth the step's postcondition is

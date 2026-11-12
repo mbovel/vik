@@ -1,6 +1,7 @@
 ; From cvc5: regress0/preprocess/proj-issue309-circuit-prop-ite.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_UF, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_UF)
 (set-option :produce-proofs true)
 (declare-fun a () Bool)
 (declare-fun c () Bool)

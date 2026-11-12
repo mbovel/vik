@@ -1,6 +1,7 @@
 ; From cvc5: regress0/datatypes/v5l30058.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (set-option :incremental false)
 (declare-datatypes ((nat 0)(list 0)(tree 0)) (((succ (pred nat)) (zero))((cons (car tree) (cdr list)) (null))((node (children list)) (leaf (data nat)))))
 (declare-fun x1 () nat)

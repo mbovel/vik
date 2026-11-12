@@ -1,4 +1,6 @@
 ; From princess: smtlib-parser/let3.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_UFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UFLIA)
 
 (set-option :inline-let false)
 

@@ -1,8 +1,9 @@
 ; From cvc5: regress0/cvc-rerror-print.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: unsat
 ; EXPECT: (error "no model")
+; logic: QF_LIA, the smallest the script fits, for ALL (prune logic)
 (set-option :incremental false)
-(set-logic ALL)
+(set-logic QF_LIA)
 (set-option :produce-models true)
 (declare-fun x () Int)
 (set-info :status unsat)

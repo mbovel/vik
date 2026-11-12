@@ -1,4 +1,6 @@
 ; From princess: bitvectors/intsplitcore.smt2 (BSD, LICENSES/princess.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
 (set-info :smt-lib-version 2.6)
 (declare-fun x () (_ BitVec 2))
 (declare-fun z () (_ BitVec 8))

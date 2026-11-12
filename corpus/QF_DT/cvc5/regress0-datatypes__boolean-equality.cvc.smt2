@@ -1,6 +1,7 @@
 ; From cvc5: regress0/datatypes/boolean-equality.cvc.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
-(set-logic ALL)
+; logic: QF_DT, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_DT)
 (set-option :incremental false)
 (declare-datatypes ((__cvc5_record_b_Bool 0)) (((__cvc5_record_b_Bool_ctor (b Bool)))))
 (declare-fun x () __cvc5_record_b_Bool)

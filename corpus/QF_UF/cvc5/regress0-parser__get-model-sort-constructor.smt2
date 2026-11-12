@@ -1,8 +1,9 @@
 ; From cvc5: regress0/parser/get-model-sort-constructor.smt2 (modified BSD, LICENSES/cvc5.txt)
 ; EXPECT: sat
 ; EXPECT: ()
+; logic: QF_UF, the smallest the script fits, for QF_UFLIRA (prune logic)
 (set-option :produce-models true)
-(set-logic QF_UFLIRA)
+(set-logic QF_UF)
 (declare-sort FArray 2)
 (set-info :status sat)
 (check-sat)

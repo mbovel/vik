@@ -1,0 +1,28 @@
+; origin: Stainless verification benchmarks, commit a1a60c98 (inox 37db9545), one solver session
+; original path: frontends/benchmarks/verification/valid/MapDiff.scala, dumped with --solvers=smt-z3 --debug=smt --vc-cache=false --timeout=30
+; license: Apache-2.0 (the stainless repository); statuses from z3
+(set-logic QF_AUFBVDT)
+(declare-fun start!1 () Bool)
+(assert start!1)
+(declare-datatypes ((Option!6 0))(
+  ( (None!5) (Some!5 (v!15 (_ BitVec 32))) )
+))
+(declare-fun m!1 () (Array (_ BitVec 32) Option!6))
+(assert (=> start!1 (and (not (= (select m!1 #b00000000000000000000000000000001) None!5)) (not (= (select m!1 #b00000000000000000000000000000010) None!5)) (not (= (select m!1 #b00000000000000000000000000000011) None!5)) (not (= (select (store (store m!1 #b00000000000000000000000000000001 None!5) #b00000000000000000000000000000010 None!5) #b00000000000000000000000000000001) None!5)))))
+(assert (=> start!1 true))
+(declare-fun bs!1 () Bool)
+(assert (= bs!1 start!1))
+(declare-fun m!3 () Bool)
+(assert (=> bs!1 m!3))
+(declare-fun m!5 () Bool)
+(assert (=> bs!1 m!5))
+(declare-fun m!7 () Bool)
+(assert (=> bs!1 m!7))
+(declare-fun m!9 () Bool)
+(assert (=> bs!1 m!9))
+(declare-fun m!11 () Bool)
+(assert (=> bs!1 m!11))
+(declare-fun m!13 () Bool)
+(assert (=> bs!1 m!13))
+(set-info :status unsat)
+(check-sat)

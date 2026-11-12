@@ -17,6 +17,14 @@ class SessionTest extends munit.FunSuite:
     assertEquals(s.checkSat(), Some(true))
   }
 
+  test("checkSatAssuming: the assumptions hold for that check alone") {
+    val s = Session()
+    s.run("(declare-const a Bool)")
+    s.assert("a")
+    assertEquals(s.checkSatAssuming(List(s2.Formula.Not(s2.Formula.Pred(Const("a"))))), Some(false))
+    assertEquals(s.checkSat(), Some(true))
+  }
+
   test("a lowered convenience keeps its definitions across the pieces") {
     val s = Session()
     s.run("(set-option :produce-models true) (declare-const x Int) (declare-const y Int)")
