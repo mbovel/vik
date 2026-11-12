@@ -141,6 +141,7 @@ private final class Lowerer:
   private val rearrangements = Memo[(Term, Int), (BvOp, List[Term], List[Int])]()
   private val gates = Memo[Formula, Formula]() // a compound bit to the Boolean constant that names it
   private val linked = Memo[Term, Unit]()
+
   /** Whether bit-vector operations are circuits over their operands' bits (the
    *  integer view only where a term leaves the bit-vectors) rather than linear
    *  relations between integers.
@@ -948,7 +949,9 @@ private final class Lowerer:
       val w = width(args.head, env)
       arithmeticBv(op, args.map(term(_, env)), w)
 
-  /** The operations that rearrange bits: a division by a power of two and a sum in the integers. */
+  /** The operations that rearrange bits: a division by a power of two and a sum
+   *  in the integers.
+   */
   private def structural(op: BvOp): Boolean = op match
     case BvOp.Extract(_, _) | BvOp.ZeroExtend(_) | BvOp.SignExtend(_) | BvOp.Repeat(_) => true
     case BvOp.RotateLeft(_) | BvOp.RotateRight(_) | BvOp.Concat => true
@@ -1001,15 +1004,19 @@ private final class Lowerer:
         case BvOp.Not => unknown
         case _ if structural(op) => unknown
         case _ => false
+      // A multiplier or a divider is `w` rows of `w`-bit adders: beyond 128 bits it stays in the integers,
+      // whatever its operands (a 512-bit product is a quarter of a million adders).
+      val tooWide = w > 128 && (op match
+        case BvOp.Mul | BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod => true
+        case _ => false)
       if linear && structural(op) && !ts.exists(isCircuit) then
         rearranged(structuralBv(op, ts, ws), op, ts, ws)
-      else if linear && !ts.exists(isCircuit) then
+      else if tooWide || linear && !ts.exists(isCircuit) then
         val r = arithmeticBv(op, ts, w)
         op match
           case BvOp.Shl | BvOp.Lshr | BvOp.Ashr if ts(1).isInstanceOf[Num] => rearranged(r, op, ts, ws)
           case _ => r
       else loweredOperations.getOrElseUpdate((op.toString, ts, ws.map(BigInt(_))), circuit(op, ts.zip(ws)))
-
 
   // Bit-blasting: an operation's result is a circuit over its operands' bits — Boolean structure
   // the SAT solver decides — standing for an integer constant that is defined (as the weighted sum
@@ -1140,7 +1147,9 @@ private final class Lowerer:
 
   private def bitsOf(t: Term, width: Int): IndexedSeq[Formula] = bits(t, width)
 
-  /** Notes that `r` is `op` of `ts` rearranging their bits: see [[rearrangements]]. */
+  /** Notes that `r` is `op` of `ts` rearranging their bits: see
+   *  [[rearrangements]].
+   */
   private def rearranged(r: Term, op: BvOp, ts: List[Term], ws: List[Int]): Term =
     val w = op match
       case BvOp.Extract(i, j) => i - j + 1
@@ -1152,7 +1161,8 @@ private final class Lowerer:
     if !r.isInstanceOf[Num] && !ts.zip(ws).contains((r, w)) then rearrangements((r, w)) = (op, ts, ws)
     r
 
-  /** The bits of a rearrangement, its operands' moved: see [[rearrangements]]. */
+  /** The bits of a rearrangement, its operands' moved: see [[rearrangements]].
+   */
   private def rearrangedBits(op: BvOp, ts: List[Term], ws: List[Int]): IndexedSeq[Formula] =
     val b = bits(ts.head, ws.head)
     val w = ws.head
