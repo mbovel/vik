@@ -81,7 +81,7 @@ private final class Lowerer:
    *  solver would take for a store by its prefix.
    */
   private def reserve(name: String): Unit =
-    if minted(name) || name.startsWith("store!") then
+    if minted(name) || name.startsWith("store!") || name.startsWith("gate!") then
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
@@ -110,6 +110,7 @@ private final class Lowerer:
       )
     def update(key: K, value: V): Unit = getOrElseUpdate(key, value)
     def clear(): Unit = entries.clear()
+    def keys: Iterable[K] = entries.keys
 
   private val rangedApplications = Memo[Term, Unit]() // bit-vector applications whose range is asserted
 
@@ -127,8 +128,26 @@ private final class Lowerer:
   private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
   private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
   private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
+  /** A rearrangement of bits kept in the integers (an extract, an extension, a
+   *  shift by a literal…), by its result and width: the operation and its
+   *  operands, so that the result's bits, once a circuit wants them, are its
+   *  operands' rearranged, not fresh ones the SAT solver knows nothing of.
+   */
+  private val rearrangements = Memo[(Term, Int), (BvOp, List[Term], List[Int])]()
+  private val gates = Memo[Formula, Formula]() // a compound bit to the Boolean constant that names it
+  private val linked = Memo[Term, Unit]()
+  /** Whether bit-vector operations are circuits over their operands' bits (the
+   *  integer view only where a term leaves the bit-vectors) rather than linear
+   *  relations between integers.
+   */
+  private val blast = !sys.props.get("vik.blast").contains("false")
+
+  /** The circuit outputs, by their integer stand-in: their bits and width. */
+  private val circuits = HashMap.empty[Term, IndexedSeq[Formula]]
 
   private def clearMemos(): Unit =
+    gates.clear()
+    linked.clear()
     rationals.clear()
     rationalProducts.clear()
     rangedApplications.clear()
@@ -137,6 +156,7 @@ private final class Lowerer:
     loweredSignedDivisions.clear()
     loweredBits.clear()
     bitConstants.clear()
+    rearrangements.clear()
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
@@ -501,6 +521,7 @@ private final class Lowerer:
       macros.clear()
       rationalValues.clear()
       storeSymbols.clear()
+      circuits.clear()
       clearMemos()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
@@ -516,6 +537,7 @@ private final class Lowerer:
           ): Formula | Term
         )
       )
+      link(lowered.map(_._2).collect { case f: Formula => f }, lowered.map(_._2).collect { case t: Term => t })
       val defined = definitions.toList
       // The symbols minted here are declared for good: a `store!N` stays in `storeSymbols`, and a later
       // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
@@ -536,6 +558,11 @@ private final class Lowerer:
 
   /** The introduced declarations and defining assertions, then the command. */
   private def flush(command: Command): List[Command] =
+    command match
+      case Command.Assert(f) => link(List(f))
+      case Command.AssertNamed(_, f) => link(List(f))
+      case Command.CheckSatAssuming(fs) => link(fs)
+      case _ => link(Nil)
     val out = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort)) ++
       definitions.toList.map(Command.Assert(_)) :+ command
     introduced.clear()
@@ -617,13 +644,15 @@ private final class Lowerer:
   private def equal(sort: Sort, lhs: Term, rhs: Term): Formula = sort match
     case Sort.BitVec(w) if bitwiseEquality(List(lhs, rhs), w) =>
       And(bits(lhs, w).zip(bits(rhs, w)).map(same).toList)
+    case Sort.BitVec(_) => IntEq(lhs, rhs)
     case _ => if arithmetic(sort) then IntEq(lhs, rhs) else Eq(lhs, rhs)
 
   /** Whether an equality of these `width`-bit terms is one of bits: all their
    *  bits known, and not all of them literals.
    */
   private def bitwiseEquality(ts: List[Term], width: Int): Boolean =
-    ts.forall(t => knownBits(t, width).isDefined) && ts.exists(!_.isInstanceOf[Num])
+    if blast then ts.exists(isCircuit)
+    else ts.forall(t => knownBits(t, width).isDefined) && ts.exists(!_.isInstanceOf[Num])
 
   /** The conjunction of `conditions`, itself when there is only one. */
   private def chain(conditions: List[Formula]): Formula = conditions match
@@ -715,6 +744,13 @@ private final class Lowerer:
       val sort = sortOf(s2.Term.Ite(cond, thn, els), env)
       val c = formula(cond, env)
       val (t, e) = (term(thn, env), term(els, env))
+      sort match
+        case Sort.BitVec(w) if blast && (isCircuit(t) || isCircuit(e)) =>
+          return loweredOperations.getOrElseUpdate(
+            ("ite", List(Term.boolean(c), t, e), Nil),
+            circuitResult(muxAll(gateOf(c), bits(t, w), bits(e, w)))
+          )
+        case _ => ()
       loweredOperations.getOrElseUpdate(
         ("ite", List(Term.boolean(c), t, e), Nil), {
           val name = freshName("ite")
@@ -924,30 +960,386 @@ private final class Lowerer:
 
   private def modulus(width: Int): BigInt = BigInt(2).pow(width)
 
-  private def bv(op: BvOp, args: List[s2.Term], env: Env): Term = op match
+  private def integerBv(op: BvOp, args: List[s2.Term], env: Env): Term = op match
     // The value of a lowered bit-vector is its unsigned value: `ubv_to_int` vanishes, `sbv_to_int`
     // splits off the sign bit, `(_ int_to_bv n)` is the value modulo 2^n through a pinned overflow
     // count — determined uniquely, so sound under both polarities.
     case BvOp.UbvToInt => term(args.head, env)
     case BvOp.SbvToInt => signed(term(args.head, env), width(args.head, env))
     case BvOp.IntToBv(n) => intToBv(term(args.head, env), n)
-    case BvOp.Extract(i, j) => extract(i, j, term(args.head, env), width(args.head, env))
-    case BvOp.ZeroExtend(_) => term(args.head, env)
-    case BvOp.SignExtend(k) => signExtend(k, term(args.head, env), width(args.head, env))
-    case BvOp.Repeat(k) =>
-      val (t, w) = (term(args.head, env), width(args.head, env))
-      Term.linear((0 until k).toList.map(j => (modulus(j * w), t)))
-    case BvOp.RotateLeft(k) => rotate(k, term(args.head, env), width(args.head, env))
-    case BvOp.RotateRight(k) =>
-      val w = width(args.head, env)
-      rotate(w - k % w, term(args.head, env), w)
-    case BvOp.Concat =>
-      args.map(a => (term(a, env), width(a, env))).reduceLeft { case ((hi, wh), (lo, wl)) =>
-        (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
-      }._1
+    case _ if structural(op) => structuralBv(op, args.map(term(_, env)), args.map(width(_, env)))
     case _ =>
       val w = width(args.head, env)
       arithmeticBv(op, args.map(term(_, env)), w)
+
+  /** The operations that rearrange bits: a division by a power of two and a sum in the integers. */
+  private def structural(op: BvOp): Boolean = op match
+    case BvOp.Extract(_, _) | BvOp.ZeroExtend(_) | BvOp.SignExtend(_) | BvOp.Repeat(_) => true
+    case BvOp.RotateLeft(_) | BvOp.RotateRight(_) | BvOp.Concat => true
+    case _ => false
+
+  private def structuralBv(op: BvOp, ts: List[Term], ws: List[Int]): Term = op match
+    case BvOp.Extract(i, j) => extract(i, j, ts.head, ws.head)
+    case BvOp.ZeroExtend(_) => ts.head
+    case BvOp.SignExtend(k) => signExtend(k, ts.head, ws.head)
+    case BvOp.Repeat(k) =>
+      val (t, w) = (ts.head, ws.head)
+      Term.linear((0 until k).toList.map(j => (modulus(j * w), t)))
+    case BvOp.RotateLeft(k) => rotate(k, ts.head, ws.head)
+    case BvOp.RotateRight(k) =>
+      val w = ws.head
+      rotate(w - k % w, ts.head, w)
+    case BvOp.Concat =>
+      ts.zip(ws).reduceLeft { case ((hi, wh), (lo, wl)) =>
+        (Term.linear(List((BigInt(2).pow(wl), hi), (BigInt(1), lo))), wh + wl)
+      }._1
+    case _ => throw IllegalArgumentException(s"not a structural operation: $op")
+
+  private def bv(op: BvOp, args: List[s2.Term], env: Env): Term = op match
+    case BvOp.UbvToInt | BvOp.SbvToInt | BvOp.IntToBv(_) => integerBv(op, args, env)
+    case _ if !blast => integerBv(op, args, env)
+    case _ =>
+      val ws = args.map(width(_, env))
+      val ts = args.map(term(_, env))
+      val w = ws.head
+      def unknown = ts.zip(ws).forall((t, w) => t.isInstanceOf[Num] || knownBits(t, w).isEmpty)
+      // Linear arithmetic over numbers stays the integers' (a chain of `x + 1 − 1 …` is linear there, a
+      // chain of adders here); it is bits once one of its operands is.
+      val linear = op match
+        case BvOp.Add | BvOp.Sub | BvOp.Neg => true
+        // A product of two unknowns is not linear: a multiplier.
+        case BvOp.Mul => ts.count(!_.isInstanceOf[Num]) <= 1
+        // A division in the integers, a few rows where a circuit drags its operands into bits (a
+        // divider is rows of adders); bits once an operand's are known.
+        case BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod =>
+          unknown
+        // A shift of an unknown by an unknown likewise: a barrel shifter is rows of multiplexers for the SAT
+        // solver. A literal shifted by an unknown (`1 << n`) is a decoder, which the SAT solver handles well.
+        // A shift by a literal is a product or a division by a power of two.
+        case BvOp.Shl | BvOp.Lshr | BvOp.Ashr =>
+          !ts(0).isInstanceOf[Num] && unknown
+        // An extract, a concatenation, an extension or a rotation of numbers whose bits are not known is a
+        // division by a power of two or a weighted sum: its operands stay integers (a sum of products need
+        // not become adders because its low byte is compared).
+        // A complement is `2^w − 1 − t`.
+        case BvOp.Not => unknown
+        case _ if structural(op) => unknown
+        case _ => false
+      if linear && structural(op) && !ts.exists(isCircuit) then
+        rearranged(structuralBv(op, ts, ws), op, ts, ws)
+      else if linear && !ts.exists(isCircuit) then
+        val r = arithmeticBv(op, ts, w)
+        op match
+          case BvOp.Shl | BvOp.Lshr | BvOp.Ashr if ts(1).isInstanceOf[Num] => rearranged(r, op, ts, ws)
+          case _ => r
+      else loweredOperations.getOrElseUpdate((op.toString, ts, ws.map(BigInt(_))), circuit(op, ts.zip(ws)))
+
+
+  // Bit-blasting: an operation's result is a circuit over its operands' bits — Boolean structure
+  // the SAT solver decides — standing for an integer constant that is defined (as the weighted sum
+  // of the bits) only when the integer is used: an argument, a field, `ubv_to_int`.
+
+  /** The result of an operation, `width` bits lowest first: a literal when
+   *  every bit is, otherwise a fresh integer stand-in carrying the bits.
+   */
+  private def circuitResult(fs: IndexedSeq[Formula]): Term =
+    if fs.forall(f => f == True || f == False) then
+      Num(fs.zipWithIndex.foldLeft(BigInt(0)) { case (v, (f, i)) => if f == True then v.setBit(i) else v })
+    else
+      val name = freshName("bv")
+      introduced += ((name, "Int"))
+      val k = Const(name)
+      circuits(k) = fs
+      loweredBits((k, fs.length)) = fs
+      k
+
+  /** Whether `t` is a circuit's output (its bits known, its integer not yet
+   *  needed).
+   */
+  private def isCircuit(t: Term): Boolean = t match
+    case Const(_) => circuits.contains(t)
+    case _ => false
+
+  /** Defines the integer of every circuit output that `fs`, `ts` or the
+   *  definitions mention: `k = Σ 2^i b_i`, once per level.
+   */
+  private def link(fs: List[Formula], ts: List[Term] = Nil): Unit =
+    if circuits.nonEmpty then
+      def visitTerm(t: Term): Unit = t match
+        case Const(_) =>
+          circuits.get(t) match
+            case Some(bs) if !linked.contains(t) =>
+              linked(t) = ()
+              definitions += IntEq(t, fromBits(bs))
+            case _ => ()
+        case App(fun, args) =>
+          visitTerm(fun)
+          args.foreach(visitTerm)
+        case Num(_) => ()
+        case Linear(terms, _) => terms.foreach((_, u) => visitTerm(u))
+        case Bool(f) => visitFormula(f)
+      def visitFormula(f: Formula): Unit = f match
+        case True | False => ()
+        case Not(a) => visitFormula(a)
+        case And(as) => as.foreach(visitFormula)
+        case Or(as) => as.foreach(visitFormula)
+        case Implies(a, b) =>
+          visitFormula(a)
+          visitFormula(b)
+        case Iff(a, b) =>
+          visitFormula(a)
+          visitFormula(b)
+        case Ite(c, a, b) =>
+          visitFormula(c)
+          visitFormula(a)
+          visitFormula(b)
+        case Eq(a, b) =>
+          visitTerm(a)
+          visitTerm(b)
+        case Le(a, b) =>
+          visitTerm(a)
+          visitTerm(b)
+        case Less(a, b) =>
+          visitTerm(a)
+          visitTerm(b)
+        case Pred(t) => visitTerm(t)
+      fs.foreach(visitFormula)
+      ts.foreach(visitTerm)
+      var i = 0
+      while i < definitions.length do
+        visitFormula(definitions(i))
+        i += 1
+
+  /** `f` as a literal: itself when it is one, otherwise a fresh Boolean
+   *  constant defined equal to it, once per level — so that a circuit is a DAG
+   *  of small definitions and not a tree.
+   */
+  private def gateOf(f: Formula): Formula = f match
+    case True | False | Pred(_) | Le(_, _) | Less(_, _) | Eq(_, _) => f
+    case Not(g) => neg(gateOf(g))
+    case _ =>
+      gates.getOrElseUpdate(
+        f, {
+          val name = freshName("gate")
+          introduced += ((name, "Bool"))
+          val g = Pred(Const(name))
+          definitions += Iff(g, f)
+          g
+        }
+      )
+
+  private def neg(f: Formula): Formula = f match
+    case True => False
+    case False => True
+    case Not(g) => g
+    case _ => Not(f)
+
+  private def and2(x: Formula, y: Formula): Formula = gate(BvOp.And, x, y) match
+    case f @ (And(_)) => gateOf(f)
+    case f => f
+  private def or2(x: Formula, y: Formula): Formula = gate(BvOp.Or, x, y) match
+    case f @ (Or(_)) => gateOf(f)
+    case f => f
+  private def xor2(x: Formula, y: Formula): Formula = (x, y) match
+    case (Not(a), Not(b)) => xor2(a, b)
+    case (Not(a), b) => neg(xor2(a, b))
+    case (a, Not(b)) => neg(xor2(a, b))
+    case _ =>
+      gate(BvOp.Xor, x, y) match
+        case Not(i @ Iff(_, _)) => neg(gateOf(i))
+        case f => f
+  private def mux(c: Formula, x: Formula, y: Formula): Formula = (c, x, y) match
+    case (True, _, _) => x
+    case (False, _, _) => y
+    case _ if x == y => x
+    case (_, True, False) => c
+    case (_, False, True) => neg(c)
+    case (_, True, _) => or2(c, y)
+    case (_, False, _) => and2(neg(c), y)
+    case (_, _, True) => or2(neg(c), x)
+    case (_, _, False) => and2(c, x)
+    case _ => gateOf(Ite(c, x, y))
+
+  private def bitsOf(t: Term, width: Int): IndexedSeq[Formula] = bits(t, width)
+
+  /** Notes that `r` is `op` of `ts` rearranging their bits: see [[rearrangements]]. */
+  private def rearranged(r: Term, op: BvOp, ts: List[Term], ws: List[Int]): Term =
+    val w = op match
+      case BvOp.Extract(i, j) => i - j + 1
+      case BvOp.ZeroExtend(k) => ws.head + k
+      case BvOp.SignExtend(k) => ws.head + k
+      case BvOp.Repeat(k) => ws.head * k
+      case BvOp.Concat => ws.sum
+      case _ => ws.head
+    if !r.isInstanceOf[Num] && !ts.zip(ws).contains((r, w)) then rearrangements((r, w)) = (op, ts, ws)
+    r
+
+  /** The bits of a rearrangement, its operands' moved: see [[rearrangements]]. */
+  private def rearrangedBits(op: BvOp, ts: List[Term], ws: List[Int]): IndexedSeq[Formula] =
+    val b = bits(ts.head, ws.head)
+    val w = ws.head
+    def shift(k: BigInt, fill: Formula, left: Boolean) =
+      val s = k.min(w).toInt
+      if left then IndexedSeq.fill(s)(fill) ++ b.take(w - s) else b.drop(s) ++ IndexedSeq.fill(s)(fill)
+    op match
+      case BvOp.Extract(i, j) => b.slice(j, i + 1)
+      case BvOp.ZeroExtend(k) => b ++ IndexedSeq.fill(k)(False)
+      case BvOp.SignExtend(k) => b ++ IndexedSeq.fill(k)(b(w - 1))
+      case BvOp.Repeat(k) => IndexedSeq.fill(k)(b).flatten
+      case BvOp.RotateLeft(k) => (0 until w).map(i => b(Math.floorMod(i - k, w)))
+      case BvOp.RotateRight(k) => (0 until w).map(i => b((i + k) % w))
+      case BvOp.Concat => ts.zip(ws).reverse.flatMap((t, tw) => bits(t, tw)).toIndexedSeq
+      case BvOp.Shl => shift(ts(1).asInstanceOf[Num].value, False, left = true)
+      case BvOp.Lshr => shift(ts(1).asInstanceOf[Num].value, False, left = false)
+      case BvOp.Ashr => shift(ts(1).asInstanceOf[Num].value, b(w - 1), left = false)
+      case _ => throw IllegalArgumentException(s"not a rearrangement: $op")
+
+  /** `a + b + carry`, and the carry out. */
+  private def adder(a: IndexedSeq[Formula], b: IndexedSeq[Formula], carry: Formula): (IndexedSeq[Formula], Formula) =
+    var c = carry
+    val out = a.indices.map { i =>
+      val t = xor2(a(i), b(i))
+      val s = xor2(t, c)
+      c = or2(and2(a(i), b(i)), and2(c, t))
+      s
+    }
+    (out, c)
+
+  private def negated(a: IndexedSeq[Formula]): IndexedSeq[Formula] =
+    adder(a.map(neg), a.map(_ => False), True)._1
+
+  private def muxAll(c: Formula, a: IndexedSeq[Formula], b: IndexedSeq[Formula]): IndexedSeq[Formula] =
+    a.indices.map(i => mux(c, a(i), b(i)))
+
+  private def multiplier(a: IndexedSeq[Formula], b: IndexedSeq[Formula]): IndexedSeq[Formula] =
+    val w = a.length
+    var acc: IndexedSeq[Formula] = IndexedSeq.fill(w)(False)
+    for i <- 0 until w if b(i) != False do
+      // Row i: a shifted left by i, gated by b_i, added into the bits above i.
+      val row = (0 until w - i).map(j => and2(a(j), b(i)))
+      val (high, _) = adder(acc.drop(i), row, False)
+      acc = acc.take(i) ++ high
+    acc
+
+  /** `a < b` (`a ≤ b` when `orEqual`), unsigned: `a − b` borrows, that is
+   *  `a + ¬b + 1` carries nothing out.
+   */
+  private def less(a: IndexedSeq[Formula], b: IndexedSeq[Formula], orEqual: Boolean): Formula =
+    if orEqual then neg(less(b, a, orEqual = false))
+    else neg(adder(a, b.map(neg), True)._2)
+
+  /** Restoring division: the quotient and the remainder, SMT-LIB's answer to a
+   *  zero divisor (all ones, and the dividend) included.
+   */
+  private def divider(a: IndexedSeq[Formula], b: IndexedSeq[Formula]): (IndexedSeq[Formula], IndexedSeq[Formula]) =
+    val w = a.length
+    val nb = (b :+ False).map(neg)
+    var rem: IndexedSeq[Formula] = IndexedSeq.fill(w)(False)
+    val q = Array.fill[Formula](w)(False)
+    for i <- (w - 1) to 0 by -1 do
+      val shifted = a(i) +: rem // w + 1 bits
+      val (diff, carry) = adder(shifted, nb, True) // carry out: shifted ≥ b
+      q(i) = carry
+      rem = muxAll(carry, diff, shifted).take(w)
+    (q.toIndexedSeq, rem)
+
+  private def equalBits(a: IndexedSeq[Formula], b: IndexedSeq[Formula]): Formula =
+    val pairs = a.indices.map(i => same(a(i), b(i))).filter(_ != True)
+    if pairs.contains(False) then False
+    else if pairs.isEmpty then True
+    else if pairs.length == 1 then pairs.head
+    else gateOf(And(pairs.map(p => gateOf(p)).toList))
+
+  private def shifter(op: BvOp, a: IndexedSeq[Formula], amount: IndexedSeq[Formula]): IndexedSeq[Formula] =
+    val w = a.length
+    val fill = if op == BvOp.Ashr then a(w - 1) else False
+    def shiftBy(x: IndexedSeq[Formula], k: Int): IndexedSeq[Formula] = op match
+      case BvOp.Shl => (0 until w).map(i => if i - k >= 0 then x(i - k) else False)
+      case _ => (0 until w).map(i => if i + k < w then x(i + k) else fill)
+    val stages = Iterator.iterate(1)(_ * 2).takeWhile(_ < w).length
+    val shifted = (0 until stages).foldLeft(a)((x, j) => muxAll(amount(j), shiftBy(x, 1 << j), x))
+    val far = amount.drop(stages).filter(_ != False)
+    if far.isEmpty then shifted
+    else
+      val any = far.reduceLeft(or2)
+      muxAll(any, IndexedSeq.fill(w)(fill), shifted)
+
+  /** `k` when `b` is the literal 2^k. */
+  private def powerOfTwo(b: IndexedSeq[Formula]): Option[Int] =
+    if b.forall(f => f == True || f == False) && b.count(_ == True) == 1 then Some(b.indexOf(True)) else None
+
+  private def circuit(op: BvOp, args: List[(Term, Int)]): Term =
+    val w = args.head._2
+    def bs(i: Int): IndexedSeq[Formula] = bitsOf(args(i)._1, args(i)._2)
+    def fold(f: (IndexedSeq[Formula], IndexedSeq[Formula]) => IndexedSeq[Formula]): IndexedSeq[Formula] =
+      args.indices.map(bs).reduceLeft(f)
+    def sign(x: IndexedSeq[Formula]) = x(x.length - 1)
+    def abs(x: IndexedSeq[Formula]) = muxAll(sign(x), negated(x), x)
+    val result: IndexedSeq[Formula] = op match
+      case BvOp.Add => fold((x, y) => adder(x, y, False)._1)
+      case BvOp.Sub => fold((x, y) => adder(x, y.map(neg), True)._1)
+      case BvOp.Neg => negated(bs(0))
+      case BvOp.Not => bs(0).map(neg)
+      case BvOp.Mul => fold(multiplier)
+      case BvOp.And => fold((x, y) => x.indices.map(i => and2(x(i), y(i))))
+      case BvOp.Or => fold((x, y) => x.indices.map(i => or2(x(i), y(i))))
+      case BvOp.Xor => fold((x, y) => x.indices.map(i => xor2(x(i), y(i))))
+      case BvOp.Nand => fold((x, y) => x.indices.map(i => neg(and2(x(i), y(i)))))
+      case BvOp.Nor => fold((x, y) => x.indices.map(i => neg(or2(x(i), y(i)))))
+      case BvOp.Xnor => fold((x, y) => x.indices.map(i => neg(xor2(x(i), y(i)))))
+      case BvOp.Comp => IndexedSeq(equalBits(bs(0), bs(1)))
+      case BvOp.Shl | BvOp.Lshr | BvOp.Ashr => shifter(op, bs(0), bs(1))
+      case BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod
+          if powerOfTwo(bs(1)).exists(k => k < w - 1 || op == BvOp.Udiv || op == BvOp.Urem) =>
+        // (Signed, 2^(w−1) is the negative minimum: the general circuit's.)
+        // By a constant 2^k: wiring, a shift and the low bits, where the divider would build rows of adders.
+        val (x, k) = (bs(0), powerOfTwo(bs(1)).get)
+        val low = x.take(k)
+        def fill(f: Formula) = IndexedSeq.fill(w - k)(f)
+        op match
+          case BvOp.Udiv => x.drop(k) ++ IndexedSeq.fill(k)(False)
+          case BvOp.Urem | BvOp.Smod => low ++ fill(False)
+          case BvOp.Srem => // the low bits, sign-extended when x is negative and they are not all zero
+            low ++ fill(and2(sign(x), low.foldLeft(False: Formula)(or2)))
+          case _ => // Sdiv: rounds toward zero, so a negative x is biased by 2^k − 1 before the shift
+            val biased = adder(x, IndexedSeq.fill(k)(sign(x)) ++ fill(False), False)._1
+            biased.drop(k) ++ IndexedSeq.fill(k)(sign(biased))
+      case BvOp.Udiv => divider(bs(0), bs(1))._1
+      case BvOp.Urem => divider(bs(0), bs(1))._2
+      case BvOp.Sdiv =>
+        val (x, y) = (bs(0), bs(1))
+        val q = divider(abs(x), abs(y))._1
+        muxAll(xor2(sign(x), sign(y)), negated(q), q)
+      case BvOp.Srem =>
+        val (x, y) = (bs(0), bs(1))
+        val r = divider(abs(x), abs(y))._2
+        muxAll(sign(x), negated(r), r)
+      case BvOp.Smod =>
+        val (x, y) = (bs(0), bs(1))
+        val u = divider(abs(x), abs(y))._2
+        val zero = equalBits(u, u.map(_ => False))
+        val (sx, sy) = (sign(x), sign(y))
+        val nu = negated(u)
+        // u = 0 or both non-negative: u; x < 0 ≤ y: y − u; x ≥ 0 > y: u + y; both negative: −u.
+        val both = muxAll(sy, nu, u) // same signs: −u when negative, u otherwise
+        val differ = muxAll(sx, adder(nu, y, False)._1, adder(u, y, False)._1)
+        muxAll(zero, u, muxAll(xor2(sx, sy), differ, both))
+      case BvOp.Concat =>
+        args.reverse.flatMap((t, wi) => bitsOf(t, wi)).toIndexedSeq
+      case BvOp.Extract(i, j) => bs(0).slice(j, i + 1)
+      case BvOp.ZeroExtend(k) => bs(0) ++ IndexedSeq.fill(k)(False)
+      case BvOp.SignExtend(k) => bs(0) ++ IndexedSeq.fill(k)(sign(bs(0)))
+      case BvOp.Repeat(k) => (0 until k).flatMap(_ => bs(0))
+      case BvOp.RotateLeft(k) =>
+        val x = bs(0)
+        val r = k % w
+        (0 until w).map(i => x((i - r + w) % w))
+      case BvOp.RotateRight(k) =>
+        val x = bs(0)
+        val r = k % w
+        (0 until w).map(i => x((i + r) % w))
+      case _ => throw s2.Unsupported(s"${op.name} is not supported")
+    circuitResult(result)
 
   private def arithmeticBv(op: BvOp, args: List[Term], width: Int): Term =
     val m = modulus(width)
@@ -1137,7 +1529,12 @@ private final class Lowerer:
    *  `{0, 1}` with `t = Σ 2^i b_i`, bit `i` the atom `b_i ≥ 1`.
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
-    knownBits(t, width).getOrElse {
+    knownBits(t, width).orElse(rearrangements.get((t, width)).map { (op, ts, ws) =>
+      val fs = rearrangedBits(op, ts, ws)
+      definitions += IntEq(t, fromBits(fs))
+      loweredBits((t, width)) = fs
+      fs
+    }).getOrElse {
       val bs = (0 until width).map(_ => freshInt("bit", 0, 1))
       definitions += IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b))))
       val fs = bs.map(b => Ge(b, Num(1)))
@@ -1419,6 +1816,11 @@ private final class Lowerer:
       case BvCmpOp.Ugt | BvCmpOp.Sgt => (true, true)
       case BvCmpOp.Uge | BvCmpOp.Sge => (false, true)
     val (l, r) = if flipped then (b, a) else (a, b)
+    if blast && (isCircuit(a) || isCircuit(b)) then
+      val (lb, rb) = (bits(l, width), bits(r, width))
+      // Signed: the unsigned comparison with the sign bits flipped.
+      def flip(x: IndexedSeq[Formula]) = if op.signed then x.updated(width - 1, neg(x(width - 1))) else x
+      return less(flip(lb), flip(rb), orEqual = !strict)
     val unsigned = if strict then Lt(l, r) else Le(l, r)
     if !op.signed then unsigned
     else

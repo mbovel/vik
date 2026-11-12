@@ -738,6 +738,7 @@ private final class Encoder(
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula
           atom(classOf(lhs), classOf(rhs))
+      case Pred(Term.Const(name)) if name.startsWith("gate!") => freshVar() // a circuit's gate: the SAT solver's alone
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
         // terms it knows as Boolean, and a term known only from a later solve keeps the assignment
