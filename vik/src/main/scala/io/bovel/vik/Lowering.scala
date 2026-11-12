@@ -110,7 +110,6 @@ private final class Lowerer:
       )
     def update(key: K, value: V): Unit = getOrElseUpdate(key, value)
     def clear(): Unit = entries.clear()
-    def keys: Iterable[K] = entries.keys
 
   private val rangedApplications = Memo[Term, Unit]() // bit-vector applications whose range is asserted
 
