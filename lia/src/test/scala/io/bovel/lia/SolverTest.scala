@@ -112,7 +112,7 @@ class SolverTest extends munit.FunSuite:
           assert(expected, s"round $round: sat but brute force finds no solution: $k")
           assert(k.forall(_.holds(solver.value)), s"round $round: model violates a constraint")
           sat += 1
-        case Result.Unknown => fail(s"round $round: the solver gave up")
+        case Result.Unknown | Result.Split(_, _) => fail(s"round $round: the solver gave up")
         case Result.Unsat(reasons) =>
           assert(!expected, s"round $round: unsat but brute force finds a solution: $k")
           assert(reasons.forall(r => r >= 0 && r < k.length), s"round $round: reasons $reasons")
@@ -188,3 +188,54 @@ class SolverTest extends munit.FunSuite:
     boxed.check() match
       case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
       case other => fail(s"expected unsat, got $other")
+
+  test("splitting on demand hands a split that failed on both sides to the client"):
+    // x = 2y and x = 2z + 1 with 0 ≤ y, z ≤ 3: integer-infeasible, and no single expression's gcd sees it.
+    def parity(): Solver =
+      val s = Solver()
+      val x = s.newVar()
+      val y = s.newVar()
+      val z = s.newVar()
+      val even = s.newSlack(List((BigInt(1), x), (BigInt(-2), y)))
+      val odd = s.newSlack(List((BigInt(1), x), (BigInt(-2), z)))
+      for (v, lo, hi, reason) <- List((even, 0, 0, 1), (odd, 1, 1, 3), (y, 0, 3, 5), (z, 0, 3, 7)) do
+        assertEquals(s.assertLower(v, lo, reason), Result.Sat)
+        assertEquals(s.assertUpper(v, hi, reason + 1), Result.Sat)
+      s
+    // Without it, a check answers by itself, however often it is asked.
+    val alone = parity()
+    for _ <- 0 until 3 do assert(alone.check().isInstanceOf[Result.Unsat])
+
+    val solver = parity()
+    solver.splitOnDemand = true
+    var splits = 0
+    var reason = 100
+
+    /** Refutes the problem as a client would: both sides of every split handed
+     *  over, each asserted with a reason of its own. Returns the reasons used.
+     */
+    def refute(): Set[Int] = solver.check() match
+      case Result.Unsat(reasons) => reasons
+      case Result.Split(x, c) =>
+        splits += 1
+        reason += 2
+        val (left, right) = (reason, reason + 1)
+        solver.push()
+        assertEquals(solver.assertUpper(x, c, left), Result.Sat)
+        val l = refute()
+        solver.pop()
+        solver.push()
+        assertEquals(solver.assertLower(x, c + 1, right), Result.Sat)
+        val r = refute()
+        solver.pop()
+        (l - left) ++ (r - right)
+      case other => fail(s"expected unsat or a split, got $other")
+    assert(refute().subsetOf((1 to 8).toSet)) // the first check: nothing failed before, so no split
+    assertEquals(splits, 0)
+    // A split that failed comes up again within a few checks (the relaxation may start elsewhere): it is
+    // the client's then, and the refutation of its two sides is one of the problem.
+    var checks = 0
+    while splits == 0 && checks < 20 do
+      assert(refute().subsetOf((1 to 8).toSet))
+      checks += 1
+    assert(splits > 0)

@@ -19,6 +19,12 @@ object Solver:
      */
     case Unsat(reasons: Set[Int])
 
+    /** [[Solver.check]] leaves a branch to the client (see
+     *  [[Solver.splitOnDemand]]): no answer yet; assert `x ≤ c` or `x ≥ c + 1`
+     *  and check again.
+     */
+    case Split(x: Var, c: BigInt)
+
   /** A bound on a variable: its value (an integer) and why it holds: the reason
    *  it was asserted with, or the bounds it was derived from (`premises`, see
    *  `propagateBounds`). The reasons of a derived bound, the union of those of
@@ -659,15 +665,14 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
-  /** A client that can decide a branch itself, as an atom of its own search:
-   *  called with `(x, c)` for the split `x ≤ c` or `x ≥ c + 1`, it makes a
-   *  check return `Sat` early, and must then assert one of the two sides and
-   *  check again. Only a split at the top of a check that already failed on
-   *  both sides once is handed over: its two refutations come back merged in
-   *  one conflict, where the client's search cannot learn the short one alone,
-   *  and meets the same split at its next check.
+  /** Splitting on demand (Barrett, Nieuwenhuis, Oliveras and Tinelli 2006): for
+   *  a client that can decide a branch itself, as an atom of its own search.
+   *  [[check]] then answers `Split(x, c)` for a split at its top that already
+   *  failed on both sides once: the two refutations came back merged in one
+   *  conflict, where the client's search cannot learn the short one alone, and
+   *  meets the same split at its next check.
    */
-  var split: ((Var, BigInt) => Unit) | Null = null
+  var splitOnDemand: Boolean = false
   private val failedSplits = HashSet.empty[(Var, BigInt)]
 
   /** For the tests: pretend the small-model box is this many bits wide. */
@@ -815,6 +820,7 @@ final class Solver:
         case Result.Unknown =>
           for _ <- open do pop()
           return Result.Unknown
+        case Result.Split(_, _) => throw AssertionError("a split is returned, never a step")
         case Result.Unsat(reasons) if open.isEmpty =>
           return Result.Unsat(if boxPruned then assertedReasons() else reasons)
         case Result.Unsat(reasons) =>
@@ -826,18 +832,15 @@ final class Solver:
             current = side(branch, !branch.up)
           else // both sides failed
             open.remove(open.length - 1)
-            if open.isEmpty && split != null && branch.because.isEmpty then failedSplits += ((branch.x, branch.floor))
+            if open.isEmpty && splitOnDemand && branch.because.isEmpty then failedSplits += ((branch.x, branch.floor))
             current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
         case branch: Branch if !keepGoing() =>
           for _ <- open do pop()
           return Result.Unknown
+        // Nothing is asserted yet, and the split stays in the set: it comes back if the client cannot take it now.
         case branch: Branch
-            if open.isEmpty && split != null && branch.because.isEmpty && failedSplits.remove((
-              branch.x,
-              branch.floor
-            )) =>
-          split.nn(branch.x, branch.floor)
-          return Result.Sat
+            if open.isEmpty && splitOnDemand && branch.because.isEmpty && failedSplits((branch.x, branch.floor)) =>
+          return Result.Split(branch.x, branch.floor)
         case branch: Branch =>
           open += branch
           push()

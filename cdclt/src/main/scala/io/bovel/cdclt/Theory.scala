@@ -52,6 +52,14 @@ object Theory:
      */
     case Unknown
 
+    /** Splitting on demand (Barrett, Nieuwenhuis, Oliveras and Tinelli 2006):
+     *  the theory needs a case split the solver has no atom for. `lit` is an
+     *  unassigned literal, possibly of a variable the solver does not have yet
+     *  (it adds the variables up to it); the solver decides it and goes on.
+     *  From [[Theory.finalCheck]] only.
+     */
+    case Split(lit: Lit)
+
   val ok: Result = Result.Ok(ArrayBuffer.empty)
 
 /** The theory with no atoms: [[Solver]] is then a SAT solver. */

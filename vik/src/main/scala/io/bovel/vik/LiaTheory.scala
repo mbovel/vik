@@ -18,13 +18,18 @@ import io.bovel.lia
  *  implied rather than left to the search: an atom whose bounds force it, or
  *  forbid it, is propagated with those bounds as its explanation — which is
  *  what keeps the arrangement of the shared terms of a combination out of the
- *  decisions.
+ *  decisions. `newBound(x, c)`, when given, appends the atom `x ≤ c` to `atoms`
+ *  on a variable of its own and returns its literal.
  */
 final class LiaTheory(
     solver: lia.Solver,
     atoms: ArrayBuffer[LiaTheory.Atom | Null],
-    guided: scala.collection.Set[Var] = Set.empty
+    guided: scala.collection.Set[Var] = Set.empty,
+    newBound: ((lia.Var, BigInt) => Lit) | Null = null
 ) extends Theory:
+  // With a way to make atoms, a split the solver keeps meeting is left to the search (see `report`).
+  solver.splitOnDemand = newBound != null
+
   /** A conflict found while asserting, reported by the next `propagate`. */
   private var conflict: ArrayBuffer[Lit] | Null = null
 
@@ -85,7 +90,7 @@ final class LiaTheory(
       result match
         case lia.Solver.Result.Unsat(reasons) => conflict = lits(reasons)
         // Asserting a bound never runs the search, so it cannot be told to stop: Unknown is unreachable.
-        case lia.Solver.Result.Sat | lia.Solver.Result.Unknown => ()
+        case _ => ()
 
   def propagate(): Theory.Result =
     if !touched && conflict == null then Theory.ok
@@ -158,6 +163,10 @@ final class LiaTheory(
         case lia.Solver.Result.Sat => Theory.Result.Ok(implied())
         case lia.Solver.Result.Unknown => Theory.Result.Unknown
         case lia.Solver.Result.Unsat(reasons) => Theory.Result.Conflict(lits(reasons))
+        // The atom is new: one for the same split would be assigned at a final check, and its bound would
+        // keep `x` off the open interval. The right side first, where a first decision would go (the
+        // relaxation has `x` above `c`).
+        case lia.Solver.Result.Split(x, c) => Theory.Result.Split(newBound.nn(x, c).neg)
 
   def explain(lit: Lit): ArrayBuffer[Lit] = lits(reasonsOf(lit.variable).nn)
 
