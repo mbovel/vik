@@ -115,8 +115,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   /** Adds a variable — unassigned, false phase, last in the decision order —
    *  and returns it. Solving between two [[newVar]]s is fine: the arrays grow,
-   *  the trail is untouched.
+   *  the trail is untouched. The solver adds variables itself for a
+   *  [[Theory.Result.Split]]: [[vars]] tells how many there are.
    */
+  def vars: Int = varCount
+
   def newVar(): Var =
     val v = varCount
     varCount += 1
@@ -227,6 +230,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
         case Theory.Result.Unknown =>
           gaveUp = true
           return null
+        case Theory.Result.Split(_) => throw IllegalStateException("a split outside the final check")
         case Theory.Result.Ok(implied) =>
           var progress = false
           var i = 0
@@ -491,12 +495,19 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
             case Theory.Result.Unknown => return Result.Unknown
             case Theory.Result.Conflict(reasons) =>
               if !resolve(reasons.map(_.neg).toArray) then return Result.Unsat
+            case Theory.Result.Split(lit) =>
+              if !keepGoing() then return Result.Unknown
+              while varCount <= lit.variable do newVar()
+              require(value(lit.index) == 0, s"split on the assigned literal $lit")
+              decisions += 1
+              trailLim += trail.length
+              theory.push()
+              seen(lit.variable) = true
+              enqueue(lit, Decision)
             case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>
               for l <- implied if value(l.index) == 0 do enqueue(l, FromTheory)
             case Theory.Result.Ok(implied) =>
               implied.find(l => value(l.index) < 0) match
                 case Some(l) => if !resolve(theoryClause(l)) then return Result.Unsat
-                // A final check may add a variable for the search to decide (a split of the theory).
-                case None if nextDecision() >= 0 => ()
                 case None => return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
     Result.Unsat

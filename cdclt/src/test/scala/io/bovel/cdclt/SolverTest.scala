@@ -137,3 +137,39 @@ class SolverTest extends munit.FunSuite:
         assert(satisfies(model, clauses) && ok(model))
         sats += 1
     assert(sats > 50)
+
+  /** Asks, at the final check, for a split on a variable the solver does not
+   *  have, then refutes the sides in `refuted` with the split literal alone.
+   */
+  class SplitTheory(atom: Var, refuted: Set[Boolean]) extends Theory:
+    private val asserted = ArrayBuffer.empty[Lit]
+    private val marks = ArrayBuffer.empty[Int]
+    var splits = 0
+    def assertLit(lit: Lit): Unit = if lit.variable == atom then asserted += lit
+    def propagate(): Theory.Result =
+      asserted.find(l => refuted(l.positive)) match
+        case Some(l) => Theory.Result.Conflict(ArrayBuffer(l))
+        case None => Theory.ok
+    override def finalCheck(): Theory.Result =
+      if asserted.nonEmpty then propagate()
+      else
+        splits += 1
+        Theory.Result.Split(Lit(atom))
+    def explain(lit: Lit): ArrayBuffer[Lit] = throw IllegalArgumentException("implies nothing")
+    def push(): Unit = marks += asserted.length
+    def pop(): Unit = asserted.takeInPlace(marks.remove(marks.length - 1))
+
+  test("a theory split adds a variable and decides it"):
+    val clauses = Seq(Seq(Lit(0), Lit(1)))
+    // Nothing refuted: the side asked for stays.
+    val free = sat(2, clauses, SplitTheory(2, Set.empty)).get
+    assert(free.length == 3 && free(2) && satisfies(free, clauses))
+    // The side asked for is refuted: the solver learns the other one, and never meets the split again.
+    val theory = SplitTheory(2, Set(true))
+    val model = sat(2, clauses, theory).get
+    assert(model.length == 3 && !model(2) && satisfies(model, clauses))
+    assertEquals(theory.splits, 1)
+    // Both sides refuted: each is a clause of its own, and together they are unsat.
+    assertEquals(sat(2, clauses, SplitTheory(2, Set(true, false))), None)
+    // The variables up to the split are added too.
+    assertEquals(sat(2, clauses, SplitTheory(5, Set(true))).get.length, 6)

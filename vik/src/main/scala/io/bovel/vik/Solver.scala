@@ -893,7 +893,10 @@ private final class Encoder(
   private var anySharedAtom = false
 
   private val theories =
-    List(UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses), LiaTheory(liaSolver, liaAtoms, guidedAtoms))
+    List(
+      UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses),
+      LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false))
+    )
   private val sat = cdclt.Solver(
     0,
     Theories(
@@ -904,14 +907,6 @@ private final class Encoder(
     )
   )
   private var clauseCursor = 0
-  private var satVars = 0 // variables handed to `sat` so far; `atoms` is the source of truth
-
-  // A split LIA keeps meeting becomes an atom, decided by the search (see `lia.Solver.split`): a final
-  // check runs with every atom handed to `sat`, so the new one is the next.
-  liaSolver.split = (x, c) =>
-    bound(x, c, strict = false)
-    sat.newVar()
-    satVars += 1
 
   /** The model of the last `Sat`, taken while the engines still held the answer
    *  (the unwind below discards it).
@@ -921,9 +916,7 @@ private final class Encoder(
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    while satVars < atoms.length do
-      sat.newVar()
-      satVars += 1
+    while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
     while clauseCursor < clauses.length do
       sat.addClause(clauses(clauseCursor))
       clauseCursor += 1
@@ -1160,14 +1153,19 @@ private final class Theories(
   def pop(): Unit = theories.foreach(_.pop())
 
   private def combine(check: Theory => Theory.Result): Theory.Result = boundary:
+    // A split waits for what the theories imply: it is asked for again at the next final check.
+    var split: Theory.Result | Null = null
     val results = theories.map(theory =>
       check(theory) match
         case Theory.Result.Ok(lits) => (theory, lits)
+        case s: Theory.Result.Split =>
+          split = s
+          (theory, ArrayBuffer.empty[Lit])
         case other => break(other)
     )
     if anyShared() then
       for (theory, lits) <- results; l <- lits if shared(l.variable) do implier(l.variable) = theory
     results.filter(_._2.nonEmpty) match
-      case Nil => Theory.ok
+      case Nil => if split != null then split.nn else Theory.ok
       case (_, lits) :: Nil => Theory.Result.Ok(lits) // one theory spoke: its buffer passes through
       case several => Theory.Result.Ok(several.foldLeft(ArrayBuffer.empty[Lit])(_ ++= _._2))
