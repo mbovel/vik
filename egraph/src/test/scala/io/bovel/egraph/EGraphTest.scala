@@ -414,6 +414,18 @@ class EGraphTest extends munit.FunSuite:
     assertEquals(t.explain(fa, fb), Seq(1))
     assertEquals(t.explain(gfa, gfb), Seq(1))
 
+  test("explain: shared arguments are justified once"):
+    // t(k+1) = g(t(k), t(k)): justifying each edge again under each argument took 2^depth steps.
+    val t = TestGraph()
+    var x = t.sym("a")
+    var y = t.sym("b")
+    t.merge(x, y, 1)
+    for _ <- 0 until 64 do
+      x = t.node("g", x, x)
+      y = t.node("g", y, y)
+    t.rebuild()
+    assertEquals(t.explain(x, y), Seq(1))
+
   test("explain: a term added after the equality it depends on"):
     val t = TestGraph()
     val a = t.sym("a")
