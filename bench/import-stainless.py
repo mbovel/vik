@@ -4,11 +4,12 @@
   bench/import-stainless.py <replay tsv> <z3 tsv> <commit text for the headers>
 
 The tsvs have a line per session: path, milliseconds, then the answers as s, u and ? (last column); the replay
-tsv is from StainlessReplay, with the outcome before the answers. A session is kept when it is at most 100 KB,
-or at most 1 MB and takes a second or more: a larger file costs the repository more than it adds. Exact
-duplicates keep one copy. A file is named `<valid or invalid>-<benchmark>__<session>`, so that `prune trivial`
-takes a benchmark's sessions for a family. Then run `prune alike order --delete`, `prune trivial 10 5 --delete`
-and `prune logic --move` on the `stainless` directories, as for the corpus as it is (see corpus/README.md).
+tsv is from CorpusRun on the sessions' directory, with the outcome before the answers. A session is kept when
+it is at most 100 KB, or at most 1 MB and takes a second or more: a larger file costs the repository more than
+it adds. Exact duplicates keep one copy. A file is named `<valid or invalid>-<benchmark>__<session>`, so that
+`prune trivial` takes a benchmark's sessions for a family. Then run `prune alike order --delete`,
+`prune trivial 10 5 --delete` and `prune logic --move` on the `stainless` directories, as for the corpus as it
+is (see corpus/README.md).
 """
 import hashlib
 import os

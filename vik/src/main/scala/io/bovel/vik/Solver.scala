@@ -188,8 +188,25 @@ final class Solver(val simplify: Boolean = true):
 
   /** Decides the assertions while `keepGoing` says so, asked at every step. */
   def solve(keepGoing: () => Boolean): Result =
+    asked = keepGoing
+    try decide(keepGoing)
+    catch
+      case Encoder.Stopped =>
+        // The encoder stopped part-way through a pass, with pairs noted and not yet encoded, or half the
+        // lemmas of a store: not one to search with, now or later. The next solve builds another.
+        encoder = null
+        lastCore = Nil
+        Result.Unknown(Reason.Stopped)
+    finally asked = () => true // an assertion between two solves is encoded as it arrives, with no one to ask
+
+  /** The `keepGoing` of the [[solve]] under way, for the encoder (see
+   *  `Encoder.step`).
+   */
+  private var asked: () => Boolean = () => true
+
+  private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
-      val e = Encoder(declarations, datatypes.toList, () => anyStore)
+      val e = Encoder(declarations, datatypes.toList, () => anyStore, () => asked())
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -198,7 +215,8 @@ final class Solver(val simplify: Boolean = true):
       val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
       if levels.length == 1 && simplify then
         // One level: the batch is the whole set, so the global simplification is sound to keep.
-        val (simplified, gone) = Simplifier.simplify(levels.head.toList, constructors, named.head.map(_._2).toList)
+        val (simplified, gone) =
+          Simplifier.simplify(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
         eliminated = gone
         for formula <- simplified do e.assert(formula, null)
       else
@@ -215,6 +233,7 @@ final class Solver(val simplify: Boolean = true):
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
     // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
     // fuel, and a check-sat over its deadline must end, not run on in a thread the caller gave up on.
+    // One round can too, and the passes ask from inside (see `Encoder.step`).
     // The Boolean terms are decided in the loop, first: deciding one encodes the terms inside it,
     // a `store` in a Boolean argument among them, which the passes of the same round then see
     // (issue 17). The loop measures the terms decided as well as the clauses, since a round that
@@ -261,11 +280,28 @@ final class Solver(val simplify: Boolean = true):
 private object Encoder:
   val bitVector = """\(_ BitVec (\d+)\)""".r
 
+  /** Thrown by [[Encoder.step]] when the solve's `keepGoing` says to stop. */
+  object Stopped extends scala.util.control.ControlThrowable
+
 private final class Encoder(
     declarations: HashMap[String, (List[String], String)],
     datatypes: List[Datatype],
-    anyStore: () => Boolean // the solver's flag, read at every array pass (see Solver.anyStore)
+    anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
+    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
 ):
+  private var steps = 0
+
+  /** A step of the encoding: a formula encoded, a pair of terms or a term and a
+   *  store considered by a pass. The passes are quadratic in the terms, and one
+   *  round of them, or the first encoding, can outlast any deadline; so every
+   *  1024th step asks `keepGoing`, and a no throws [[Encoder.Stopped]], which
+   *  [[Solver.solve]] answers `Unknown` to. Not every step: one is far shorter
+   *  than a step of the search, whose fuel this spends.
+   */
+  def step(): Unit =
+    steps += 1
+    if (steps & 1023) == 0 && !keepGoing() then throw Encoder.Stopped
+
   private val classes = HashMap.empty[Term, EClassId]
   private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
@@ -356,6 +392,7 @@ private final class Encoder(
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
+      step()
       if a != b && isInt(a) && isInt(b) && Sorts.arrow(sortOf(a)).isEmpty && Sorts.arrow(sortOf(b)).isEmpty
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
@@ -459,13 +496,15 @@ private final class Encoder(
         case s @ Term.App(Term.Const(name), List(_, _, _)) if name.startsWith("store!") => s
       }.toList
       val apps = if stores.isEmpty then Nil else classes.keys.collect { case a: Term.App => a }.toList
-      for s <- stores; a <- apps if applicable(a, s) && done.add((a, s)) do
-        more = true
-        val applied = Term.App(s, a.args)
-        equated += ((a, applied))
-        recordFunctionEqualities = false
-        clauses += Array(lit(Formula.Eq(a.fun, s)).neg, lit(Formula.Eq(a, applied)))
-        recordFunctionEqualities = true
+      for s <- stores; a <- apps do
+        step()
+        if applicable(a, s) && done.add((a, s)) then
+          more = true
+          val applied = Term.App(s, a.args)
+          equated += ((a, applied))
+          recordFunctionEqualities = false
+          clauses += Array(lit(Formula.Eq(a.fun, s)).neg, lit(Formula.Eq(a, applied)))
+          recordFunctionEqualities = true
     // An application equated with an integer term is one, and conversely (for the sharing).
     var changed = true
     while changed do
@@ -668,11 +707,13 @@ private final class Encoder(
       val indexSort = Sorts.arrow(sort).get._1.head
       val elementSort = Sorts.applied(sort, 1) // an array, for an array of arrays
       if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
-      for j <- indices.getOrElse(sort, Nil) if j != i && arrayReadsDone.add((s, j)) do
-        clauses += Array(
-          lit(equalAt(indexSort, i, j)),
-          lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
-        )
+      for j <- indices.getOrElse(sort, Nil) do
+        step()
+        if j != i && arrayReadsDone.add((s, j)) then
+          clauses += Array(
+            lit(equalAt(indexSort, i, j)),
+            lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
+          )
 
   def booleanCount: Int = booleans.length
 
@@ -725,6 +766,7 @@ private final class Encoder(
 
   private def encode(formula: Formula): Lit =
     import Formula.*
+    step()
     formula match
       case True => trueLit
       case False => trueLit.neg
