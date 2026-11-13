@@ -906,6 +906,13 @@ private final class Encoder(
   private var clauseCursor = 0
   private var satVars = 0 // variables handed to `sat` so far; `atoms` is the source of truth
 
+  // A split LIA keeps meeting becomes an atom, decided by the search (see `lia.Solver.split`): a final
+  // check runs with every atom handed to `sat`, so the new one is the next.
+  liaSolver.split = (x, c) =>
+    bound(x, c, strict = false)
+    sat.newVar()
+    satVars += 1
+
   /** The model of the last `Sat`, taken while the engines still held the answer
    *  (the unwind below discards it).
    */

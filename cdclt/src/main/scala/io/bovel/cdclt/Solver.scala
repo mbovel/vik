@@ -496,5 +496,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
             case Theory.Result.Ok(implied) =>
               implied.find(l => value(l.index) < 0) match
                 case Some(l) => if !resolve(theoryClause(l)) then return Result.Unsat
+                // A final check may add a variable for the search to decide (a split of the theory).
+                case None if nextDecision() >= 0 => ()
                 case None => return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
     Result.Unsat
