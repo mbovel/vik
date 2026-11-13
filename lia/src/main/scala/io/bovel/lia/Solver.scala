@@ -828,7 +828,8 @@ final class Solver:
 
   /** What the rows say now, before a branch: bound propagation saw them before
    *  the pivots of the simplex, and a pivoted row can tie together variables no
-   *  original row did (`x = -y`, both at most 0, so both 0). Then their residues.
+   *  original row did (`x = -y`, both at most 0, so both 0). Then their
+   *  residues.
    */
   private def pivotedRows(sweep: Boolean): Result =
     var b = 0
@@ -842,14 +843,14 @@ final class Solver:
       b += 1
     if sweep && tightened.nonEmpty then Result.Sat else congruences()
 
-  /** Looks for an integer unknown that its rows force into incompatible residues.
-   *  Once the search has fixed all of a row's variables but one, `y`, the row says
-   *  `k = a y + c` with `k` an integer, a congruence on `y`. Two such rows can
-   *  disagree (`y / 2` and `(y + 1) / 2` both integers), which the relaxation
-   *  cannot see and branch and bound finds out only by walking the whole window
-   *  of `y`, a unit at a time, on the 32 and 64 bit windows of bit vectors.
-   *  Every variable is an integer here: [[check]] calls this, as [[patch]], only
-   *  without a real variable.
+  /** Looks for an integer unknown that its rows force into incompatible
+   *  residues. Once the search has fixed all of a row's variables but one, `y`,
+   *  the row says `k = a y + c` with `k` an integer, a congruence on `y`. Two
+   *  such rows can disagree (`y / 2` and `(y + 1) / 2` both integers), which
+   *  the relaxation cannot see and branch and bound finds out only by walking
+   *  the whole window of `y`, a unit at a time, on the 32 and 64 bit windows of
+   *  bit vectors. Every variable is an integer here: [[check]] calls this, as
+   *  [[patch]], only without a real variable.
    */
   private def congruences(): Result =
     final class Residue(var r: BigInt, var m: BigInt, var from: List[Var])
