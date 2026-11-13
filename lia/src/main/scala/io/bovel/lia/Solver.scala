@@ -483,24 +483,32 @@ final class Solver:
       assertBound(x, Bound(rounded, -1, premises), isUpper) match
         case Result.Sat => ()
         case unsat => break(unsat)
-    if lowMissing == 0 then derive(b, low, lowPremises.toArray, false)
-    if highMissing == 0 then derive(b, high, highPremises.toArray, true)
+    if lowMissing == 0 && (lower(b) == null || low > lower(b).nn.value) then derive(b, low, lowPremises.toArray, false)
+    if highMissing == 0 && (upper(b) == null || high < upper(b).nn.value) then
+      derive(b, high, highPremises.toArray, true)
     // a × x_j = b − (the rest of the row), bounded by a bound of b and the lowest or highest value of the rest.
     val u = upper(b)
     val l = lower(b)
-    val withUpper = if u != null then (lowPremises += u).toArray else Array.empty[Bound]
-    val withLower = if l != null then (highPremises += l).toArray else Array.empty[Bound]
+    val upperRoom = if u != null && lowMissing == 0 then u.value - low else null
+    val lowerRoom = if l != null && highMissing == 0 then high - l.value else null
+    var withUpper: Array[Bound] | Null = null
+    var withLower: Array[Bound] | Null = null
     i = 0
     while i < row.size do
       val j = row.varAt(i)
       val a = row.coefAt(i)
       val forLow = if a.signum > 0 then lower(j) else upper(j)
       val forHigh = if a.signum > 0 then upper(j) else lower(j)
+      // What x_j can move the row by: with no more room than that, a bound of b says something of x_j. Most
+      // variables of a row over bits have less, so most of the divisions below need not happen.
+      val moves = if forLow != null && forHigh != null then (forHigh.value - forLow.value) * a else null
       // a × x_j ≤ u − (low − a × forLow), and a × x_j ≥ l − (high − a × forHigh)
-      if u != null && lowMissing == 0 then
-        derive(j, (u.value - low + forLow.nn.value * a) / a, withUpper, a.signum > 0)
-      if l != null && highMissing == 0 then
-        derive(j, (l.value - high + forHigh.nn.value * a) / a, withLower, a.signum < 0)
+      if upperRoom != null && (moves == null || upperRoom < moves) then
+        if withUpper == null then withUpper = (lowPremises += u.nn).toArray
+        derive(j, (upperRoom + forLow.nn.value * a) / a, withUpper.nn, a.signum > 0)
+      if lowerRoom != null && (moves == null || lowerRoom < moves) then
+        if withLower == null then withLower = (highPremises += l.nn).toArray
+        derive(j, (forHigh.nn.value * a - lowerRoom) / a, withLower.nn, a.signum < 0)
       i += 1
     Result.Sat
 
