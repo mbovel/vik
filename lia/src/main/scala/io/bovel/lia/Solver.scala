@@ -659,6 +659,17 @@ final class Solver:
    */
   var keepGoing: () => Boolean = () => true
 
+  /** A client that can decide a branch itself, as an atom of its own search:
+   *  called with `(x, c)` for the split `x ≤ c` or `x ≥ c + 1`, it makes a
+   *  check return `Sat` early, and must then assert one of the two sides and
+   *  check again. Only a split at the top of a check that already failed on
+   *  both sides once is handed over: its two refutations come back merged in
+   *  one conflict, where the client's search cannot learn the short one alone,
+   *  and meets the same split at its next check.
+   */
+  var split: ((Var, BigInt) => Unit) | Null = null
+  private val failedSplits = HashSet.empty[(Var, BigInt)]
+
   /** For the tests: pretend the small-model box is this many bits wide. */
   private[lia] var boxBitsOverride: Long = -1
 
@@ -815,10 +826,18 @@ final class Solver:
             current = side(branch, !branch.up)
           else // both sides failed
             open.remove(open.length - 1)
+            if open.isEmpty && split != null && branch.because.isEmpty then failedSplits += ((branch.x, branch.floor))
             current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
         case branch: Branch if !keepGoing() =>
           for _ <- open do pop()
           return Result.Unknown
+        case branch: Branch
+            if open.isEmpty && split != null && branch.because.isEmpty && failedSplits.remove((
+              branch.x,
+              branch.floor
+            )) =>
+          split.nn(branch.x, branch.floor)
+          return Result.Sat
         case branch: Branch =>
           open += branch
           push()
