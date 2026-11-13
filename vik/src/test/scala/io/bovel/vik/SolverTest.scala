@@ -167,3 +167,26 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve(fuel = 1), s.Result.Unknown(s.Reason.Fuel))
     assertEquals(s.solve(() => false), s.Result.Unknown(s.Reason.Stopped))
     assertEquals(s.solve(), s.Result.Sat)
+
+  test("a solve stopped inside the encoding answers unknown, and the next one answers"):
+    // Forty-eight integers a cycle of bounds makes equal, and two of their images apart: unsat only with
+    // the sharing atom of every pair of them, which a pass stopped part-way has noted and not yet encoded.
+    // `keepGoing` says no at its n-th asking, for every n the encoding has: in the first encoding, between
+    // two rounds of the passes, inside one.
+    val xs = (0 until 48).map(i => Const(s"x$i")).toList
+    def problem(): Solver =
+      val s = Solver()
+      s.declare("f", List("Int"), "Int")
+      for i <- xs.indices do s.declare(s"x$i", Nil, "Int")
+      for (x, y) <- xs.zip(xs.tail :+ xs.head) do s.assert(Le(x, y))
+      s.assert(Or(for (x, i) <- xs.zipWithIndex; y <- xs.drop(i + 1) yield fa(x) !== fa(y)))
+      s
+    assertEquals(problem().solve().toString, "Unsat")
+    for n <- 0 to 10 do
+      val s = problem()
+      var asked = 0
+      val stopped = s.solve { () =>
+        asked += 1; asked <= n
+      }
+      assertEquals(stopped, s.Result.Unknown(s.Reason.Stopped), s"stopped at asking $n")
+      assertEquals(s.solve(), s.Result.Unsat, s"after a stop at asking $n")
