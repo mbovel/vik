@@ -848,9 +848,11 @@ final class Solver:
    *  disagree (`y / 2` and `(y + 1) / 2` both integers), which the relaxation
    *  cannot see and branch and bound finds out only by walking the whole window
    *  of `y`, a unit at a time, on the 32 and 64 bit windows of bit vectors.
+   *  Every variable is an integer here: [[check]] calls this, as [[patch]], only
+   *  without a real variable.
    */
   private def congruences(): Result =
-    final class Residue(var r: BigInt, var m: BigInt, var rows: List[Var])
+    final class Residue(var r: BigInt, var m: BigInt, var from: List[Var])
     val residues = scala.collection.mutable.HashMap.empty[Var, Residue]
     def fixed(y: Var): Boolean =
       val l = lower(y)
@@ -871,7 +873,7 @@ final class Solver:
     var k = 0
     while k < numVars do
       val row = rows(k)
-      if row != null && isInt(k) then
+      if row != null then
         // l k = Σ big_i y_i + small, in integers: gcd(l, big_i...) divides small, and a lone y gets a residue.
         var c = values(k)
         var free = 0
@@ -906,9 +908,9 @@ final class Solver:
             residues.get(y) match
               case None => residues(y) = Residue(r, m, List(k))
               case Some(e) =>
-                e.rows = k :: e.rows
+                e.from = k :: e.from
                 val h = e.m gcd m
-                if (e.r - r).mod(h) != 0 then return unsat(e.rows)
+                if (e.r - r).mod(h) != 0 then return unsat(e.from)
                 if m.mod(e.m) != 0 then // Chinese remainder: e.r + e.m t ≡ r (mod m)
                   val t = (((r - e.r) / h) * (e.m / h).modInverse(m / h)).mod(m / h)
                   e.r = e.r + e.m * t
@@ -926,7 +928,7 @@ final class Solver:
     var x = 0
     while x < numVars do
       val row = rows(x)
-      if row != null && !isSlack(x) && isInt(x) && !values(x).isInteger then
+      if row != null && !isSlack(x) && !values(x).isInteger then
         var i = 0
         while i < row.size && !patched(x, row.varAt(i), row.coefAt(i)) do i += 1
       x += 1
@@ -934,7 +936,6 @@ final class Solver:
   private val patchSteps = 8
 
   private def patched(x: Var, y: Var, a: Rational): Boolean =
-    if !isInt(y) then return false
     var step = 1
     while step <= patchSteps do
       var sign = 1
@@ -954,7 +955,7 @@ final class Solver:
     while i < column.size do
       val k = column(i)
       val v = values(k) + moved * rows(k).nn(y)
-      if !within(k, v) || (!isSlack(k) && isInt(k) && values(k).isInteger && !v.isInteger) then return false
+      if !within(k, v) || (!isSlack(k) && values(k).isInteger && !v.isInteger) then return false
       i += 1
     true
 
