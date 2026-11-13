@@ -25,12 +25,15 @@ object Simplifier:
    *  named ones). Returns the simplified assertions and the constants
    *  eliminated by substitution — an elimination is sound only while no other
    *  assertion mentions the constant, so a caller that keeps the result and
-   *  later learns of one must start over.
+   *  later learns of one must start over. `step` is called at every formula
+   *  visited: a caller with a deadline stops the simplification by throwing
+   *  from it.
    */
   def simplify(
       assertions: List[Formula],
       interpreted: Set[String] = Set.empty,
-      kept: List[Formula] = Nil
+      kept: List[Formula] = Nil,
+      step: () => Unit = () => ()
   ): (List[Formula], Map[String, Term]) =
     // The occurrences of every constant over the whole set: one walk, taken the first time a
     // conjunction has an equality to eliminate — most sets have none, and pay nothing.
@@ -41,7 +44,7 @@ object Simplifier:
       for name <- interpreted do counts(name) = Int.MaxValue // never local to a conjunction
       counts
     val defined = HashMap.empty[String, Term]
-    val out = assertions.map(f => simplify(f, total, true, defined)).filter(_ != True)
+    val out = assertions.map(f => simplify(f, total, true, defined, step)).filter(_ != True)
     (out, defined.toMap)
 
   private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match
@@ -89,22 +92,25 @@ object Simplifier:
       f: Formula,
       total: => HashMap[String, Int],
       positive: Boolean,
-      defined: HashMap[String, Term]
+      defined: HashMap[String, Term],
+      step: () => Unit
   ): Formula =
+    step()
     f match
       case True | False | Eq(_, _) | Pred(_) | Le(_, _) | Less(_, _) => f
-      case Not(a) => Not(simplify(a, total, false, defined))
-      case Or(as) => Or(as.map(simplify(_, total, positive, defined)))
-      case Implies(a, b) => Implies(simplify(a, total, false, defined), simplify(b, total, positive, defined))
-      case Iff(a, b) => Iff(simplify(a, total, false, defined), simplify(b, total, false, defined))
+      case Not(a) => Not(simplify(a, total, false, defined, step))
+      case Or(as) => Or(as.map(simplify(_, total, positive, defined, step)))
+      case Implies(a, b) =>
+        Implies(simplify(a, total, false, defined, step), simplify(b, total, positive, defined, step))
+      case Iff(a, b) => Iff(simplify(a, total, false, defined, step), simplify(b, total, false, defined, step))
       case Ite(c, t, e) => Ite(
-          simplify(c, total, false, defined),
-          simplify(t, total, positive, defined),
-          simplify(e, total, positive, defined)
+          simplify(c, total, false, defined, step),
+          simplify(t, total, positive, defined, step),
+          simplify(e, total, positive, defined, step)
         )
-      case And(as) if !positive => And(as.map(simplify(_, total, false, defined)))
+      case And(as) if !positive => And(as.map(simplify(_, total, false, defined, step)))
       case And(as) =>
-        var conjuncts = as.map(simplify(_, total, true, defined))
+        var conjuncts = as.map(simplify(_, total, true, defined, step))
         // Eliminate the constants local to this conjunction, one equality at a time. Only a
         // conjunction with an equality `c = t` among its conjuncts is counted: the counting walks
         // the conjunction, and every conjunction nested inside is walked once more per level above.

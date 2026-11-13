@@ -1,0 +1,246 @@
+solver,instance,samples_s
+z3,QG-classification__qg5__iso_brn001,0.034 0.018 0.016
+cvc5,QG-classification__qg5__iso_brn001,0.034 0.011 0.011
+princess,QG-classification__qg5__iso_brn001,0.862 0.887 0.891
+smtinterpol,QG-classification__qg5__iso_brn001,0.156 0.156 0.160
+z3,QG-classification__qg5__iso_icl662,0.021 0.020 0.020
+cvc5,QG-classification__qg5__iso_icl662,0.024 0.024 0.025
+princess,QG-classification__qg5__iso_icl662,1.474 1.481 1.503
+smtinterpol,QG-classification__qg5__iso_icl662,0.213 0.212 0.209
+z3,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.016 0.016 0.014
+cvc5,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.007 0.009 0.007
+princess,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.520 0.525 0.513
+smtinterpol,2018-Goel-hwbench__QF_UF_bug-1_ab_reg_max,0.112 0.112 0.111
+z3,20170829-Rodin__smt3534838651727683253,0.014 0.013 0.016
+cvc5,20170829-Rodin__smt3534838651727683253,0.006 0.007 0.006
+princess,20170829-Rodin__smt3534838651727683253,0.511 0.506 0.510
+smtinterpol,20170829-Rodin__smt3534838651727683253,0.119 0.116 0.112
+z3,20190906-CLEARSY__0016__00003,0.016 0.015 0.015
+cvc5,20190906-CLEARSY__0016__00003,0.007 0.007 0.008
+princess,20190906-CLEARSY__0016__00003,0.630 0.623 0.647
+smtinterpol,20190906-CLEARSY__0016__00003,0.121 0.115 0.117
+z3,TypeSafe__z3.1184131,0.015 0.015 0.014
+cvc5,TypeSafe__z3.1184131,0.007 0.007 0.007
+princess,TypeSafe__z3.1184131,0.516 0.516 0.533
+smtinterpol,TypeSafe__z3.1184131,0.113 0.116 0.114
+z3,NEQ__NEQ004_size4,0.020 0.020 0.019
+cvc5,NEQ__NEQ004_size4,0.037 0.037 0.038
+princess,NEQ__NEQ004_size4,timeout
+smtinterpol,NEQ__NEQ004_size4,0.352 0.363 0.362
+z3,CAV_2009_benchmarks__20-vars__problem__001,0.020 0.018 0.019
+cvc5,CAV_2009_benchmarks__20-vars__problem__001,0.036 0.036 0.035
+princess,CAV_2009_benchmarks__20-vars__problem__001,0.577 0.612 0.611
+smtinterpol,CAV_2009_benchmarks__20-vars__problem__001,0.139 0.137 0.140
+z3,cut_lemmas__10-vars__cut_lemma_01_001,0.018 0.016 0.017
+cvc5,cut_lemmas__10-vars__cut_lemma_01_001,0.008 0.008 0.008
+princess,cut_lemmas__10-vars__cut_lemma_01_001,0.487 0.498 0.488
+smtinterpol,cut_lemmas__10-vars__cut_lemma_01_001,0.120 0.123 0.119
+z3,dillig__20-4,0.019 0.020 0.018
+cvc5,dillig__20-4,0.041 0.039 0.041
+princess,dillig__20-4,0.588 0.612 0.603
+smtinterpol,dillig__20-4,0.149 0.147 0.147
+z3,prime-cone__prime_cone_unsat_3,0.018 0.017 0.016
+cvc5,prime-cone__prime_cone_unsat_3,0.010 0.008 0.008
+princess,prime-cone__prime_cone_unsat_3,0.500 0.508 0.507
+smtinterpol,prime-cone__prime_cone_unsat_3,0.126 0.126 0.125
+z3,convert__convert-tiff2jpg-query-1831,0.016 0.016 0.017
+cvc5,convert__convert-tiff2jpg-query-1831,0.009 0.009 0.009
+princess,convert__convert-tiff2jpg-query-1831,0.560 0.571 0.564
+smtinterpol,convert__convert-tiff2jpg-query-1831,0.151 0.154 0.150
+z3,mathsat__FISCHER1-1-fair,0.016 0.016 0.016
+cvc5,mathsat__FISCHER1-1-fair,0.007 0.008 0.007
+princess,mathsat__FISCHER1-1-fair,0.619 0.625 0.625
+smtinterpol,mathsat__FISCHER1-1-fair,0.142 0.144 0.141
+z3,wisas__xs_8_8,0.021 0.018 0.019
+cvc5,wisas__xs_8_8,0.014 0.015 0.015
+princess,wisas__xs_8_8,0.838 0.869 0.875
+smtinterpol,wisas__xs_8_8,0.182 0.185 0.188
+z3,TwoSquares__smtlib.598294,0.016 0.015 0.015
+cvc5,TwoSquares__smtlib.598294,0.008 0.007 0.007
+princess,TwoSquares__smtlib.598294,0.605 0.587 0.603
+smtinterpol,TwoSquares__smtlib.598294,0.116 0.119 0.117
+z3,mathsat__Wisa__xs-09-05-2-4-4-5,0.018 0.017 0.018
+cvc5,mathsat__Wisa__xs-09-05-2-4-4-5,0.015 0.014 0.016
+princess,mathsat__Wisa__xs-09-05-2-4-4-5,0.873 0.894 0.916
+smtinterpol,mathsat__Wisa__xs-09-05-2-4-4-5,0.281 0.277 0.279
+z3,keymaera__division_dijkstra-node701,0.015 0.014 0.015
+cvc5,keymaera__division_dijkstra-node701,0.006 0.007 0.006
+princess,keymaera__division_dijkstra-node701,0.474 0.480 0.474
+smtinterpol,keymaera__division_dijkstra-node701,0.108 0.111 0.109
+z3,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.015 0.015 0.016
+cvc5,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.007 0.006 0.008
+princess,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.640 0.633 0.649
+smtinterpol,Chua__1__VC2__L__Chua-1-VC2-L-chunk-0005,0.118 0.119 0.119
+z3,RandomDecoupled__pb_real_30_60_45_28,0.020 0.020 0.021
+cvc5,RandomDecoupled__pb_real_30_60_45_28,0.020 0.020 0.020
+princess,RandomDecoupled__pb_real_30_60_45_28,5.855 5.848 6.122
+smtinterpol,RandomDecoupled__pb_real_30_60_45_28,0.247 0.254 0.244
+z3,bench_ab__a649test0047,0.018 0.017 0.016
+cvc5,bench_ab__a649test0047,0.011 0.011 0.011
+princess,bench_ab__a649test0047,0.663 0.642 0.651
+smtinterpol,bench_ab__a649test0047,0.156 0.161 0.167
+z3,sage__app2__bench_512,0.079 0.080 0.080
+cvc5,sage__app2__bench_512,0.050 0.051 0.049
+princess,sage__app2__bench_512,0.675 0.697 0.694
+smtinterpol,sage__app2__bench_512,0.195 0.201 0.200
+z3,pspace__ndist.a.20000,timeout
+cvc5,pspace__ndist.a.20000,0.008 0.008 0.006
+princess,pspace__ndist.a.20000,0.592 0.589 0.596
+smtinterpol,pspace__ndist.a.20000,0.223 0.221 0.220
+z3,spear__cvs_v1.11.22__cvs_vc71402,0.016 0.015 0.015
+cvc5,spear__cvs_v1.11.22__cvs_vc71402,0.010 0.011 0.011
+princess,spear__cvs_v1.11.22__cvs_vc71402,0.703 0.711 0.700
+smtinterpol,spear__cvs_v1.11.22__cvs_vc71402,0.270 0.266 0.268
+z3,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,0.022 0.023 0.023
+cvc5,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,0.022 0.023 0.023
+princess,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,timeout
+smtinterpol,20210219-Sydr__symbolic_memory__nested__cjpeg__predicate_150,2.441 2.314 2.278
+z3,20172804-Barrett__tests__v1__v1l20086.cvc,0.016 0.014 0.014
+cvc5,20172804-Barrett__tests__v1__v1l20086.cvc,0.007 0.007 0.007
+princess,20172804-Barrett__tests__v1__v1l20086.cvc,0.655 0.671 0.651
+smtinterpol,20172804-Barrett__tests__v1__v1l20086.cvc,0.114 0.113 0.113
+z3,20172804-Barrett__tests__v10__v10l20080.cvc,0.016 0.014 0.015
+cvc5,20172804-Barrett__tests__v10__v10l20080.cvc,0.007 0.007 0.006
+princess,20172804-Barrett__tests__v10__v10l20080.cvc,0.830 0.841 0.817
+smtinterpol,20172804-Barrett__tests__v10__v10l20080.cvc,0.116 0.113 0.111
+z3,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.017 0.015 0.017
+cvc5,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.008 0.007 0.007
+princess,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.688 0.677 0.678
+smtinterpol,20230720-blocksworld__from_0_1_3_to_1_1_2_bmc_0,0.121 0.123 0.124
+z3,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.035 0.035 0.035
+cvc5,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.111 0.111 0.113
+princess,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,1.908 1.886 1.895
+smtinterpol,20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA,0.420 0.442 0.430
+z3,alpha-093dddceea58,0.017 0.017 0.015
+cvc5,alpha-093dddceea58,0.009 0.009 0.008
+princess,alpha-093dddceea58,0.606 0.601 0.601
+smtinterpol,alpha-093dddceea58,0.134 0.136 0.136
+z3,alpha-fib_memoized-36bd61c61979,0.017 0.016 0.016
+cvc5,alpha-fib_memoized-36bd61c61979,0.011 0.009 0.010
+princess,alpha-fib_memoized-36bd61c61979,0.659 0.677 0.683
+smtinterpol,alpha-fib_memoized-36bd61c61979,0.143 0.144 0.143
+z3,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.015 0.016 0.015
+cvc5,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.007 0.007 0.007
+princess,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.761 0.761 0.772
+smtinterpol,storeinv__storeinv_t2_np_nf_ai_00001_001.cvc,0.117 0.118 0.114
+z3,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.015 0.015 0.015
+cvc5,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.007 0.007 0.007
+princess,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.785 0.792 0.788
+smtinterpol,swap__swap_invalid_t3_np_nf_ai_00002_009.cvc,0.117 0.115 0.114
+z3,check__array_incompleteness1,0.015 0.015 0.015
+cvc5,check__array_incompleteness1,0.008 0.007 0.008
+princess,check__array_incompleteness1,0.759 0.784 0.815
+smtinterpol,check__array_incompleteness1,0.120 0.117 0.116
+z3,stainless-issue-1801__repro,0.019 0.017 0.016
+cvc5,stainless-issue-1801__repro,0.007 0.008 0.007
+princess,stainless-issue-1801__repro,error
+z3,20190906-CLEARSY__0020__00009,0.022 0.021 0.021
+cvc5,20190906-CLEARSY__0020__00009,0.032 0.032 0.034
+princess,20190906-CLEARSY__0020__00009,error
+smtinterpol,20190906-CLEARSY__0020__00009,0.255 0.252 0.248
+z3,lustre__two_counters.bmc_k100.prefix25,0.021 0.021 0.021
+cvc5,lustre__two_counters.bmc_k100.prefix25,0.013 0.013 0.013
+princess,lustre__two_counters.bmc_k100.prefix25,1.183 1.362 1.145
+smtinterpol,lustre__two_counters.bmc_k100.prefix25,0.223 0.223 0.224
+z3,lustre__ex3.bmc_k100.prefix25,0.190 0.190 0.186
+cvc5,lustre__ex3.bmc_k100.prefix25,0.307 0.306 0.307
+princess,lustre__ex3.bmc_k100.prefix25,timeout
+smtinterpol,lustre__ex3.bmc_k100.prefix25,0.516 0.513 0.526
+z3,kind__MESI_i4.ec,0.028 0.028 0.027
+cvc5,kind__MESI_i4.ec,0.095 0.097 0.096
+princess,kind__MESI_i4.ec,2.395 2.612 2.502
+smtinterpol,kind__MESI_i4.ec,0.286 0.280 0.278
+z3,kind__car_6_e2_893.ec,0.102 0.101 0.101
+cvc5,kind__car_6_e2_893.ec,0.901 0.904 0.908
+princess,kind__car_6_e2_893.ec,timeout
+smtinterpol,kind__car_6_e2_893.ec,0.601 0.589 0.582
+z3,cpachecker__diskperf_simpl1,0.018 0.017 0.017
+cvc5,cpachecker__diskperf_simpl1,0.013 0.013 0.015
+princess,cpachecker__diskperf_simpl1,1.005 0.968 0.938
+smtinterpol,cpachecker__diskperf_simpl1,0.162 0.170 0.163
+z3,cpachecker__list_false-unreach-call,0.028 0.028 0.026
+cvc5,cpachecker__list_false-unreach-call,0.041 0.041 0.044
+princess,cpachecker__list_false-unreach-call,2.021 2.043 2.029
+smtinterpol,cpachecker__list_false-unreach-call,0.293 0.288 0.277
+z3,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.021 0.019 0.019
+cvc5,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.007 0.007 0.008
+princess,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.697 0.698 0.714
+smtinterpol,2018-Goel-hwbench__QF_BV_cav14_example_cc_ref_max,0.158 0.162 0.163
+z3,2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8,0.042 0.041 0.040
+cvc5,2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8,0.183 0.184 0.184
+princess,2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8,timeout
+smtinterpol,2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8,timeout
+z3,20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300,0.124 0.121 0.120
+cvc5,20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300,0.120 0.117 0.122
+princess,20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300,3.241 3.272 3.415
+smtinterpol,20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300,0.424 0.444 0.421
+z3,20250315-BMC_WMM__dartagnan-3859612464.ll,0.023 0.024 0.024
+cvc5,20250315-BMC_WMM__dartagnan-3859612464.ll,0.023 0.023 0.026
+princess,20250315-BMC_WMM__dartagnan-3859612464.ll,timeout
+smtinterpol,20250315-BMC_WMM__dartagnan-3859612464.ll,1.563 1.629 1.626
+z3,20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2,0.209 0.208 0.207
+cvc5,20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2,0.386 0.387 0.388
+princess,20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2,timeout
+smtinterpol,20240414-mapf_r__soc__coef_1.25__corridor__corridor_001_k3_E2,1.017 0.989 0.997
+z3,asn1jvm__2899,timeout
+cvc5,asn1jvm__2899,timeout
+princess,asn1jvm__2899,1.171 1.182 1.207
+smtinterpol,asn1jvm__2899,error
+z3,bmc__stack_k20,0.023 0.022 0.022
+cvc5,bmc__stack_k20,0.388 0.388 0.389
+princess,bmc__stack_k20,timeout
+smtinterpol,bmc__stack_k20,0.692 0.724 0.700
+z3,safari__mux,0.030 0.029 0.031
+cvc5,safari__mux,0.044 0.046 0.045
+princess,safari__mux,3.150 3.152 3.213
+smtinterpol,safari__mux,0.325 0.301 0.301
+z3,safari__illinois,0.051 0.047 0.049
+cvc5,safari__illinois,0.096 0.096 0.095
+princess,safari__illinois,4.935 4.959 5.079
+smtinterpol,safari__illinois,0.479 0.474 0.451
+z3,valid-GodelNumbering__167,0.017 0.017 0.016
+cvc5,valid-GodelNumbering__167,0.017 0.017 0.014
+princess,valid-GodelNumbering__167,error
+z3,valid-Count__10,0.056 0.057 0.057
+cvc5,valid-Count__10,0.059 0.059 0.058
+princess,valid-Count__10,error
+z3,valid-LawTypeArgsElim__78,0.054 0.053 0.054
+cvc5,valid-LawTypeArgsElim__78,0.186 0.187 0.188
+princess,valid-LawTypeArgsElim__78,error
+z3,valid-LawTypeArgsElim__24,0.040 0.040 0.039
+cvc5,valid-LawTypeArgsElim__24,0.131 0.132 0.132
+princess,valid-LawTypeArgsElim__24,error
+z3,invalid-BadConcRope__59,0.033 0.033 0.033
+cvc5,invalid-BadConcRope__59,0.104 0.104 0.104
+princess,invalid-BadConcRope__59,error
+z3,valid-PropositionalLogic__111,0.019 0.019 0.019
+cvc5,valid-PropositionalLogic__111,0.026 0.026 0.026
+princess,valid-PropositionalLogic__111,error
+z3,invalid-BinarySearch1__39,0.026 0.025 0.027
+cvc5,invalid-BinarySearch1__39,0.066 0.067 0.067
+princess,invalid-BinarySearch1__39,error
+z3,valid-Factorial__0,0.916 0.915 0.906
+cvc5,valid-Factorial__0,0.532 0.531 0.533
+princess,valid-Factorial__0,error
+z3,valid-BooleanOps__9,0.017 0.016 0.017
+cvc5,valid-BooleanOps__9,0.009 0.010 0.008
+princess,valid-BooleanOps__9,error
+z3,invalid-PackedFloat8__11,0.019 0.020 0.019
+cvc5,invalid-PackedFloat8__11,0.013 0.014 0.011
+princess,invalid-PackedFloat8__11,error
+z3,valid-BitsTricksSlow__1,0.027 0.026 0.027
+cvc5,valid-BitsTricksSlow__1,0.035 0.034 0.037
+princess,valid-BitsTricksSlow__1,error
+z3,valid-BitsTricks__2,0.015 0.014 0.014
+cvc5,valid-BitsTricks__2,0.008 0.008 0.007
+princess,valid-BitsTricks__2,0.744 0.740 0.758
+smtinterpol,valid-BitsTricks__2,0.226 0.230 0.223
+z3,invalid-BraunTree__4,0.090 0.088 0.087
+cvc5,invalid-BraunTree__4,0.212 0.213 0.212
+princess,invalid-BraunTree__4,error
+z3,invalid-AddNaturals2__1,0.173 0.175 0.174
+cvc5,invalid-AddNaturals2__1,0.191 0.189 0.191
+princess,invalid-AddNaturals2__1,error
+z3,invalid-BinarySearch2__36,0.053 0.053 0.055
+cvc5,invalid-BinarySearch2__36,0.391 0.390 0.391
+princess,invalid-BinarySearch2__36,error

@@ -95,6 +95,11 @@ bench/.venv/bin/python bench/jmh2md.py target/jmh-result.json         # Markdown
 To sweep an arbitrary corpus subset one process per solver and instance, hand [cold.sh](cold.sh) a file
 list and a timeout: `find corpus -name '*.smt2' | grep -E <regex> > /tmp/list && bench/cold.sh /tmp/list 1 60`.
 
+To compare two builds of VIK file by file, over the whole corpus or the part a regex selects, `vik.CorpusRun`
+runs the files warm in one JVM, several at a time, and writes the time and the answers of each to a tsv:
+`sbt "bench/runMain io.bovel.bench.vik.CorpusRun 5 16 3 target/corpus-run.tsv /stainless/"` gives each file
+5 s, on 16 threads, and keeps the third pass.
+
 Configuration (annotations in the benchmark classes): 3 forks, 5 warmup and 5 measurement iterations of 1 s each
 for the modules' benchmarks, 3 forks, 3 and 3 for the solver suites, average time per operation, which gives 95%
 confidence intervals of a few percent; `-f 5 -wi 10` on the command line for a closer call. Every run gets a `timeout`: an sbt client can block on an unresponsive server (see
