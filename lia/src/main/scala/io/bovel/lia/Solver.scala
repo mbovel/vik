@@ -696,9 +696,12 @@ final class Solver:
     val open = ArrayBuffer.empty[Branch]
 
     /** Decides the relaxation and splits on the first fractional unknown, or
-     *  else on the first violated disequality.
+     *  else on the first violated disequality. The pivoted rows are swept only
+     *  inside a branch, where what they derive goes with the branch: before the
+     *  first one it stays after the check, and a session was measured to take
+     *  309 final checks where 7 do (`BitsTricksSlow`).
      */
-    def step(sweep: Boolean = true): Result | Branch = relaxationAndWindows() match
+    def step(sweep: Boolean = open.nonEmpty): Result | Branch = relaxationAndWindows() match
       case Result.Sat =>
         if !anyReal then patch()
         var x = 0
