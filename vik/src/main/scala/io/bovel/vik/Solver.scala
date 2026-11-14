@@ -1153,19 +1153,16 @@ private final class Theories(
   def pop(): Unit = theories.foreach(_.pop())
 
   private def combine(check: Theory => Theory.Result): Theory.Result = boundary:
-    // A split waits for what the theories imply: it is asked for again at the next final check.
-    var split: Theory.Result | Null = null
+    // A split is passed on at once: its atom exists already, so it must get its variable before any
+    // theory is asked again. What the other theories imply comes back when the decision is propagated.
     val results = theories.map(theory =>
       check(theory) match
         case Theory.Result.Ok(lits) => (theory, lits)
-        case s: Theory.Result.Split =>
-          split = s
-          (theory, ArrayBuffer.empty[Lit])
         case other => break(other)
     )
     if anyShared() then
       for (theory, lits) <- results; l <- lits if shared(l.variable) do implier(l.variable) = theory
     results.filter(_._2.nonEmpty) match
-      case Nil => if split != null then split.nn else Theory.ok
+      case Nil => Theory.ok
       case (_, lits) :: Nil => Theory.Result.Ok(lits) // one theory spoke: its buffer passes through
       case several => Theory.Result.Ok(several.foldLeft(ArrayBuffer.empty[Lit])(_ ++= _._2))

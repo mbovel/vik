@@ -113,13 +113,16 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    */
   private var seen = new Array[Boolean](numVars)
 
-  /** Adds a variable — unassigned, false phase, last in the decision order —
-   *  and returns it. Solving between two [[newVar]]s is fine: the arrays grow,
-   *  the trail is untouched. The solver adds variables itself for a
-   *  [[Theory.Result.Split]]: [[vars]] tells how many there are.
+  /** How many variables there are: the solver adds some itself for a
+   *  [[Theory.Result.Split]].
    */
   def vars: Int = varCount
 
+  /** Adds a variable — unassigned, false phase, last in the decision order —
+   *  and returns it. Solving between two [[newVar]]s is fine: the arrays grow,
+   *  the trail is untouched. The solver adds variables itself for a
+   *  [[Theory.Result.Split]].
+   */
   def newVar(): Var =
     val v = varCount
     varCount += 1

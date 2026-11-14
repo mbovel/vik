@@ -28,6 +28,7 @@ final class LiaTheory(
     newBound: ((lia.Var, BigInt) => Lit) | Null = null
 ) extends Theory:
   // With a way to make atoms, a split the solver keeps meeting is left to the search (see `report`).
+  // Note the side effect: the theory turns splitting on demand on in the solver it is given.
   solver.splitOnDemand = newBound != null
 
   /** A conflict found while asserting, reported by the next `propagate`. */
@@ -89,8 +90,10 @@ final class LiaTheory(
               case unsat => unsat
       result match
         case lia.Solver.Result.Unsat(reasons) => conflict = lits(reasons)
-        // Asserting a bound never runs the search, so it cannot be told to stop: Unknown is unreachable.
-        case _ => ()
+        case lia.Solver.Result.Sat => ()
+        // Asserting a bound never runs the search, so it can neither be told to stop nor ask for a split.
+        case lia.Solver.Result.Unknown | lia.Solver.Result.Split(_, _) =>
+          throw AssertionError("asserting a bound does not search")
 
   def propagate(): Theory.Result =
     if !touched && conflict == null then Theory.ok
