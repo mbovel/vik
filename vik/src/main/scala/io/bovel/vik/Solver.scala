@@ -762,7 +762,17 @@ private final class Encoder(
     )
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
-  private def lit(formula: Formula): Lit = lits.getOrElseUpdate(formula, encode(formula))
+  private def lit(formula: Formula): Lit =
+    // An equality first encoded for an application lemma, met again in a formula of the problem,
+    // is one of the problem's from then on: its negation needs a witness like any other.
+    if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(formula) then
+      functionEqualities += formula
+    lits.getOrElseUpdate(formula, encode(formula))
+
+  /** The function equalities encoded for the application lemmas alone, which
+   *  get no witness (see [[applicationLemmas]]) until the problem states them.
+   */
+  private val lemmaEqualities = scala.collection.mutable.HashSet.empty[Formula]
 
   private def encode(formula: Formula): Lit =
     import Formula.*
@@ -778,7 +788,7 @@ private final class Encoder(
           boolean(rhs)
           if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then
             anyFunctionEquality = true
-            if recordFunctionEqualities then functionEqualities += formula
+            if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
