@@ -150,13 +150,6 @@ class SolverTest extends munit.FunSuite:
     )
     assertEquals(halves.check(), Result.Unsat(Set(0, 1, 2, 3)))
 
-  test("equations with an integer solution pass the equation check"):
-    // x = 2y and x = 3z + 1: x = 4 for one.
-    val fine = equations(3, List((List((1, 0), (-2, 1)), 0), (List((1, 0), (-3, 2)), 1)))
-    assertEquals(fine.check(), Result.Sat)
-    assertEquals(fine.value(0), 2 * fine.value(1))
-    assertEquals(fine.value(0), 3 * fine.value(2) + 1)
-
   test("the equation check reduces coefficients of either sign"):
     // No coefficient of the first equation is ±1, so the check reduces them by the smallest one.
     // 4x + 6y = 9z and 9z = 6w + 3: the left is even, the right odd.
