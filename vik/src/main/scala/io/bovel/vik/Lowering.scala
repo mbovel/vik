@@ -424,7 +424,15 @@ private final class Lowerer:
   private def lowered(s: Sort): Sort = s match
     case Sort.BitVec(_) => Sort.Int
     case Sort.Fun(args, result) => Sort.Fun(args.map(lowered), lowered(result))
-    case Sort.Array(index, element) => Sort.Array(lowered(index), lowered(element))
+    // An array field is of the function sort its stores and its array constants have ([[sortString]]): the
+    // array lemmas pair a read with the stores of its array's sort, and a field left as `(Array I E)` was
+    // of no store's sort, so a read through a selector got no read-over-write lemma and the search
+    // answered `sat` on an unsatisfiable script.
+    case Sort.Array(index, element) =>
+      val i = index match
+        case Sort.BitVec(_) => index // as [[indexString]] keeps it
+        case other => lowered(other)
+      Sort.fun(List(i), lowered(element))
     case other => other
 
   private def sortString(s: Sort): String = s match

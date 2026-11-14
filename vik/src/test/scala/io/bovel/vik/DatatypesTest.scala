@@ -70,3 +70,18 @@ class DatatypesTest extends munit.FunSuite:
       )),
       List("unsat")
     )
+
+  test("an array field is read over the writes to it") {
+    // The field's sort is the sort of the stores written to it, or a read
+    // through the selector got no read-over-write lemma, and this was sat.
+    assertEquals(
+      Session.run(Parser.parse(
+        """(declare-datatypes ((arr 0)) (((mk (data (Array Int Bool))))))
+          |(declare-fun d () arr) (declare-fun i () Int) (declare-fun j () Int) (declare-fun v () Bool)
+          |(assert (not (= i j)))
+          |(assert (not (= (select (data (mk (store (data d) i v))) j) (select (data d) j))))
+          |(check-sat)""".stripMargin
+      )),
+      List("unsat")
+    )
+  }
