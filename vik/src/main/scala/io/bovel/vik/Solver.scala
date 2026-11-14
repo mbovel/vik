@@ -433,7 +433,9 @@ private final class Encoder(
       for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
         pair(a, b)
         for (x, y) <- a.args.zip(b.args) do pair(x, y)
-    for case Formula.Eq(a, b) <- lits.keys do pair(a, b)
+    // Not the equalities of the application lemmas: paired, they would be the problem's, each with a
+    // witness, the map and the arrays read there, and the integers there shared in turn.
+    for case eq @ Formula.Eq(a, b) <- lits.keys if !lemmaEqualities(eq) do pair(a, b)
     // A selector's applications meet the arguments of its constructor at its position (the selector rule).
     // An arithmetic field, integer or real: a real one shared only through the e-graph left the
     // simplex without its equalities (issue 18).
