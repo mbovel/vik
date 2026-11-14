@@ -125,6 +125,84 @@ class SolverTest extends munit.FunSuite:
           unsat += 1
     assert(sat > 50 && unsat > 50, (sat, unsat))
 
+  /** A solver over `n` variables where each expression is fixed to a constant,
+   *  the bounds of the `i`th one asserted with the reasons `2i` and `2i + 1`.
+   */
+  def equations(n: Int, fixed: List[(List[(BigInt, Int)], BigInt)]): Solver =
+    val solver = Solver()
+    val vars = List.fill(n)(solver.newVar())
+    for ((terms, c), i) <- fixed.zipWithIndex do
+      val s = solver.newSlack(terms.map((a, x) => (a, vars(x))))
+      assertEquals(solver.assertUpper(s, c, 2 * i), Result.Sat)
+      assertEquals(solver.assertLower(s, c, 2 * i + 1), Result.Sat)
+    solver
+
+  test("equations without an integer solution are refuted with no bound on the variables"):
+    // x even and odd: x = 2y, x = 2z + 1. Branch and bound alone slides along x for ever.
+    val parity = equations(3, List((List((1, 0), (-2, 1)), 0), (List((1, 0), (-2, 2)), 1)))
+    assertEquals(parity.check(), Result.Unsat(Set(0, 1, 2, 3)))
+
+  test("the equations that take no part in a refutation are left out of it"):
+    // x + y = 1 and x = y, and z = 3x + 5.
+    val halves = equations(
+      3,
+      List((List((1, 0), (1, 1)), 1), (List((1, 0), (-1, 1)), 0), (List((1, 2), (-3, 0)), 5))
+    )
+    assertEquals(halves.check(), Result.Unsat(Set(0, 1, 2, 3)))
+
+  test("equations with an integer solution pass the equation check"):
+    // x = 2y and x = 3z + 1: x = 4 for one.
+    val fine = equations(3, List((List((1, 0), (-2, 1)), 0), (List((1, 0), (-3, 2)), 1)))
+    assertEquals(fine.check(), Result.Sat)
+    assertEquals(fine.value(0), 2 * fine.value(1))
+    assertEquals(fine.value(0), 3 * fine.value(2) + 1)
+
+  test("the equation check reduces coefficients of either sign"):
+    // No coefficient of the first equation is ±1, so the check reduces them by the smallest one.
+    // 4x + 6y = 9z and 9z = 6w + 3: the left is even, the right odd.
+    val odd = equations(4, List((List((4, 0), (6, 1), (-9, 2)), 0), (List((9, 2), (-6, 3)), 3)))
+    assertEquals(odd.check(), Result.Unsat(Set(0, 1, 2, 3)))
+
+  test("the equation check agrees with branch and bound"):
+    val rnd = Random(23)
+    var refuted = 0
+    for round <- 0 until 400 do
+      val n = 2 + rnd.nextInt(3)
+      val fixed = List.fill(1 + rnd.nextInt(3)):
+        val terms = (0 until n).toList.flatMap: x =>
+          val a = rnd.nextInt(13) - 6
+          if a == 0 then Nil else List((BigInt(a), x))
+        (if terms.isEmpty then List((BigInt(2), 0)) else terms, BigInt(rnd.nextInt(9) - 4))
+      // The result with the bounds of the reasons kept, and the solver if it took a check to tell.
+      def solve(check: Boolean, keep: Int => Boolean): (Result, Option[Solver]) =
+        val s = Solver()
+        s.equationCheck = check
+        val vars = List.fill(n)(s.newVar())
+        // Every variable within [-8, 8], or branch and bound alone may not end.
+        val boxed = vars.iterator.zipWithIndex.flatMap: (x, i) =>
+          Iterator(100 + 2 * i, 101 + 2 * i).map: reason =>
+            if !keep(reason) then Result.Sat
+            else if reason % 2 == 0 then s.assertUpper(x, 8, reason)
+            else s.assertLower(x, -8, reason)
+        val asserted = boxed ++ fixed.zipWithIndex.iterator.flatMap: (equation, i) =>
+          val slack = s.newSlack(equation._1.map((a, x) => (a, vars(x))))
+          Iterator(2 * i, 2 * i + 1).filter(keep).map: reason =>
+            if reason % 2 == 0 then s.assertUpper(slack, equation._2, reason)
+            else s.assertLower(slack, equation._2, reason)
+        asserted.find(_ != Result.Sat).fold((s.check(), Some(s)))((_, None))
+      val (expected, _) = solve(false, _ => true)
+      solve(true, _ => true) match
+        case (Result.Sat, fast) =>
+          assertEquals(expected, Result.Sat, fixed)
+          for (terms, c) <- fixed do assertEquals(terms.map((a, x) => a * fast.get.value(x)).sum, c, fixed)
+        case (Result.Unsat(reasons), fast) =>
+          assert(expected.isInstanceOf[Result.Unsat], (fixed, expected))
+          // The explanation is unsatisfiable on its own (branch and bound needs the box to tell).
+          assert(solve(false, r => r >= 100 || reasons(r))._1.isInstanceOf[Result.Unsat], (fixed, reasons))
+          if fast.nonEmpty then refuted += 1
+        case (result, _) => fail(s"$fixed: $result")
+    assert(refuted > 50, refuted)
+
   test("push and pop"):
     val rnd = Random(11)
     for round <- 0 until 100 do
@@ -168,6 +246,7 @@ class SolverTest extends munit.FunSuite:
     // expression's gcd sees it — the branches slide.
     def parity(): Solver =
       val s = Solver()
+      s.equationCheck = false // the equation check refutes this one at once: the test is of the box
       val x = s.newVar()
       val y = s.newVar()
       val z = s.newVar()
