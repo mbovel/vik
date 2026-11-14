@@ -60,36 +60,15 @@ object Solver:
       up: Boolean = false // the upper side `x ≥ ceil` first, toward zero
   )
 
-  /** How much work [[Solver.integerEquations]] may spend, in 64-bit words of
-   *  coefficients written (the coefficients may grow as equations combine): the
-   *  check is an aid, not an obligation.
+  /** How many 64-bit words of coefficients [[Solver.integerEquations]] may go
+   *  over: the check is an aid, not an obligation.
    */
   val equationWork = 100000
 
   /** An integer equation `Σ coefs = constant` of [[Solver.integerEquations]],
-   *  with the fixed variables it was combined from: `from(i)` times the `i`th
-   *  one (the rows of the tableau, which hold whatever the bounds, need no
-   *  mention).
+   *  with the reasons of the bounds it was combined from.
    */
-  private final class Equation(val coefs: HashMap[Int, BigInt], var constant: BigInt, val from: HashMap[Int, Rational]):
-    /** Adds `k` times `that`, and returns the words of coefficients written. */
-    def add(k: BigInt, that: Equation): Int =
-      var words = 0
-      for (x, a) <- that.coefs do
-        val sum = coefs.getOrElse(x, BigInt(0)) + k * a
-        words += 1 + sum.bitLength / 64
-        if sum.signum == 0 then coefs -= x else coefs(x) = sum
-      constant += k * that.constant
-      for (i, m) <- that.from do
-        val sum = from.getOrElse(i, Rational.zero) + Rational(k) * m
-        if sum.isZero then from -= i else from(i) = sum
-      words
-
-    /** Divides by `g`, which divides every coefficient and the constant. */
-    def divide(g: BigInt): Unit =
-      for x <- coefs.keys.toArray do coefs(x) /= g
-      constant /= g
-      for i <- from.keys.toArray do from(i) = from(i) / Rational(g)
+  private final class Equation(val coefs: HashMap[Int, BigInt], var constant: BigInt, var reasons: Set[Int])
 
   /** A set of variables with its smallest at hand: a binary min-heap. */
   private final class VarHeap:
@@ -1007,62 +986,48 @@ final class Solver:
    *  The equations are the rows of the tableau over integer variables, and
    *  `x = c` for each variable the bounds fix. A row whose basic variable is
    *  not fixed and whose coefficients are integers is left out: it only defines
-   *  that variable, which no other row mentions. The equations are eliminated
-   *  one at a time: each is rewritten by the ones solved so far, fails if the
-   *  gcd of its coefficients does not divide its constant, and is then solved
-   *  for a variable of coefficient ±1, after reducing the coefficients by the
-   *  smallest one through a fresh variable until there is one. A failure is
-   *  explained by the bounds of the fixed variables combined.
+   *  that variable, which no other row mentions. Each equation is rewritten by
+   *  the ones solved so far, fails if the gcd of its coefficients does not
+   *  divide its constant, and is then solved for a variable of coefficient ±1,
+   *  after reducing the coefficients by the smallest one through a fresh
+   *  variable until there is one.
    */
   private def integerEquations(): Result = boundary:
-    val fixed = ArrayBuffer.empty[(Bound, Bound)]
     val solved = HashMap.empty[Int, Equation] // x ↦ the equation `x + … = c` it was solved from
     var fresh = numVars
     var work = 0
-    // The equation is a sum of fixed variables, each times a factor, and has no solution modulo `g` (0:
-    // none at all). A variable whose factor is a multiple of `g` changes nothing modulo `g`: the rest
-    // explains.
-    def conflict(equation: Equation, g: BigInt): Nothing =
-      val reasons = Set.newBuilder[Int]
-      for (i, m) <- equation.from if g.signum == 0 || !(m / Rational(g)).isInteger do
-        reasons ++= fixed(i)._1.reasons
-        reasons ++= fixed(i)._2.reasons
-      break(Result.Unsat(reasons.result()))
     def eliminate(equation: Equation): Unit =
-      var pending = true
-      while pending do
-        pending = false
-        for x <- equation.coefs.keys.toArray do
-          solved.get(x) match
-            case Some(by) if equation.coefs.contains(x) =>
-              work += equation.add(-equation.coefs(x), by)
-              pending = true
-            case _ => ()
+      while
+        work += equation.coefs.valuesIterator.map(_.bitLength / 64 + 1).sum
         if work > Solver.equationWork then break(Result.Sat)
-      while equation.coefs.nonEmpty do
-        val g = equation.coefs.valuesIterator.map(_.abs).reduce(_ gcd _)
-        if equation.constant.mod(g).signum != 0 then conflict(equation, g)
-        if g != 1 then equation.divide(g)
-        val (x, a) = equation.coefs.minBy((y, b) => (b.abs, y)) // a fixed choice: the same conflict on every machine
-        if a.abs == 1 then
-          if a.signum < 0 then equation.divide(-1)
+        val g = equation.coefs.valuesIterator.foldLeft(BigInt(0))(_ gcd _)
+        if equation.constant != 0 && (g == 0 || equation.constant % g != 0) then
+          break(Result.Unsat(equation.reasons))
+        if equation.coefs.isEmpty then return
+        val (x, a) = equation.coefs.minBy((y, b) => (!solved.contains(y), b.abs, y)) // solved ones first
+        if solved.contains(x) then // x + rest = c: subtract a times it
+          val by = solved(x)
+          for (y, b) <- by.coefs do
+            val sum = equation.coefs.getOrElse(y, BigInt(0)) - a * b
+            if sum == 0 then equation.coefs -= y else equation.coefs(y) = sum
+          equation.constant -= a * by.constant
+          equation.reasons ++= by.reasons
+        else if a.abs == g then // ±1 once divided by the gcd: solved
+          equation.coefs.mapValuesInPlace((_, b) => b / a)
+          equation.constant /= a
           solved(x) = equation
-          return
-        // x = t - Σ q y, where each other coefficient is q a + r: the equation becomes a t + Σ r y = c.
-        val t = fresh
-        fresh += 1
-        val definition = Equation(HashMap(x -> BigInt(1), t -> BigInt(-1)), 0, HashMap.empty)
-        for (y, b) <- equation.coefs.toArray if y != x do
-          val q = (b.abs + a.abs / 2) / a.abs * (b.signum * a.signum) // b / a rounded: |r| ≤ |a| / 2
-          if q.signum != 0 then definition.coefs(y) = q
-          val r = b - q * a
-          if r.signum == 0 then equation.coefs -= y else equation.coefs(y) = r
-        equation.coefs -= x
-        equation.coefs(t) = a
-        solved(x) = definition
-        work += equation.coefs.size
-        if work > Solver.equationWork then break(Result.Sat)
-      if equation.constant.signum != 0 then conflict(equation, 0)
+        else // x = t - Σ q y, where each other coefficient is q a + r: the equation becomes a t + Σ r y = c
+          val definition = Equation(HashMap(x -> BigInt(1), fresh -> BigInt(-1)), 0, Set.empty)
+          for (y, b) <- equation.coefs.toArray if y != x do
+            val q = (b.abs + a.abs / 2) / a.abs * (b.signum * a.signum) // b / a rounded: |r| ≤ |a| / 2
+            if q != 0 then definition.coefs(y) = q
+            if b == q * a then equation.coefs -= y else equation.coefs(y) = b - q * a
+          equation.coefs -= x
+          equation.coefs(fresh) = a
+          solved(x) = definition
+          fresh += 1
+        solved.get(x).forall(_ ne equation)
+      do ()
     def isFixed(x: Var): Boolean =
       val l = lower(x)
       val u = upper(x)
@@ -1070,32 +1035,16 @@ final class Solver:
     val mentioned = HashSet.empty[Var]
     def fix(x: Var): Unit =
       if isFixed(x) && mentioned.add(x) then
-        fixed += ((lower(x).nn, upper(x).nn))
-        eliminate(Equation(HashMap(x -> BigInt(1)), lower(x).nn.value.r.num, HashMap(fixed.length - 1 -> Rational.one)))
-    var b = 0
-    while b < numVars do
+        val reasons = lower(x).nn.reasons ++ upper(x).nn.reasons
+        eliminate(Equation(HashMap(x -> BigInt(1)), lower(x).nn.value.r.num, reasons))
+    for b <- 0 until numVars do
       val row = rows(b)
       if row != null && isInt(b) && !row.existsVar(x => !isInt(x)) then
-        var l = BigInt(1)
-        var i = 0
-        while i < row.size do
-          l = l / (l gcd row.coefAt(i).den) * row.coefAt(i).den
-          i += 1
-        if l != 1 || isFixed(b) then
-          // l·b = Σ l·a·x, then what the bounds fix among its variables.
-          val coefs = HashMap(b -> -l)
-          i = 0
-          while i < row.size do
-            coefs(row.varAt(i)) = row.coefAt(i).num * (l / row.coefAt(i).den)
-            i += 1
-          work += coefs.size
-          eliminate(Equation(coefs, 0, HashMap.empty))
-          fix(b)
-          i = 0
-          while i < row.size do
-            fix(row.varAt(i))
-            i += 1
-      b += 1
+        val terms = (0 until row.size).map(i => (row.varAt(i), row.coefAt(i)))
+        val l = terms.foldLeft(BigInt(1))((l, term) => l / (l gcd term._2.den) * term._2.den)
+        if l != 1 || isFixed(b) then // l·b = Σ l·a·x, then what the bounds fix among its variables
+          eliminate(Equation(HashMap.from(terms.map((x, a) => (x, a.num * (l / a.den)))) += b -> -l, 0, Set.empty))
+          (b +: terms.map(_._1)).foreach(fix)
     Result.Sat
 
   /** Repairs the basic variables violating their bounds, smallest first, by
