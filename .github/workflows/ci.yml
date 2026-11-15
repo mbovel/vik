@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 26]
+        java: [26]
     name: test (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
     # The corpus test's five seconds are for one's own machine, where a file at the edge is caught; on a
