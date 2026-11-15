@@ -294,7 +294,6 @@ QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72771_f9d228efc97cf1458e38_64_QF_UFDTLIA.smt2	timeout (5 s limit)
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_1_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__83314_a702bf8b823398c9e37a_3_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_UFDTLIA/stainless/valid-LawTypeArgsElim__24.smt2	beyond the search today (answers unknown where z3 answers)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f21.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f42.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f52.smt2	timeout (5 s limit)
