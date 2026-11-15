@@ -45,6 +45,12 @@ final class Session(
   private var rlimit = fuel
   private var timeout = timeoutMs // milliseconds per check-sat, as `(set-option :timeout ...)` sets it
   private var reason = Option.empty[String]
+  private var spent = 0L
+
+  /** The steps the check-sats took so far, as the fuel counts them: the same on
+   *  every machine.
+   */
+  def steps: Long = spent
 
   /** Runs SMT-LIB text, any commands, and answers it. */
   def run(text: String): List[String] = run(parser.parse(text))
@@ -121,7 +127,7 @@ final class Session(
     var late = false
     reason = None
     s.solve(() =>
-      left -= 1; late = stop.exists(_ < System.nanoTime()); left >= 0 && !late
+      left -= 1; spent += 1; late = stop.exists(_ < System.nanoTime()); left >= 0 && !late
     ) match
       case s.Result.Sat => "sat"
       case s.Result.Unsat => "unsat"
