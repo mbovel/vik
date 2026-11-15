@@ -1,5 +1,6 @@
 package io.bovel.bench.vik
 
+import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path}
 import java.util.concurrent.Executors
 
@@ -15,7 +16,10 @@ import io.bovel.vik.Session
  *  all of them by default); an absolute directory in its place is run instead,
  *  for files outside the corpus — the sessions `bench/import-stainless.py` is
  *  about to import. The tsv has a line per file of the last pass, the earlier
- *  ones being the warm-up: its path, the milliseconds, then `ok`, `timeout` or
+ *  ones being the warm-up: its path, the wall-clock milliseconds, the CPU
+ *  milliseconds of the file's thread, the solver steps (as the fuel counts
+ *  them, the same on every machine for a file that finishes), the kilobytes the
+ *  thread allocated (nearly the same on every machine), then `ok`, `timeout` or
  *  the error, then the answers as `s`, `u` and `?`.
  *
  *  The times are for comparing two builds file by file, not for a table: the
@@ -53,20 +57,28 @@ object CorpusRun:
     Files.write(Path.of(args(3)), last.asJava)
     System.exit(0) // whatever the files left behind
 
-  /** One file in a session of its own: the milliseconds, the outcome and the
-   *  answers, as the tsv has them. The thread has the stack a deep script asks
-   *  of the parser.
+  /** One file in a session of its own: the milliseconds, the CPU milliseconds,
+   *  the steps, the kilobytes, the outcome and the answers, as the tsv has
+   *  them. The thread has the stack a deep script asks of the parser.
    */
   private def run(path: Path, seconds: Long): String =
     var outcome = "timeout"
     var answers = ""
+    @volatile var cpu = 0L
+    @volatile var kb = 0L
+    @volatile var session: Session | Null = null
+    val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
     val start = System.nanoTime
     val worker = Thread(
       null,
       () =>
+        val cpuStart = threads.getCurrentThreadCpuTime
+        val bytesStart = threads.getCurrentThreadAllocatedBytes
         try
           val script = Parser.parse(Files.readString(path))
-          val responses = Session.run(script, deadline = Some(start + seconds * 1000000000L))
+          val s = Session(deadline = Some(start + seconds * 1000000000L))
+          session = s
+          val responses = s.run(script)
           answers = responses.collect { case "sat" => "s"; case "unsat" => "u"; case "unknown" => "?" }.mkString
           outcome = "ok"
         catch
@@ -74,6 +86,9 @@ object CorpusRun:
           case _: OutOfMemoryError => outcome = "oom"
           case e: Throwable =>
             outcome = s"${e.getClass.getSimpleName}: ${e.getMessage}".replaceAll("\\s+", " ").take(160)
+        finally
+          cpu = (threads.getCurrentThreadCpuTime - cpuStart) / 1000000
+          kb = (threads.getCurrentThreadAllocatedBytes - bytesStart) / 1024
       ,
       "corpusrun",
       1L << 29
@@ -81,4 +96,10 @@ object CorpusRun:
     worker.setDaemon(true)
     worker.start()
     worker.join(seconds * 1000 + 2000)
-    s"${(System.nanoTime - start) / 1000000}\t$outcome\t$answers"
+    val ms = (System.nanoTime - start) / 1000000
+    // A file left behind has not set its CPU time yet: read it from here, from the thread's start.
+    if worker.isAlive then
+      cpu = threads.getThreadCpuTime(worker.threadId) / 1000000
+      kb = threads.getThreadAllocatedBytes(worker.threadId) / 1024
+    val s = session
+    s"$ms\t$cpu\t${if s == null then 0L else s.steps}\t$kb\t$outcome\t$answers"
