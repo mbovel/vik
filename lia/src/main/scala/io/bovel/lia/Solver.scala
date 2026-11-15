@@ -50,7 +50,8 @@ object Solver:
       reason: Int,
       because: Set[Int], // the reasons of the disequality the branch decides, if any: part of its explanation
       var left: Set[Int] | Null = null,
-      strict: Boolean = false // a real disequality splits into strict sides
+      strict: Boolean = false, // a real disequality splits into strict sides
+      up: Boolean = false // the upper side `x ≥ ceil` first, toward zero
   )
 
   /** A set of variables with its smallest at hand: a binary min-heap. */
@@ -646,11 +647,11 @@ final class Solver:
    *  `Unsat` with its explanation. Bound propagation first tightens the bounds
    *  by the rows; the simplex (Bland's rule, so it terminates) then decides the
    *  rational relaxation; a fractional value is then split, depth first, into
-   *  `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the explanations of two failed branches combining
-   *  into one without the branch itself. The open branches are kept on an
-   *  explicit stack (a recursion would grow with their number: thousands for a
-   *  wide bit-vector lowered to an integer). Branch and bound may not terminate
-   *  on unbounded variables.
+   *  `x ≤ ⌊v⌋` or `x ≥ ⌈v⌉`, the side toward zero first, the explanations of
+   *  two failed branches combining into one without the branch itself. The open
+   *  branches are kept on an explicit stack (a recursion would grow with their
+   *  number: thousands for a wide bit-vector lowered to an integer). Branch and
+   *  bound may not terminate on unbounded variables.
    */
   /** Asked at every step — a pivot, a row propagation, a branch — whether to go
    *  on: a budget of steps (fuel), a deadline, ... `false` makes the check
@@ -766,7 +767,9 @@ final class Solver:
         if x < numVars then
           branches += 1
           val v = deltaValue(x)
-          Branch(x, v.floor, v.ceil, -branches, Set.empty)
+          // The side toward zero first: flooring a negative value first can dive
+          // away from zero without end along an unbounded direction.
+          Branch(x, v.floor, v.ceil, -branches, Set.empty, up = v.floor.signum < 0)
         else
           distinct.find((x, c, _) =>
             values(x) * Rational(if isInt(x) then scale(x) else BigInt(1)) == Rational(c)
@@ -782,6 +785,16 @@ final class Solver:
     def relaxationAndWindows(): Result = checkRelaxation() match
       case Result.Sat => integerWindows()
       case unsat => unsat
+    def side(branch: Branch, up: Boolean): Result | Branch =
+      val c = if up then branch.ceil else branch.floor
+      if pastBox(c) then Result.Unsat(Set.empty) // no solution past the box
+      else
+        val asserted =
+          if up then assertLower(branch.x, c, branch.strict, branch.reason)
+          else assertUpper(branch.x, c, branch.strict, branch.reason)
+        asserted match
+          case Result.Sat => step()
+          case unsat => unsat
     var current: Result | Branch = step()
     while true do
       current match
@@ -799,12 +812,7 @@ final class Solver:
           if branch.left == null then // the left side failed: try the right one
             branch.left = reasons
             push()
-            current =
-              if pastBox(branch.ceil) then Result.Unsat(Set.empty) // no solution past the box
-              else
-                assertLower(branch.x, branch.ceil, branch.strict, branch.reason) match
-                  case Result.Sat => step()
-                  case unsat => unsat
+            current = side(branch, !branch.up)
           else // both sides failed
             open.remove(open.length - 1)
             current = Result.Unsat((branch.left.nn ++ reasons) - branch.reason ++ branch.because)
@@ -814,12 +822,7 @@ final class Solver:
         case branch: Branch =>
           open += branch
           push()
-          current =
-            if pastBox(branch.floor) then Result.Unsat(Set.empty) // no solution past the box
-            else
-              assertUpper(branch.x, branch.floor, branch.strict, branch.reason) match
-                case Result.Sat => step()
-                case unsat => unsat
+          current = side(branch, branch.up)
     throw AssertionError("unreachable")
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the
