@@ -675,6 +675,12 @@ final class Solver:
   var splitOnDemand: Boolean = false
   private val failedSplits = HashSet.empty[(Var, BigInt)]
 
+  /** Forgets the splits that failed, for a client starting another search over
+   *  assertions it may have changed (`push`, `pop`): kept across the check-sats
+   *  of a session, they steered the later ones into longer searches.
+   */
+  def forgetFailedSplits(): Unit = failedSplits.clear()
+
   /** For the tests: pretend the small-model box is this many bits wide. */
   private[lia] var boxBitsOverride: Long = -1
 
