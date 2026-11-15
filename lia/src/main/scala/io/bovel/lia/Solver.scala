@@ -778,7 +778,7 @@ final class Solver:
     out.result()
 
   /** Whether a check looks for an integer solution of the equations in force
-   *  before it branches (see [[integerEquations]]).
+   *  once branch and bound slides (see [[integerEquations]]).
    */
   private[lia] var equationCheck = true
 
