@@ -56,3 +56,28 @@ class SExprTest extends munit.FunSuite:
   test("errors carry what was found"):
     intercept[SExprParser.SyntaxError](SExprParser.parse("(a"))
     intercept[SExprParser.SyntaxError](SExprParser.parse(")"))
+
+  test("the lexer reads the tokens of its pattern"):
+    def expected(input: String) = SExprParser.tokenPattern.findAllIn(input).filterNot(_.startsWith(";")).toList
+    val written = List(
+      "(a b) ; c\n(d)",
+      "|a b| |c",
+      "\"a\"\"b\" \"c",
+      "\"a\"\"b",
+      "\"\"\"",
+      "a;b\nc",
+      "a|b|c\"d\"e",
+      "\u0001a\u000bb\u007f",
+      "(= #x0F 1.5)",
+      "a\tb\rc\u000cd",
+      "|",
+      "\"",
+      ";",
+      "",
+      "\"a\"\"\"\"b",
+      "\"a\"\"\"b\"\"c"
+    )
+    val random = scala.util.Random(0)
+    val alphabet = "ab1 \n\t();|\"\u0001\u000b\u007f#:"
+    val generated = List.fill(20000)(String(Array.fill(random.nextInt(12))(alphabet(random.nextInt(alphabet.length)))))
+    for input <- written ++ generated do assertEquals(SExprParser.tokens(input), expected(input), input)
