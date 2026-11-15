@@ -38,7 +38,7 @@ carries the reasons of the bounds that are inconsistent, which is the explanatio
 | Dutertre–de Moura simplex: tableau built once, bounds as the only backtracked state, Bland's rule | ✓ | |
 | Integers and reals: bounds tightened by the gcd of an integer row, δ-rationals for strict real bounds | ✓ | |
 | Branch and bound, iterative, explanations combined across branches | ✓ | |
-| Exact test of the integer equations (the rows over fixed variables) before the first branch of a check, after Griggio | ✓ | refutes `2x = 2y + 1`, which branch and bound slides along |
+| Exact test of the integer equations (the rows over fixed variables) once a check branches twice on a variable, after Griggio | ✓ | refutes `2x = 2y + 1`, which branch and bound slides along |
 | Disequalities `x ≠ c`, decided at the final check by branching `x ≤ c − 1 ∨ x ≥ c + 1` | ✓ | for the equality atoms of shared terms |
 | Bound propagation, incremental over the tightened variables | ✓ | [2–4× slower on random systems, decisive on SMT-LIB instances](https://github.com/mbovel/vik/blob/main/bench/results/lia/2026-08-29-laraserver4-propagation.md) |
 | `Long` fast path for rationals | ✓ | [1.4–1.6×](https://github.com/mbovel/vik/blob/main/bench/results/lia/2026-08-29-laraserver4-experiments.md) |
