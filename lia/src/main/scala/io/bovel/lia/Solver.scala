@@ -803,9 +803,11 @@ final class Solver:
         var x = 0
         while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
         if x < numVars then
-          // Before the first branch of a check: the equations alone may have no integer solution.
-          val refuted = if equationsChecked then Result.Sat else integerEquations()
-          equationsChecked = true
+          // A second branch on an unknown is branch and bound sliding along it, maybe without end:
+          // the equations alone may have no integer solution.
+          val sliding = !equationsChecked && open.exists(_.x == x)
+          val refuted = if sliding then integerEquations() else Result.Sat
+          equationsChecked ||= sliding && refuted == Result.Sat // a refutation is found again on the other side
           if refuted != Result.Sat then refuted
           else
             branches += 1
