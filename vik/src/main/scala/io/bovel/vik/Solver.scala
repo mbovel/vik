@@ -473,7 +473,11 @@ private final class Encoder(
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
     // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
-    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
+    // An equality an application lemma made already stays the lemma's, without a witness: only the
+    // problem stating it makes it one of its own (see `lit`).
+    for (a, b) <- arrayPairs do
+      val eq = Formula.Eq(a, b)
+      lits.getOrElseUpdate(eq, encode(eq))
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
