@@ -915,6 +915,7 @@ private final class Encoder(
   var produceModels: Boolean = true
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
+    liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
     while clauseCursor < clauses.length do
