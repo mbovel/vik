@@ -113,6 +113,29 @@ forks (JMH's own `Error` column is a 99.9% interval). Its only dependency, `scip
 > Do not chain `shutdown` after `Jmh/run` in the same sbt command string: with sbt 2's thin client the forked JMH
 > process is still starting when the server shuts down and deletes the classpath copy under `target/bg-jobs/`.
 
+### Calibrating the fuel
+
+VIK's fuel (`:rlimit`, the `fuel` of `Solver.solve` and `Session`) counts work, not time: each kind of work in
+`Solver.kinds` (SAT steps, decisions, conflicts, propagations and clause visits, the encoder's steps, the e-graph's
+merges, explanations and disequality scans, the LIA solver's reasons and tableau entries, the words of rationals
+past `Long` and the overflows into them) and the terms lowered have a cost, in units of about 4 ns of JVM time. The
+costs come from a fit of the thread CPU time of the corpus files against their counts, which `CorpusRun` writes in
+its last column:
+
+```sh
+sbt "bench/runMain io.bovel.bench.vik.CorpusRun 5 3 2 target/fuel-stainless.tsv /stainless/"
+sbt "bench/runMain io.bovel.bench.vik.CorpusRun 5 3 1 target/fuel-others.tsv ^(?!.*/stainless/)"
+bench/.venv/bin/python bench/fit-fuel.py target/fuel-stainless.tsv target/fuel-others.tsv
+```
+
+[fit-fuel.py](fit-fuel.py) prints how well the costs in the sources predict the CPU time, then the costs a
+non-negative least squares fit gives and the files they predict worst. With the current costs, on the files of
+at least 20 ms (a 2026 Linux x86-64 cloud machine, JDK 21, 3 threads), the fuel spent is within 2x of
+the CPU time over 4 ns for 89% of the Stainless files and 85% of the others, and within 4x for 99% and 97%. The
+worst are small files whose time the counts miss, at up to a few hundred times on files of 30 ms. Round the fitted
+costs to powers of two or near, and keep the unit at about 4 ns, so that the fuel limits of the tests and the
+docs keep their meaning.
+
 ## Results
 
 One file per run under `results/<module>/`, named by date and host (plus a tag when a day has several runs), with the

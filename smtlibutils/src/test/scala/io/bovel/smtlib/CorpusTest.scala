@@ -19,8 +19,8 @@ import io.bovel.vik.{Model, Session, Solver}
  */
 class CorpusTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
-  private val fuel = 2000000L
-  private val ignoredFuel = 1000L // enough to notice a file that became easy
+  private val fuel = 2_000_000_000L // about 8 s of the JVM's time: above the guard below, which is about the machine
+  private val ignoredFuel = 1_000_000L // enough to notice a file that became easy
   /** The wall-clock guard: five seconds, the budget of the benchmarks, where the machine is
    *  one's own; CI sets a hard limit above it (`VIK_CORPUS_BUDGET_MS`, see build.sbt), since a
    *  file at the edge of the budget is caught here, not on a shared runner.

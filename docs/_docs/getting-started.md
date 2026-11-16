@@ -52,8 +52,9 @@ Two options bound the search, and are answered honestly when they stop it:
 (get-info :reason-unknown)
 ```
 
-`:rlimit` is a number of solver steps — a decision or a conflict of the SAT search, a pivot, a bound
-propagation or a branch of the arithmetic — so the same script gives the same answer on every machine;
+`:rlimit` is an amount of work, counted rather than timed — the steps of the search and, by their cost, what
+happens between them: Boolean propagation, congruence closure, explanations, arithmetic past 64 bits — in
+units of about 4 ns on the JVM, so the same script gives the same answer on every machine;
 `:timeout` is milliseconds, for interactive use. Both answer `unknown`, with `resourceout` or `timeout` as
 the reason.
 
@@ -93,7 +94,8 @@ solver.solve() // decided with the assertions of both levels
 solver.pop()   // back to what was asserted before the push
 ```
 
-`solve(fuel)` bounds the search in steps and answers `Result.Unknown(Reason.Fuel)` beyond it;
+`solve(fuel)` bounds the work in the same units (`spent` says how much was done) and answers
+`Result.Unknown(Reason.Fuel)` beyond it;
 `solve(keepGoing)` takes the decision itself, so a deadline or a cancellation is a function you write.
 
 The same with the language attached — a `Session` reads SMT-LIB text or `io.bovel.smtlib` trees piece by

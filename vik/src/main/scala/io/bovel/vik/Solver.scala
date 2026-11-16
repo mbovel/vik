@@ -173,31 +173,86 @@ final class Solver(val simplify: Boolean = true):
   private def mentionsEliminated(formula: Formula): Boolean = encoder != null && !dirty
     && eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated.contains))
 
-  /** Decides the assertions with at most `fuel` steps — a decision or a
-   *  conflict of the SAT search, a pivot, a row propagation or a branch of the
-   *  LIA solver — `Unknown` beyond: deterministic, unlike a deadline, which
+  /** Decides the assertions with at most `fuel` units of work spent (see
+   *  [[spent]]), `Unknown` beyond: deterministic, unlike a deadline, which
    *  [[solve(keepGoing)]] allows.
    */
   def solve(fuel: Long = Long.MaxValue): Result =
-    var left = fuel
+    val start = spent
+    var calls = 0
     solve(() =>
-      left -= 1; left >= 0
+      calls += 1
+      (calls & 15) != 1 || spent - start <= fuel // summed at the first step and every 16th: a dozen products
     ) match
       case Result.Unknown(_) => Result.Unknown(Reason.Fuel)
       case result => result
 
-  /** Decides the assertions while `keepGoing` says so, asked at every step. */
+  /** Decides the assertions while `keepGoing` says so, asked at every step: a
+   *  decision or a conflict of the SAT search, a pivot, a row propagation or a
+   *  branch of the LIA solver, every 1024th step of the encoding.
+   */
   def solve(keepGoing: () => Boolean): Result =
-    asked = keepGoing
-    try decide(keepGoing)
+    val counted = () =>
+      steps += 1
+      keepGoing()
+    asked = counted
+    bigWordsStart = lia.Rational.bigWords
+    overflowsStart = lia.Rational.overflows
+    solving = true
+    try decide(counted)
     catch
       case Encoder.Stopped =>
         // The encoder stopped part-way through a pass, with pairs noted and not yet encoded, or half the
         // lemmas of a store: not one to search with, now or later. The next solve builds another.
+        encoder.nn.addCounts(retired)
         encoder = null
         lastCore = Nil
         Result.Unknown(Reason.Stopped)
-    finally asked = () => true // an assertion between two solves is encoded as it arrives, with no one to ask
+    finally
+      bigWords += lia.Rational.bigWords - bigWordsStart
+      overflows += lia.Rational.overflows - overflowsStart
+      solving = false
+      asked = () => true // an assertion between two solves is encoded as it arrives, with no one to ask
+
+  /** The work this solver did so far, in units of about 4 ns of the JVM's time
+   *  on the machine the costs were measured on, and the same on every machine:
+   *  the steps of [[solve(keepGoing)]] and the work between them — Boolean
+   *  propagation, the e-graph's merges, explanations and disequalities, the
+   *  atoms the UF theory scans, the explanations of the LIA solver, its
+   *  arithmetic past `Long` — and the encoding, each weighted by its cost
+   *  ([[Solver.kinds]]). The budget of [[solve(fuel)]] and of `:rlimit`.
+   */
+  def spent: Long =
+    val c = counts
+    var sum = 0L
+    var i = 0
+    while i < c.length do
+      sum += c(i) * Solver.costs(i)
+      i += 1
+    sum
+
+  /** How much of each kind of work this solver did so far, unweighted, in the
+   *  order of [[Solver.kinds]].
+   */
+  def statistics: List[(String, Long)] = Solver.kinds.map(_._1).zip(counts)
+
+  private def counts: Array[Long] =
+    val c = retired.clone()
+    c(0) += steps
+    val e = encoder
+    if e != null then e.addCounts(c)
+    c(12) += bigWords + (if solving then lia.Rational.bigWords - bigWordsStart else 0)
+    c(13) += overflows + (if solving then lia.Rational.overflows - overflowsStart else 0)
+    c
+
+  private var steps = 0L
+  private val retired = new Array[Long](Solver.kinds.length) // the counts of the encoders replaced
+  // The arithmetic past `Long`, counted per thread (see `lia.Rational.bigWords`): the solves' share of it.
+  private var bigWords = 0L
+  private var overflows = 0L
+  private var bigWordsStart = 0L
+  private var overflowsStart = 0L
+  private var solving = false
 
   /** The `keepGoing` of the [[solve]] under way, for the encoder (see
    *  `Encoder.step`).
@@ -206,6 +261,7 @@ final class Solver(val simplify: Boolean = true):
 
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
+      if encoder != null then encoder.nn.addCounts(retired)
       val e = Encoder(declarations, datatypes.toList, () => anyStore, () => asked())
       encoder = e
       encoded.clear()
@@ -277,6 +333,39 @@ final class Solver(val simplify: Boolean = true):
  *  its selector terms, recursively, so that the search is complete on finite
  *  sorts).
  */
+object Solver:
+  /** The kinds of work the fuel counts, with the cost of each in the units of
+   *  [[Solver.spent]], about 4 ns: fitted to the thread CPU time of the corpus
+   *  files on the JVM against the counts of each kind (`bench/README.md`).
+   *  The steps are those of [[Solver.solve(keepGoing)]]; a decision and a
+   *  conflict cost their step and more (the levels the theories open; the
+   *  analysis, learning and backjump); the propagations are the literals
+   *  assigned, the clause visits those of the watch lists; the encoder steps
+   *  are `Encoder.step`'s; the merge, explanation and disequality work is
+   *  `EGraph`'s, the atom scans `UfTheory`'s, the reason and row work the
+   *  LIA solver's; the big words and overflows are `lia.Rational`'s.
+   */
+  val kinds: List[(String, Long)] = List(
+    "steps" -> 64,
+    "decisions" -> 256,
+    "conflicts" -> 4096,
+    "propagations" -> 32,
+    "clause-visits" -> 2,
+    "encoder-steps" -> 48,
+    "merge-work" -> 4,
+    "explain-work" -> 4,
+    "diseq-work" -> 1,
+    "atom-scans" -> 1,
+    "reason-work" -> 2,
+    "row-work" -> 8,
+    "big-words" -> 16,
+    "overflows" -> 4096
+  )
+  private val costs: Array[Long] = kinds.map(_._2).toArray
+
+  /** The cost of a term or formula lowered (see `Session.spent`). */
+  val loweredCost = 64L
+
 private object Encoder:
   val bitVector = """\(_ BitVec (\d+)\)""".r
 
@@ -289,7 +378,7 @@ private final class Encoder(
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
     keepGoing: () => Boolean // of the solve under way (see Solver.solve)
 ):
-  private var steps = 0
+  private var steps = 0L
 
   /** A step of the encoding: a formula encoded, a pair of terms or a term and a
    *  store considered by a pass. The passes are quadratic in the terms, and one
@@ -892,11 +981,24 @@ private final class Encoder(
    */
   private var anySharedAtom = false
 
-  private val theories =
-    List(
-      UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses),
-      LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false))
-    )
+  private val ufTheory = UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses)
+  private val theories = List(ufTheory, LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false)))
+
+  /** Adds the work of the encoding and of the engines to `counts`, in the order of `Solver.kinds`; the
+   *  steps of the search and the arithmetic are the solver's to count.
+   */
+  def addCounts(counts: Array[Long]): Unit =
+    counts(1) += sat.numDecisions
+    counts(2) += sat.numConflicts
+    counts(3) += sat.numPropagations
+    counts(4) += sat.numClauseVisits
+    counts(5) += steps
+    counts(6) += eg.mergeWork
+    counts(7) += eg.explainWork
+    counts(8) += eg.diseqWork
+    counts(9) += ufTheory.atomScans
+    counts(10) += liaSolver.reasonWork
+    counts(11) += liaSolver.rowWork
   private val sat = cdclt.Solver(
     0,
     Theories(

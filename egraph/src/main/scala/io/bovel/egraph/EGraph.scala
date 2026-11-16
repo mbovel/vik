@@ -246,6 +246,17 @@ final class EGraph(rules: Rules = NoRules):
 
   def find(id: EClassId): EClassId = repr(id)
 
+  /** The work done so far, for a budget: members repointed and parents queued
+   *  by merges and nodes repaired (`mergeWork`), union-tree edges walked by
+   *  explanations (`explainWork`), disequalities scanned (`diseqWork`).
+   */
+  def mergeWork: Long = merging
+  def explainWork: Long = explaining
+  def diseqWork: Long = scanning
+  private var merging = 0L
+  private var explaining = 0L
+  private var scanning = 0L
+
   /** The number of e-classes ever created (ids range over
    *  `0 until classCount`).
    */
@@ -350,6 +361,7 @@ final class EGraph(rules: Rules = NoRules):
    *  side is in the class of `root`.
    */
   private def forbidding(list: ArrayBuffer[Diseq], root: EClassId): Option[Diseq] =
+    scanning += list.length
     list.find(d => repr(d.a) == root || repr(d.b) == root)
 
   /** A disequality between the classes of `a` and `b`, if any: its side in
@@ -474,6 +486,7 @@ final class EGraph(rules: Rules = NoRules):
 
     // Only the parents of the absorbed class need re-canonicalization.
     val fromUses = uses(from)
+    merging += size(from) + (if fromUses == null then 0 else fromUses.length)
     val intoUses = uses(into)
     if recording then
       trail += Undo.Merged(
@@ -511,6 +524,7 @@ final class EGraph(rules: Rules = NoRules):
       merges.clear()
 
   private def repair(node: ENode): Unit =
+    merging += 1 + node.args.length
     cg.remove(node) // stored under its previous form
     val oldFun = node.fun
     val oldArgs = if recording then node.args.clone() else null
@@ -547,16 +561,20 @@ final class EGraph(rules: Rules = NoRules):
     if visited.length < count then visited = new Array[Int](repr.length)
     var u = x
     while u != -1 do
+      explaining += 1
       visited(u) = stamp
       val e = edges(u)
       u = if e == null then -1 else e.into
     var lca = y
-    while visited(lca) != stamp do lca = edges(lca).nn.into
+    while visited(lca) != stamp do
+      explaining += 1
+      lca = edges(lca).nn.into
     // The most recent merge below the lowest common ancestor is the one that connected the two sides.
     var edge = edges(if x != lca then x else y).nn
     var onPathX = x != lca
     u = x
     while u != lca do
+      explaining += 1
       val e = edges(u).nn
       if e.time > edge.time then
         edge = e
@@ -564,6 +582,7 @@ final class EGraph(rules: Rules = NoRules):
       u = e.into
     u = y
     while u != lca do
+      explaining += 1
       val e = edges(u).nn
       if e.time > edge.time then
         edge = e

@@ -156,6 +156,15 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Statistics of the search so far. */
   def numConflicts: Long = conflicts
   def numDecisions: Long = decisions
+
+  /** Literals assigned, and clauses visited by Boolean propagation (a watcher,
+   *  or a literal scanned for a new watch): the work between two decisions,
+   *  which a fuel counts besides them (see `io.bovel.vik.Solver.spent`).
+   */
+  def numPropagations: Long = propagations
+  def numClauseVisits: Long = clauseVisits
+  private var propagations = 0L
+  private var clauseVisits = 0L
   private var nextRestart = restartInterval.toLong
 
   /** The `i`-th term (from 0) of the Luby sequence 1, 1, 2, 1, 1, 2, 4, 1, 1,
@@ -211,6 +220,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       watches(c(1).index) += index
 
   private def enqueue(lit: Lit, why: Int): Unit =
+    propagations += 1
     value(lit.index) = 1
     value(lit.neg.index) = -1
     level(lit.variable) = decisionLevel
@@ -260,6 +270,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     while i < ws.length && conflict == null do
       val index = ws(i)
       i += 1
+      clauseVisits += 1
       val c = clauses(index)
       if c(0) == falseLit then // the false watched literal goes to index 1
         c(0) = c(1)
@@ -271,6 +282,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       else
         var k = 2
         while k < c.length && value(c(k).index) < 0 do k += 1
+        clauseVisits += k - 2
         if k < c.length then // watch that literal instead
           c(1) = c(k)
           c(k) = falseLit

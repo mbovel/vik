@@ -28,7 +28,8 @@ conflict — literals that cannot hold together, learned as a clause — or the 
 explanation is asked for lazily. `Theory.Result.Unknown` stops the search, which is how a budget is enforced.
 
 `solve(keepGoing)` asks at every decision and conflict whether to go on, so a fuel or a deadline is a
-function you pass; `Solver(numVars, theory, restartInterval)` takes the Luby unit, which the tests use to
+function you pass; `numPropagations` and `numClauseVisits` count the work between two questions, for a fuel
+that weighs it; `Solver(numVars, theory, restartInterval)` takes the Luby unit, which the tests use to
 restart at every conflict.
 
 ## What is in it
@@ -43,6 +44,6 @@ restart at every conflict.
 | Learned clause minimization | ✗ | [within noise, 0.75× on pigeonhole](https://github.com/mbovel/vik/blob/main/bench/results/cdclt/2026-08-29-laraserver4-minimization.md) |
 | Clause deletion | ✗ | would only help the hard tail (`SEQ009`); not worth the bookkeeping yet |
 | VSIDS | ✗ | VMTF instead, as CaDiCaL and CreuSAT |
-| A budget: `solve(keepGoing)` asked at every decision, conflict, pivot, propagation and branch; `Unknown` when it says stop | ✓ | `io.bovel.vik.Solver.solve(fuel)`: deterministic steps, `Unknown(Fuel)`; a deadline is a `keepGoing` with a clock, `Unknown(Stopped)` |
+| A budget: `solve(keepGoing)` asked at every decision, conflict, pivot, propagation and branch; `Unknown` when it says stop | ✓ | `io.bovel.vik.Solver.solve(fuel)`: deterministic work, the steps and the propagations between them weighted by their cost, `Unknown(Fuel)`; a deadline is a `keepGoing` with a clock, `Unknown(Stopped)` |
 
 Results: [cdclt benchmarks](https://github.com/mbovel/vik/tree/main/bench/results/cdclt).

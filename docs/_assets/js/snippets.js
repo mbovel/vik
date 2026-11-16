@@ -1,10 +1,10 @@
 // Runnable SMT-LIB snippets: every `smt2` code block of the site gets a Run button, and VIK — linked to
 // WebAssembly into `js/vik/` by the `docsAssets` task of the build — answers it in the reader's browser.
-// The blocks are editable, and each `check-sat` gets a fuel (a number of solver steps), so a snippet cannot
-// hang the page.
+// The blocks are editable, and each `check-sat` gets a fuel (an amount of work, about 4 ns each on the JVM), so a
+// snippet cannot hang the page.
 "use strict"
 ;(() => {
-  const fuel = 20000000
+  const fuel = 20000000000
   const script = document.currentScript || document.querySelector('script[src$="js/snippets.js"]')
   const base = new URL(script.getAttribute("src"), document.baseURI)
   let solver = null

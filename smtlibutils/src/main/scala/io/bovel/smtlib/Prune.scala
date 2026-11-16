@@ -42,7 +42,7 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  joins: one of the statuses is wrong, or the canonical form is.
  *
  *  `trivial`: in each family, the trivial files beyond `keep`. A file is
- *  trivial when VIK gives its statuses within `fuel` steps and z3 gives them
+ *  trivial when VIK gives its statuses within `fuel` (`Session.spent`) and z3 gives them
  *  without a conflict (in any of its statistics), so that what is easy for
  *  VIK's preprocessing alone stays; a wrong answer, however quick, is no
  *  reason to go. The family is the file's directory and
@@ -271,7 +271,7 @@ private def trivial(files: List[String], fuel: Long, keep: Int, pool: java.util.
   )
   val members = read.flatMap(_._2.get())
   val families = members.groupBy(m => family(m.file)).toList.sortBy(_._1)
-  println(s"${members.length} files read, ${members.count(_.easy)} trivial (VIK within $fuel steps, z3 without a conflict), " +
+  println(s"${members.length} files read, ${members.count(_.easy)} trivial (VIK within $fuel of fuel, z3 without a conflict), " +
     s"${families.length} families; trivial beyond the first k of their family:")
   for k <- List(1, 3, 5, 10) do
     println(f"  k = $k%-3d ${families.map((_, ms) => (ms.count(m => m.easy && !m.pinned) - (k - ms.count(m => m.easy && m.pinned)).max(0)).max(0)).sum}%5d")

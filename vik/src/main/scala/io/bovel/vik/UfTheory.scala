@@ -62,6 +62,9 @@ final class UfTheory(
       assigned(v) = true
       assignedTrail += v
 
+  /** Atoms scanned for implied equalities and disequalities, for a budget. */
+  var atomScans = 0L
+
   def propagate(): Theory.Result =
     grown()
     if !touched then return Theory.ok
@@ -71,6 +74,7 @@ final class UfTheory(
       case None =>
         touched = false
         val implied = ArrayBuffer.empty[Lit]
+        atomScans += atoms.length
         var v = 0
         while v < atoms.length do
           val atom = atoms(v)

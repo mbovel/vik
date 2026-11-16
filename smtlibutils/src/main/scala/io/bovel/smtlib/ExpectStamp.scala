@@ -13,7 +13,7 @@ import io.bovel.vik.Session
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.expectstamp"`.
  */
 @main def expectstamp(): Unit =
-  val fuel = 2000000L
+  val fuel = 2_000_000_000L // as CorpusTest
   val ignored = Corpus.ignored
   var stamped = 0
   for file <- Corpus.files if !ignored.contains(file) do

@@ -167,8 +167,8 @@ After `sat`, `get-model` and `get-value` say how; after `unsat`, `get-unsat-core
 
 ## Budgets
 
-A `check-sat` answers `unknown` when it runs out of fuel — a number of solver steps, so the answer is the same
-on every machine — and `(get-info :reason-unknown)` says why.
+A `check-sat` answers `unknown` when it runs out of fuel — an amount of work counted, not timed, so the answer is
+the same on every machine — and `(get-info :reason-unknown)` says why.
 
 ```smt2
 (set-option :rlimit 1)
