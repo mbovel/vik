@@ -1,4 +1,4 @@
-val scala3Version = "3.10.0"
+val scala3Version = "3.10.1"
 
 // In sbt 2, bare settings are common settings injected into all subprojects.
 organization := "io.bovel"

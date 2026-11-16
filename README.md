@@ -117,7 +117,7 @@ Wasm GC and the `exnref` exception handling — and a server: the module fetches
 
 ```sh
 sbt "playground/copyResources; playground/fastLinkJS"
-python3 -m http.server --directory target/out/sjs1/scala-3.10.0/playground 8000
+python3 -m http.server --directory target/out/sjs1/scala-3.10.1/playground 8000
 ```
 
 ## References and Inspirations
