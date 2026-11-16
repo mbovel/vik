@@ -273,6 +273,9 @@ lazy val bench = project
       "org.sosy-lab" % "javasmt-solver-z3" % "4.14.0",
       "org.sosy-lab" % "javasmt-solver-cvc5" % "2026-02-26-d22638a"
     ),
+    // Scala 3.10.1 warns on `catch case _: Throwable` (E235). The harness catches it on purpose: a replay's
+    // StackOverflowError or AssertionError is a result to report, not a reason to stop.
+    scalacOptions += "-Wconf:id=E235:s",
     fork := true, // runs and benchmarks in their own JVM, with the native libraries of z3 and cvc5 on its path
     // The Java that sbt-jmh generates is compiled for 17 whatever JDK runs the build: a class compiled by a
     // newer one stays in target/ and a build on 17 then cannot load it (UnsupportedClassVersionError).
