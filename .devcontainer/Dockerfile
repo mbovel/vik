@@ -63,7 +63,7 @@ RUN apt-get update \
 # The JDK's commands and native-image are linked into /usr/local/bin rather
 # than put on PATH: a login shell, such as a tmux window, starts from Debian's
 # /etc/profile, which resets PATH and keeps /usr/local/bin.
-ARG SBT_VERSION=2.0.12
+ARG SBT_VERSION=2.1.0
 RUN curl -fsSL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz \
         | gzip -d > /usr/local/bin/cs \
     && chmod +x /usr/local/bin/cs \
