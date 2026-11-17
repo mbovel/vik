@@ -59,12 +59,28 @@ structure Enc where
   datatypes : List (Nat × List (Nat × Nat × List Nat))
   /-- The symbols of array stores. -/
   stores : List Nat
+  /-- The extensionality instances, in order: the equality `f = g`, the
+      equality of `f` and `g` applied to the witnesses, and the witnesses. -/
+  exts : List (Nat × Nat × List Nat)
+  /-- The witnesses: those of the instances, and those that only come with a
+      range. -/
+  witnesses : List Nat
+  /-- The sorts of bit-vector indices, with their widths. -/
+  bvIndex : List (Nat × Nat)
 
 def Enc.node (e : Enc) (i : Nat) : Option Node := e.nodes[i]?
 
 def Enc.meaningOf (e : Enc) (v : Nat) : Option Nat := (e.meaning[v]?).getD none
 
 def Enc.guarded (e : Enc) (v : Nat) : Option (List Nat) := e.levels.lookup v
+
+/-- The width of witness `n`, if it is an index of bit-vectors. -/
+def Enc.width (e : Enc) (n : Nat) : Option Nat :=
+  if e.witnesses.contains n then
+    match e.sig.decls[n]? with
+    | some s => e.bvIndex.lookup s
+    | none => none
+  else none
 
 def holdsLit (e : Enc) (b : Bool) : Lit := if b then e.trueLit else e.trueLit.neg
 
@@ -116,6 +132,11 @@ inductive Origin where
   /-- `f ≠ g ∨ f(x) = g(x)`, with `eqfg` the equality `f = g`. -/
   | congruence (eqfg : Nat)
   | readOverWrite
+  /-- `f = g ∨ f(w₁)…(wₙ) ≠ g(w₁)…(wₙ)`, the instance `k` of the answer. -/
+  | extensionality (k : Nat)
+  /-- `0 ≤ w` or `w ≤ 2ʷ - 1`, the formula `f`, for a witness `w` of a
+      bit-vector index of width `w`. -/
+  | witnessRange (f : Nat)
   deriving Repr
 
 def Enc.numeric (e : Enc) (i : Nat) : Bool := i < e.nodes.length && e.sig.numeric (e.sortOf[i]?.getD 0)
@@ -233,6 +254,22 @@ def inputOk (e : Enc) (c : Clause) : Origin → Bool
         | some (r, w) => storeOk e c r w
         | none => false
       | none => false
+  | .extensionality k =>
+    match e.exts[k]? with
+    | some (eq, eqw, _) => has e c eq && hasNot e c eqw
+    | none => false
+  | .witnessRange f =>
+    has e c f &&
+      match e.node f with
+      | some (.le a b) =>
+        match e.node a, e.node b with
+        | some (.num z), some (.const n) => z == 0 && (e.width n).isSome
+        | some (.const n), some (.num v) =>
+          match e.width n with
+          | some w => v == 2 ^ w - 1
+          | none => false
+        | _, _ => false
+      | _ => false
 
 /-! ## Soundness of the readings -/
 
@@ -470,6 +507,10 @@ structure Enc.Sound (e : Enc) (I : Interp R U) (ρ : Assignment) : Prop where
     e.node k = some (.const n) → n ∈ e.stores →
     (val I e.nodes j = val I e.nodes i → val I e.nodes r = val I e.nodes v) ∧
     (val I e.nodes j ≠ val I e.nodes i → val I e.nodes r = I.app (val I e.nodes a) [val I e.nodes j])
+  /-- The extensionality instances hold. -/
+  ext : ∀ (k eq eqw : Nat) (ws : List Nat), e.exts[k]? = some (eq, eqw, ws) → holds I e.nodes eq ∨ ¬holds I e.nodes eqw
+  /-- The witnesses of bit-vector indices are in their range. -/
+  range : ∀ n w, e.width n = some w → ∃ k : Int, I.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
 
 theorem num_eq {I : Interp R U} {e : Enc} {ρ : Assignment} (hS : e.Sound I ρ) {a b : Nat}
     (ha : e.numeric a = true) (hb : e.numeric b = true)
@@ -732,6 +773,44 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
                 · cases h
             · cases hk
           · cases h
+        · cases h
+      · cases h
+    · cases h
+  | extensionality k =>
+    simp only [inputOk] at h
+    split at h
+    · rename_i eq eqw ws hk
+      simp only [Bool.and_eq_true] at h
+      rcases hS.ext k eq eqw ws hk with h1 | h1
+      · exact nh h.1 h1
+      · exact h1 (hn h.2)
+    · cases h
+  | witnessRange f =>
+    simp only [inputOk, Bool.and_eq_true] at h
+    obtain ⟨hf, h⟩ := h
+    apply nh hf
+    split at h
+    · rename_i a b hle
+      rw [holds_le hw hle]
+      split at h
+      · rename_i z n ha hb
+        simp only [Bool.and_eq_true, beq_iff_eq, Option.isSome_iff_exists] at h
+        obtain ⟨rfl, w, hw'⟩ := h
+        obtain ⟨k, hk, h0, _⟩ := hS.range n w hw'
+        rw [val_num hw ha, val_const hw hb, hk]
+        simp only [Val.toR]
+        have := cast_le (R := R) h0
+        rw [Ring.intCast_zero] at this
+        simpa [Ring.intCast_zero] using this
+      · rename_i n v ha hb
+        split at h
+        · rename_i w hw'
+          simp only [beq_iff_eq] at h
+          subst h
+          obtain ⟨k, hk, _, h1⟩ := hS.range n w hw'
+          rw [val_num hw hb, val_const hw ha, hk]
+          simp only [Val.toR]
+          exact cast_le (R := R) (by omega)
         · cases h
       · cases h
     · cases h

@@ -35,17 +35,33 @@ The Lean folder also holds a checker for whole answers, with its soundness
 proved: `Problem.accepts_sound` says that when the checker accepts an answer, no
 model satisfies the lowered assertions together with the levels the answer
 assumed. The checker runs inside Lean's kernel (`decide +kernel`), so a proof
-of a given answer adds no axiom. It covers:
+of a given answer adds no axiom.
+
+The models are those of the lowered problem's laws: datatypes are term
+algebras, a store changes its array at one index, and functions are
+extensional: two functions that agree on all arguments are equal, where an
+index of bit-vectors only ranges over `[0, 2^w - 1]`. The lowering reads a
+bit-vector as an integer, so the theorem also assumes that every node of a
+bit-vector index sort takes a value in its range, which the lowering's lemmas
+give for the nodes of a lowered script. The checker covers:
 
 - clausal proofs: input, lemma and derived (RUP) steps;
 - input clauses: definitions of Tseitin variables, assertions, retired levels,
-  datatype exhaustiveness, shared splits, numerals, congruence and
-  read-over-write;
+  datatype exhaustiveness, shared splits, numerals, congruence,
+  read-over-write, extensionality and the ranges of bit-vector witnesses;
 - equality proofs for uninterpreted functions and datatypes: congruence,
   selectors, testers, injectivity, distinct constructors, expansion and
   acyclicity;
 - cutting-planes proofs for linear arithmetic, with rounding and splits.
 
-Not yet covered are the extensionality and witness-range input clauses, which
-introduce fresh witnesses, the step from the SMT-LIB script to the lowered
-problem inside Lean, and an exporter that writes Vik's answers as Lean terms.
+An extensionality instance, `f = g ∨ f(w) ≠ g(w)`, does not hold in every
+model: only in one where the fresh witness `w` is where `f` and `g` differ.
+The answer lists its instances in order, and the checker makes sure their
+witnesses are fresh: no input, no level, and no symbol of a datatype or a store
+depends on a witness, and the functions of an instance only depend on the
+witnesses of earlier instances. Any model then extends to one where every
+instance holds, giving values to the witnesses one instance after the other
+(`Extend.lean`), with the witnesses of bit-vector indices in their range.
+
+Not yet covered are the step from the SMT-LIB script to the lowered problem
+inside Lean, and an exporter that writes Vik's answers as Lean terms.

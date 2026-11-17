@@ -1,5 +1,6 @@
 import Vik.Cert.Inputs
 import Vik.Cert.Uf
+import Vik.Cert.Witnesses
 
 /-!
 # Proofs of unsatisfiability
@@ -29,6 +30,9 @@ structure Problem where
   /-- For each datatype sort, its constructors, with tester and selectors. -/
   datatypes : List (Nat × List (Nat × Nat × List Nat))
   stores : List Nat
+  /-- The sorts of bit-vector indices, integers to the lowering, with their
+      widths. -/
+  bvIndex : List (Nat × Nat)
 
 /-- A bound `x ≤ c` (`x < c` if strict) on an LIA variable, or `x = c`. -/
 inductive LiaAtom where
@@ -66,6 +70,12 @@ structure Answer where
   steps : List Step
   justs : List Just
   conclusion : Nat
+  /-- The extensionality instances, in the order their witnesses take values:
+      the equality `f = g`, the equality of `f` and `g` applied to the
+      witnesses, and the witnesses. -/
+  exts : List (Nat × Nat × List Nat)
+  /-- The witnesses: those of the instances, and those of a range alone. -/
+  witnesses : List Nat
 
 section Checker
 variable (P : Problem) (A : Answer)
@@ -99,6 +109,9 @@ def Problem.enc : Enc where
   assumed := A.assumed
   datatypes := P.datatypes
   stores := P.stores
+  exts := A.exts
+  witnesses := A.witnesses
+  bvIndex := P.bvIndex
 
 def Problem.ufEnv : Uf.Env where
   atom := A.ufAtom
@@ -236,6 +249,40 @@ def Problem.classesOk : Bool :=
         | none => false
     | _, _ => false
 
+/-- The symbols of the datatypes: constructors, testers and selectors. -/
+def Problem.dtSyms : List Nat := P.datatypes.flatMap fun (_, cs) => cs.flatMap fun (C, T, Ss) => C :: T :: Ss
+
+/-- The rank of each symbol (see `rankOf`). -/
+def Answer.rank (n : Nat) : Nat := rankOf A.exts A.witnesses n
+
+/-- Whether the witnesses are fresh, in the order of the instances: the
+    symbols of datatypes and stores, the inputs and the levels depend on no
+    witness; the functions of an instance only on the witnesses of earlier
+    instances, or of ranges alone; and each instance is its two functions
+    applied to its witnesses. A node of a bit-vector index that depends on a
+    witness is a witness. -/
+def Problem.witnessesOk : Bool :=
+  let ds := depths A.rank P.nodes
+  P.bvIndex.all (fun p => P.sig.is p.1 .int) &&
+  P.stores.all (fun n => A.rank n == 0) && P.dtSyms.all (fun n => A.rank n == 0) &&
+  P.inputs.all (fun f => depthOf ds f == 0) &&
+  A.levels.all (fun l => l.2.all fun f => depthOf ds f == 0) &&
+  (List.range P.nodes.length).all (fun i =>
+    depthOf ds i == 0 || (P.bvIndex.lookup (P.sort i)).isNone ||
+      match P.node i with
+      | some (.const n) => A.witnesses.contains n
+      | _ => false) &&
+  (List.range A.exts.length).all fun k =>
+    match A.exts[k]? with
+    | some (eq, eqw, ws) =>
+      nodupB ws && ws.all (fun n => A.rank n == k + 2) &&
+        match P.node eq, P.node eqw with
+        | some (.eq f g), some (.eq F G) =>
+          depthOf ds f < k + 2 && depthOf ds g < k + 2 &&
+            chainRev P.nodes f F ws.reverse && chainRev P.nodes g G ws.reverse
+        | _, _ => false
+    | none => false
+
 def Problem.justOk (s : Step) (j : Just) : Bool :=
   match s, j with
   | .input c, .input o => inputOk (P.enc A) c o
@@ -245,7 +292,7 @@ def Problem.justOk (s : Step) (j : Just) : Bool :=
   | _, _ => false
 
 def Problem.accepts : Bool :=
-  wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
+  P.witnessesOk A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
     -- `true`, its literal and classes
     (match (A.meaning[A.trueLit.var]?).getD none with
       | some t => A.trueLit.pos && P.node t == some .tt
@@ -279,6 +326,10 @@ attribute [local instance low] Lean.Grind.Ring.intCast
 def ctorVal (M : Model R U) (C : Nat) (xs : List (Val R U)) : Val R U :=
   if xs.isEmpty then M.const C else M.app (M.const C) xs
 
+/-- A value of sort `s` is in its range, if `s` is a bit-vector index. -/
+def inRange (bv : List (Nat × Nat)) (s : Nat) (v : Val R U) : Prop :=
+  ∀ w, bv.lookup s = some w → ∃ k : Int, v = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
+
 /-- The sorts of the arguments of symbol `C`. -/
 def Problem.argSorts (P : Problem) (C : Nat) : List Nat :=
   match P.sig.decls[C]? with
@@ -290,7 +341,9 @@ def Problem.argSorts (P : Problem) (C : Nat) : List Nat :=
 
 /-- What a model of a problem satisfies: its sorts and symbols, the laws of
     datatypes (as a term algebra: `size` decreases from a constructor term to
-    its arguments) and those of array stores. -/
+    its arguments), those of array stores, and extensionality: two functions
+    are equal when they agree on all arguments, those in range for a
+    bit-vector index. -/
 structure Problem.Laws (P : Problem) (M : Model R U) (size : Val R U → Nat) : Prop where
   sound : M.Sound P.sig
   sel : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
@@ -316,8 +369,11 @@ structure Problem.Laws (P : Problem) (M : Model R U) (size : Val R U → Nat) : 
   store : ∀ n ∈ P.stores, ∀ s arr idx el, P.sig.decls[n]? = some s →
     P.sig.sorts[s]? = some (.fn [arr, idx, el] arr) → P.sig.sorts[arr]? = some (.fn [idx] el) →
     ∀ a i v j, M.dom arr a → M.dom idx i → M.dom el v → M.dom idx j →
+      inRange P.bvIndex idx i → inRange P.bvIndex idx j →
       (j = i → M.app (M.app (M.const n) [a, i, v]) [j] = v) ∧
       (j ≠ i → M.app (M.app (M.const n) [a, i, v]) [j] = M.app a [j])
+  ext : ∀ s as r f g, P.sig.sorts[s]? = some (.fn as r) → M.dom s f → M.dom s g →
+    (∀ xs, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) as xs → M.app f xs = M.app g xs) → f = g
 
 /-- The value of an LIA variable. -/
 noncomputable def liaVal (P : Problem) (A : Answer) (I : Interp R U) (x : Nat) : R :=
@@ -401,6 +457,7 @@ variable {P : Problem} {A : Answer}
 
 /-- The facts of an accepted answer. -/
 structure Accepted (P : Problem) (A : Answer) : Prop where
+  wits : P.witnessesOk A = true
   wf : wellFormed P.nodes = true
   typed : typed P.sig P.nodes P.sortOf = true
   dt : P.dtOk = true
@@ -420,8 +477,8 @@ structure Accepted (P : Problem) (A : Answer) : Prop where
 theorem accepted (h : P.accepts A = true) : Accepted P A := by
   unfold Problem.accepts at h
   simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hw, ht⟩, hdt⟩, hst⟩, hcl⟩, htl⟩, htc⟩, hlv⟩, hat⟩, hlen⟩, hj⟩, hc⟩ := h
-  refine ⟨hw, ht, hdt, hst, hcl, ?_, ?_, ?_, hat, fun s j m => hj (s, j) m, hlen, ?_⟩
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hwit, hw⟩, ht⟩, hdt⟩, hst⟩, hcl⟩, htl⟩, htc⟩, hlv⟩, hat⟩, hlen⟩, hj⟩, hc⟩ := h
+  refine ⟨hwit, hw, ht, hdt, hst, hcl, ?_, ?_, ?_, hat, fun s j m => hj (s, j) m, hlen, ?_⟩
   · split at htl
     · rename_i t ht'
       simp only [Bool.and_eq_true, beq_iff_eq] at htl
@@ -635,12 +692,16 @@ theorem lookup_some_mem {d : Nat} {cs : List (Nat × Nat × List Nat)}
 section
 variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} {size : Val R U → Nat}
   (hL : P.Laws M size) (hin : ∀ f ∈ P.inputs, holds M.toInterp P.nodes f)
+  (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (val M.toInterp P.nodes i))
+  (hext : ∀ (k eq eqw : Nat) (ws : List Nat), A.exts[k]? = some (eq, eqw, ws) →
+    holds M.toInterp P.nodes eq ∨ ¬holds M.toInterp P.nodes eqw)
+  (hwr : ∀ n w, (P.enc A).width n = some w → ∃ k : Int, M.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w)
 include hA hL
 
 theorem dom_of {i : Nat} (hi : i < P.nodes.length) : M.dom (P.sort i) (val M.toInterp P.nodes i) :=
   val_dom hL.sound hA.wf hA.typed i hi
 
-include hin in
+include hin hrng hext hwr in
 theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
   meaning v f h := assign_meaning hA h
   trueLit := by
@@ -705,12 +766,18 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         have dj := dom_of hA hL (i := j) (by omega)
         unfold Problem.sort at da di dv dj
         rw [ha] at da; rw [hi] at di; rw [hv] at dv; rw [hj] at dj
-        have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj
+        have ri := hrng i (by omega)
+        have rj := hrng j (by omega)
+        unfold Problem.sort at ri rj
+        rw [hi] at ri; rw [hj] at rj
+        have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj ri rj
         rw [val_app hA.wf hr, val_app hA.wf hs, val_const hA.wf hk]
         simp only [List.map_cons, List.map_nil]
         exact law
       · cases hst
     · cases hst
+  ext k eq eqw ws h := hext k eq eqw ws h
+  range n w h := hwr n w h
 
 end
 
@@ -755,7 +822,11 @@ theorem nodupB_unique {l : List (Nat × List (Nat × Nat × List Nat))} (h : nod
 
 section
 variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} {size : Val R U → Nat}
-  (hL : P.Laws M size)
+  (hL : P.Laws M size) (hin : ∀ f ∈ P.inputs, holds M.toInterp P.nodes f)
+  (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (val M.toInterp P.nodes i))
+  (hext : ∀ (k eq eqw : Nat) (ws : List Nat), A.exts[k]? = some (eq, eqw, ws) →
+    holds M.toInterp P.nodes eq ∨ ¬holds M.toInterp P.nodes eqw)
+  (hwr : ∀ n w, (P.enc A).width n = some w → ∃ k : Int, M.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w)
 include hA hL
 
 theorem symOf_val {c C : Nat} (h : P.symOf c = some C) : val M.toInterp P.nodes c = M.const C := by
@@ -1118,29 +1189,35 @@ theorem lia_sound {c : Clause} {nodes : List Lia.Node} (h : Lia.accepts (P.liaEn
   · intro _ _ _ _ h; simp [Problem.liaEnv] at h
   · intro u hu; exact nums_int hA hL.sound hu
 
+include hin hrng hext hwr in
 /-- Every premise of an accepted proof holds. -/
-theorem premises_hold (hin : ∀ f ∈ P.inputs, holds M.toInterp P.nodes f) :
+theorem premises_hold :
     ∀ s ∈ A.steps, s.premise = true → s.clause.holds (assign P A M.toInterp) := by
   intro s hs hp
   obtain ⟨j, hj⟩ := mem_zip_of_mem hA.length hs
   have hok := hA.justs s j hj
   cases s <;> cases j <;> simp only [Problem.justOk, Step.premise, Bool.false_eq_true] at hok hp
-  · exact inputOk_sound hA.wf (enc_sound hA hL hin) hok
+  · exact inputOk_sound hA.wf (enc_sound hA hL hin hrng hext hwr) hok
   · exact Uf.accepts_sound (uf_sound hA hL) hok
   · exact lia_sound hA hL hok
 
 end
 
-/-- **Soundness.** When the checker accepts an answer, no model of the problem's
-    laws satisfies its inputs and the formulas of the levels it assumed. -/
-theorem Problem.accepts_sound {P : Problem} {A : Answer} (h : P.accepts A = true) (M : Model R U)
+/-- Soundness for a model whose witnesses take the right values: the
+    extensionality instances and the ranges of the witnesses hold. Any model
+    extends to such a model (`Problem.accepts_sound`, in `Extend.lean`). -/
+theorem accepts_sound_of_witnesses {P : Problem} {A : Answer} (hA : Accepted P A) (M : Model R U)
     (size : Val R U → Nat) (hL : P.Laws M size)
     (hin : ∀ f ∈ P.inputs, holds M.toInterp P.nodes f)
-    (hlev : ∀ s ∈ A.assumed, ∀ fs, A.levels.lookup s = some fs → ∀ f ∈ fs, holds M.toInterp P.nodes f) :
+    (hlev : ∀ s ∈ A.assumed, ∀ fs, A.levels.lookup s = some fs → ∀ f ∈ fs, holds M.toInterp P.nodes f)
+    (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (val M.toInterp P.nodes i))
+    (hext : ∀ (k eq eqw : Nat) (ws : List Nat), A.exts[k]? = some (eq, eqw, ws) →
+      holds M.toInterp P.nodes eq ∨ ¬holds M.toInterp P.nodes eqw)
+    (hwr : ∀ n w, (P.enc A).width n = some w → ∃ k : Int, M.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w) :
     False := by
-  have hA := accepted h
   obtain ⟨db, goal, hc, hg, hlits⟩ := hA.conclusion
-  obtain ⟨l, hl, hh⟩ := Clausal.check_sound A.steps [] db (by simp) (premises_hold hA hL hin) hc goal
+  obtain ⟨l, hl, hh⟩ := Clausal.check_sound A.steps [] db (by simp)
+    (premises_hold hA hL hin hrng hext hwr) hc goal
     (List.mem_of_getElem? hg)
   obtain ⟨hpos, has, hlv⟩ := hlits l hl
   obtain ⟨fs, hfs⟩ := Option.isSome_iff_exists.mp hlv
