@@ -65,12 +65,16 @@ inductive Rule where
   | smodz (a : Nat) (c : Int) (w : Nat)
   /-- `bits(t, w)`: bit `j` of `t`, for each `j < w`. -/
   | bits (t w : Nat)
+  /-- `udiv(a, b, w)`: the quotient and remainder of `a` by the unknown `b`,
+      all ones and `a` when `b` is zero. -/
+  | udiv (a b w : Nat)
   deriving DecidableEq, Repr
 
 /-- The lowered nodes a rule applies to. -/
 def Rule.args : Rule → List Nat
   | .modulo v _ _ _ | .divide v _ _ | .sdivide v _ _ _ | .int2bv v _ | .smodz v _ _ | .bits v _ => [v]
   | .cases c t e _ _ => [c, t, e]
+  | .udiv a b _ => [a, b]
 
 /-- The number of symbols of a rule. -/
 def Rule.nsyms : Rule → Nat
@@ -107,6 +111,8 @@ def Rule.ival (ι : Nat → Int) (τ : Nat → Bool) : Rule → Nat → Int
   | .int2bv t w, _ => ι t / 2 ^ w
   | .smodz a c w, _ => smodzVal (ι a) c w
   | .bits t _, j => bit (ι t) j
+  | .udiv a b w, 0 => (if ι b = 0 then 2 ^ w - 1 else ι a / ι b) % 2 ^ w
+  | .udiv a b w, _ => (if ι b = 0 then ι a else ι a % ι b) % 2 ^ w
 
 /-- Why the lowering mints a symbol. -/
 inductive Mint where
@@ -359,6 +365,7 @@ def Rule.iv (node : Nat → Option (Int × Int)) : Rule → Nat → Option (Int 
   | .int2bv _ _, _ => none
   | .smodz .., _ => some (0, 1)
   | .bits .., _ => some (0, 1)
+  | .udiv _ _ w, _ => some (0, 2 ^ w - 1)
 
 /-- The interval of a leaf: a number, a symbol of a rule (`sym`), or a
     bit-vector. -/
@@ -427,6 +434,13 @@ def Rule.facts (ks : List Nat) (aux : Nat) : Rule → List Shape
   | .bits t w =>
     (List.range w).flatMap (fun (j : Nat) => intS (ks.getD j 0) 0 1) ++
       [eqI (.same t) (.num ((List.range w).map fun (j : Nat) => (ks.getD j 0, ((2 ^ j : Int) : Rat))) 0)]
+  | .udiv a b w =>
+    let q := ks.getD 0 0
+    let r := ks.getD 1 0
+    let zero := eqI (.same b) (.num [] 0)
+    intS q 0 (2 ^ w - 1) ++ intS r 0 (2 ^ w - 1) ++
+      [.implies zero (.and [eqI (.same q) (.num [] (2 ^ w - 1)), eqI (.same r) (.same a)]),
+        .implies (.not zero) (.and [eqI (.same a) (.num [(aux, 1), (r, 1)] 0), .le (.num [(r, 1)] 1) (.same b)])]
 
 /-- Whether node `x` is `signed(t, w)`: the constant, or the `cases` tagged
     `signed`. -/
@@ -439,26 +453,6 @@ def Trace.signedOk (t w x : Nat) : Bool :=
       lo == -(2 ^ (w - 1)) && hi == 2 ^ (w - 1) - 1 && fits P.sig P.nodes P.sortOf c (negS P t w) &&
         fits P.sig P.nodes P.sortOf thn (.num (lin P.nodes t).1 ((lin P.nodes t).2 - 2 ^ w)) && els == t
     | _ => false
-
-/-- Whether the arguments of a rule are within the bounds under which its
-    facts hold. -/
-def Trace.ruleOk (r : Rule) (aux : Nat) : Bool :=
-  match r with
-  | .modulo v w lo hi => isIntN P v && ivSub (tr.iv SP P v) (lo * 2 ^ w) ((hi + 1) * 2 ^ w - 1)
-  | .cases c t e lo hi =>
-    isIntN P t && isIntN P e && P.sig.is (P.sortOf[c]?.getD 0) .bool &&
-      ivSub (branchIv P (tr.iv SP P) c t true) lo hi && ivSub (branchIv P (tr.iv SP P) c e false) lo hi
-  | .divide v d qmax => isIntN P v && 0 < d && ivSub (tr.iv SP P v) 0 (qmax * d + d - 1)
-  | .sdivide t w d _ => isIntN P t && 0 < d && 0 < w && ivSub (tr.iv SP P t) 0 (2 ^ w - 1) && tr.signedOk SP P t w aux
-  | .int2bv t _ => isIntN P t
-  | .smodz a c w =>
-    isIntN P a && 0 < w && smodT c w != 0 &&
-      tr.symAt SP P aux == some (.sdivide a w (smodT c w).natAbs false, 1)
-  | .bits t w => isIntN P t && ivSub (tr.iv SP P t) 0 (2 ^ w - 1)
-
-/-- The facts of the rule `r`, if its symbols have nodes. -/
-def Trace.ruleFacts (r : Rule) (aux : Nat) : Option (List Shape) :=
-  ((List.range r.nsyms).mapM fun j => tr.symNode SP P r j).map fun ks => r.facts P ks aux
 
 /-- `Σ_{j<k} 2^(j·w) · p`: `p` repeated `k` times. -/
 def repeatForm (w : Nat) (p : Lia.Form × Int) : Nat → Lia.Form × Int
@@ -985,20 +979,50 @@ def Trace.partialForms (kept : Nat) (B : List BitRef) : Nat → Option (Lia.Form
     (Trace.partialForms kept B n).bind fun g =>
       (tr.partialOf SP P kept (bitAt B n) n).map fun f => (g.1 ++ f.1, g.2 + f.2)
 
+/-- Whether node `v` is the exact product of `kept` by `blasted`, of width
+    `w`: the sum of the partial products of `kept` by the bits of `blasted`. -/
+def Trace.exactOk (v kept blasted w : Nat) : Bool :=
+  match tr.tbits SP P blasted w with
+  | some B =>
+    B.length == w &&
+      match tr.partialForms SP P kept B w with
+      | some F => fits P.sig P.nodes P.sortOf v (.num F.1 F.2)
+      | none => false
+  | none => false
+
 /-- `bvmul` of two unknowns at node `l`: the remainder of a `modulo` of the sum
     of the partial products of one operand by the bits of the other. -/
 def Trace.productOk (w l ta tb : Nat) : Bool :=
-  let sum (v kept blasted : Nat) : Bool :=
-    match tr.tbits SP P blasted w with
-    | some B =>
-      B.length == w &&
-        match tr.partialForms SP P kept B w with
-        | some F => fits P.sig P.nodes P.sortOf v (.num F.1 F.2)
-        | none => false
-    | none => false
   match tr.symAt SP P l with
-  | some (.modulo v w' _ _, 0) => w' == w && (sum v ta tb || sum v tb ta)
+  | some (.modulo v w' _ _, 0) => w' == w && (tr.exactOk SP P v ta tb w || tr.exactOk SP P v tb ta w)
   | _ => false
+
+/-- Whether the arguments of a rule are within the bounds under which its
+    facts hold. -/
+def Trace.ruleOk (r : Rule) (aux : Nat) : Bool :=
+  match r with
+  | .modulo v w lo hi => isIntN P v && ivSub (tr.iv SP P v) (lo * 2 ^ w) ((hi + 1) * 2 ^ w - 1)
+  | .cases c t e lo hi =>
+    isIntN P t && isIntN P e && P.sig.is (P.sortOf[c]?.getD 0) .bool &&
+      ivSub (branchIv P (tr.iv SP P) c t true) lo hi && ivSub (branchIv P (tr.iv SP P) c e false) lo hi
+  | .divide v d qmax => isIntN P v && 0 < d && ivSub (tr.iv SP P v) 0 (qmax * d + d - 1)
+  | .sdivide t w d _ => isIntN P t && 0 < d && 0 < w && ivSub (tr.iv SP P t) 0 (2 ^ w - 1) && tr.signedOk SP P t w aux
+  | .int2bv t _ => isIntN P t
+  | .smodz a c w =>
+    isIntN P a && 0 < w && smodT c w != 0 &&
+      tr.symAt SP P aux == some (.sdivide a w (smodT c w).natAbs false, 1)
+  | .bits t w => isIntN P t && ivSub (tr.iv SP P t) 0 (2 ^ w - 1)
+  | .udiv a b w =>
+    isIntN P a && isIntN P b && ivSub (tr.iv SP P a) 0 (2 ^ w - 1) && ivSub (tr.iv SP P b) 0 (2 ^ w - 1) &&
+      aux < P.nodes.length &&
+      match tr.symNode SP P (.udiv a b w) 0 with
+      | some q => tr.exactOk SP P aux b q w
+      | none => false
+
+/-- The facts of the rule `r`, if its symbols have nodes. -/
+def Trace.ruleFacts (r : Rule) (aux : Nat) : Option (List Shape) :=
+  ((List.range r.nsyms).mapM fun j => tr.symNode SP P r j).map fun ks => r.facts P ks aux
+
 
 /-- The number of stages of a barrel shifter of width `w`: the least `n` with
     `w ≤ 2^n`. -/
@@ -1092,6 +1116,8 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
     | none =>
       match op with
       | .shl | .lshr | .ashr => tr.shiftOk SP P op w l (tr.at a) (tr.at b)
+      | .udiv => tr.symAt SP P l == some (.udiv (tr.at a) (tr.at b) w, 0)
+      | .urem => tr.symAt SP P l == some (.udiv (tr.at a) (tr.at b) w, 1)
       | _ => false
 
 /-- Whether the lowering of surface node `i`, a bit-vector operation, is the

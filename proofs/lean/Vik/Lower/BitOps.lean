@@ -921,41 +921,49 @@ theorem partialForms_sound {kept : Nat} {B : List BitRef} {K Y : Int} (hk : evf 
     · simp [h1]
 
 include hwP htP hG hML hrng in
+/-- An exact product: the product of the values of its factors. -/
+theorem exactOk_sound {v kept blasted w : Nat} {K Q : Int} (h : tr.exactOk SP P v kept blasted w = true)
+    (hv : v < P.nodes.length) (hbl : blasted < P.nodes.length) (q0 : 0 ≤ Q) (q1 : Q < 2 ^ w)
+    (hk : ρ kept = .num (K : R)) (hb : ρ blasted = .num (Q : R)) : ρ v = .num ((K * Q : Int) : R) := by
+  have lk : evf ρ (lin P.nodes kept) = (K : R) := by
+    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) kept; rw [hk, toR_num] at this; exact this.symm
+  have hY : Vik.val (BitVec.ofNat w Q.toNat) = Q := by
+    have : Q.toNat < 2 ^ w := by
+      have : ((2 ^ w : Nat) : Int) = 2 ^ w := by simp
+      omega
+    simp only [Vik.val, BitVec.toNat_ofNat, Nat.mod_eq_of_lt this]; omega
+  rw [← hY] at hb ⊢
+  unfold Trace.exactOk at h
+  split at h
+  · rename_i B hB
+    simp only [Bool.and_eq_true, beq_iff_eq] at h
+    obtain ⟨hlen, h⟩ := h
+    obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB hbl hb
+    split at h
+    · rename_i F hF
+      have hB' : ∀ i < B.length, RefVal ρ (bitAt B i) (bit (Vik.val (BitVec.ofNat w Q.toNat)) i == 1) := by
+        intro i hi; rw [bit_getLsbD]; exact rB i (by omega)
+      have e := partialForms_sound hwP htP hG hML hrng lk hB' w (by omega) hF
+      rw [exactProduct_eq _ (Vik.val_range _)] at e
+      exact fits_num hwP htP hML hrng h hv e
+    · cases h
+  · cases h
+
+/-- The exact products of a trace (for `ruleFacts_hold`). -/
+theorem exactOk_spec (hwP : Low.wellFormed P.nodes = true) (htP : Low.typed P.sig P.nodes P.sortOf = true)
+    (hG : SigSpec SP P tr) (hML : (lowModel SP P tr Ms).Sound P.sig P.bvIndex)
+    (hrng : ∀ j < P.nodes.length,
+      inRange P.bvIndex (P.sortOf[j]?.getD 0) (Low.val (lowModel SP P tr Ms).toInterp P.nodes j)) :
+    ExactSpec SP P tr Ms :=
+  fun h hv hbl q0 q1 hk hb => exactOk_sound hwP htP hG hML hrng h hv hbl q0 q1 hk hb
+
+include hwP htP hG hML hrng in
 /-- `bvmul` of two unknowns. -/
 theorem productOk_sound {w l ta tb : Nat} {x y : BitVec w} (h : tr.productOk SP P w l ta tb = true)
     (hta : ta < P.nodes.length) (htb : tb < P.nodes.length)
     (ea : ρ ta = .num ((Vik.val x : Int) : R)) (eb : ρ tb = .num ((Vik.val y : Int) : R)) :
     ρ l = .num ((Vik.val (x * y) : Int) : R) := by
-  have la : evf ρ (lin P.nodes ta) = ((Vik.val x : Int) : R) := by
-    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) ta; rw [ea, toR_num] at this; exact this.symm
-  have lb : evf ρ (lin P.nodes tb) = ((Vik.val y : Int) : R) := by
-    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) tb; rw [eb, toR_num] at this; exact this.symm
-  have side : ∀ {v kept blasted : Nat} {X Y : BitVec w}, v < P.nodes.length → blasted < P.nodes.length →
-      evf ρ (lin P.nodes kept) = ((Vik.val X : Int) : R) → ρ blasted = .num ((Vik.val Y : Int) : R) →
-      (match tr.tbits SP P blasted w with
-        | some B => B.length == w &&
-          match tr.partialForms SP P kept B w with
-          | some F => fits P.sig P.nodes P.sortOf v (.num F.1 F.2)
-          | none => false
-        | none => false) = true →
-      ρ v = .num ((Vik.val X * Vik.val Y : Int) : R) := by
-    intro v kept blasted X Y hv hbl hk hb hs
-    split at hs
-    · rename_i B hB
-      simp only [Bool.and_eq_true, beq_iff_eq] at hs
-      obtain ⟨hlen, hs⟩ := hs
-      obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB hbl hb
-      split at hs
-      · rename_i F hF
-        have hB' : ∀ i < B.length, RefVal ρ (bitAt B i) (bit (Vik.val Y) i == 1) := by
-          intro i hi; rw [bit_getLsbD]; exact rB i (by omega)
-        have e := partialForms_sound hwP htP hG hML hrng hk hB' w (by omega) hF
-        rw [exactProduct_eq _ (Vik.val_range Y)] at e
-        exact fits_num hwP htP hML hrng hs hv e
-      · cases hs
-    · cases hs
   unfold Trace.productOk at h
-  simp only at h
   split at h
   · rename_i v w' lo hi hsl
     simp only [Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true] at h
@@ -965,8 +973,8 @@ theorem productOk_sound {w l ta tb : Nat} {x y : BitVec w} (h : tr.productOk SP 
     simp only [Rule.ival]
     have ev : ρ v = .num ((Vik.val x * Vik.val y : Int) : R) := by
       rcases h with h | h
-      · exact side hv htb la eb h
-      · rw [Int.mul_comm]; exact side hv hta lb ea h
+      · exact exactOk_sound hwP htP hG hML hrng h hv htb (Vik.val_nonneg y) (Vik.val_lt y) ea eb
+      · rw [Int.mul_comm]; exact exactOk_sound hwP htP hG hML hrng h hv hta (Vik.val_nonneg x) (Vik.val_lt x) eb ea
     rw [ev, intOf_num]
     simp only [Vik.val, BitVec.toNat_mul, Int.natCast_emod, Int.natCast_mul, Int.natCast_pow, Int.cast_ofNat_Int]
   · cases h

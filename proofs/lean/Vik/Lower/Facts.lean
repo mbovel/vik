@@ -191,6 +191,14 @@ theorem eqI_holds {a b : Shape} {A B : Int} (ha : (a.ev I ρ').toR = (A : R)) (h
     (h : A = B) : ((eqI a b).ev I ρ').truth = true := by
   rw [eqI_int I ρ' ha hb]; simpa using h
 
+theorem le_holds {a b : Shape} {A B : Int} (ha : (a.ev I ρ').toR = (A : R)) (hb : (b.ev I ρ').toR = (B : R))
+    (h : A ≤ B) : ((Shape.le a b).ev I ρ').truth = true := by
+  simp only [Shape.ev, truth_bool, ha, hb, decide_eq_true_eq]; exact cast_le_iff.mpr h
+
+theorem and2_holds {a b : Shape} (ha : (a.ev I ρ').truth = true) (hb : (b.ev I ρ').truth = true) :
+    ((Shape.and [a, b]).ev I ρ').truth = true := by
+  simp only [Shape.ev, Shape.allTrue, truth_bool, ha, hb, Bool.and_true]
+
 theorem implies_of_right {a b : Shape} (h : (b.ev I ρ').truth = true) :
     ((Shape.implies a b).ev I ρ').truth = true := by
   simp only [Shape.ev, truth_bool, h, Bool.or_true]
@@ -269,6 +277,15 @@ theorem eval_bitSum {V : Type} (ρ' : Nat → Val R V) (f : Nat → Nat) (b : Na
     grind
 
 /-! ## The values of rule symbols and intervals -/
+
+/-- Exact products take the product of the values of their factors, the
+    second of width `w` (`exactOk_spec` in `BitOps`). -/
+def ExactSpec (SP : SProblem) (P : Problem) (tr : Trace) (Ms : Surf.Model R U) : Prop :=
+  ∀ {v kept blasted w : Nat} {K Q : Int}, tr.exactOk SP P v kept blasted w = true →
+    v < P.nodes.length → blasted < P.nodes.length → 0 ≤ Q → Q < 2 ^ w →
+    Low.val (lowModel SP P tr Ms).toInterp P.nodes kept = .num (K : R) →
+    Low.val (lowModel SP P tr Ms).toInterp P.nodes blasted = .num (Q : R) →
+    Low.val (lowModel SP P tr Ms).toInterp P.nodes v = .num ((K * Q : Int) : R)
 
 section
 variable {SP : SProblem} {P : Problem} {tr : Trace} {Ms : Surf.Model R U}
@@ -629,6 +646,9 @@ theorem ruleIv_sound (node : Nat → Option (Int × Int)) (hnode : ∀ x q, node
     simp only [Rule.iv, Option.some.injEq] at h; subst h
     simp only [Rule.ival]
     exact bit_range _ _
+  | udiv a b w =>
+    simp only [Rule.iv, Option.some.injEq] at h; subst h
+    cases j <;> exact emod_bounds _ (two_pow_pos w)
 
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The intervals the trace computes hold. -/
@@ -701,7 +721,7 @@ theorem signedOk_sound {t w x : Nat} {K : Int} (hok : tr.signedOk SP P t w x = t
 
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The facts of a rule hold, within the bounds `Trace.ruleOk` checks. -/
-theorem ruleFacts_truth {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleOk SP P r aux = true)
+theorem ruleFacts_truth (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleOk SP P r aux = true)
     (hf : tr.ruleFacts SP P r aux = some fs) : ∀ s ∈ fs, (s.ev MI ρ).truth = true := by
   unfold Trace.ruleFacts at hf
   obtain ⟨ks, hks, rfl⟩ := Option.map_eq_some_iff.mp hf
@@ -905,17 +925,72 @@ theorem ruleFacts_truth {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleO
         (bits_facts (t := K) (w := w) ⟨Int.le_trans q0 k0, Int.le_trans k1 q1⟩).2
       simp only [Shape.ev, toR_num, Ring.intCast_zero]
       rw [eval_bitSum (R := R) _ _ _ w eb]; grind
+  | udiv a b w =>
+    simp only [Trace.ruleOk, Bool.and_eq_true, decide_eq_true_eq] at hok
+    obtain ⟨⟨⟨⟨⟨_, _⟩, hsa⟩, hsb⟩, hauxl⟩, hq⟩ := hok
+    obtain ⟨qa, hqa, qa0, qa1⟩ := ivSub_sound hsa
+    obtain ⟨A, eA, a0, a1⟩ := ivs hqa
+    obtain ⟨qb, hqb, qb0, qb1⟩ := ivSub_sound hsb
+    obtain ⟨B, eB, b0, b1⟩ := ivs hqb
+    have hm := two_pow_pos w
+    have hA0 : 0 ≤ A := by omega
+    have hA1 : A < 2 ^ w := by omega
+    have hB0 : 0 ≤ B := by omega
+    have eq := (sym 0 (by simp [Rule.nsyms])).2
+    have er := (sym 1 (by simp [Rule.nsyms])).2
+    simp only [Rule.ival, eA, eB, intOf_num] at eq er
+    have ⟨Q0, Q1⟩ := emod_bounds (if B = 0 then 2 ^ w - 1 else A / B) hm
+    have ⟨R0, R1⟩ := emod_bounds (if B = 0 then A else A % B) hm
+    simp only [Rule.facts, List.mem_append, List.mem_cons, List.mem_nil_iff, or_false] at hs
+    rcases hs with (hs | hs) | rfl | rfl
+    · exact intS_holds MI ρ eq Q0 Q1 s hs
+    · exact intS_holds MI ρ er R0 R1 s hs
+    all_goals
+      have vq : (if B = 0 then 2 ^ w - 1 else A / B) % 2 ^ w = if B = 0 then 2 ^ w - 1 else A / B := by
+        split
+        · exact Int.emod_eq_of_lt (by omega) (by omega)
+        · have : A / B ≤ A := Int.ediv_le_self _ hA0
+          exact Int.emod_eq_of_lt (Int.ediv_nonneg hA0 hB0) (by omega)
+      have vr : (if B = 0 then A else A % B) % 2 ^ w = if B = 0 then A else A % B := by
+        split
+        · exact Int.emod_eq_of_lt hA0 hA1
+        · rename_i hB
+          have := Int.emod_lt_of_pos A (show 0 < B by omega)
+          exact Int.emod_eq_of_lt (Int.emod_nonneg _ (by omega)) (by omega)
+      rw [vq] at eq; rw [vr] at er
+      have hz := eqI_int MI ρ (ev_same_num MI ρ eB) (ev_num0 MI ρ 0)
+    · by_cases hB : B = 0
+      · refine implies_of_right MI ρ (and2_holds MI ρ ?_ ?_)
+        · exact eqI_holds MI ρ (ev_same_num MI ρ eq) (ev_num0 MI ρ _) (by simp [hB])
+        · exact eqI_holds MI ρ (ev_same_num MI ρ er) (ev_same_num MI ρ eA) (by simp [hB])
+      · exact implies_of_left MI ρ (by rw [hz]; simpa using hB)
+    · by_cases hB : B = 0
+      · exact implies_of_left MI ρ (by simp only [Shape.ev, truth_bool, hz]; simp [hB])
+      · split at hq
+        · rename_i q' hq'
+          have eq' := sym_val (Ms := Ms) hwP hG (symNode_sym hq').2
+          simp only [Rule.ival, eA, eB, intOf_num] at eq'
+          rw [vq] at eq'
+          rw [vq] at Q0 Q1
+          have eaux := hex hq hauxl (symNode_sym hq').1 Q0 (by omega) eB eq'
+          simp only [hB, if_false] at eaux er
+          refine implies_of_right MI ρ (and2_holds MI ρ ?_ ?_)
+          · refine eqI_holds MI ρ (ev_same_num MI ρ eA) (ev_num2' MI ρ eaux er 1 1 0 rfl rfl) ?_
+            have := Int.mul_ediv_add_emod A B; omega
+          · refine le_holds MI ρ (ev_num1 MI ρ er 1) (ev_same_num MI ρ eB) ?_
+            have := Int.emod_lt_of_pos A (show 0 < B by omega); omega
+        · cases hq
 
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The facts of a rule hold, within the bounds `Trace.ruleOk` checks. -/
-theorem ruleFacts_hold {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleOk SP P r aux = true)
+theorem ruleFacts_hold (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleOk SP P r aux = true)
     (hf : tr.ruleFacts SP P r aux = some fs) : ∀ s ∈ fs, s.ev MI ρ = .bool true := by
   intro s hs
   have hf' := hf
   unfold Trace.ruleFacts at hf'
   obtain ⟨ks, _, rfl⟩ := Option.map_eq_some_iff.mp hf'
   exact ev_of_boolShape MI ρ (facts_bool P r ks aux s hs)
-    (ruleFacts_truth hM hw ht hwP htP hG hML hrng hco hok hf s hs)
+    (ruleFacts_truth hM hw ht hwP htP hG hML hrng hco hex hok hf s hs)
 
 end
 
