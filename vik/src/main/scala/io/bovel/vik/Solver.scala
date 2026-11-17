@@ -458,7 +458,12 @@ private final class Encoder(
     if (steps & 1023) == 0 && !keepGoing() then throw Encoder.Stopped
 
   private val classes = HashMap.empty[Term, EClassId]
-  private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
+  private val sorts = HashMap.empty[Term, Sort] // the sorts of terms, memoized: asked for every term, many times
+  private val sortsByName = HashMap.empty[String, Sort]
+  private def sortNamed(name: String): Sort = sortsByName.getOrElseUpdate(name, Sort(name))
+  private val intSort = sortNamed("Int")
+  private val realSort = sortNamed("Real")
+  private val boolSort = sortNamed("Bool")
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
 
   private val eg = EGraph(adt.getOrElse(NoRules))
@@ -482,17 +487,43 @@ private final class Encoder(
   /** The sort of a term, from the declarations, a function sort for a function
    *  symbol (see [[Sorts]]); `?` when unknown.
    */
-  private def sortOf(term: Term): String = sorts.getOrElseUpdate(
+  private def sortOf(term: Term): String = sortInfo(term).name
+
+  /** A sort and what the encoder asks of it, worked out once per sort and not
+   *  once per question: the questions come for every term, many times, and each
+   *  one parsed or compared the string.
+   */
+  private final class Sort(val name: String):
+    val isFunction: Boolean = Sorts.arrow(name).isDefined
+    val isReal: Boolean = name == "Real"
+    val isNumeric: Boolean = isReal || name == "Int"
+    val isBool: Boolean = name == "Bool"
+    private var appliedTo = new Array[Sort](2) // by number of arguments
+
+    /** The sort of a term of this sort applied to `n` arguments (see
+     *  [[Sorts.applied]]).
+     */
+    def applied(n: Int): Sort =
+      if n >= appliedTo.length then appliedTo = java.util.Arrays.copyOf(appliedTo, n + 1)
+      var result = appliedTo(n)
+      if result == null then
+        result = sortNamed(Sorts.applied(name, n))
+        appliedTo(n) = result
+      result
+
+  private def sortInfo(term: Term): Sort = sorts.getOrElseUpdate(
     term,
     term match
       case Term.Const(name) =>
-        declarations.get(
-          name
-        ).map((args, sort) => Sorts.function(args, sort)).orElse(introduced.get(name)).getOrElse("?")
-      case Term.App(fun, args) => Sorts.applied(sortOf(fun), args.length)
-      case Term.Num(_) => "Int"
-      case Term.Linear(terms, _) => if terms.exists((_, t) => sortOf(t) == "Real") then "Real" else "Int"
-      case Term.Bool(_) => "Bool"
+        sortNamed(
+          declarations.get(
+            name
+          ).map((args, sort) => Sorts.function(args, sort)).orElse(introduced.get(name)).getOrElse("?")
+        )
+      case Term.App(fun, args) => sortInfo(fun).applied(args.length)
+      case Term.Num(_) => intSort
+      case Term.Linear(terms, _) => if terms.exists((_, t) => sortInfo(t).isReal) then realSort else intSort
+      case Term.Bool(_) => boolSort
   )
 
   private val datatypeNames = datatypes.map(_.name).toSet
@@ -536,9 +567,9 @@ private final class Encoder(
 
   private def isInt(t: Term): Boolean = t match
     case Term.Num(_) | Term.Linear(_, _) => true
-    case _ => sortOf(t) == "Int" || sortOf(t) == "Real" || intTerms(t)
+    case _ => sortInfo(t).isNumeric || intTerms(t)
 
-  private def isFun(t: Term): Boolean = Sorts.arrow(sortOf(t)).isDefined
+  private def isFun(t: Term): Boolean = sortInfo(t).isFunction
 
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
@@ -560,10 +591,10 @@ private final class Encoder(
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
       step()
-      if a != b && isInt(a) && isInt(b) && Sorts.arrow(sortOf(a)).isEmpty && Sorts.arrow(sortOf(b)).isEmpty
+      if a != b && isInt(a) && isInt(b) && !isFun(a) && !isFun(b)
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
-      else if a != b && Sorts.arrow(sortOf(a)).isDefined && Sorts.arrow(sortOf(b)).isDefined
+      else if a != b && isFun(a) && isFun(b)
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then arrayPairs += ((a, b))
     val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
@@ -798,7 +829,7 @@ private final class Encoder(
   private val booleanClasses = scala.collection.mutable.HashSet.empty[EClassId]
 
   private def boolean(term: Term): Unit =
-    if sortOf(term) == "Bool" && booleanClasses.add(classOf(term)) then booleans += term
+    if sortInfo(term).isBool && booleanClasses.add(classOf(term)) then booleans += term
 
   /** Whether some term is an integer, some application takes or gives an array
    *  (two arrays under the same function are a pair to share, with or without
@@ -874,7 +905,7 @@ private final class Encoder(
       indices.getOrElseUpdate(sort, scala.collection.mutable.LinkedHashSet.empty) += j
     for a <- classes.keys do
       a match
-        case Term.App(f, List(j)) if Sorts.arrow(sortOf(f)).isDefined => index(sortOf(f), j)
+        case Term.App(f, List(j)) if isFun(f) => index(sortOf(f), j)
         case _ => ()
     for s <- stores do index(sortOf(s), s.args(1))
     def equalAt(sort: String, l: Term, r: Term): Formula =
@@ -929,13 +960,13 @@ private final class Encoder(
     term match
       case Term.App(_, _) => classOf(term)
       case _ => ()
-    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = sortOf(term) != "Real"))
+    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = !sortInfo(term).isReal))
 
   /** The LIA variable standing for a linear combination of `Int` terms. */
   private def slack(terms: List[(BigInt, Term)]): lia.Var =
     slacks.getOrElseUpdate(
       terms,
-      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortOf(t) == "Real"))
+      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortInfo(t).isReal))
     )
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
