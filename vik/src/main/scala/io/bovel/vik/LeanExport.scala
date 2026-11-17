@@ -118,6 +118,11 @@ private[vik] object LeanExport:
     try Right(Writer(in, surface).write())
     catch case e: Unsupported => Left(e.getMessage)
 
+  /** Large proofs, their terms and the kernel's checks, run past the
+   *  elaborator's default limits.
+   */
+  private val options = "set_option maxRecDepth 100000\nset_option maxHeartbeats 0\n\n"
+
   private def lit(l: Lit): String = s"⟨${l.variable}, ${l.positive}⟩"
   private def litOfIndex(i: Int): String = lit(Lit.fromIndex(i))
   private def int(v: BigInt): String = if v < 0 then s"($v)" else v.toString
@@ -191,7 +196,12 @@ private[vik] object LeanExport:
 
     private def symbolSort(name: String): String = declarations.get(name) match
       case Some((args, result)) => Sorts.function(args, result)
-      case None => introduced.getOrElse(name, throw Unsupported(s"the symbol $name"))
+      case None =>
+        introduced.get(name) match
+          case Some(s) => s
+          case None => // a symbol of an earlier check
+            val s = sortOf(Term.Const(name))
+            if s == "?" then throw Unsupported(s"the symbol $name") else s
     private def decl(name: String): Int = decls.getOrElseUpdate(
       name, {
         val s = symbolSort(name)
@@ -454,10 +464,14 @@ private[vik] object LeanExport:
           case Mint.Real(r) => s".real (${rrule(r)})"
           case Mint.Rule(r, j) => s".rule (${rule(r)}) $j"
       ) ++ decls.keysIterator.drop(sf.decls.length + sf.mints.length).map { n =>
-        // the witnesses of the answer, of the sorts of the script
+        // the witnesses of the answer, and the symbols of earlier checks the proof mentions: any value
         val s = declSorts(n)
         if s >= sf.sorts.length then throw Unsupported(s"the symbol $n")
-        s".witness $s"
+        else if sf.sorts(s).text.startsWith(".user") || sf.sorts(s).result.isDefined then
+          // valued as a node of its sort
+          val i = sf.sortOf.indexOf(s)
+          if i < 0 then throw Unsupported(s"the symbol $n, of a sort no node has") else s".pick $i"
+        else s".witness $s"
       }
       val reasons = inputs.map(reason(sf, _))
       val levelReasons = assumed.map(v => list(levels.find(_._1 == v).fold(Nil)(_._2).map(reason(sf, _))))
@@ -584,7 +598,7 @@ private[vik] object LeanExport:
       formula(Formula.True)
       val declList = decls.keysIterator.map(declSorts(_).toString).toList
       val stores = decls.keysIterator.filter(_.startsWith("store!")).map(decls(_).toString).toList
-      val b = StringBuilder()
+      val b = StringBuilder(options)
       b ++= "def problem : Problem where\n"
       b ++= s"  sig := ⟨${list(sorts)}, ${list(declList)}⟩\n"
       b ++= s"  nodes := ${list(nodes)}\n"

@@ -112,9 +112,20 @@ final class Session(
         case None => play(List(lowered.last))
     case s2.Command.Assert(f) => asserting(c, f)
     case s2.Command.AssertNamed(_, f) => asserting(c, f)
-    case s2.Command.CheckSat => checked(play(lowering(c)), Nil)
-    case s2.Command.CheckSatAssuming(assumptions) => checked(play(lowering(c)), assumptions)
+    case s2.Command.CheckSat => checked(kept(play(lowering(c))), Nil)
+    case s2.Command.CheckSatAssuming(assumptions) => checked(kept(play(lowering(c))), assumptions)
     case _ => play(lowering(c))
+
+  /** With proofs: whether each `unsat` writes its Lean proof at once, for
+   *  [[leanProof]] to return after later commands (a `pop` drops what the
+   *  proof's script is made of).
+   */
+  var keepLeanProofs = false
+  private var lastLeanProof: Option[Either[String, String]] = None
+
+  private def kept(out: List[String]): List[String] =
+    if keepLeanProofs && out.contains("unsat") then lastLeanProof = Some(leanProofNow())
+    out
 
   private def asserting(c: s2.Command, formula: s2.Formula): List[String] =
     val responses = play(lowering(c))
@@ -176,9 +187,14 @@ final class Session(
 
   /** With proofs: the proof of the last `Unsat` as Lean terms, from the script
    *  the check saw to its lowering and the solver's proof of it (see
-   *  [[LeanExport]]), or why it cannot be written.
+   *  [[LeanExport]]), or why it cannot be written. Right after the check, or at
+   *  any time with [[keepLeanProofs]].
    */
   def leanProof(): Either[String, String] =
+    if keepLeanProofs then lastLeanProof.getOrElse(Left("no unsat"))
+    else leanProofNow()
+
+  private def leanProofNow(): Either[String, String] =
     if loweringCheck == null then Left("no proofs")
     else if loweringErrors.nonEmpty then Left(loweringErrors.head)
     else loweringCheck.surface().flatMap(sf => current.leanProof(Some(sf)))
