@@ -1322,6 +1322,8 @@ private final class Encoder(
       )
     def freshReal(root: EClassId): lia.Rational =
       realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
+    // A bit-vector index of an array keeps its sort's text (see `Lowering.indexString`): an integer all the same.
+    def integral(sort: String): Boolean = sort == "Int" || sort.startsWith("(_ BitVec")
     def asRational(value: Term): lia.Rational = value match
       case Term.Num(v) => lia.Rational(v)
       case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
@@ -1462,7 +1464,7 @@ private final class Encoder(
                 )
         case None =>
           sort match
-            case "Int" => Term.Num(freshInt(eg.find(cls)))
+            case s if integral(s) => Term.Num(freshInt(eg.find(cls)))
             case "Real" => Model.rationalTerm(freshReal(eg.find(cls)))
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
@@ -1480,7 +1482,7 @@ private final class Encoder(
         case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
           else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
-        case (_, "Int") =>
+        case (_, s) if integral(s) =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
