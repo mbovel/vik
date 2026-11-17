@@ -1086,7 +1086,7 @@ private final class Lowerer:
         val r = freshInt("r", 0, m - 1)
         val zero = IntEq(b, Num(0))
         definitions += Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a))))
-        definitions += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, width) + r), Less(r, b))))
+        definitions += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, width) + r), Lt(r, b))))
         trace("udiv", List(Term.linear(List((BigInt(1), a), (m, b))), m, m), List(q, r), List(a, b, width))
         (q, r)
       }

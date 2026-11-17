@@ -240,7 +240,7 @@ final class LoweringCheck:
         int(r, 0, m - 1)
         val zero = IntEq(b, Num(0))
         facts += Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a))))
-        facts += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, w) + r), Less(r, b))))
+        facts += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, w) + r), Lt(r, b))))
       case ("sdivide", List(t: Term, w: Int, d: BigInt, floor: Boolean), Nil) if d.signum > 0 =>
         arity(2)
         val half = modulus(w - 1)
@@ -1260,6 +1260,34 @@ final class LoweringCheck:
       if fresh && ctx.live then insts += ((i, ms))
       visit(ctx, i)
 
+    private val factCache = java.util.IdentityHashMap[Intro, List[Formula]]()
+
+    /** The defining assertions of an intro, as [[check]] gives them. */
+    private def factsOf(intro: Intro): List[Formula] =
+      if !factCache.containsKey(intro) then
+        facts.clear()
+        declarations.clear()
+        check(intro)
+        factCache.put(intro, facts.toList)
+        facts.clear()
+        declarations.clear()
+      factCache.get(intro)
+
+    /** The rule of an intro of the lowering of bit-vectors. */
+    private def lowRule(intro: Intro): LeanExport.Rule =
+      import LeanExport.Rule.*
+      (intro.kind, intro.key, intro.args) match
+        case ("modulo", List(v: Term, w: Int, lo: BigInt, hi: BigInt), _) => Modulo(v, w, lo, hi)
+        case ("cases", List(_, c: Term, t: Term, e: Term, lo: BigInt, hi: BigInt), _) =>
+          Cases(Formula.pred(c), t, e, lo, hi)
+        case ("divide", List(v: Term, d: BigInt, qmax: BigInt), _) => Divide(v, d, qmax)
+        case ("sdivide", List(t: Term, w: Int, d: BigInt, floor: Boolean), _) => SDivide(t, w, d, floor)
+        case ("int2bv", List(t: Term, w: Int), _) => Int2Bv(t, w)
+        case ("smodz", List(a: Term, c: BigInt, w: Int), _) => SModZ(a, c, w)
+        case ("bits", List(t: Term, w: Int), _) => Bits(t, w)
+        case ("udiv", _, List(a: Term, b: Term, w: Int)) => UDiv(a, b, w)
+        case _ => fail(s"the ${intro.kind} rule is not in the Lean trace")
+
     def result(): LeanExport.Surface =
       val top = Ctx(main, Map.empty, Map.empty)
       val reasons = HashMap.empty[Formula, Reason]
@@ -1289,35 +1317,57 @@ final class LoweringCheck:
         if !seen.contains(n) then
           val intro = introOf.getOrElse(n, fail(s"the minted symbol $n of no intro"))
           seen(n) = intro
+          pending.pushAll(intro.symbols)
           intro.key.foreach {
             case t: Term => mention(t)
             case _ => ()
           }
-      val ordered = seen.toList.sortBy((n, intro) => (registered.get(intro), intro.symbols.indexOf(n)))
-      val mintList = ordered.map { (n, intro) =>
+          // and those its facts mention (the partial products of a division)
+          factsOf(intro).foreach(_.terms.foreach(mention))
+      // In the order of the lowering, each intro after those its key mentions (a
+      // division records its intro after the bits of its quotient).
+      val ordered = ArrayBuffer.empty[(String, Intro)]
+      val placed = java.util.IdentityHashMap[Intro, Unit]()
+      def place(intro: Intro): Unit =
+        if !placed.containsKey(intro) then
+          placed.put(intro, ())
+          for
+            t <- intro.key.collect { case t: Term => t } ++ intro.args.collect { case t: Term => t }
+            n <- Term.constants(t).toList.sorted
+            if seen.contains(n)
+          do place(seen(n))
+          ordered ++= intro.symbols.map(n => (n, intro))
+      seen.values.toList.distinct.sortBy(registered.get(_)).foreach(place)
+      val orderedList = ordered.toList
+      val mintList = orderedList.map { (n, intro) =>
         val m = (intro.kind, intro.key) match
           case ("ite" | "store", _) => mints.getOrElse(n, fail(s"the ${intro.kind} $n of no surface node"))
           case ("rat", List(p: BigInt, q: BigInt)) => Mint.Real(RRule.Rat(p, q))
           case ("ratmul", List(p: BigInt, q: BigInt, t: Term)) => Mint.Real(RRule.RatMul(p, q, t))
           case ("floor", List(r: Term)) => Mint.Real(RRule.Floor(r))
-          case _ => fail(s"the ${intro.kind} rule is not in the Lean trace yet")
+          case _ => Mint.Rule(lowRule(intro), intro.symbols.indexOf(n))
         (n, m)
       }
       // The facts of the intros.
       for (n, m) <- mintList do
-        facts.clear()
-        declarations.clear()
-        check(introOf(n))
-        val fs = facts.toList
+        val fs = factsOf(introOf(n))
         val why: List[Reason] = m match
           case Mint.Ite(i, _) =>
             val branches = List(Reason.IteThen(n), Reason.IteElse(n))
             if fs.length == 3 then Reason.Range(i) :: branches else branches
           case Mint.Store(_, _, _) => Nil
           case Mint.Real(r) => fs.indices.toList.map(Reason.Real(r, _))
+          case Mint.Rule(r, 0) =>
+            val aux = r match
+              case LeanExport.Rule.SDivide(t, w, _, _) => Some(signed(t, w))
+              case LeanExport.Rule.SModZ(a, c, w) =>
+                val m = modulus(w)
+                Some(divideSigned(a, w, (if c >= m / 2 then c - m else c).abs)._2)
+              case LeanExport.Rule.UDiv(_, b, w) => Some(exactProduct(b, Const(n), w))
+              case _ => None
+            fs.indices.toList.map(Reason.Rule(r, _, aux))
+          case Mint.Rule(_, _) => Nil
         for (f, r) <- fs.zip(why) do reasons.getOrElseUpdate(f, r)
-      facts.clear()
-      declarations.clear()
       LeanExport.Surface(
         sorts.toList,
         decls.toList,
