@@ -833,7 +833,8 @@ final class Solver:
         else if x < numVars then
           // A second branch on an unknown is branch and bound sliding along it, maybe without end:
           // the equations alone may have no integer solution.
-          val sliding = !equationsChecked && open.exists(_.x == x)
+          val earlier = open.findLast(_.x == x)
+          val sliding = !equationsChecked && earlier.isDefined
           val refuted = if sliding then integerEquations() else Result.Sat
           equationsChecked ||= sliding && refuted == Result.Sat // a refutation is found again on the other side
           if refuted != Result.Sat then refuted
@@ -841,8 +842,15 @@ final class Solver:
             branches += 1
             val v = deltaValue(x)
             // The side toward zero first: flooring a negative value first can dive
-            // away from zero without end along an unbounded direction.
-            Branch(x, v.floor, v.ceil, -branches, Set.empty, up = v.floor.signum < 0)
+            // away from zero without end along an unbounded direction. Again on `x`,
+            // the side back toward the bound the earlier branch just set, which pins
+            // `x` there: the side away from it is the slide one value at a time, down
+            // a 2^31 range when a bit-vector midpoint `(lo + hi) / 2` stays fractional
+            // (`BinarySearch3`, over 20 s against 24 ms).
+            val up = earlier match
+              case Some(b) => (b.left != null) == b.up // the earlier branch is on its second side
+              case None => v.floor.signum < 0
+            Branch(x, v.floor, v.ceil, -branches, Set.empty, up = up)
         else
           distinct.find((x, c, _) =>
             values(x) * Rational(if isInt(x) then scale(x) else BigInt(1)) == Rational(c)
