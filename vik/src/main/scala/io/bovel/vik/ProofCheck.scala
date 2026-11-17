@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.boundary
 import scala.util.boundary.break
 
+import io.bovel.cdclt
 import io.bovel.cdclt.Lit
 import io.bovel.egraph.{App, EClassId, EConflict, EqProof}
 import io.bovel.lia
@@ -201,3 +202,146 @@ final class LiaLemmas(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
   def check(clause: Array[Lit], certificate: lia.Certificate): Option[String] =
     val hyps = clause.iterator.map(_.neg.index).toSet
     checker.check(certificate, hyps)
+
+/** Checks the input clauses of a proof against where they come from (see
+ *  `Encoder.Origin`), reading the literals through what their variables stand
+ *  for (`meanings`, see [[denotes]]): a clause of a definition is one of the
+ *  clauses of its variable's connective, a clause of an assertion has a literal
+ *  for one of the script's `inputs` or is guarded by an assumption, and an
+ *  axiom of the encoding is an instance of its schema. A clause may have more
+ *  literals than its schema asks: those only weaken it. `assumption(v)` says
+ *  whether `v` is the literal of a level or of a named assertion; `testers`
+ *  gives the testers of a datatype sort, `sortOf` the sort of a term.
+ */
+final class InputClauses(
+    meanings: collection.IndexedSeq[Formula | Null],
+    trueLit: Lit,
+    inputs: Set[Formula],
+    assumption: cdclt.Var => Boolean,
+    testers: String => Option[List[String]],
+    sortOf: Term => String
+):
+  import Formula.*
+
+  private def meaning(v: cdclt.Var): Formula | Null = if v < meanings.length then meanings(v) else null
+
+  /** Whether the literal `l` stands for `formula`, as the encoder reads
+   *  formulas: through negations, implications and constant comparisons.
+   */
+  def denotes(l: Lit, formula: Formula): Boolean = formula match
+    case Not(g) => denotes(l.neg, g)
+    case True => l == trueLit
+    case False => l == trueLit.neg
+    case Implies(a, b) => denotes(l, Or(List(Not(a), b)))
+    case Eq(a, b) if a == b => l == trueLit
+    case Le(a, b) => constant(a, b).fold(l.positive && meaning(l.variable) == formula)(v => l == holds(v <= 0))
+    case Less(a, b) => constant(a, b).fold(l.positive && meaning(l.variable) == formula)(v => l == holds(v < 0))
+    case _ => l.positive && meaning(l.variable) == formula
+
+  private def holds(b: Boolean): Lit = if b then trueLit else trueLit.neg
+  private def constant(a: Term, b: Term): Option[BigInt] = Term.linear(List((1, a), (-1, b))) match
+    case Term.Num(v) => Some(v)
+    case _ => None
+
+  def check(clause: Array[Lit], origin: Encoder.Origin): Option[String] =
+    def has(f: Formula): Boolean = clause.exists(denotes(_, f))
+    def positives: Iterator[Formula] = clause.iterator.filter(_.positive).flatMap(l => Option(meaning(l.variable)))
+    def negatives: Iterator[Formula] = clause.iterator.filter(!_.positive).flatMap(l => Option(meaning(l.variable)))
+    // The two sides of an equality, as `Eq` or as the two bounds of `IntEq`.
+    def sides(f: Formula): Option[(Term, Term)] = f match
+      case Eq(l, r) => Some((l, r))
+      case And(List(Le(l, r), Le(r2, l2))) if l == l2 && r == r2 => Some((l, r))
+      case _ => None
+    def equal(l: Term, r: Term): Boolean = positives.exists(f => sides(f).contains((l, r)))
+    def ok(b: Boolean, what: => String): Option[String] = if b then None else Some(what)
+    origin match
+      case Encoder.Origin.Definition =>
+        ok(
+          clause.exists { d =>
+            meaning(d.variable) match
+              case True => d == trueLit
+              case And(args) => if d.positive then args.forall(a => has(Not(a))) else args.exists(has)
+              case Or(args) => if d.positive then args.exists(a => has(Not(a))) else args.forall(has)
+              case Iff(x, y) =>
+                if d.positive then (has(x) && has(y)) || (has(Not(x)) && has(Not(y)))
+                else (has(Not(x)) && has(y)) || (has(x) && has(Not(y)))
+              case Ite(c, t, e) =>
+                if d.positive then (has(Not(c)) && has(Not(t))) || (has(c) && has(Not(e)))
+                else (has(Not(c)) && has(t)) || (has(c) && has(e))
+              case Pred(Term.Bool(inner)) => if d.positive then has(Not(inner)) else has(inner)
+              case _ => false
+          },
+          "not a clause of a definition"
+        )
+      case Encoder.Origin.Assertion(f) =>
+        // Guarded by an assumption: a refutation that uses it concludes the assumption's negation, which
+        // the conclusion allows only for the assumptions of the last solve.
+        val guarded = clause.exists(l => !l.positive && assumption(l.variable))
+        if !inputs(f) && !guarded then Some(s"$f is not an assertion")
+        else ok(has(f), s"no literal of $f")
+      case Encoder.Origin.Retired =>
+        ok(clause.exists(l => !l.positive && assumption(l.variable)), "not the negation of a selector")
+      case Encoder.Origin.Exhaustive(t) =>
+        testers(sortOf(t)) match
+          case Some(names) => ok(has(Or(names.map(n => Pred(Term.App(Term.Const(n), List(t)))))), "not the testers")
+          case None => Some(s"$t is not of a datatype")
+      case Encoder.Origin.SharedSplit =>
+        // `a = b ∨ a < b ∨ ¬(a ≤ b)`, or `¬(a < b) ∨ a ≤ b`.
+        ok(
+          positives.exists {
+            case Eq(a, b) => has(Less(a, b)) && has(Not(Le(a, b)))
+            case Le(a, b) => has(Not(Less(a, b)))
+            case _ => false
+          },
+          "not a split of two terms"
+        )
+      case Encoder.Origin.Numerals =>
+        ok(
+          clause.exists(l =>
+            meaning(l.variable) match
+              case Eq(a, b) => constant(a, b).exists(v => (v == 0) == l.positive)
+              case _ => false
+          ),
+          "not a comparison of numerals"
+        )
+      case Encoder.Origin.Congruence =>
+        // `f ≠ s ∨ f(x) = s(x)`.
+        ok(
+          positives.exists {
+            case Eq(Term.App(f, xs), Term.App(g, ys)) => xs == ys && has(Not(Eq(f, g)))
+            case _ => false
+          },
+          "not an instance of congruence"
+        )
+      case Encoder.Origin.ReadOverWrite =>
+        // `store(a, i, v)(i) = v`, or `i = j ∨ store(a, i, v)(j) = a(j)`.
+        ok(
+          positives.flatMap(sides).exists {
+            case (Term.App(s @ Term.App(Term.Const(n), List(a, i, v)), List(j)), w) if n.startsWith("store!") =>
+              (j == i && w == v) || (w == Term.App(a, List(j)) && equal(i, j))
+            case _ => false
+          },
+          "not an array axiom"
+        )
+      case Encoder.Origin.Extensionality(witnesses) =>
+        // `f = g ∨ f(w) ≠ g(w)`, for fresh `w`.
+        val fresh = witnesses.forall {
+          case Term.Const(n) => n.startsWith("ext!")
+          case _ => false
+        }
+        def at(f: Term): Term = witnesses.foldLeft(f)((t, w) => Term.App(t, List(w)))
+        ok(
+          fresh && positives.exists {
+            case Eq(f, g) => negatives.contains(Eq(at(f), at(g)))
+            case _ => false
+          },
+          "not an instance of extensionality"
+        )
+      case Encoder.Origin.WitnessRange(w, width) =>
+        ok(
+          (w match
+            case Term.Const(n) => n.startsWith("ext!")
+            case _ => false
+          ) && (has(Le(Term.Num(0), w)) || has(Le(w, Term.Num(BigInt(2).pow(width) - 1)))),
+          "not the range of a witness"
+        )
