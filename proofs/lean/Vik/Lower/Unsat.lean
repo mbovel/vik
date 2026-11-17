@@ -351,7 +351,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
   | bvcmp op w a b => exact bvcmp_sound hM hw ht hwP hn h ih
   | bvbin op w a b => simp only [expect, hn] at h; cases h
   | int2bv w a => simp only [expect, hn] at h; cases h
-  | rat _ _ | div _ | toReal _ | toInt _ | isInt _ => simp only [expect, hn] at h; cases h
+  | rat _ _ | div _ | toReal _ | toInt _ | isInt _ | letIn _ _ | bound _ => simp only [expect, hn] at h; cases h
   | le as =>
     simp only [expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .le (.same (tr.at x)) (.same (tr.at y)))
@@ -597,7 +597,7 @@ theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
   obtain ⟨hlt, ⟨s, hs, hf⟩ | hb⟩ := hc.nodes i hi
   · rw [fits_sound hM hA.wf hA.typed hrngP _ hlt s hf]
     exact expect_sound hL.sound hc.wf hc.typed hA.wf hn hs (fun c hci => ih c hci (by omega))
-  · exact bvOk_sound hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hn hlt hb
+  · exact bvOk_sound hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hL.defs hn hlt hb
       (fun c hci => ih c hci (by omega)) (fun c hci => (hc.nodes c (by omega)).1)
 
 theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.nodes.length := by

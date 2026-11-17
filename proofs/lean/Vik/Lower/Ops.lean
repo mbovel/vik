@@ -640,7 +640,7 @@ theorem chainOk_sound {w x : Nat} {ps : List (Nat × Nat)} {neg : Bool} (h : tr.
 include hM hw ht hwP htP hG hML hrng in
 /-- Each bit-vector operation that `Trace.bvOk` accepts takes the value of its
     surface node. -/
-theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.at i < P.nodes.length)
+theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.at i < P.nodes.length)
     (hb : tr.bvOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c))
     (hat : ∀ c < i, tr.at c < P.nodes.length) : ρ (tr.at i) = enc (vs i) := by
   have hil := lt_of_get hn
@@ -651,7 +651,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
   | bvbin op w a b => exact bvbin_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih hat
   | bv2int sg w a =>
     cases sg with
-    | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | true =>
     have hai := children_lt hw hn a (by simp [SNode.children])
     simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
@@ -692,7 +692,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
       simp only [Rule.ival, ea, intOf_num]
   | eq as =>
     cases as with
-    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | cons a rest =>
       simp only [Trace.bvOk, hn] at hb
       split at hb
@@ -722,7 +722,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
       · cases hb
   | distinct as =>
     cases as with
-    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | cons a rest =>
       simp only [Trace.bvOk, hn] at hb
       split at hb
@@ -750,7 +750,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
         rw [List.all_eq_true, decide_eq_true_iff, pairwiseP_map, pairwiseP_allPairs]
         simp
       · cases hb
-  | _ => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+  | _ => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
 
 end
 

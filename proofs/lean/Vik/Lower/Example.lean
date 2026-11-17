@@ -128,4 +128,56 @@ theorem no_model2 {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearO
     · exact h2
     · exact h3)
 
+/-! ## With `let` and `define-fun`
+
+```
+(declare-const x Int)
+(define-fun pos ((y Int)) Bool (< 0 y))
+(assert (let ((z x)) (<= z 0)))
+(assert (pos x))
+```
+
+The surface nodes keep the `let`, the use of `z`, and the call of `pos`;
+node 6 is the instance of the body of `pos` that the lowering inlines, which
+the checker matches against the definition. The lowering is that of the first
+example.
+-/
+
+def script3 : SProblem where
+  sig := ⟨[.bool, .int, .fn [1] 0], [1, 2, 1]⟩
+  nodes := [.const 0, .num 0, .bound 0, .le [2, 1], .letIn [0] 3, .const 1, .lt [1, 0], .app 5 [0]]
+  sortOf := [1, 1, 1, 0, 0, 2, 0, 0]
+  asserts := [4, 7]
+  datatypes := []
+  defs := [⟨1, [2], [.num 0, .const 2, .lt [0, 1]], 2⟩]
+
+def problem3 : Problem :=
+  { problem with
+    sig := ⟨[.bool, .int, .fn [1] 0], [1, 2, 1]⟩
+    nodes := problem.nodes ++ [.const 1, .const 2]
+    sortOf := problem.sortOf ++ [2, 1] }
+
+def trace3 : Trace where
+  node := [1, 2, 1, 4, 4, 9, 5, 5]
+  mints := []
+  inputs := [.assert 4, .assert 7]
+  insts := [(7, [1, 0, 6])]
+
+theorem checked3 : trace3.check script3 problem3 answer = true := by decide +kernel
+
+theorem accepted3 : problem3.accepts answer = true := by decide +kernel
+
+/-- No model of the script, `pos` defined as its body, satisfies its
+    assertions. -/
+theorem no_model3 {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
+    [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Surf.Model R U)
+    (size : Val R U → Nat) (hL : script3.Laws M size) (hfl : ∀ r : R, ∃ k : Int, Vik.Real.IsFloor r k)
+    (h4 : Surf.holds M.toInterp script3.nodes 4) (h7 : Surf.holds M.toInterp script3.nodes 7) : False :=
+  Trace.unsat checked3 accepted3 M size hL hfl (by
+    intro a ha
+    simp only [script3, List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact h4
+    · exact h7)
+
 end Vik.Lower.Example

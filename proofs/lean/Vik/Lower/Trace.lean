@@ -42,15 +42,17 @@ def lowerSort : SSort → SortDef
 
     The assertions are those the check sees: the assertions of the open
     levels (named or not) and the assumptions of a `check-sat-assuming`. The
-    nodes are the script's terms with `let` and `define-fun` expanded, as
-    SMT-LIB defines them: a bound or defined term is the node of its
-    definition, shared by its uses. -/
+    nodes are the script's terms as written, `let` and the uses of
+    definitions included; the nodes of the instances of definitions that the
+    lowering inlines come before their uses. -/
 structure SProblem where
   sig : SSig
   nodes : List SNode
   sortOf : List Nat
   asserts : List Nat
   datatypes : List (Nat × List (Nat × Nat × List Nat))
+  /-- The definitions (`define-fun`), each asserted as SMT-LIB says. -/
+  defs : List SDef := []
 
 /-- A rule of the lowering that mints integer symbols (the rules of
     `LoweringCheck.check`), over lowered nodes. -/
@@ -180,6 +182,9 @@ structure Trace where
   /-- Why each formula of each assumed level holds: one list per level of
       `Answer.assumed`, in order, for the formulas `Answer.levels` gives it. -/
   levels : List (List InputWhy) := []
+  /-- For each use of a definition, by its node: the nodes of the instance of
+      the definition's body that the lowering inlined, one per body node. -/
+  insts : List (Nat × List Nat) := []
 
 /-! ## The expected shapes -/
 
@@ -632,7 +637,7 @@ def expect (i : Nat) : Option Shape :=
   | .bvcmp op w a b => if w = 0 then none else some (cmpS P tr op w a b)
   | .bvbin _ _ _ _ => none
   | .int2bv _ _ => none
-  | .rat .. | .div _ | .toReal _ | .toInt _ | .isInt _ => none
+  | .rat .. | .div _ | .toReal _ | .toInt _ | .isInt _ | .letIn .. | .bound _ => none
 
 /-! ## Operations through rules -/
 
@@ -1265,6 +1270,37 @@ def Trace.ratmulOk (l : Nat) (p : Int) (q : Nat) (t : Nat) : Bool :=
       | some (.ratmul p' q' t') => t' == t && 0 < q' && p' * q == p * q'
       | _ => false)
 
+/-- The defined symbol, the arguments, and whether it is an application, of a
+    node that may use a definition. -/
+def SProblem.callOf (n : SNode) : Option (Nat × List Nat × Bool) :=
+  match n with
+  | .const c => some (c, [], false)
+  | .app f args =>
+    match SP.nodes[f]? with
+    | some (.const c) => some (c, args, true)
+    | _ => none
+  | _ => none
+
+/-- `let`, its variables, and the uses of definitions, which the lowering
+    inlines: the lowered node is that of the instance of the body. -/
+def Trace.defOk (i : Nat) : Bool :=
+  let l := tr.at i
+  match SP.nodes[i]? with
+  | some (.letIn _ b) => l == tr.at b
+  | some (.bound d) => l == tr.at d
+  | some n =>
+    match SP.callOf n with
+    | some (c, args, isApp) =>
+      match SP.defs.find? (·.sym == c), tr.insts.lookup i with
+      | some d, some ms =>
+        isApp == !d.params.isEmpty && d.params.length == args.length && Surf.wellFormed d.nodes &&
+          d.root < d.nodes.length &&
+          (d.params.zip args).all (fun q => SP.sig.decls.getD q.1 0 == SP.sortOf.getD q.2 0) &&
+          d.instOk SP.nodes args ms && ms.getD d.root 0 < i && l == tr.at (ms.getD d.root 0)
+      | _, _ => false
+    | none => false
+  | none => false
+
 /-- Whether the lowering of surface node `i`, an operation on reals, is the
     one the lowering gives it. -/
 def Trace.realOk (i : Nat) : Bool :=
@@ -1291,7 +1327,7 @@ def Trace.realOk (i : Nat) : Bool :=
         | some (pa, qa) => tr.ratOk SP P l (pa * qb * pb.sign) (qa * pb.natAbs)
         | none => tr.ratmulOk SP P l (qb * pb.sign) pb.natAbs (tr.at a)
     | none => false
-  | _ => false
+  | _ => tr.defOk SP i
 
 /-- Whether the lowering of surface node `i`, a bit-vector operation, is the
     combination of rule symbols the lowering gives it. -/

@@ -1,4 +1,4 @@
-import Vik.Lower.BitOps
+import Vik.Lower.Defs
 
 /-!
 # Operations on reals
@@ -195,7 +195,7 @@ theorem litOf_sound {a : Nat} {p : Int} {q : Nat} (h : tr.litOf SP P a = some (p
 include hM hw ht hwP htP hG hML hrng in
 open Classical in
 /-- The operations on reals. -/
-theorem realOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.at i < P.nodes.length)
+theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.at i < P.nodes.length)
     (hb : tr.realOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c)) :
     ρ (tr.at i) = enc (vs i) := by
   have hil := lt_of_get hn
@@ -304,10 +304,10 @@ theorem realOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr
         simp only [Ring.intCast_mul]
         grind
     · cases hb
-    | [], hb, _, _ => simp at hb
-    | [_], hb, _, _ => simp at hb
-    | _ :: _ :: _ :: _, hb, _, _ => simp at hb
-  | _ => simp [Trace.realOk, hn] at hb
+    | [], hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
+    | [_], hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
+    | _ :: _ :: _ :: _, hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
+  | _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
 
 end
 

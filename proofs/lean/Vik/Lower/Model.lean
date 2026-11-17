@@ -71,6 +71,8 @@ def SModel.low (Ms : Surf.Model R U) : Low.Model R U := ⟨⟨Ms.const, Ms.app�
     laws of datatypes, as for lowered problems (`Problem.Laws`). -/
 structure SProblem.Laws (SP : SProblem) (Ms : Surf.Model R U) (size : Val R U → Nat) : Prop where
   sound : Ms.Sound SP.sig
+  /-- The definitions hold. -/
+  defs : ∀ d ∈ SP.defs, d.Holds SP.sig Ms
   sel : ∀ d cs C T Ss, (d, cs) ∈ SP.datatypes → (C, T, Ss) ∈ cs →
     ∀ xs (i : Nat) S x, Forall2 Ms.dom (SP.argSorts C) xs → Ss[i]? = some S → xs[i]? = some x →
       Ms.app (Ms.const S) [ctorVal (SModel.low Ms) C xs] = x
