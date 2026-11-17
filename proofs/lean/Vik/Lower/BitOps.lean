@@ -1,5 +1,6 @@
 import Vik.Lower.Facts
 import Vik.Bits
+import Vik.Shifts
 
 /-!
 # Bitwise operations through bits
@@ -256,6 +257,25 @@ theorem evf_sym2' {V : Type} (ρ' : Nat → Val R V) {x y : Nat} {X Y : Int} (hx
   unfold evf; simp only [Lia.eval, hx, hy, toR_num, rat_one, Lia.rat_intCast, Ring.intCast_mul, Ring.intCast_add]
   grind
 
+
+/-- A stage of a barrel shifter, by `k`. -/
+def stepBv {w : Nat} : BvBin → BitVec w → Nat → BitVec w
+  | .shl, x, k => x <<< k
+  | .lshr, x, k => x >>> k
+  | _, x, k => x.sshiftRight k
+
+theorem stagesOf_spec (w : Nat) : w ≤ 2 ^ stagesOf w ∧ stagesOf w ≤ w := by
+  unfold stagesOf
+  cases hf : (List.range (w + 1)).find? (fun j => decide (w ≤ 2 ^ j)) with
+  | none =>
+    have h := List.find?_eq_none.mp hf w (List.mem_range.mpr (by omega))
+    have : w < 2 ^ w := Nat.lt_two_pow_self
+    simp only [decide_eq_true_eq] at h; omega
+  | some j =>
+    have h1 := List.find?_some hf
+    have h2 := List.mem_range.mp (List.mem_of_find?_eq_some hf)
+    simp only [decide_eq_true_eq] at h1
+    exact ⟨h1, by simp; omega⟩
 
 end generic
 
@@ -949,6 +969,155 @@ theorem productOk_sound {w l ta tb : Nat} {x y : BitVec w} (h : tr.productOk SP 
       · rw [Int.mul_comm]; exact side hv hta lb ea h
     rw [ev, intOf_num]
     simp only [Vik.val, BitVec.toNat_mul, Int.natCast_emod, Int.natCast_mul, Int.natCast_pow, Int.cast_ofNat_Int]
+  · cases h
+
+
+include hwP htP hG hML hrng in
+/-- A stage of a barrel shifter. -/
+theorem stepNode_sound {op : BvBin} {w t j s : Nat} {X : BitVec w} (hw0 : 0 < w)
+    (hop : op = .shl ∨ op = .lshr ∨ op = .ashr) (h : tr.stepNode SP P op w t j = some s)
+    (ht : ρ t = .num ((Vik.val X : Int) : R)) : ρ s = .num ((Vik.val (stepBv op X (2 ^ j)) : Int) : R) := by
+  have lt : evf ρ (lin P.nodes t) = ((Vik.val X : Int) : R) := by
+    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) t; rw [ht, toR_num] at this; exact this.symm
+  have hx0 := Vik.val_nonneg X
+  have hx1 := Vik.val_lt X
+  rcases hop with rfl | rfl | rfl
+  · simp only [Trace.stepNode] at h
+    obtain ⟨_, rl, hs, hp⟩ := findSym_sym hG h
+    cases rl with
+    | modulo v w' lo hi =>
+      simp only [Bool.and_eq_true, beq_iff_eq] at hp
+      obtain ⟨⟨⟨hw', _⟩, _⟩, hv⟩ := hp
+      subst w'
+      have ev := fits_num hwP htP hML hrng
+        (f := (Lia.scale (((2 ^ (2 ^ j) : Int) : Int) : Rat) (lin P.nodes t).1, 2 ^ (2 ^ j) * (lin P.nodes t).2))
+        hv ((symAt_args hG hs).2 v (by simp [Rule.args]))
+        (V := 2 ^ (2 ^ j) * Vik.val X) (by rw [evf_scale, lt, Ring.intCast_mul])
+      rw [sym_val hwP hG hs]
+      simp only [Rule.ival, ev, intOf_num, stepBv]
+      rw [Vik.shl_const_val]
+      congr 2
+      split
+      · rename_i hle
+        have : (2 : Int) ^ (2 ^ j) = 2 ^ w * 2 ^ (2 ^ j - w) := by rw [← Int.pow_add]; congr 1; omega
+        rw [this, Int.mul_assoc, Int.mul_emod_right]
+      · rw [Int.mul_comm]; simp
+    | _ => simp at hp
+  · simp only [Trace.stepNode] at h
+    have es := sym_val (Ms := Ms) hwP hG (symNode_sym h).2
+    simp only [Rule.ival, ht, intOf_num] at es
+    rw [es]
+    simp only [stepBv]
+    congr 2
+    by_cases hj : 2 ^ j < w
+    · rw [(Vik.lshr_const_val X _ hj).1]
+    · rw [Vik.lshr_const_far X _ (by omega)]
+      have : (2 : Int) ^ w ≤ 2 ^ (2 ^ j) := by
+        have := Nat.pow_le_pow_right (n := 2) (by decide) (show w ≤ 2 ^ j by omega); exact_mod_cast this
+      exact Int.ediv_eq_zero_of_lt hx0 (Int.lt_of_lt_of_le hx1 this)
+  · simp only [Trace.stepNode] at h
+    obtain ⟨q, hq, hs⟩ := Option.bind_eq_some_iff.mp h
+    have eq := sym_val (Ms := Ms) hwP hG (symNode_sym hq).2
+    simp only [Rule.ival, ht, intOf_num, if_true] at eq
+    have es := sym_val (Ms := Ms) hwP hG (symNode_sym hs).2
+    simp only [Rule.ival, eq, intOf_num] at es
+    rw [es]
+    simp only [stepBv]
+    rw [Vik.ashr_const_val, Vik.toInt_eq X hw0]
+    rfl
+
+include hwP htP hG hML hrng in
+/-- The stages of a barrel shifter. -/
+theorem stageNode_sound {op : BvBin} {w ta : Nat} {B : List BitRef} {x y : BitVec w} (hw0 : 0 < w)
+    (hop : op = .shl ∨ op = .lshr ∨ op = .ashr) (hB : ∀ i < w, RefVal ρ (bitAt B i) (y.getLsbD i))
+    (hta : ρ ta = .num ((Vik.val x : Int) : R)) :
+    ∀ j, j ≤ w → ∀ {t}, tr.stageNode SP P op w ta B j = some t →
+      ρ t = .num ((Vik.val (Vik.stages (fun j t => stepBv op t (2 ^ j)) y.toNat j x) : Int) : R)
+  | 0, _, t, h => by
+    simp only [Trace.stageNode, Option.some.injEq] at h; subst h; simpa [Vik.stages] using hta
+  | j + 1, hj, t, h => by
+    simp only [Trace.stageNode] at h
+    obtain ⟨t0, h0, h⟩ := Option.bind_eq_some_iff.mp h
+    have e0 := stageNode_sound hw0 hop hB hta j (by omega) h0
+    have hb := hB j (by omega)
+    simp only [Vik.stages, BitVec.testBit_toNat]
+    split at h
+    · rename_i hf
+      cases h
+      rw [hf, refVal_lit] at hb
+      rw [hb]; simpa using e0
+    · obtain ⟨s, hs, h⟩ := Option.bind_eq_some_iff.mp h
+      have es := stepNode_sound hwP htP hG hML hrng hw0 hop hs e0
+      split at h
+      · rename_i htrue
+        cases h
+        rw [htrue, refVal_lit] at hb
+        rw [hb]; simpa using es
+      · obtain ⟨_, rl, hsy, hp⟩ := findSym_sym hG h
+        cases rl with
+        | cases c th el lo hi =>
+          simp only [Bool.and_eq_true, beq_iff_eq] at hp
+          obtain ⟨⟨hc, rfl⟩, rfl⟩ := hp
+          rw [sym_val hwP hG hsy]
+          simp only [Rule.ival]
+          rw [refFits_sound hwP htP hG hML hrng hc hb]
+          split <;> simp [es, e0, intOf_num]
+        | _ => simp at hp
+
+theorem fits_le_lt {x : Nat} {a b : Shape} (h : fits P.sig P.nodes P.sortOf x (.le a b) = true) :
+    x < P.nodes.length := by
+  unfold fits at h
+  split at h
+  · rename_i n hn; exact lt_of_get' hn
+  · cases h
+
+include hwP htP hG hML hrng in
+/-- The `far` condition: the amount reaches the width. -/
+theorem farOk_sound {w n tam c : Nat} {B : List BitRef} {y : BitVec w} (h : tr.farOk SP P w n tam B c = true)
+    (hn : w ≤ 2 ^ n) (hB : ∀ i < w, RefVal ρ (bitAt B i) (y.getLsbD i))
+    (htam : ρ tam = .num ((Vik.val y : Int) : R)) : (ρ c).truth = decide (w ≤ y.toNat) := by
+  have hge : ∀ {x}, fits P.sig P.nodes P.sortOf x (.le (.num [] w) (.same tam)) = true →
+      (ρ x).truth = decide (w ≤ y.toNat) := by
+    intro x hx
+    rw [fits_sound hML hwP htP hrng x (fits_le_lt hx) _ hx]
+    simp only [Shape.ev, Lia.eval, htam, toR_num, truth_bool]
+    have e : (0 : R) + (((w : Nat) : Int) : R) = (((w : Nat) : Int) : R) := by grind
+    rw [e]
+    rw [htam, toR_num]
+    apply Bool.eq_iff_iff.mpr
+    simp only [decide_eq_true_eq]
+    rw [cast_le_iff]
+    simp only [Vik.val]
+    omega
+  unfold Trace.farOk at h
+  split at h
+  · rename_i xs hxs
+    simp only [Bool.and_eq_true, Bool.or_eq_true, List.all_eq_true, List.any_eq_true, List.mem_range,
+      beq_iff_eq, decide_eq_true_eq] at h
+    obtain ⟨⟨h1, h2⟩, h3⟩ := h
+    rw [Low.val_node hwP hxs]
+    simp only [Low.evalNode, truth_bool]
+    apply Bool.eq_iff_iff.mpr
+    simp only [List.any_eq_true, decide_eq_true_eq]
+    constructor
+    · rintro ⟨x, hx, hxt⟩
+      change (ρ x).truth = true at hxt
+      rcases h1 x hx with ⟨j, hj, hnj, hf⟩ | hf
+      · rw [refFits_sound hwP htP hG hML hrng hf (hB j hj)] at hxt
+        have := Nat.ge_two_pow_of_testBit (by rw [BitVec.testBit_toNat]; exact hxt)
+        have : 2 ^ n ≤ 2 ^ j := Nat.pow_le_pow_right (by decide) hnj
+        omega
+      · rw [hge hf] at hxt; simpa using hxt
+    · intro hle
+      rcases (Vik.far_iff w n y.toNat hn y.isLt).mpr hle with ⟨j, hnj, hjw, hbit⟩ | ⟨hne, -⟩
+      · rw [BitVec.testBit_toNat] at hbit
+        rcases h2 j hjw with (hjn | hlf) | ⟨x, hx, hf⟩
+        · omega
+        · have := hB j hjw; rw [hlf, refVal_lit, hbit] at this; cases this
+        · exact ⟨x, hx, by change (ρ x).truth = true; rw [refFits_sound hwP htP hG hML hrng hf (hB j hjw), hbit]⟩
+      · rcases h3 with h3 | ⟨x, hx, hf⟩
+        · exact absurd h3 hne
+        · exact ⟨x, hx, by change (ρ x).truth = true; rw [hge hf]; simpa using hle⟩
   · cases h
 
 end
