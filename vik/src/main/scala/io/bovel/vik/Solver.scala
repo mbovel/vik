@@ -359,7 +359,7 @@ object Solver:
     "reason-work" -> 2,
     "row-work" -> 8,
     "big-words" -> 16,
-    "overflows" -> 4096
+    "overflows" -> 192
   )
   private val costs: Array[Long] = kinds.map(_._2).toArray
 

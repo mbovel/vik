@@ -12,37 +12,49 @@ sealed abstract class Rational extends Ordered[Rational]:
 
   def +(that: Rational): Rational = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
-      try
-        Rational.small(
-          Math.addExact(Math.multiplyExact(n1, d2), Math.multiplyExact(n2, d1)),
-          Math.multiplyExact(d1, d2)
-        )
-      catch
-        case _: ArithmeticException => Rational.overflowed(Rational(num * that.den + that.num * den, den * that.den))
+      val a = n1 * d2
+      val b = n2 * d1
+      val n = a + b
+      val d = d1 * d2
+      if Rational.mulOverflows(n1, d2, a) || Rational.mulOverflows(n2, d1, b) || Rational.mulOverflows(d1, d2, d) ||
+        ((a ^ n) & (b ^ n)) < 0
+      then Rational.overflowed(Rational(num * that.den + that.num * den, den * that.den))
+      else Rational.small(n, d)
     case _ => Rational(num * that.den + that.num * den, den * that.den)
 
   def -(that: Rational): Rational = this + -that
 
   def *(that: Rational): Rational = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
-      try Rational.small(Math.multiplyExact(n1, n2), Math.multiplyExact(d1, d2))
-      catch case _: ArithmeticException => Rational.overflowed(Rational(num * that.num, den * that.den))
+      val n = n1 * n2
+      val d = d1 * d2
+      if Rational.mulOverflows(n1, n2, n) || Rational.mulOverflows(d1, d2, d) then
+        Rational.overflowed(Rational(num * that.num, den * that.den))
+      else Rational.small(n, d)
     case _ => Rational(num * that.num, den * that.den)
 
   def /(that: Rational): Rational =
     require(that.signum != 0, "division by zero")
     (this, that) match
       case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
-        try Rational.small(Math.multiplyExact(n1, d2), Math.multiplyExact(d1, n2))
-        catch case _: ArithmeticException => Rational.overflowed(Rational(num * that.den, den * that.num))
+        val n = n1 * d2
+        val d = d1 * n2
+        if Rational.mulOverflows(n1, d2, n) || Rational.mulOverflows(d1, n2, d) then
+          Rational.overflowed(Rational(num * that.den, den * that.num))
+        else Rational.small(n, d)
       case _ => Rational(num * that.den, den * that.num)
 
   def unary_- : Rational
 
   def compare(that: Rational): Int = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
-      try java.lang.Long.compare(Math.multiplyExact(n1, d2), Math.multiplyExact(n2, d1))
-      catch case _: ArithmeticException => Rational.overflowed((num * that.den).compare(that.num * den))
+      if d1 == d2 then java.lang.Long.compare(n1, n2)
+      else
+        val a = n1 * d2
+        val b = n2 * d1
+        if Rational.mulOverflows(n1, d2, a) || Rational.mulOverflows(n2, d1, b) then
+          Rational.overflowed((num * that.den).compare(that.num * den))
+        else java.lang.Long.compare(a, b)
     case _ => (num * that.den).compare(that.num * den)
 
   def signum: Int
@@ -99,10 +111,9 @@ object Rational:
   val one: Rational = Small(1, 1)
 
   /** The arithmetic past `Long`, for a budget: the 64-bit words of the numbers
-   *  normalized, and the operations that overflowed `Long` (each pays for an
-   *  exception, the costliest single step of the arithmetic). Counted per
-   *  thread, as the numbers belong to no solver: a solve reads the difference
-   *  over its own course.
+   *  normalized, and the operations that overflowed `Long` (each pays for its
+   *  products redone in `BigInt`). Counted per thread, as the numbers belong to
+   *  no solver: a solve reads the difference over its own course.
    */
   def bigWords: Long = counts.get()(0)
   def overflows: Long = counts.get()(1)
@@ -133,3 +144,12 @@ object Rational:
       Small(n / g, d / g)
 
   private def gcd(a: Long, b: Long): Long = if b == 0 then a else gcd(b, a % b)
+
+  /** Whether `r`, the product `a * b` in `Long` arithmetic, overflowed: the
+   *  test of `Math.multiplyExact`, without the exception it throws (built with
+   *  its stack trace, it cost more than the arithmetic past `Long` it leads
+   *  to). The division runs only for an operand past 31 bits.
+   */
+  private inline def mulOverflows(a: Long, b: Long, r: Long): Boolean =
+    ((Math.abs(a) | Math.abs(b)) >>> 31) != 0 &&
+      ((b != 0 && r / b != a) || (a == Long.MinValue && b == -1))
