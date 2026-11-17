@@ -5,5 +5,9 @@ import Vik.Signed
 import Vik.Bits
 import Vik.Shifts
 import Vik.Real
+import Vik.Cert.Clausal
+import Vik.Cert.RatCast
+import Vik.Cert.Lia
+import Vik.Cert.Uf
 
 /-! The lemmas behind Vik's proofs: see `proofs/rules.md`. -/
