@@ -1,4 +1,4 @@
-import Vik.Lower.Corr
+import Vik.Lower.Bv
 
 /-!
 # Lowered nodes take the values of their surface nodes
@@ -19,9 +19,6 @@ variable {R U : Type} [Field R] [LE R] [LT R] [Std.IsLinearOrder R] [Std.LawfulO
 
 attribute [local instance low] Lean.Grind.Ring.intCast
 
-@[simp] theorem surf_get_values (I : Surf.Interp R U) (nodes : List SNode) (a : Nat) :
-    Low.get (Surf.values I nodes) a = Surf.val I nodes a := rfl
-
 section
 variable {SP : SProblem} {P : Problem} {tr : Trace} {Ms : Surf.Model R U}
   (hM : Ms.Sound SP.sig) (hw : Surf.wellFormed SP.nodes = true) (ht : Surf.typed SP.sig SP.nodes SP.sortOf = true)
@@ -33,75 +30,6 @@ set_option quotPrecheck false in
 local notation "MI" => (lowModel SP P tr Ms).toInterp
 
 include hM hw ht
-
-theorem dom_at {a : Nat} (ha : a < SP.nodes.length) : Ms.dom (SP.sort a) (vs a) :=
-  Surf.val_dom hM hw ht a ha
-
-theorem v_bool {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isBool a = true) : ∃ b, vs a = .bool b := by
-  simp only [SProblem.isBool, SSig.is, beq_iff_eq] at hb
-  exact (hM.bool _ _ hb).mp (dom_at hM hw ht ha)
-
-theorem v_num {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isNum a = true) : ∃ r, vs a = .num r :=
-  Surf.dom_num_of_numeric hM hb (dom_at hM hw ht ha)
-
-theorem v_int {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isInt a = true) : ∃ k : Int, vs a = .num (k : R) := by
-  simp only [SProblem.isInt, SSig.is, beq_iff_eq] at hb
-  exact (hM.int _ _ hb).mp (dom_at hM hw ht ha)
-
-theorem leaf_ev {a : Nat} (ha : a < SP.nodes.length) (e : ρ (tr.at a) = enc (vs a)) :
-    (leaf SP tr a).ev MI ρ = enc (vs a) := by
-  unfold leaf
-  split
-  · rename_i hb
-    obtain ⟨b, hb'⟩ := v_bool hM hw ht ha hb
-    simp only [Shape.ev, e, hb', enc_bool, truth_bool]
-  · exact e
-
-omit hM hw ht in
-theorem form_ev {a : Nat} (e : ρ (tr.at a) = enc (vs a)) : (form tr a).ev MI ρ = .bool (vs a).truth := by
-  simp only [form, Shape.ev, e, truth_enc]
-
-omit hM hw ht in
-theorem lin_ev (hwP : Low.wellFormed P.nodes = true) {a : Nat} (e : ρ (tr.at a) = enc (vs a)) :
-    Lia.eval (fun u => (ρ u).toR) (linOf P tr a).1 + ((linOf P tr a).2 : R) = (vs a).toR := by
-  have := lin_sound (I := MI) hwP (tr.at a)
-  rw [e, toR_enc] at this
-  rw [this]; rfl
-
-theorem typed_at {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) :
-    Surf.nodeTyped SP.sig SP.sortOf n (SP.sort i) = true := by
-  have hi := lt_of_get hn
-  simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
-  have := ht.2 i hi
-  rw [hn] at this
-  exact this
-
-omit hM ht in
-theorem children_lt {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) : ∀ c ∈ n.children, c < i := by
-  have := List.all_eq_true.mp hw i (List.mem_range.mpr (lt_of_get hn))
-  rw [hn] at this
-  simpa using this
-
-open Classical in
-omit hM hw ht in
-theorem ltInt_ev (hwP : Low.wellFormed P.nodes = true) {x y : Nat} (ex : ρ (tr.at x) = enc (vs x))
-    (ey : ρ (tr.at y) = enc (vs y)) :
-    (ltInt P tr x y).ev MI ρ = .bool (decide ((vs x).toR + 1 ≤ (vs y).toR)) := by
-  have e : Lia.eval (fun u => (ρ u).toR) (linOf P tr x).1 + (((linOf P tr x).2 + 1 : Int) : R) = (vs x).toR + 1 := by
-    rw [Ring.intCast_add, Ring.intCast_one, ← lin_ev hwP ex]; grind
-  simp only [ltInt, Shape.ev, toR_num, e, ey, toR_enc]
-
-open Classical in
-omit hM hw ht in
-theorem le_ev {x y : Nat} (ex : ρ (tr.at x) = enc (vs x)) (ey : ρ (tr.at y) = enc (vs y)) :
-    (Shape.le (.same (tr.at x)) (.same (tr.at y))).ev MI ρ = .bool (decide ((vs x).toR ≤ (vs y).toR)) := by
-  simp only [Shape.ev, ex, ey, toR_enc]
-
-open Classical in
-omit hM hw ht in
-theorem lt_ev {x y : Nat} (ex : ρ (tr.at x) = enc (vs x)) (ey : ρ (tr.at y) = enc (vs y)) :
-    (Shape.lt (.same (tr.at x)) (.same (tr.at y))).ev MI ρ = .bool (decide ((vs x).toR < (vs y).toR)) := by
-  simp only [Shape.ev, ex, ey, toR_enc]
 
 theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode} {s : Shape}
     (hn : SP.nodes[i]? = some n) (h : expect SP P tr i = some s)
@@ -326,17 +254,21 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
           · exact hty.2 x m
         have mem : ∀ x ∈ a :: rest, x ∈ (SNode.eq (a :: rest)).children := fun x m => m
         obtain ⟨b, hb, hr⟩ := chain_ev MI ρ (a :: rest)
-          (fun x y => eqS (SP.isNum a) (.same (tr.at x)) (.same (tr.at y))) (fun x y => vs x = vs y)
+          (fun x y => eqS (SP.isArith a) (.same (tr.at x)) (.same (tr.at y))) (fun x y => vs x = vs y)
           (fun x mx y my => by
             have ex := ihc x (mem x mx)
             have ey := ihc y (mem y my)
             unfold eqS
             split
             · rename_i hnum
-              have nx : SP.isNum x = true := by unfold SProblem.isNum at hnum ⊢; rw [sorts x mx]; exact hnum
-              have ny : SP.isNum y = true := by unfold SProblem.isNum at hnum ⊢; rw [sorts y my]; exact hnum
-              obtain ⟨rx, hrx⟩ := v_num hM hw ht (lenc x (mem x mx)) nx
-              obtain ⟨ry, hry⟩ := v_num hM hw ht (lenc y (mem y my)) ny
+              have nx : SP.isArith x = true := by
+                unfold SProblem.isArith SProblem.isNum SProblem.isBv SProblem.width at hnum ⊢
+                rw [sorts x mx]; exact hnum
+              have ny : SP.isArith y = true := by
+                unfold SProblem.isArith SProblem.isNum SProblem.isBv SProblem.width at hnum ⊢
+                rw [sorts y my]; exact hnum
+              obtain ⟨rx, hrx⟩ := v_arith hM hw ht (lenc x (mem x mx)) nx
+              obtain ⟨ry, hry⟩ := v_arith hM hw ht (lenc y (mem y my)) ny
               refine ⟨_, rfl, ?_⟩
               simp only [Shape.allTrue, Shape.ev, ex, ey, toR_enc, hrx, hry, toR_num, truth_bool, Bool.and_true,
                 Bool.and_eq_true, decide_eq_true_eq, Val.num.injEq]
@@ -379,10 +311,14 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
           simp only [Option.some.injEq] at h; subst h
           apply finish (fun x y => Shape.or [ltInt P tr x y, ltInt P tr y x])
           intro x mx y my
-          have ix : SP.isInt x = true := by unfold SProblem.isInt at hint ⊢; rw [sorts x mx]; exact hint
-          have iy : SP.isInt y = true := by unfold SProblem.isInt at hint ⊢; rw [sorts y my]; exact hint
-          obtain ⟨kx, hkx⟩ := v_int hM hw ht (lenc x (mem x mx)) ix
-          obtain ⟨ky, hky⟩ := v_int hM hw ht (lenc y (mem y my)) iy
+          have ix : SP.isIntLike x = true := by
+            unfold SProblem.isIntLike SProblem.isInt SProblem.isBv SProblem.width at hint ⊢
+            rw [sorts x mx]; exact hint
+          have iy : SP.isIntLike y = true := by
+            unfold SProblem.isIntLike SProblem.isInt SProblem.isBv SProblem.width at hint ⊢
+            rw [sorts y my]; exact hint
+          obtain ⟨kx, hkx⟩ := v_intLike hM hw ht (lenc x (mem x mx)) ix
+          obtain ⟨ky, hky⟩ := v_intLike hM hw ht (lenc y (mem y my)) iy
           refine ⟨_, rfl, ?_⟩
           simp only [Shape.anyTrue, ltInt_ev hwP (ihc x (mem x mx)) (ihc y (mem y my)),
             ltInt_ev hwP (ihc y (mem y my)) (ihc x (mem x mx)), truth_bool, Bool.or_false, Bool.or_eq_true,
@@ -408,6 +344,13 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
             simp only [Shape.ev, ihc x (mem x mx), ihc y (mem y my), truth_bool, Bool.not_eq_true',
               decide_eq_false_iff_not, ne_eq]
             exact ⟨fun h1 e => h1 (by rw [e]), fun h1 e => h1 (enc_inj e)⟩
+  | bvlit w v => exact bvlit_sound hM hw ht hn h
+  | bvun op w a => exact bvun_sound hM hw ht hwP hn h ih
+  | concat wa wb a b => exact concat_sound hM hw ht hwP hn h ih
+  | bv2int sg w a => exact bv2int_sound hM hw ht hn h ih
+  | bvcmp op w a b => exact bvcmp_sound hM hw ht hwP hn h ih
+  | bvbin op w a b => simp only [expect, hn] at h; cases h
+  | int2bv w a => simp only [expect, hn] at h; cases h
   | le as =>
     simp only [expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .le (.same (tr.at x)) (.same (tr.at y)))
@@ -527,11 +470,95 @@ local notation "MI" => (lowModel SP P tr Ms).toInterp
 
 include hc hA hL
 
+/-- The lowered nodes of bit-vector sorts take values in their ranges: they are
+    symbols and applications, whose values are surface ones. -/
+theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0) (ρ j) := by
+  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hS := hL.sound
+  have hG := hc.sig
+  intro j
+  induction j using Nat.strongRecOn with
+  | ind j ih =>
+  intro hj w hlw
+  rw [hG.bvIndex, lookup_bvIndex] at hlw
+  generalize hs : P.sortOf[j]?.getD 0 = s at hlw
+  have hsw := sortWidth_eq.mp hlw
+  have hsl : s < SP.sig.sorts.length := lt_of_get hsw
+  -- a surface value of sort `s` is in range
+  suffices h : ∃ v, Ms.dom s v ∧ ρ j = enc v by
+    obtain ⟨v, hv, e⟩ := h
+    obtain ⟨x, rfl⟩ := (dom_bv_iff hS hsw).mp hv
+    rw [e, ofBv_num, enc_num]
+    exact ⟨_, rfl, Vik.val_nonneg x, Vik.val_lt x⟩
+  have hty : ∀ {n : Node}, P.nodes[j]? = some n → Low.nodeTyped P.sig P.sortOf n s = true := by
+    intro n hn; rw [← hs]; exact typed_node hA.typed hn
+  obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ := hG.bvNodes j hj (by rw [← hs] at hlw; rw [hlw]; rfl)
+  · have hd := hty hk
+    simp only [Low.nodeTyped, beq_iff_eq] at hd
+    rw [Low.val_const hA.wf hk]
+    rcases Nat.lt_or_ge k SP.sig.decls.length with hkl | hkl
+    · rw [hG.decls k hkl] at hd
+      exact ⟨_, hS.const k s hd, const_base SP P tr Ms hkl⟩
+    · obtain ⟨m, rfl, x, hx⟩ := mint_of hc.sorts hG hL hkl s hd
+      have hm : SP.sig.decls.length + m - SP.sig.decls.length = m := by omega
+      cases x with
+      | ite i =>
+        obtain ⟨⟨c, a, b, hi⟩, _, hd'⟩ := hG.ite m i hx
+        rw [hd] at hd'; cases hd'
+        exact ⟨_, dom_at hS hc.wf hc.typed (lt_of_get hi), const_ite SP P tr Ms hkl (by rw [hm]; exact hx)⟩
+      | store s0 =>
+        obtain ⟨_, _, ds, _, hd', hle, _, _⟩ := hG.store m s0 hx
+        rw [hd] at hd'; cases hd'
+        omega
+  · have hd := hty hfx
+    simp only [Low.nodeTyped] at hd
+    split at hd
+    · rename_i as r hfs
+      simp only [Bool.and_eq_true, beq_iff_eq] at hd
+      obtain ⟨rfl, hargs⟩ := hd
+      have hfj := child_lt hA.wf hfx (j := f) (by simp [Node.children])
+      have hxj : ∀ x ∈ xs, x < j := fun x m => child_lt hA.wf hfx (j := x) (by simp [Node.children, m])
+      have df := val_dom_lt hM hA.wf hA.typed f (by omega) (fun i hi => ih i (by omega) (by omega))
+      -- the arguments, in range
+      have dxs : Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange SP.bvIndex a x) as (xs.map ρ) := by
+        rw [← hargs]
+        refine forall2_map _ _ _ xs (fun x m => ⟨?_, ?_⟩)
+        · exact val_dom_lt hM hA.wf hA.typed x (by have := hxj x m; omega)
+            (fun i hi => ih i (by have := hxj x m; omega) (by have := hxj x m; omega))
+        · rw [← hG.bvIndex]; exact ih x (hxj x m) (by have := hxj x m; omega)
+      rw [Low.val_app hA.wf hfx]
+      rcases Nat.lt_or_ge (P.sortOf[f]?.getD 0) SP.sig.sorts.length with hfl | hfl
+      · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hfl hfs
+        cases x with
+        | fn as' r' =>
+          simp only [lowerSort, SortDef.fn.injEq] at ex
+          obtain ⟨h1, h2⟩ := ex; subst h1; subst h2
+          obtain ⟨F, hF, eF⟩ := dom_enc hc.sorts hG hL hfl hx (by intro _ e; cases e) df
+          obtain ⟨ys, eys, hys⟩ := (forall2_base SP P tr Ms hS as' _ (hc.sorts.fn _ _ _ hx).1).mp dxs
+          rw [eF, eys, app_enc_enc]
+          exact ⟨_, hS.fn _ as' _ F ys hx hF hys, rfl⟩
+        | array i e =>
+          simp only [lowerSort, SortDef.fn.injEq] at ex
+          obtain ⟨h1, h2⟩ := ex; subst h1; subst h2
+          obtain ⟨F, hF, eF⟩ := dom_enc hc.sorts hG hL hfl hx (by intro _ e; cases e) df
+          obtain ⟨ys, eys, hys⟩ := (forall2_base SP P tr Ms hS [i] _
+            (by simpa using (hc.sorts.array _ _ _ hx).1)).mp dxs
+          rw [eF, eys]
+          match ys, hys with
+          | [y], hys =>
+            rw [app_enc_enc]
+            exact ⟨_, hS.select _ i _ F y hx hF hys.1, rfl⟩
+        | _ => simp [lowerSort] at ex
+      · obtain ⟨arr, idx, el, hd, harr⟩ := hG.extra _ _ hfl hfs
+        simp only [SortDef.fn.injEq] at hd
+        obtain ⟨_, rfl⟩ := hd
+        rw [harr] at hsw; cases hsw
+    · cases hd
+
 /-- Each lowered node of the trace takes the value of its surface node. -/
 theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
-  have hrngP : ∀ i < P.nodes.length, inRange P.bvIndex (P.sortOf[i]?.getD 0) (ρ i) := by
-    intro i _ w hw; rw [hc.sig.bvIndex] at hw; cases hw
+  have hrngP := low_rng hc hA hL
   intro i
   induction i using Nat.strongRecOn with
   | ind i ih =>
@@ -553,8 +580,7 @@ theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.n
 theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
     ∀ f ∈ P.inputs, Low.holds MI P.nodes f := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
-  have hrngP : ∀ i < P.nodes.length, inRange P.bvIndex (P.sortOf[i]?.getD 0) (ρ i) := by
-    intro i _ w hw; rw [hc.sig.bvIndex] at hw; cases hw
+  have hrngP := low_rng hc hA hL
   have hco := corr hc hA hL
   intro f hf
   obtain ⟨hfl, w, hw⟩ := hc.inputs f hf
@@ -567,6 +593,26 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
     rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hw.2, form_ev (hco a hal)]
     unfold Surf.holds at ha
     rw [ha, truth_bool]
+  | range i =>
+    simp only [Trace.inputOk] at hw
+    split at hw
+    · rename_i wd hwd
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hw
+      obtain ⟨hil, hfit⟩ := hw
+      rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hfit]
+      obtain ⟨x, hx⟩ := v_width hL.sound hc.wf hc.typed hil hwd
+      have e := hco i hil
+      have h0 := Vik.val_nonneg x
+      have h1 := Vik.val_lt x
+      have z : ∀ c : Int, (0 : R) + (c : R) = (c : R) := fun c => by grind
+      have p1 : (0 : R) + ((0 : Int) : R) ≤ (ρ (tr.at i)).toR := by
+        rw [e, hx, ofBv_num, enc_num, toR_num, z]; exact cast_le_iff.mpr h0
+      have p2 : (ρ (tr.at i)).toR ≤ (0 : R) + ((2 ^ wd - 1 : Int) : R) := by
+        rw [e, hx, ofBv_num, enc_num, toR_num, z]; exact cast_le_iff.mpr (by omega)
+      classical
+      simp only [Shape.ev, Shape.allTrue, Lia.eval, truth_bool, toR_num,
+        _root_.decide_eq_true p1, _root_.decide_eq_true p2, Bool.and_self]
+    · cases hw
   | iteThen k | iteElse k =>
     simp only [Trace.inputOk] at hw
     split at hw
@@ -591,7 +637,7 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
             have hK : (lowModel SP P tr Ms).const k = enc (vs i) := const_ite SP P tr Ms hk' hm
             -- `k = t` holds when `k` is `t`
             have eqT : ∀ t, t ∈ (SNode.ite c a b).children → vs i = vs t → ρ (tr.at t) = enc (vs t) →
-                (eqS (SP.isNum i) (.const k) (.same (tr.at t))).ev MI ρ = .bool true := by
+                (eqS (SP.isArith i) (.const k) (.same (tr.at t))).ev MI ρ = .bool true := by
               intro t _ e ht'
               unfold eqS
               split
@@ -629,7 +675,6 @@ theorem Trace.unsat {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer}
   apply Problem.accepts_sound hA (lowModel SP P tr Ms) (fun v => size (dec v))
     (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed) (inputs_hold hcs hAc hL hin)
   · intro s hs; rw [hcs.assumed] at hs; cases hs
-  · intro i _ w hw
-    rw [hcs.sig.bvIndex] at hw; cases hw
+  · exact low_rng hcs hAc hL
 
 end Vik.Lower

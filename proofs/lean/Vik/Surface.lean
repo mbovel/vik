@@ -20,6 +20,29 @@ namespace Vik.Surf
 
 open Lean.Grind Vik.Real Vik.Low
 
+/-- The unary operations on bit-vectors, with their indices. -/
+inductive BvUn where
+  | neg
+  | not
+  | extract (i j : Nat)
+  | zeroExtend (k : Nat)
+  | signExtend (k : Nat)
+  | repeat (k : Nat)
+  | rotateLeft (k : Nat)
+  | rotateRight (k : Nat)
+  deriving DecidableEq, Repr
+
+/-- The binary operations on bit-vectors of one width. -/
+inductive BvBin where
+  | add | sub | mul | and | or | xor | nand | nor | xnor
+  | shl | lshr | ashr | udiv | urem | sdiv | srem | smod | comp
+  deriving DecidableEq, Repr
+
+/-- The comparisons of bit-vectors. -/
+inductive BvCmp where
+  | ult | ule | ugt | uge | slt | sle | sgt | sge
+  deriving DecidableEq, Repr
+
 /-- A surface term or formula, over the nodes before it. -/
 inductive SNode where
   | const (n : Nat)
@@ -54,12 +77,26 @@ inductive SNode where
   | gt (as : List Nat)
   | select (a i : Nat)
   | store (a i v : Nat)
+  /-- `(_ bvv w)`, below `2^w`. -/
+  | bvlit (w v : Nat)
+  /-- A unary operation on a bit-vector of width `w`. -/
+  | bvun (op : BvUn) (w a : Nat)
+  /-- A binary operation on bit-vectors of width `w`. -/
+  | bvbin (op : BvBin) (w a b : Nat)
+  | bvcmp (op : BvCmp) (w a b : Nat)
+  /-- `(concat a b)`, of widths `wa` and `wb`. -/
+  | concat (wa wb a b : Nat)
+  /-- `ubv_to_int`, or `sbv_to_int` when `signed`, of width `w`. -/
+  | bv2int (signed : Bool) (w a : Nat)
+  /-- `((_ int_to_bv w) a)`. -/
+  | int2bv (w a : Nat)
   deriving DecidableEq, Repr
 
 def SNode.children : SNode → List Nat
-  | .const _ | .num _ | .tt | .ff => []
+  | .const _ | .num _ | .tt | .ff | .bvlit _ _ => []
   | .app f args => f :: args
-  | .not a | .neg a => [a]
+  | .not a | .neg a | .bvun _ _ a | .bv2int _ _ a | .int2bv _ a => [a]
+  | .bvbin _ _ a b | .bvcmp _ _ a b | .concat _ _ a b => [a, b]
   | .and as | .or as | .implies as | .iff as | .xor as | .eq as | .distinct as
   | .add as | .sub as | .mul as | .le as | .lt as | .ge as | .gt as => as
   | .ite c a b => [c, a, b]
@@ -112,6 +149,81 @@ def prodR : List (Val R U) → R
   | [] => 1
   | v :: vs => v.toR * prodR vs
 
+def BvUn.width : BvUn → Nat → Nat
+  | .extract i j, _ => i - j + 1
+  | .zeroExtend k, w | .signExtend k, w => w + k
+  | .repeat k, w => w * k
+  | _, w => w
+
+def BvUn.apply : (op : BvUn) → {w : Nat} → BitVec w → BitVec (op.width w)
+  | .neg, _, x => -x
+  | .not, _, x => ~~~x
+  | .extract i j, _, x => x.extractLsb i j
+  | .zeroExtend k, w, x => x.setWidth (w + k)
+  | .signExtend k, w, x => x.signExtend (w + k)
+  | .repeat k, _, x => BitVec.replicate k x
+  | .rotateLeft k, _, x => x.rotateLeft k
+  | .rotateRight k, _, x => x.rotateRight k
+
+def BvBin.width : BvBin → Nat → Nat
+  | .comp, _ => 1
+  | _, w => w
+
+def BvBin.apply : (op : BvBin) → {w : Nat} → BitVec w → BitVec w → BitVec (op.width w)
+  | .add, _, x, y => x + y
+  | .sub, _, x, y => x - y
+  | .mul, _, x, y => x * y
+  | .and, _, x, y => x &&& y
+  | .or, _, x, y => x ||| y
+  | .xor, _, x, y => x ^^^ y
+  | .nand, _, x, y => ~~~(x &&& y)
+  | .nor, _, x, y => ~~~(x ||| y)
+  | .xnor, _, x, y => ~~~(x ^^^ y)
+  | .shl, _, x, y => x <<< y
+  | .lshr, _, x, y => x >>> y
+  | .ashr, _, x, y => x.sshiftRight' y
+  | .udiv, _, x, y => x.smtUDiv y
+  | .urem, _, x, y => x.umod y
+  | .sdiv, _, x, y => x.smtSDiv y
+  | .srem, _, x, y => x.srem y
+  | .smod, _, x, y => x.smod y
+  | .comp, _, x, y => if x = y then 1#1 else 0#1
+
+def BvCmp.apply : BvCmp → {w : Nat} → BitVec w → BitVec w → Bool
+  | .ult, _, x, y => x.ult y
+  | .ule, _, x, y => x.ule y
+  | .ugt, _, x, y => y.ult x
+  | .uge, _, x, y => y.ule x
+  | .slt, _, x, y => x.slt y
+  | .sle, _, x, y => x.sle y
+  | .sgt, _, x, y => y.slt x
+  | .sge, _, x, y => y.sle x
+
+open Classical in
+/-- The integer a value stands for, if it is one. -/
+noncomputable def intOf (v : Val R U) : Int := if h : ∃ k : Int, v = .num (k : R) then h.choose else 0
+
+/-- The bit-vector of width `w` a value stands for: its integer modulo `2^w`. -/
+noncomputable def bvOf (w : Nat) (v : Val R U) : BitVec w := BitVec.ofInt w (intOf v)
+
+/-- The value of a bit-vector: its unsigned integer. -/
+def ofBv {w : Nat} (x : BitVec w) : Val R U := .num ((x.toNat : Int) : R)
+
+theorem intOf_num (k : Int) : intOf (.num (k : R) : Val R U) = k := by
+  have h : ∃ j : Int, (.num (k : R) : Val R U) = .num (j : R) := ⟨k, rfl⟩
+  simp only [intOf, h, dite_true]
+  have := h.choose_spec
+  injection this with e
+  exact (cast_inj e).symm
+
+/-- A value in the range of width `w` is that of its bit-vector. -/
+theorem ofBv_bvOf {w : Nat} {k : Int} (h0 : 0 ≤ k) (h1 : k < 2 ^ w) :
+    (ofBv (bvOf w (.num (k : R) : Val R U)) : Val R U) = .num (k : R) := by
+  simp only [ofBv, bvOf, intOf_num, BitVec.toNat_ofInt]
+  congr 2
+  have : k % ((2 ^ w : Nat) : Int) = k := Int.emod_eq_of_lt h0 (by simpa using h1)
+  rw [this]; omega
+
 open Classical in
 /-- The value of a node, over the values of the nodes before it. -/
 noncomputable def evalNode (I : Interp R U) (vals : List (Val R U)) : SNode → Val R U
@@ -142,6 +254,14 @@ noncomputable def evalNode (I : Interp R U) (vals : List (Val R U)) : SNode → 
   | .gt as => .bool (decide (chainP (fun x y => y < x) (as.map fun a => (get vals a).toR)))
   | .select a i => I.app (get vals a) [get vals i]
   | .store a i v => I.store (get vals a) (get vals i) (get vals v)
+  | .bvlit w v => ofBv (BitVec.ofNat w v)
+  | .bvun op w a => ofBv (op.apply (bvOf w (get vals a)))
+  | .bvbin op w a b => ofBv (op.apply (bvOf w (get vals a)) (bvOf w (get vals b)))
+  | .bvcmp op w a b => .bool (op.apply (bvOf w (get vals a)) (bvOf w (get vals b)))
+  | .concat wa wb a b => ofBv (bvOf wa (get vals a) ++ bvOf wb (get vals b))
+  | .bv2int signed w a =>
+    .num (if signed then ((bvOf w (get vals a)).toInt : R) else (((bvOf w (get vals a)).toNat : Int) : R))
+  | .int2bv w a => ofBv (BitVec.ofInt w (intOf (get vals a)))
 
 /-- The values of the nodes, in order. -/
 noncomputable def values (I : Interp R U) (nodes : List SNode) : List (Val R U) :=
@@ -216,6 +336,12 @@ theorem evalNode_congr (I : Interp R U) {v1 v2 : List (Val R U)} (n : SNode)
   case ite c a b => rw [h.1, h.2.1, h.2.2]
   case select a i => rw [h.1, h.2]
   case store a i v => rw [h.1, h.2.1, h.2.2]
+  case bvun => rw [h]
+  case bv2int => rw [h]
+  case int2bv => rw [h]
+  case bvbin => rw [h.1, h.2]
+  case bvcmp => rw [h.1, h.2]
+  case concat => rw [h.1, h.2]
   case sub as =>
     cases as with
     | nil => rfl
@@ -329,6 +455,13 @@ def nodeTyped (sig : SSig) (sortOf : List Nat) (n : SNode) (s : Nat) : Bool :=
     match sig.sorts[so a]? with
     | some (.array idx el) => so a == s && so i == idx && so v == el
     | _ => false
+  | .bvlit w _ => sig.is s (.bv w)
+  | .bvun op w a => sig.is (so a) (.bv w) && sig.is s (.bv (op.width w))
+  | .bvbin op w a b => sig.is (so a) (.bv w) && sig.is (so b) (.bv w) && sig.is s (.bv (op.width w))
+  | .bvcmp _ w a b => sig.is (so a) (.bv w) && sig.is (so b) (.bv w) && bool
+  | .concat wa wb a b => sig.is (so a) (.bv wa) && sig.is (so b) (.bv wb) && sig.is s (.bv (wa + wb))
+  | .bv2int _ w a => sig.is (so a) (.bv w) && sig.is s .int
+  | .int2bv w a => sig.is (so a) .int && sig.is s (.bv w)
 
 def typed (sig : SSig) (nodes : List SNode) (sortOf : List Nat) : Bool :=
   sortOf.length == nodes.length &&
@@ -387,6 +520,12 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
     intro hb b
     simp only [SSig.is, beq_iff_eq] at hb
     exact (hM.bool _ _ hb).mpr ⟨b, rfl⟩
+  have bvv : ∀ {w}, sig.is s (.bv w) = true → ∀ x : BitVec w, M.dom s (ofBv x) := by
+    intro w hb x
+    simp only [SSig.is, beq_iff_eq] at hb
+    refine (hM.bv _ _ _ hb).mpr ⟨_, rfl, by omega, ?_⟩
+    have := x.isLt
+    exact_mod_cast this
   -- the arithmetic operations
   have arith : ∀ as : List Nat, (∀ j ∈ as, j ∈ n.children) → arithTyped sig (fun i => sortOf[i]?.getD 0) as s = true →
       ∀ r : R, (sig.is s .int = true → (∀ a ∈ as, ∃ k : Int, val M.toInterp nodes a = .num (k : R)) →
@@ -479,6 +618,32 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       rw [← ha]
       exact (hM.store _ _ _ _ _ _ hs da di dv).1
     · cases hn
+  | bvlit w v =>
+    simp only [nodeTyped] at hn
+    rw [hv]; exact bvv hn _
+  | bvun op w a =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; exact bvv hn.2 _
+  | bvbin op w a b =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; exact bvv hn.2 _
+  | concat wa wb a b =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; exact bvv hn.2 _
+  | int2bv w a =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; exact bvv hn.2 _
+  | bv2int sg w a =>
+    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    rw [hv]; simp only [evalNode]
+    refine (hM.int _ _ hn.2).mpr ?_
+    split
+    · exact ⟨_, rfl⟩
+    · exact ⟨_, rfl⟩
+  | bvcmp _ _ _ _ =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; simp only [evalNode]
+    exact boolv hn.2 _
   | tt | ff | not _ | and _ | or _ | implies _ | iff _ | xor _ | eq _ | distinct _
   | le _ | lt _ | ge _ | gt _ =>
     simp only [nodeTyped, Bool.and_eq_true] at hn

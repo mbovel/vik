@@ -432,16 +432,16 @@ theorem linSum_int {nodes : List Node} (ts : List (Int × Nat))
     rw [hk]
     simp only [Val.toR, Ring.intCast_add, Ring.intCast_mul]
 
-/-- In a well-sorted table whose nodes of bit-vector sorts are in range, every
-    node takes a value of its sort. -/
-theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
-    (ht : typed sig nodes sortOf = true)
-    (hrng : ∀ i < nodes.length, inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i)) :
-    ∀ i, i < nodes.length → M.dom (sortOf[i]?.getD 0) (val M.toInterp nodes i) := by
+/-- In a well-sorted table, every node whose nodes before it of bit-vector
+    sorts are in range takes a value of its sort. -/
+theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
+    (ht : typed sig nodes sortOf = true) :
+    ∀ i, i < nodes.length → (∀ j < i, inRange bv (sortOf[j]?.getD 0) (val M.toInterp nodes j)) →
+      M.dom (sortOf[i]?.getD 0) (val M.toInterp nodes i) := by
   intro i
   induction i using Nat.strongRecOn with
   | ind i ih =>
-  intro hi
+  intro hi hrng
   simp only [typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
   have hn := ht.2 i hi
   obtain ⟨n, hn'⟩ : ∃ n, nodes[i]? = some n := ⟨nodes[i], List.getElem?_eq_getElem hi⟩
@@ -450,7 +450,7 @@ theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
     have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
     rw [hn'] at this; simpa using this
   have ihc : ∀ j ∈ n.children, M.dom (sortOf[j]?.getD 0) (val M.toInterp nodes j) :=
-    fun j m => ih j (hc j m) (Nat.lt_trans (hc j m) hi)
+    fun j m => ih j (hc j m) (Nat.lt_trans (hc j m) hi) (fun j' h' => hrng j' (by have := hc j m; omega))
   generalize sortOf[i]?.getD 0 = s at *
   have boolv : sig.is s .bool = true → ∀ b : Bool, M.dom s (.bool b) := by
     intro hb b
@@ -475,7 +475,7 @@ theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
       rw [← hargs]
       exact forall2_map _ _ _ args (fun j m =>
         ⟨ihc j (by simp [Node.children, m]),
-          hrng j (Nat.lt_trans (hc j (by simp [Node.children, m])) hi)⟩)
+          hrng j (hc j (by simp [Node.children, m]))⟩)
     · cases hn
   | num v =>
     simp only [nodeTyped, Sig.is, beq_iff_eq] at hn
@@ -507,6 +507,14 @@ theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
       | exact boolv hn.1 _
       | exact boolv hn.1.1 _
       | exact boolv hn.1.1.1 _
+
+/-- In a well-sorted table whose nodes of bit-vector sorts are in range, every
+    node takes a value of its sort. -/
+theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
+    (ht : typed sig nodes sortOf = true)
+    (hrng : ∀ i < nodes.length, inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i)) :
+    ∀ i, i < nodes.length → M.dom (sortOf[i]?.getD 0) (val M.toInterp nodes i) :=
+  fun i hi => val_dom_lt hM hw ht i hi (fun j hj => hrng j (by omega))
 
 end
 

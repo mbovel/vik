@@ -93,6 +93,47 @@ structure SProblem.Laws (SP : SProblem) (Ms : Surf.Model R U) (size : Val R U �
   exhaust : ∀ d cs, (d, cs) ∈ SP.datatypes → ∀ v, Ms.dom d v →
     ∃ ct ∈ cs, Ms.app (Ms.const ct.2.1) [v] = .bool true
 
+/-! ## The sorts of bit-vectors -/
+
+theorem lookup_filterMap_range {β : Type} (g : Nat → Option β) : ∀ (n s : Nat),
+    ((List.range n).filterMap (fun t => (g t).map (t, ·))).lookup s = if s < n then g s else none
+  | 0, s => by simp
+  | n + 1, s => by
+    rw [List.range_succ, List.filterMap_append]
+    have ih := lookup_filterMap_range g n s
+    cases e : g n with
+    | none =>
+      simp only [e, Option.map_none, List.filterMap_cons_none, List.filterMap_nil, List.append_nil, ih]
+      by_cases h : s < n
+      · simp [h, show s < n + 1 by omega]
+      · by_cases h' : s = n
+        · subst h'; simp [e]
+        · simp [h, show ¬ s < n + 1 by omega]
+    | some b =>
+      simp only [List.filterMap_cons, e, Option.map_some, List.filterMap_nil]
+      rw [List.lookup_append, ih]
+      by_cases h : s < n
+      · simp [h, show s < n + 1 by omega]
+        cases g s <;> simp <;> omega
+      · by_cases h' : s = n
+        · subst h'; simp [e, List.lookup]
+        · simp [h, show ¬ s < n + 1 by omega, List.lookup, show (s == n) = false by simpa using h']
+
+theorem lookup_bvIndex (SP : SProblem) (s : Nat) : SP.bvIndex.lookup s = SP.sortWidth s := by
+  unfold SProblem.bvIndex
+  rw [lookup_filterMap_range]
+  split
+  · rfl
+  · rename_i h
+    unfold SProblem.sortWidth
+    rw [List.getElem?_eq_none (by omega)]
+
+theorem sortWidth_eq {SP : SProblem} {s w : Nat} : SP.sortWidth s = some w ↔ SP.sig.sorts[s]? = some (.bv w) := by
+  unfold SProblem.sortWidth
+  split
+  · rename_i w' h; rw [h]; simp
+  · rename_i h; simp only [reduceCtorEq, false_iff]; intro e; exact h w e
+
 /-! ## The lowered model -/
 
 section
@@ -116,7 +157,9 @@ noncomputable def lowModel : Low.Model R (U ⊕ Nat) where
     | .obj (.inr _), _ => .bool false
     | f, xs => enc (Ms.app (dec f) (xs.map dec))
   dom s v :=
-    if s < SP.sig.sorts.length then ∃ w, Ms.dom s w ∧ v = enc w
+    if s < SP.sig.sorts.length then
+      if (SP.sortWidth s).isSome then ∃ k : Int, v = .num (k : R)
+      else ∃ w, Ms.dom s w ∧ v = enc w
     else ∃ k, v = .obj (.inr k) ∧ isStore SP tr k ∧ P.sig.decls[k]? = some s
 
 theorem app_enc (f : Val R U) (xs : List (Val R (U ⊕ Nat))) :
@@ -143,12 +186,40 @@ theorem app_store (k : Nat) (a i v : Val R U) :
     (lowModel SP P tr Ms).app (.obj (.inr k)) [enc a, enc i, enc v] = enc (Ms.store a i v) := by
   simp [lowModel]
 
-theorem dom_base {s : Nat} (hs : s < SP.sig.sorts.length) (v : Val R (U ⊕ Nat)) :
+theorem dom_base {s : Nat} (hs : s < SP.sig.sorts.length) (hb : SP.sortWidth s = none) (v : Val R (U ⊕ Nat)) :
     (lowModel SP P tr Ms).dom s v ↔ ∃ w, Ms.dom s w ∧ v = enc w := by
-  simp [lowModel, hs]
+  simp [lowModel, hs, hb]
 
-theorem forall2_base : ∀ (as : List Nat) (xs : List (Val R (U ⊕ Nat))), (∀ a ∈ as, a < SP.sig.sorts.length) →
-    (Forall2 (lowModel SP P tr Ms).dom as xs ↔ ∃ ys, xs = ys.map enc ∧ Forall2 Ms.dom as ys)
+theorem dom_bv {s w : Nat} (hs : s < SP.sig.sorts.length) (hb : SP.sortWidth s = some w) (v : Val R (U ⊕ Nat)) :
+    (lowModel SP P tr Ms).dom s v ↔ ∃ k : Int, v = .num (k : R) := by
+  simp [lowModel, hs, hb]
+
+/-- A lowered value of a sort of the script, in its range, is a surface one. -/
+theorem rdom (hM : Ms.Sound SP.sig) {s : Nat} (hs : s < SP.sig.sorts.length) (v : Val R (U ⊕ Nat)) :
+    ((lowModel SP P tr Ms).dom s v ∧ inRange SP.bvIndex s v) ↔ ∃ w, Ms.dom s w ∧ v = enc w := by
+  unfold inRange
+  rw [lookup_bvIndex]
+  cases hb : SP.sortWidth s with
+  | none =>
+    rw [dom_base SP P tr Ms hs hb]
+    simp
+  | some w0 =>
+    rw [dom_bv SP P tr Ms hs hb]
+    have hw0 := sortWidth_eq.mp hb
+    constructor
+    · rintro ⟨-, h⟩
+      obtain ⟨k, rfl, h0, h1⟩ := h w0 rfl
+      exact ⟨.num (k : R), (hM.bv s w0 _ hw0).mpr ⟨k, rfl, h0, h1⟩, rfl⟩
+    · rintro ⟨w, hw, rfl⟩
+      obtain ⟨k, rfl, h0, h1⟩ := (hM.bv s w0 _ hw0).mp hw
+      refine ⟨⟨k, rfl⟩, fun w' e => ?_⟩
+      cases e
+      exact ⟨k, rfl, h0, h1⟩
+
+theorem forall2_base (hM : Ms.Sound SP.sig) : ∀ (as : List Nat) (xs : List (Val R (U ⊕ Nat))),
+    (∀ a ∈ as, a < SP.sig.sorts.length) →
+    (Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange SP.bvIndex a x) as xs ↔
+      ∃ ys, xs = ys.map enc ∧ Forall2 Ms.dom as ys)
   | [], [], _ => by simp [Forall2]
   | [], _ :: _, _ => by
     simp only [Forall2, false_iff, _root_.not_exists, _root_.not_and]
@@ -158,7 +229,7 @@ theorem forall2_base : ∀ (as : List Nat) (xs : List (Val R (U ⊕ Nat))), (∀
     intro ys h; cases ys <;> simp_all [Forall2]
   | a :: as, x :: xs, h => by
     simp only [Forall2]
-    rw [dom_base SP P tr Ms (h a (by simp)), forall2_base as xs (fun b m => h b (by simp [m]))]
+    rw [rdom SP P tr Ms hM (h a (by simp)), forall2_base hM as xs (fun b m => h b (by simp [m]))]
     constructor
     · rintro ⟨⟨w, hw, rfl⟩, ys, rfl, hys⟩
       exact ⟨w :: ys, rfl, hw, hys⟩

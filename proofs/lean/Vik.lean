@@ -21,6 +21,7 @@ import Vik.Lower.Trace
 import Vik.Lower.Model
 import Vik.Lower.Laws
 import Vik.Lower.Corr
+import Vik.Lower.Bv
 import Vik.Lower.Unsat
 import Vik.Lower.Example
 

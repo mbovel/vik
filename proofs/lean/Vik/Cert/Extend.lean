@@ -468,10 +468,10 @@ theorem laws_withConst {P : Problem} {M : Model R U} {size : Val R U → Nat} (h
     simp only [Model.withConst]
     rw [hdt ct.2.1 (dtSyms_mem hd hct).2.1]
     exact h
-  · intro n hn s arr idx el hd hs harr a i v j ha hi hv hj ri rj
+  · intro n hn s arr idx el hd hs harr a i v j ha hi hv hj ri rj rv
     simp only [Model.withConst]
     rw [hst n hn]
-    exact hL.store n hn s arr idx el hd hs harr a i v j ha hi hv hj ri rj
+    exact hL.store n hn s arr idx el hd hs harr a i v j ha hi hv hj ri rj rv
   · exact hL.ext
 
 /-- **Soundness.** When the checker accepts an answer, no model of the
