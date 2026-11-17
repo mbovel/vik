@@ -25,3 +25,47 @@ class RationalTest extends munit.FunSuite:
     assertEquals(Rational(-7, 2).ceil, BigInt(-3))
     assertEquals(Rational(-4).floor, BigInt(-4))
     assertEquals(Rational(-4).ceil, BigInt(-4))
+
+  test("arithmetic and order near the bounds of Long"):
+    val rng = new scala.util.Random(117)
+    val edges = List(
+      0L,
+      1L,
+      2L,
+      3L,
+      (1L << 31) - 1,
+      1L << 31,
+      (1L << 32) + 1,
+      3037000499L,
+      3037000500L,
+      (1L << 62) - 1,
+      1L << 62,
+      Long.MaxValue - 1,
+      Long.MaxValue,
+      Long.MinValue + 1,
+      Long.MinValue
+    )
+    def pick(): BigInt =
+      val v = rng.nextInt(4) match
+        case 0 => BigInt(edges(rng.nextInt(edges.length)))
+        case 1 => BigInt(rng.nextLong())
+        case 2 => BigInt(rng.nextLong() >> rng.nextInt(64))
+        case _ => BigInt(rng.nextInt(7) - 3)
+      if rng.nextBoolean() then -v else v
+    def pickNonZero(): BigInt =
+      val v = pick(); if v == 0 then BigInt(1) else v
+    def exact(r: Rational): (BigInt, BigInt) = (r.num, r.den)
+    // The reference: the arithmetic of fractions in `BigInt`, normalized.
+    def norm(n: BigInt, d: BigInt): (BigInt, BigInt) =
+      val g = n.gcd(d) * d.signum
+      (n / g, d / g)
+    for _ <- 1 to 20000 do
+      val (n1, d1, n2, d2) = (pick(), pickNonZero(), pick(), pickNonZero())
+      val (x, y) = (Rational(n1, d1), Rational(n2, d2))
+      val (a1, b1) = norm(n1, d1)
+      val (a2, b2) = norm(n2, d2)
+      assertEquals(exact(x + y), norm(a1 * b2 + a2 * b1, b1 * b2), s"$x + $y")
+      assertEquals(exact(x - y), norm(a1 * b2 - a2 * b1, b1 * b2), s"$x - $y")
+      assertEquals(exact(x * y), norm(a1 * a2, b1 * b2), s"$x * $y")
+      if a2 != 0 then assertEquals(exact(x / y), norm(a1 * b2, b1 * a2), s"$x / $y")
+      assertEquals(x.compare(y).sign, (a1 * b2).compare(a2 * b1).sign, s"$x compare $y")
