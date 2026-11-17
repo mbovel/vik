@@ -15,5 +15,6 @@ import Vik.Cert.Witnesses
 import Vik.Cert.Proof
 import Vik.Cert.Extend
 import Vik.Cert.Example
+import Vik.Surface
 
 /-! The lemmas behind Vik's proofs: see `proofs/rules.md`. -/
