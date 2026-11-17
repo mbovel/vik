@@ -82,4 +82,50 @@ theorem no_model {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOr
     · exact h2
     · exact h3)
 
+/-! ## With a level
+
+```
+(declare-const x Int)
+(assert (<= x 0))
+(check-sat-assuming ((< 0 x)))
+```
+
+Vik asserts the assumption in a level of its own, under the literal `3`, and
+the proof derives `¬3`. The surface script asserts both formulas: those of the
+open levels and the assumptions of the check. The trace gives the reason of
+each formula of the assumed level.
+-/
+
+def problem2 : Problem := { problem with inputs := [4] }
+
+def trace2 : Trace := { trace with inputs := [.assert 2], levels := [[.assert 3]] }
+
+/-- Variables: `0` is `true`, `1` is `x ≤ 0`, `2` is `1 ≤ x`, `3` is the level. -/
+def answer2 : Answer :=
+  { answer with
+    meaning := [some 0, some 4, some 5, none]
+    levels := [(3, [5])]
+    assumed := [3]
+    steps := [
+      .input [⟨1, true⟩],
+      .input [⟨3, false⟩, ⟨2, true⟩],
+      .lemma [⟨1, false⟩, ⟨2, false⟩],
+      .derived [⟨3, false⟩] [0, 1, 2]] }
+
+theorem checked2 : trace2.check script problem2 answer2 = true := by decide +kernel
+
+theorem accepted2 : problem2.accepts answer2 = true := by decide +kernel
+
+/-- No model of the script satisfies the assertion and the assumption. -/
+theorem no_model2 {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
+    [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Surf.Model R U)
+    (size : Val R U → Nat) (hL : script.Laws M size) (hfl : ∀ r : R, ∃ k : Int, Vik.Real.IsFloor r k)
+    (h2 : Surf.holds M.toInterp script.nodes 2) (h3 : Surf.holds M.toInterp script.nodes 3) : False :=
+  Trace.unsat checked2 accepted2 M size hL hfl (by
+    intro a ha
+    simp only [script, List.mem_cons, List.not_mem_nil, or_false] at ha
+    rcases ha with rfl | rfl
+    · exact h2
+    · exact h3)
+
 end Vik.Lower.Example

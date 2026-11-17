@@ -76,7 +76,8 @@ installs it on first use.
 - `Vik/Lower/Ops.lean`: each bit-vector or real operation of a trace takes the
   value of the operation (`bvOk_sound`).
 - `Vik/Lower/Example.lean`: a two-line SMT-LIB script, its trace and answer,
-  checked by the kernel.
+  checked by the kernel, and the same script with a `check-sat-assuming`,
+  whose assumption Vik asserts under a level.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.

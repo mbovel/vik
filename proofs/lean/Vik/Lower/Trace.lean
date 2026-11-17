@@ -36,9 +36,15 @@ def lowerSort : SSort → SortDef
   | .fn as r => .fn as r
   | .array i e => .fn [i] e
 
-/-- A surface script: its sorts and symbols, its nodes with their sorts, the
-    assertions, and its datatypes (for each sort, the constructors with their
-    testers and selectors). -/
+/-- A surface script at one `check-sat`: its sorts and symbols, its nodes with
+    their sorts, the assertions, and its datatypes (for each sort, the
+    constructors with their testers and selectors).
+
+    The assertions are those the check sees: the assertions of the open
+    levels (named or not) and the assumptions of a `check-sat-assuming`. The
+    nodes are the script's terms with `let` and `define-fun` expanded, as
+    SMT-LIB defines them: a bound or defined term is the node of its
+    definition, shared by its uses. -/
 structure SProblem where
   sig : SSig
   nodes : List SNode
@@ -171,6 +177,9 @@ structure Trace where
   mints : List Mint
   /-- Why each lowered input holds, in order. -/
   inputs : List InputWhy
+  /-- Why each formula of each assumed level holds: one list per level of
+      `Answer.assumed`, in order, for the formulas `Answer.levels` gives it. -/
+  levels : List (List InputWhy) := []
 
 /-! ## The expected shapes -/
 
@@ -1469,7 +1478,12 @@ def Trace.check (A : Answer) : Bool :=
         | none => false) || tr.bvOk SP P i)) &&
   P.inputs.length == tr.inputs.length &&
   (P.inputs.zip tr.inputs).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2) &&
-  A.assumed == []
+  A.assumed.length == tr.levels.length &&
+  (A.assumed.zip tr.levels).all (fun p =>
+    match A.levels.lookup p.1 with
+    | some fs =>
+      fs.length == p.2.length && (fs.zip p.2).all (fun q => q.1 < P.nodes.length && tr.inputOk SP P q.1 q.2)
+    | none => true)
 
 end
 
