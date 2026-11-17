@@ -786,6 +786,7 @@ private final class Encoder(
               todo += Term.App(Term.Const(selector), List(t))
 
   private val liaSolver = lia.Solver()
+  liaSolver.proofs = proofs
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
   private val slacks = HashMap.empty[List[(BigInt, Term)], lia.Var] // linear combinations of them
 
@@ -1117,9 +1118,11 @@ private final class Encoder(
     val testers =
       datatypes.flatMap(_.constructors).map(c => classOf(Term.Const(c.tester)) -> classOf(Term.Const(c.name))).toMap
     val uf = UfLemmas(atoms, trueTerm, falseTerm, trueLit, constructors, testers)
+    val arithmetic = LiaLemmas(liaSolver, liaAtoms)
     sat.proof.nn.check(lemma =>
       lemma.certificate match
         case c: UfTheory.Certified => uf.check(lemma.clause, c)
+        case c: lia.Certificate => arithmetic.check(lemma.clause, c)
         case _ => None
     )
   private var clauseCursor = 0

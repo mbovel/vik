@@ -6,6 +6,7 @@ import scala.util.boundary.break
 
 import io.bovel.cdclt.Lit
 import io.bovel.egraph.{App, EClassId, EConflict, EqProof}
+import io.bovel.lia
 
 /** Checks the lemmas of the UF theory against their certificates (see
  *  [[UfTheory.Certificate]]), reading the terms off the applications the
@@ -169,3 +170,34 @@ final class UfLemmas(
         if l.positive || atom == null || (t, u) != atom then fail("not the sides of the implied atom")
         apart(s, s2, reason)
     None
+
+/** Checks the lemmas of the LIA theory against their certificates (see
+ *  `lia.Certificate`): each hypothesis must be the negation of a literal of the
+ *  lemma, asserting the bound of that literal's atom (`atoms(v)`, see
+ *  [[LiaTheory]]).
+ */
+final class LiaLemmas(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Null]):
+  private val checker = lia.Certificate.Checker(
+    solver.form,
+    solver.isInteger,
+    h =>
+      val lit = Lit.fromIndex(h.reason)
+      val atom = if lit.variable < atoms.length then atoms(lit.variable) else null
+      atom match
+        case LiaTheory.Atom.Bound(x, c, strict) =>
+          // `x ≤ c` (or `<`), false: `x > c` (or `≥`).
+          val expected = (x, c, if lit.positive then strict else !strict, lit.positive)
+          if (h.x, h.c, h.strict, h.upper) == expected then None else Some(s"not the bound of $atom")
+        case LiaTheory.Atom.Equal(x, c) =>
+          if lit.positive && h.x == x && h.c == c && !h.strict then None else Some(s"not a side of $atom")
+        case null => Some("no atom")
+  )
+
+  /** The certificates' `Trusted` steps met so far. */
+  def trusted: Int = checker.trusted
+
+  /** Whether `certificate` refutes the negations of the literals of `clause`.
+   */
+  def check(clause: Array[Lit], certificate: lia.Certificate): Option[String] =
+    val hyps = clause.iterator.map(_.neg.index).toSet
+    checker.check(certificate, hyps)
