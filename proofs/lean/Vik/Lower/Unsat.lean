@@ -540,6 +540,12 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.real m r hx
         rw [hd] at hd1; cases hd1
         rw [hsw] at hs1; split at hs1 <;> cases hs1
+      | witness s0 =>
+        obtain ⟨hd1, _⟩ := hG.witness m s0 hx
+        rw [hd] at hd1; cases hd1
+        refine ⟨.num ((0 : Int) : R), (hS.bv s _ _ hsw).mpr ⟨0, rfl, Int.le_refl 0, Int.pow_pos (by decide)⟩, ?_⟩
+        rw [const_witness SP P tr Ms hkl (by rw [hm]; exact hx)]
+        simp [hsw, enc, Ring.intCast_zero]
   · have hd := hty hfx
     simp only [Low.nodeTyped] at hd
     split at hd
