@@ -9,5 +9,7 @@ import Vik.Cert.Clausal
 import Vik.Cert.RatCast
 import Vik.Cert.Lia
 import Vik.Cert.Uf
+import Vik.Lowered
+import Vik.Cert.Inputs
 
 /-! The lemmas behind Vik's proofs: see `proofs/rules.md`. -/

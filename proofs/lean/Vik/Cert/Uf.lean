@@ -30,6 +30,8 @@ structure Env where
   trueLit : Lit
   ctors : Nat → Option (List Nat)
   tester : Nat → Option Nat
+  /-- Whether two constructors are of the same datatype. -/
+  sameType : Nat → Nat → Bool
 
 inductive Step where
   | refl (a : Nat)
@@ -188,12 +190,13 @@ def links (env : Env) : Nat → List (Nat × Nat) → Nat → Bool
 def clash (env : Env) : List (Nat × Nat) → Bool
   | [(p, q)] =>
     match ctorOf env p, ctorOf env q with
-    | some (c, _), some (d, _) => c != d
+    | some (c, _), some (d, _) => c != d && env.sameType c d
     | _, _ => false
   | [(test, t), (x, n)] =>
     t == env.trueClass &&
       match env.node test, ctorOf env n with
-      | some (f, [y]), some (d, _) => y == x && (match env.tester f with | some c => c != d | none => false)
+      | some (f, [y]), some (d, _) =>
+        y == x && (match env.tester f with | some c => c != d && env.sameType c d | none => false)
       | _, _ => false
   | _ => false
 
@@ -241,10 +244,6 @@ structure Model (V : Type) where
   app : V → List V → V
   size : V → Nat
 
-/-- The value of the constructor `c` applied to `xs`. -/
-def Model.ctor {V : Type} (M : Model V) (c : Nat) (xs : List V) : V :=
-  if xs.isEmpty then M.val c else M.app (M.val c) xs
-
 /-- What a model of the classes and an assignment agreeing with it satisfy:
     applications, atoms, Booleans and the laws of the datatypes. -/
 structure Env.Sound {V : Type} (env : Env) (M : Model V) (ρ : Assignment) : Prop where
@@ -254,20 +253,23 @@ structure Env.Sound {V : Type} (env : Env) (M : Model V) (ρ : Assignment) : Pro
   trueFalse : M.val env.trueClass ≠ M.val env.falseClass
   bool : ∀ v x, env.atom v = some (x, env.trueClass) →
     M.val x = M.val env.trueClass ∨ M.val x = M.val env.falseClass
-  select : ∀ c ss (i : Nat) s (xs : List V) x, env.ctors c = some ss → ss[i]? = some s →
-    xs.length = ss.length → xs[i]? = some x → M.app (M.val s) [M.ctor c xs] = x
-  test : ∀ t c ss xs, env.tester t = some c → env.ctors c = some ss → xs.length = ss.length →
-    M.app (M.val t) [M.ctor c xs] = M.val env.trueClass
-  testOther : ∀ t c d ss xs, env.tester t = some c → env.ctors d = some ss → c ≠ d →
-    xs.length = ss.length → M.app (M.val t) [M.ctor d xs] ≠ M.val env.trueClass
-  inj : ∀ c ss xs ys, env.ctors c = some ss → xs.length = ss.length → ys.length = ss.length →
-    M.ctor c xs = M.ctor c ys → xs = ys
-  distinct : ∀ c d ss ts xs ys, env.ctors c = some ss → env.ctors d = some ts → c ≠ d →
-    xs.length = ss.length → ys.length = ts.length → M.ctor c xs ≠ M.ctor d ys
-  expand : ∀ t c ss v, env.tester t = some c → env.ctors c = some ss →
-    M.app (M.val t) [v] = M.val env.trueClass → v = M.ctor c (ss.map (fun s => M.app (M.val s) [v]))
-  smaller : ∀ c ss xs x, env.ctors c = some ss → xs.length = ss.length → x ∈ xs →
-    M.size x < M.size (M.ctor c xs)
+  select : ∀ x c args ss (i : Nat) s b, ctorOf env x = some (c, args) → env.ctors c = some ss →
+    ss[i]? = some s → args[i]? = some b → M.app (M.val s) [M.val x] = M.val b
+  test : ∀ x c args t, ctorOf env x = some (c, args) → env.tester t = some c →
+    M.app (M.val t) [M.val x] = M.val env.trueClass
+  testOther : ∀ x d args t c, ctorOf env x = some (d, args) → env.tester t = some c → c ≠ d →
+    env.sameType c d = true → M.app (M.val t) [M.val x] ≠ M.val env.trueClass
+  inj : ∀ x y c xs ys, ctorOf env x = some (c, xs) → ctorOf env y = some (c, ys) →
+    M.val x = M.val y → xs.map M.val = ys.map M.val
+  distinct : ∀ x y c d xs ys, ctorOf env x = some (c, xs) → ctorOf env y = some (d, ys) → c ≠ d →
+    env.sameType c d = true → M.val x ≠ M.val y
+  expandConst : ∀ t c a, env.tester t = some c → env.ctors c = some [] →
+    M.app (M.val t) [M.val a] = M.val env.trueClass → M.val a = M.val c
+  expand : ∀ t c ss a b fields, env.tester t = some c → env.ctors c = some ss →
+    M.app (M.val t) [M.val a] = M.val env.trueClass → ctorOf env b = some (c, fields) →
+    fields.map M.val = ss.map (fun s => M.app (M.val s) [M.val a]) → M.val a = M.val b
+  smaller : ∀ x c args a, ctorOf env x = some (c, args) → a ∈ args →
+    M.size (M.val a) < M.size (M.val x)
 
 section
 variable {V : Type} {env : Env} {M : Model V} {ρ : Assignment}
@@ -309,32 +311,6 @@ theorem map_eq_zip {f : Nat → V} : ∀ {xs ys : List Nat} {a b : Nat},
 
 variable (hS : env.Sound M ρ)
 include hS
-
-theorem ctorOf_sound {x c : Nat} {args : List Nat} (h : ctorOf env x = some (c, args)) :
-    ∃ ss, env.ctors c = some ss ∧ args.length = ss.length ∧ M.val x = M.ctor c (args.map M.val) := by
-  unfold ctorOf at h
-  split at h
-  · rename_i hx; cases h; exact ⟨[], hx, rfl, by simp [Model.ctor]⟩
-  · split at h
-    · rename_i f as hn
-      split at h
-      · rename_i ss hf
-        split at h
-        · rename_i hc
-          cases h
-          simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', List.isEmpty_eq_false_iff] at hc
-          refine ⟨ss, hf, hc.1, ?_⟩
-          rw [hS.node _ _ _ hn]
-          have : (args.map M.val).isEmpty = false := by
-            cases args with
-            | nil => cases ss with
-              | nil => exact absurd rfl hc.2
-              | cons _ _ => simp at hc
-            | cons _ _ => rfl
-          simp [Model.ctor, this]
-        · cases h
-      · cases h
-    · cases h
 
 theorem asserted_sound {hyps : List Lit} (hh : ∀ l ∈ hyps, l.holds ρ) {a b : Nat} {r : Lit}
     (h : asserted env hyps a b r = true) : M.val a = M.val b := by
@@ -383,11 +359,8 @@ theorem oriented_sound {a b p q : Nat} (h : oriented env a b p q = true) (hpq : 
         split at h
         · rename_i i hi
           simp only [beq_iff_eq] at h
-          obtain ⟨ss', hss', hlen, hv⟩ := ctorOf_sound hS hc
-          rw [hss] at hss'; cases hss'
-          rw [hS.node _ _ _ hn, List.map_cons, List.map_nil, hpq, hv]
-          exact hS.select _ _ _ _ _ _ hss (indexOf_get hi) (by simpa using hlen)
-            (by rw [List.getElem?_map, h]; rfl)
+          rw [hS.node _ _ _ hn, List.map_cons, List.map_nil, hpq]
+          exact hS.select _ _ _ _ _ _ _ hc hss (indexOf_get hi) h
         · cases h
       · cases h
     · cases h
@@ -397,9 +370,8 @@ theorem oriented_sound {a b p q : Nat} (h : oriented env a b p q = true) (hpq : 
     · rename_i t x c args hn hc
       simp only [Bool.and_eq_true, beq_iff_eq] at h
       obtain ⟨⟨rfl, rfl⟩, ht⟩ := h
-      obtain ⟨ss, hss, hlen, hv⟩ := ctorOf_sound hS hc
-      rw [hS.node _ _ _ hn, List.map_cons, List.map_nil, hpq, hv]
-      exact hS.test _ _ _ _ ht hss (by simpa using hlen)
+      rw [hS.node _ _ _ hn, List.map_cons, List.map_nil, hpq]
+      exact hS.test _ _ _ _ hc ht
     · cases h
   · -- injectivity
     unfold injRule at h
@@ -407,12 +379,7 @@ theorem oriented_sound {a b p q : Nat} (h : oriented env a b p q = true) (hpq : 
     · rename_i c xs d ys hp hq
       simp only [Bool.and_eq_true, beq_iff_eq, List.contains_iff_mem] at h
       obtain ⟨rfl, hm⟩ := h
-      obtain ⟨ss, hss, hl1, hv1⟩ := ctorOf_sound hS hp
-      obtain ⟨ss', hss', hl2, hv2⟩ := ctorOf_sound hS hq
-      rw [hss] at hss'; cases hss'
-      have := hS.inj c ss (xs.map M.val) (ys.map M.val) hss (by simp [hl1]) (by simp [hl2])
-        (by rw [← hv1, ← hv2]; exact hpq)
-      exact map_eq_zip this hm
+      exact map_eq_zip (hS.inj _ _ _ _ _ hp hq hpq) hm
     · cases h
   · -- expansion of a tester
     unfold expansionRule at h
@@ -430,15 +397,13 @@ theorem oriented_sound {a b p q : Nat} (h : oriented env a b p q = true) (hpq : 
         · rename_i hc
           simp only [beq_iff_eq] at h
           subst h
-          rw [hS.expand _ _ _ _ ht hc hp]; simp [Model.ctor]
+          exact hS.expandConst _ _ _ ht hc hp
         · rename_i ss _ hc
           split at h
           · rename_i d fields hb
             simp only [Bool.and_eq_true, beq_iff_eq] at h
             obtain ⟨rfl, hf⟩ := h
-            obtain ⟨_, _, _, hv⟩ := ctorOf_sound hS hb
-            rw [hv, hS.expand _ _ _ _ ht hc hp]
-            rw [fieldsOk_map hS hf]
+            exact hS.expand _ _ _ _ _ _ ht hc hp hb (fieldsOk_map hS hf)
           · cases h
         · cases h
       · cases h
@@ -573,9 +538,7 @@ theorem isArg_size {a prev : Nat} (h : isArg env a prev = true) :
   unfold isArg at h
   split at h
   · rename_i c args hc
-    obtain ⟨ss, hss, hl, hv⟩ := ctorOf_sound hS hc
-    rw [hv]
-    exact hS.smaller _ _ _ _ hss (by simp [hl]) (List.mem_map_of_mem (List.contains_iff_mem.mp h))
+    exact hS.smaller _ _ _ _ hc (List.contains_iff_mem.mp h)
   · cases h
 
 theorem links_size {a0 : Nat} : ∀ {prev : Nat} {rest : List (Nat × Nat)},
@@ -599,10 +562,8 @@ theorem clash_sound {holding : List (Nat × Nat)} (h : clash env holding = true)
     simp only [clash] at h
     split at h
     · rename_i c xs d ys hp hq
-      obtain ⟨ss, hss, hl1, hv1⟩ := ctorOf_sound hS hp
-      obtain ⟨ts, hts, hl2, hv2⟩ := ctorOf_sound hS hq
-      exact hS.distinct c d ss ts (xs.map M.val) (ys.map M.val) hss hts (by simpa using h) (by simp [hl1]) (by simp [hl2])
-        (by rw [← hv1, ← hv2]; exact e)
+      simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at h
+      exact hS.distinct _ _ _ _ _ _ hp hq h.1 h.2 e
     · cases h
   | [(test, t), (x, n)], h =>
     have e1 := hh (test, t) (by simp)
@@ -616,9 +577,9 @@ theorem clash_sound {holding : List (Nat × Nat)} (h : clash env holding = true)
       obtain ⟨rfl, h⟩ := h
       split at h
       · rename_i c hc
-        obtain ⟨ss, hss, hl, hv⟩ := ctorOf_sound hS hd
-        apply hS.testOther f c d ss (ys.map M.val) hc hss (by simpa using h) (by simp [hl])
-        rw [← hv, ← e2, ← e1, hS.node _ _ _ hn]; rfl
+        simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at h
+        apply hS.testOther _ _ _ _ _ hd hc h.1 h.2
+        rw [← e2, ← e1, hS.node _ _ _ hn]; rfl
       · cases h
     · cases h
 
