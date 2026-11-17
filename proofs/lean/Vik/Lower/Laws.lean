@@ -242,7 +242,7 @@ theorem dom_enc {s : Nat} (hs : s < SP.sig.sorts.length) {v : Val R (U ⊕ Nat)}
   (dom_base SP P tr Ms hs v).mp h
 
 include hw ht in
-theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig := by
+theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
   have hM := hL.sound
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro s v h
@@ -281,7 +281,8 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig := by
       exact ⟨r, rfl⟩
     · rintro ⟨r, rfl⟩
       exact ⟨.num r, (hM.real s _ hx).mpr ⟨r, rfl⟩, rfl⟩
-  · intro s as r f xs h hf hxs
+  · intro s as r f xs h hf hxs'
+    have hxs := forall2_imp (fun _ _ h => h.1) _ _ hxs'
     rcases Nat.lt_or_ge s SP.sig.sorts.length with hs | hs
     · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
       obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hs hf
@@ -362,9 +363,10 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
     rw [hG.datatypes] at hd
     have := hS.dt d cs hd
     exact ⟨hd, this.1, this.2 C T Ss hc⟩
-  have args : ∀ {C : Nat}, C < SP.sig.decls.length → ∀ xs, Forall2 (lowModel SP P tr Ms).dom (P.argSorts C) xs →
+  have args : ∀ {C : Nat}, C < SP.sig.decls.length → ∀ xs,
+      Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs →
       ∃ ys, xs = ys.map enc ∧ Forall2 Ms.dom (SP.argSorts C) ys :=
-    fun hC xs h => forall2_args hS hG hC xs h
+    fun hC xs h => forall2_args hS hG hC xs (forall2_imp (fun _ _ h => h.1) _ _ h)
   refine ⟨lowModel_sound hS hG hL hw ht, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- sel
     intro d cs C T Ss hd hc xs i S x hxs hS' hx

@@ -39,11 +39,13 @@ of a given answer adds no axiom.
 
 The models are those of the lowered problem's laws: datatypes are term
 algebras, a store changes its array at one index, and functions are
-extensional: two functions that agree on all arguments are equal, where an
-index of bit-vectors only ranges over `[0, 2^w - 1]`. The lowering reads a
-bit-vector as an integer, so the theorem also assumes that every node of a
-bit-vector index sort takes a value in its range, which the lowering's lemmas
-give for the nodes of a lowered script. The checker covers:
+extensional: two functions that agree on all arguments are equal. The lowering
+reads a bit-vector as an integer, and each width of bit-vectors is a sort of
+integers that only ranges over `[0, 2^w - 1]` as an argument: a function, a
+constructor or a store only has to behave on arguments in range. The theorem
+also assumes that every node of a bit-vector sort takes a value in its range,
+which the lowering's lemmas give for the nodes of a lowered script. The checker
+covers:
 
 - clausal proofs: input, lemma and derived (RUP) steps;
 - input clauses: definitions of Tseitin variables, assertions, retired levels,

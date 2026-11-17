@@ -530,12 +530,14 @@ include hc hA hL
 /-- Each lowered node of the trace takes the value of its surface node. -/
 theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hrngP : ∀ i < P.nodes.length, inRange P.bvIndex (P.sortOf[i]?.getD 0) (ρ i) := by
+    intro i _ w hw; rw [hc.sig.bvIndex] at hw; cases hw
   intro i
   induction i using Nat.strongRecOn with
   | ind i ih =>
   intro hi
   obtain ⟨hlt, s, hs, hf⟩ := hc.nodes i hi
-  rw [fits_sound hM hA.wf hA.typed _ hlt s hf]
+  rw [fits_sound hM hA.wf hA.typed hrngP _ hlt s hf]
   obtain ⟨n, hn⟩ : ∃ n, SP.nodes[i]? = some n := ⟨_, List.getElem?_eq_getElem hi⟩
   exact expect_sound hL.sound hc.wf hc.typed hA.wf hn hs (fun c hci => ih c hci (by omega))
 
@@ -551,6 +553,8 @@ theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.n
 theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
     ∀ f ∈ P.inputs, Low.holds MI P.nodes f := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hrngP : ∀ i < P.nodes.length, inRange P.bvIndex (P.sortOf[i]?.getD 0) (ρ i) := by
+    intro i _ w hw; rw [hc.sig.bvIndex] at hw; cases hw
   have hco := corr hc hA hL
   intro f hf
   obtain ⟨hfl, w, hw⟩ := hc.inputs f hf
@@ -560,14 +564,14 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
     simp only [Trace.inputOk, Bool.and_eq_true, List.contains_iff_mem] at hw
     have ha := hin a hw.1
     have hal := lt_of_holds hc hA hL ha
-    rw [fits_sound hM hA.wf hA.typed f hfl _ hw.2, form_ev (hco a hal)]
+    rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hw.2, form_ev (hco a hal)]
     unfold Surf.holds at ha
     rw [ha, truth_bool]
   | iteThen k | iteElse k =>
     simp only [Trace.inputOk] at hw
     split at hw
     · rename_i s hs
-      rw [fits_sound hM hA.wf hA.typed f hfl s hw]
+      rw [fits_sound hM hA.wf hA.typed hrngP f hfl s hw]
       unfold iteFact at hs
       split at hs
       · cases hs
