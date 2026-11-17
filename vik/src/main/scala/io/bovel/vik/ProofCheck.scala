@@ -194,9 +194,6 @@ final class LiaLemmas(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
         case null => Some("no atom")
   )
 
-  /** The certificates' `Trusted` steps met so far. */
-  def trusted: Int = checker.trusted
-
   /** Whether `certificate` refutes the negations of the literals of `clause`.
    */
   def check(clause: Array[Lit], certificate: lia.Certificate): Option[String] =

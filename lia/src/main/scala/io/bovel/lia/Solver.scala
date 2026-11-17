@@ -472,7 +472,21 @@ final class Solver:
       val l = lower(x)
       val u = upper(x)
       if l != null && u != null && l.value == v && u.value == v then
-        unsat(l.reasons ++ u.reasons + reason, Certificate.Trusted("disequality"))
+        unsat(
+          l.reasons ++ u.reasons + reason, {
+            // A split of the disequality, each side against one of the bounds.
+            val s = if isInt(x) then scale(x) else BigInt(1)
+            val strict = !isInt(x)
+            val (floor, ceil) = if strict then (c, c) else (c - s, c + s)
+            branches += 1
+            val r = -branches
+            def side(bound: Bound, upper: Boolean, at: BigInt) = Certificate.Comb(
+              Array(Rational.one, Rational(scale(x))),
+              Array(Certificate.Hyp(r, x, at, strict, upper), bound.certificate.nn)
+            )
+            Certificate.Split(r, x, floor, ceil, side(l, true, floor), side(u, false, ceil), reason, c, strict)
+          }
+        )
       else
         distinct += ((x, c, reason))
         Result.Sat
@@ -929,7 +943,8 @@ final class Solver:
       case unsat => unsat
     def side(branch: Branch, up: Boolean): Result | Branch =
       val c = if up then branch.ceil else branch.floor
-      if pastBox(c) then unsat(Set.empty, Certificate.Trusted("box")) // no solution past the box
+      // No solution past the box; with proofs, which have no certificate for the box, the check gives up.
+      if pastBox(c) then if proofs then Result.Unknown else Result.Unsat(Set.empty)
       else
         val asserted =
           if up then assertLower(branch.x, c, branch.strict, branch.reason)
@@ -965,8 +980,19 @@ final class Solver:
                 val first = branch.leftCertificate.nn
                 val second = conflictCertificate.nn
                 val (low, high) = if branch.up then (second, first) else (first, second)
-                if branch.because.nonEmpty || branch.strict then Certificate.Trusted("disequality")
-                else Certificate.Split(branch.reason, branch.x, branch.floor, branch.ceil, low, high)
+                val except = if branch.because.isEmpty then -1 else branch.because.head
+                val at = (branch.floor + branch.ceil) / 2
+                Certificate.Split(
+                  branch.reason,
+                  branch.x,
+                  branch.floor,
+                  branch.ceil,
+                  low,
+                  high,
+                  except,
+                  at,
+                  branch.strict
+                )
               }
             )
         case branch: Branch if !keepGoing() =>
