@@ -144,6 +144,40 @@ theorem Rule.ival_congr (r : Rule) (j : Nat) {ι ι' : Nat → Int} {τ τ' : Na
   cases r <;> simp only [Rule.args, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq] at hι hτ <;>
     cases j <;> simp only [Rule.ival, hι, hτ]
 
+theorem pow_two_pos (w : Nat) : (0 : Int) < 2 ^ w := Int.pow_pos (by decide)
+
+theorem one_lt_pow_two {w : Nat} (h : 0 < w) : (1 : Int) < 2 ^ w := by
+  obtain ⟨v, rfl⟩ : ∃ v, w = v + 1 := ⟨w - 1, by omega⟩
+  rw [Int.pow_succ]; have := pow_two_pos v; omega
+
+/-- A symbol `bvOut` marks is in the range of its width. -/
+theorem Rule.bvOut_range {r : Rule} {j w : Nat} (h : r.bvOut j w = true) (ι : Nat → Int) (τ : Nat → Bool) :
+    0 ≤ r.ival ι τ j ∧ r.ival ι τ j < 2 ^ w := by
+  have hm : ∀ x : Int, 0 ≤ x % 2 ^ w ∧ x % 2 ^ w < 2 ^ w := fun x =>
+    ⟨Int.emod_nonneg x (by have := pow_two_pos w; omega), Int.emod_lt_of_pos x (pow_two_pos w)⟩
+  cases r with
+  | modulo v w' lo hi =>
+    cases j with
+    | zero => simp only [Rule.bvOut, beq_iff_eq] at h; subst h; exact hm _
+    | succ j => simp [Rule.bvOut] at h
+  | int2bv t w' =>
+    cases j with
+    | zero => simp only [Rule.bvOut, beq_iff_eq] at h; subst h; exact hm _
+    | succ j => simp [Rule.bvOut] at h
+  | udiv a b w' =>
+    simp only [Rule.bvOut, beq_iff_eq] at h; subst h
+    cases j <;> exact hm _
+  | bits t w' =>
+    simp only [Rule.bvOut, decide_eq_true_eq] at h
+    have := bit_range (ι t) j; have := one_lt_pow_two h
+    simp only [Rule.ival]; omega
+  | smodz a c w' =>
+    simp only [Rule.bvOut, decide_eq_true_eq] at h
+    have := one_lt_pow_two h
+    simp only [Rule.ival, smodzVal]
+    split <;> omega
+  | cases | divide | sdivide => cases j <;> simp [Rule.bvOut] at h
+
 /-- The value of the symbol of a real rule, `ϱ` the reals of its arguments. -/
 noncomputable def RRule.val (ϱ : Nat → R) : RRule → R
   | .rat p q => (p : R) / ((q : Int) : R)

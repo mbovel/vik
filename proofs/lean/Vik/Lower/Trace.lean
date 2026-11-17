@@ -122,6 +122,13 @@ def Rule.ival (ι : Nat → Int) (τ : Nat → Bool) : Rule → Nat → Int
   | .udiv a b w, 0 => (if ι b = 0 then 2 ^ w - 1 else ι a / ι b) % 2 ^ w
   | .udiv a b w, _ => (if ι b = 0 then ι a else ι a % ι b) % 2 ^ w
 
+/-- Whether symbol `j` of a rule is a bit-vector of width `w` whatever its
+    arguments: a remainder modulo `2^w`, a bit, or the correction of `smodz`. -/
+def Rule.bvOut : Rule → Nat → Nat → Bool
+  | .modulo _ w' _ _, 0, w | .int2bv _ w', 0, w | .udiv _ _ w', _, w => w' == w
+  | .bits _ _, _, w | .smodz .., _, w => 0 < w
+  | _, _, _ => false
+
 /-- A real-valued symbol the lowering mints. -/
 inductive RRule where
   /-- `rat(p, q)`: the rational `p / q`. -/
@@ -1465,9 +1472,13 @@ def Trace.sigOk : Bool :=
               | some (.store _) => P.sig.decls[SP.sig.decls.length + m']? != some ds
               | _ => true
       | _, _ => false
-    | some (.rule r _) =>
+    | some (.rule r j) =>
       (match P.sig.decls[k]? with
-        | some s => SP.sig.sorts[s]? == some .int
+        | some s =>
+          match SP.sig.sorts[s]? with
+          | some .int => true
+          | some (.bv w) => r.bvOut j w
+          | _ => false
         | none => false) &&
         r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
     | some (.real r) =>
@@ -1487,11 +1498,14 @@ def Trace.sigOk : Bool :=
     | some (.store _) => true
     | _ => false) &&
   P.datatypes == SP.datatypes && P.bvIndex == SP.bvIndex &&
-  -- the nodes of bit-vector sorts are symbols and applications
+  -- the nodes of bit-vector sorts are symbols, applications and numbers in range
   (List.range P.nodes.length).all fun j =>
-    (SP.bvIndex.lookup (P.sortOf[j]?.getD 0)).isNone ||
+    match SP.bvIndex.lookup (P.sortOf[j]?.getD 0) with
+    | none => true
+    | some w =>
       match P.nodes[j]? with
       | some (.const _) | some (.app _ _) => true
+      | some (.num c) => 0 ≤ c && c < 2 ^ w
       | _ => false
 
 /-- The facts of the real rule `r`, its symbol at node `k`. -/

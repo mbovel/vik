@@ -503,6 +503,10 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
   | ind j ih =>
   intro hj w hlw
   rw [hG.bvIndex, lookup_bvIndex] at hlw
+  -- a number in range
+  by_cases hnum : ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
+  · obtain ⟨c, hc, h0, h1⟩ := hnum
+    rw [Low.val_num hA.wf hc]; exact ⟨c, rfl, h0, h1⟩
   generalize hs : P.sortOf[j]?.getD 0 = s at hlw
   have hsw := sortWidth_eq.mp hlw
   have hsl : s < SP.sig.sorts.length := lt_of_get hsw
@@ -514,7 +518,9 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
     exact ⟨_, rfl, Vik.val_nonneg x, Vik.val_lt x⟩
   have hty : ∀ {n : Node}, P.nodes[j]? = some n → Low.nodeTyped P.sig P.sortOf n s = true := by
     intro n hn; rw [← hs]; exact typed_node hA.typed hn
-  obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ := hG.bvNodes j hj (by rw [← hs] at hlw; rw [hlw]; rfl)
+  obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ | hn := hG.bvNodes j hj w (by rw [hs]; exact hlw)
+  rotate_left 2
+  · exact absurd hn hnum
   · have hd := hty hk
     simp only [Tab.at_eq, Low.nodeTyped, beq_iff_eq] at hd
     rw [Low.val_const hA.wf hk]
@@ -533,9 +539,16 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         rw [hd] at hd'; cases hd'
         omega
       | rule r j' =>
-        obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.rule m r j' hx
-        rw [hd] at hd1; cases hd1
-        rw [hsw] at hs1; cases hs1
+        obtain ⟨⟨s1, hd1, hs1 | ⟨w', hs1, hout⟩⟩, hargs⟩ := hG.rule m r j' hx
+        · rw [hd] at hd1; cases hd1
+          rw [hsw] at hs1; cases hs1
+        · rw [hd] at hd1; cases hd1
+          rw [hsw] at hs1; cases hs1
+          rw [const_rule SP P tr Ms hA.wf hx (fun x hx' => (hargs x hx').2)]
+          obtain ⟨h0, h1⟩ := Rule.bvOut_range hout (fun x => intOf (ρ x)) (fun x => (ρ x).truth)
+          refine ⟨ofBv (BitVec.ofInt w (Rule.ival (fun x => intOf (ρ x)) (fun x => (ρ x).truth) r j')),
+            (dom_bv_iff hS hsw).mpr ⟨_, rfl⟩, ?_⟩
+          rw [ofBv_num, Vik.val_ofInt, Int.emod_eq_of_lt h0 h1]; rfl
       | real r =>
         obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.real m r hx
         rw [hd] at hd1; cases hd1
