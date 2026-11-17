@@ -820,11 +820,17 @@ final class Solver:
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
      */
-    def step(): Result | Branch = relaxationAndWindows() match
+    def step(sweep: Boolean): Result | Branch = relaxationAndWindows() match
       case Result.Sat =>
         var x = 0
         while x < numVars && (isSlack(x) || !isInt(x) || deltaValue(x).isInteger) do x += 1
-        if x < numVars then
+        // Inside a branch, what the rows say now before branching again (see `propagateRows`): the bounds it
+        // finds go when the branch does. Outside of one they would stay after the check, and the search went
+        // another, longer way for them on the sessions measured.
+        val swept = if sweep && x < numVars then propagateRows() else Result.Sat
+        if swept != Result.Sat then swept
+        else if tightened.nonEmpty then step(false)
+        else if x < numVars then
           // A second branch on an unknown is branch and bound sliding along it, maybe without end:
           // the equations alone may have no integer solution.
           val sliding = !equationsChecked && open.exists(_.x == x)
@@ -860,9 +866,9 @@ final class Solver:
           if up then assertLower(branch.x, c, branch.strict, branch.reason)
           else assertUpper(branch.x, c, branch.strict, branch.reason)
         asserted match
-          case Result.Sat => step()
+          case Result.Sat => step(open.nonEmpty)
           case unsat => unsat
-    var current: Result | Branch = step()
+    var current: Result | Branch = step(false)
     while true do
       current match
         case Result.Sat =>
@@ -897,6 +903,22 @@ final class Solver:
           push()
           current = side(branch, branch.up)
     throw AssertionError("unreachable")
+
+  /** Bound propagation on every row as the simplex left it: it saw the rows
+   *  before the pivots, and a pivoted row can tie together variables no
+   *  original row did (`x = -y`, both at most 0, so both 0).
+   */
+  private def propagateRows(): Result =
+    var b = 0
+    while b < numVars do
+      if rows(b) != null then
+        propagateRow(b) match
+          case Result.Sat => ()
+          case unsat =>
+            tightened.clear()
+            return unsat
+      b += 1
+    Result.Sat
 
   /** Decides the rational relaxation of the bounds: bound propagation, then the
    *  simplex; `Sat` leaves the integrality to [[check]].
