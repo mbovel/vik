@@ -9,19 +9,19 @@ import io.bovel.vik.{Session, Solver}
 /** The proofs of the corpus's `unsat` answers, one test per file that the
  *  corpus test answers (not on `corpus/ignore.txt`) and that has an `unsat`
  *  status: every `check-sat` answered `unsat` has a proof whose derivations
- *  check (the theory lemmas are taken on trust). `VIK_PROOFS_FILTER` keeps
- *  the files whose path contains it.
+ *  check, and so do the certificates of the theory lemmas that come with
+ *  one. `VIK_PROOFS_FILTER`, a regex, keeps the files whose path it matches.
  */
 class ProofsTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
   private val fuel = 2000000L
   private val budget = Duration(5000L, "ms")
-  private val filter = sys.env.getOrElse("VIK_PROOFS_FILTER", "")
+  private val filter = sys.env.getOrElse("VIK_PROOFS_FILTER", "").r
   private val ignored = Corpus.ignored
 
   for
     file <- Corpus.files
-    if file.contains(filter) && !ignored.contains(file)
+    if filter.findFirstIn(file).isDefined && !ignored.contains(file)
     text = Corpus.read(file)
     if text.contains(":status unsat")
   do
