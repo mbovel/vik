@@ -16,5 +16,12 @@ import Vik.Cert.Proof
 import Vik.Cert.Extend
 import Vik.Cert.Example
 import Vik.Surface
+import Vik.Lower.Shape
+import Vik.Lower.Trace
+import Vik.Lower.Model
+import Vik.Lower.Laws
+import Vik.Lower.Corr
+import Vik.Lower.Unsat
+import Vik.Lower.Example
 
 /-! The lemmas behind Vik's proofs: see `proofs/rules.md`. -/

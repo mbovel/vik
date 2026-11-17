@@ -63,5 +63,19 @@ witnesses of earlier instances. Any model then extends to one where every
 instance holds, giving values to the witnesses one instance after the other
 (`Extend.lean`), with the witnesses of bit-vector indices in their range.
 
-Not yet covered are the step from the SMT-LIB script to the lowered problem
-inside Lean, and an exporter that writes Vik's answers as Lean terms.
+The step from the SMT-LIB script to the lowered problem is checked by a trace
+(`Lower/Unsat.lean`): the lowered node of each surface node, and the reason of
+each minted symbol (the value of a term `ite`, the store of an array sort).
+The checker compares each lowered node with the shape the lowering gives its
+operation: chains of comparisons as conjunctions of pairs, `distinct` and
+strict bounds on integers as `a + 1 ≤ b`, linear arithmetic up to its normal
+form. A surface model gives a model of the lowered problem, with one more
+object for each store symbol, in which every lowered node takes the value of
+its surface node; so `Trace.unsat` turns an accepted answer into the absence
+of a surface model. It covers Booleans, linear integer and real arithmetic,
+uninterpreted functions, datatypes, arrays and term `ite`, for a script of
+assertions without levels.
+
+Not yet covered are bit-vectors, `to_int`, `is_int` and rational constants in
+the trace, levels, `check-sat-assuming`, `define-fun` and `let`, and an
+exporter that writes Vik's scripts, traces and answers as Lean terms.
