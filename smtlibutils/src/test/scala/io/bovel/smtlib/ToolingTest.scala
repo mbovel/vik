@@ -11,8 +11,10 @@ class ToolingTest extends munit.FunSuite:
       Import.withStatuses(source, List("sat", "unsat")),
       "(assert (> a 0))\n;(check-sat)\n(set-info :status sat)\n(check-sat)\n(assert (< a 0))\n(set-info :status unsat)\n(check-sat)\n"
     )
-    assertEquals(Import.withStatuses("(assert p) ; (check-sat) later\n(check-sat)\n", List("sat")),
-      "(assert p) ; (check-sat) later\n(set-info :status sat)\n(check-sat)\n")
+    assertEquals(
+      Import.withStatuses("(assert p) ; (check-sat) later\n(check-sat)\n", List("sat")),
+      "(assert p) ; (check-sat) later\n(set-info :status sat)\n(check-sat)\n"
+    )
 
   test("the status stamper shows the solver a script without statuses"):
     // z3 and cvc5 error on a status they contradict, and the error dropped every answer (issue 57).
@@ -32,7 +34,10 @@ class ToolingTest extends munit.FunSuite:
     )
 
   test("a file's family is its importer's prefix or its test, in its directory"):
-    assertEquals(family("QF_UFDTLIA/dotty/alpha-list_zip_2-0757c679b587.smt2"), ("QF_UFDTLIA/dotty", "alpha-list_zip_2"))
+    assertEquals(
+      family("QF_UFDTLIA/dotty/alpha-list_zip_2-0757c679b587.smt2"),
+      ("QF_UFDTLIA/dotty", "alpha-list_zip_2")
+    )
     assertEquals(family("QF_BV/smt-lib/sage__app10__bench_42.smt2"), ("QF_BV/smt-lib", "sage"))
 
   test("the trivial files kept differ most: another status, then another shape"):

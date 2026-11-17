@@ -12,13 +12,13 @@ import scala.util.Try
  *  (`regressions/smt2`, answers in `.expected.out` files), `princess`
  *  (`testcases`, answers in each directory's `Answers` log), `submission` and
  *  `smt-lib`/`smt-lib-incremental` (statuses in the files), `cvc5-examples`
- *  (`examples/api/smtlib` of the cvc5 repository) and `z3guide` (`website/docs-smtlib`
- *  of the z3 guide's repository: every `z3` code block of its pages), the last
- *  two without answers — `statusstamp` supplies them. Every candidate is
- *  parsed: only the files in the supported fragment are copied, into
- *  `<logic>/<origin>/<family>__<file>.smt2`, with a header naming the origin,
- *  the original path and the license, and a `(set-info :status ...)` before
- *  each `check-sat` when the answers are known.
+ *  (`examples/api/smtlib` of the cvc5 repository) and `z3guide`
+ *  (`website/docs-smtlib` of the z3 guide's repository: every `z3` code block
+ *  of its pages), the last two without answers — `statusstamp` supplies them.
+ *  Every candidate is parsed: only the files in the supported fragment are
+ *  copied, into `<logic>/<origin>/<family>__<file>.smt2`, with a header naming
+ *  the origin, the original path and the license, and a
+ *  `(set-info :status ...)` before each `check-sat` when the answers are known.
  */
 @main def smt2import(origin: String, root: String, perFamily: Int = 0): Unit =
   Import.run(origin, Path.of(root), perFamily)
@@ -38,8 +38,8 @@ object Import:
   private val answers = Set("sat", "unsat", "unknown")
 
   /** A file to import: its text, the expected answers when they come from
-   *  outside it, its family, and its file name when not the original's (a
-   *  block cut out of a page).
+   *  outside it, its family, and its file name when not the original's (a block
+   *  cut out of a page).
    */
   final case class Candidate(
       rel: String,
@@ -65,13 +65,15 @@ object Import:
         else "QF_LIA"
       else "QF_UF"
 
-  /** The `z3` code blocks of a page of the z3 guide (not the `z3-duo`,
-   *  `z3-py`, `z3-js` ones), each a script of its own.
+  /** The `z3` code blocks of a page of the z3 guide (not the `z3-duo`, `z3-py`,
+   *  `z3-js` ones), each a script of its own.
    */
   private def guideBlocks(page: String): List[String] =
     "(?ms)^```z3(?: [^\n]*)?\n(.*?)^```".r.findAllMatchIn(page).map(_.group(1).nn).toList
 
-  /** `02 - basiccommands.md` as `basiccommands`: the guide numbers its pages and sections. */
+  /** `02 - basiccommands.md` as `basiccommands`: the guide numbers its pages
+   *  and sections.
+   */
   private def guideSlug(file: String): String =
     file.stripSuffix(".md").replaceFirst("^\\d+ - ", "").replace(" ", "-").toLowerCase
 
@@ -183,11 +185,13 @@ object Import:
     // The parser reads the whole language; the fragment line is the lowering's, so both must pass — on a
     // pool of threads, the lowering being the cost; a candidate whose lowering outlasts the limit is
     // rejected as such (its thread runs on, so a few of them cost parallelism, not the run).
-    val pool = java.util.concurrent.Executors.newFixedThreadPool(parallelism, r => {
-      val t = new Thread(r)
-      t.setDaemon(true)
-      t
-    })
+    val pool = java.util.concurrent.Executors.newFixedThreadPool(
+      parallelism,
+      r =>
+        val t = new Thread(r)
+        t.setDaemon(true)
+        t
+    )
     val lowered = chosen.map { c =>
       val content = s"; From $origin: ${c.rel} (${licenses(origin)})\n" +
         c.expected.fold(c.text)(withStatuses(c.text, _))
@@ -196,7 +200,8 @@ object Import:
         Try {
           io.bovel.vik.Lowering(Parser.parse(content))
           Logic.smallest(content) match
-            case Some(logic) => (logic, if Logic.claimed(content) == List(logic) then content else Logic.relabel(content, logic))
+            case Some(logic) =>
+              (logic, if Logic.claimed(content) == List(logic) then content else Logic.relabel(content, logic))
             case None => (fallback(content), content)
         }
       )

@@ -34,13 +34,14 @@ object Z3Replay:
     if logic == null then ctx.mkSolver() else ctx.mkSolver(logic)
 
   /** Replays the program in `ctx` against a fresh solver — asserts, `push`,
-   *  `pop`, the checks and `get-model` in script order — and returns the answers. The
-   *  solver is reset on the way out: the binding frees a solver's native side
-   *  only once the GC has collected its wrapper (`Z3ReferenceQueue`; there is
-   *  no release call), and a program that allocates little on the Java side
-   *  collects late — the finished solvers pile up in the context, and each new
-   *  one slows with their number (2 ms to 77 ms per replay of the incremental
-   *  `QF_BV` instance over 2000 replays in one context; flat at 1.3 ms reset).
+   *  `pop`, the checks and `get-model` in script order — and returns the
+   *  answers. The solver is reset on the way out: the binding frees a solver's
+   *  native side only once the GC has collected its wrapper
+   *  (`Z3ReferenceQueue`; there is no release call), and a program that
+   *  allocates little on the Java side collects late — the finished solvers
+   *  pile up in the context, and each new one slows with their number (2 ms to
+   *  77 ms per replay of the incremental `QF_BV` instance over 2000 replays in
+   *  one context; flat at 1.3 ms reset).
    */
   def check(program: Replay, ctx: Context): List[Boolean] =
     val solver = Z3Replay.solver(ctx, program.logic)
@@ -64,10 +65,11 @@ object Z3Replay:
       // `VIK_REPLAY_DUMP`: the solver's assertions as SMT-LIB before each check, to compare the
       // replayed problem with the script when their answers differ.
       if sys.env.contains("VIK_REPLAY_DUMP") then System.err.println(s"; check\n${solver.toString}")
-      answers += (check match
-        case Status.SATISFIABLE => true
-        case Status.UNSATISFIABLE => false
-        case status => throw Replay.Undecided("z3", status.toString))
+      answers +=
+        (check match
+          case Status.SATISFIABLE => true
+          case Status.UNSATISFIABLE => false
+          case status => throw Replay.Undecided("z3", status.toString))
     for op <- program.ops do
       op match
         case Op.MkSort(id, sort) =>

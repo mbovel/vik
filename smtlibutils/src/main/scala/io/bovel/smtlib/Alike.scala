@@ -11,14 +11,14 @@ import io.bovel.smtlib.sexpr.SExpr.{SKeyword, SList, SSymbol}
 /** How alike two scripts are, at increasing levels of abstraction. Each exact
  *  level does what the one before does, and more:
  *
- *  - `Text`: the S-expressions, without comments, layout or `set-info`;
- *  - `Names`: and the script's own symbols numbered (`v0`, `S0` for sorts), the
- *    bound variables named by the position of their binder (`b!depth!k`);
- *  - `Order`: and the order — associative operations flattened, the arguments
- *    of commutative ones sorted, a top-level `and` split into assertions, and
- *    between two commands that are not declarations or assertions, the
- *    declarations and the assertions sorted (`declare-const` read as the
- *    `declare-fun` it is), as are a `let`'s bindings, which are simultaneous.
+ *    - `Text`: the S-expressions, without comments, layout or `set-info`;
+ *    - `Names`: and the script's own symbols numbered (`v0`, `S0` for sorts),
+ *      the bound variables named by the position of their binder (`b!depth!k`);
+ *    - `Order`: and the order — associative operations flattened, the arguments
+ *      of commutative ones sorted, a top-level `and` split into assertions, and
+ *      between two commands that are not declarations or assertions, the
+ *      declarations and the assertions sorted (`declare-const` read as the
+ *      `declare-fun` it is), as are a `let`'s bindings, which are simultaneous.
  *
  *  A canonical form is the script itself, renamed and reordered without
  *  changing its meaning. So two files with the same form are the same problem,
@@ -92,8 +92,8 @@ object Alike:
       case _ => Nil
     }
 
-  /** The theory operations a script applies: the heads of its applications
-   *  that are not its own symbols (`bvadd`, `select`, the `extract` of
+  /** The theory operations a script applies: the heads of its applications that
+   *  are not its own symbols (`bvadd`, `select`, the `extract` of
    *  `(_ extract 7 0)`); a literal such as `(_ bv5 32)` applies none.
    */
   def operations(commands: List[SExpr]): Set[String] =
@@ -157,6 +157,7 @@ object Alike:
   // script.
   private sealed trait Node:
     val hash: Long
+
     /** The hash with the names left out, for the shapes. */
     def label: Long = hash
 
@@ -183,8 +184,8 @@ object Alike:
     z = (z ^ (z >>> 27)) * 0x94d049bb133111ebL
     z ^ (z >>> 31)
 
-  /** The script's own symbols, numbered by first use in the form (sorts and
-   *  the others apart), then the unused ones by declaration.
+  /** The script's own symbols, numbered by first use in the form (sorts and the
+   *  others apart), then the unused ones by declaration.
    */
   private def numbering(commands: List[Node]): Map[(Boolean, String), Int] =
     val names = mutable.HashMap.empty[(Boolean, String), Int]
@@ -290,9 +291,13 @@ object Alike:
         case g: Global => out ++= (if g.sort then "S" else "v") ++= numbers((g.sort, g.name)).toString
         case Items(items) =>
           out += '('
-          items.zipWithIndex.foreach((n, i) => { if i > 0 then out += ' '; write(n) })
+          items.zipWithIndex.foreach((n, i) =>
+            if i > 0 then out += ' '; write(n)
+          )
           out += ')'
-      commands.zipWithIndex.foreach((c, i) => { if i > 0 then out += '\n'; write(c) })
+      commands.zipWithIndex.foreach((c, i) =>
+        if i > 0 then out += '\n'; write(c)
+      )
       out.toString
 
     private def head(command: SExpr): String = command match
@@ -417,7 +422,9 @@ object Alike:
         Items(List(Atom("declare-datatype"), global(d, true, true), datatype(decl)))
       case SList(SSymbol("declare-datatypes") :: SList(heads) :: SList(decls) :: Nil)
           if heads.nonEmpty && heads.forall(isArity) =>
-        val ds = heads.collect { case SList(SSymbol(d) :: n :: Nil) => Items(List(global(d, true, true), Atom(n.toString))) }
+        val ds = heads.collect { case SList(SSymbol(d) :: n :: Nil) =>
+          Items(List(global(d, true, true), Atom(n.toString)))
+        }
         Items(List(Atom("declare-datatypes"), Items(ds), Items(decls.map(datatype))))
       case SList(SSymbol(h) :: args) => Items(Atom(h) :: args.map(term(_, top)))
       case other => term(other, top)
@@ -488,15 +495,16 @@ object Alike:
       case other => term(other, scope)
 
     private def annotation(attributes: List[SExpr], scope: Scope): List[Node] = attributes match
-      case SKeyword("named") :: SSymbol(n) :: rest => Atom(":named") :: global(n, false, true) :: annotation(rest, scope)
-      case SKeyword("pattern") :: SList(ts) :: rest => Atom(":pattern") :: Items(ts.map(term(_, scope))) :: annotation(rest, scope)
+      case SKeyword("named") :: SSymbol(n) :: rest => Atom(":named") :: global(n, false, true) ::
+          annotation(rest, scope)
+      case SKeyword("pattern") :: SList(ts) :: rest => Atom(":pattern") :: Items(ts.map(term(_, scope))) ::
+          annotation(rest, scope)
       case a :: rest => Atom(a.toString) :: annotation(rest, scope)
       case Nil => Nil
 
     private def application(items: List[Node]): Node = items match
       case Atom(op) :: args if order && commutative(op) =>
         val flat =
-          if associative(op) then args.flatMap { case Items(Atom(`op`) :: inner) => inner; case a => List(a) }
-          else args
+          if associative(op) then args.flatMap { case Items(Atom(`op`) :: inner) => inner; case a => List(a) } else args
         Items(Atom(op) :: flat.sortBy(_.hash))
       case _ => Items(items)

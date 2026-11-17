@@ -2,26 +2,26 @@ package io.bovel.bench.evaluation
 
 import scala.collection.mutable.ArrayBuffer
 
-import io.github.cvc5.{Kind, Result, Solver, Sort, Term, TermManager}
 import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp}
 import io.bovel.smtlib.Sort as SmtSort
+import io.github.cvc5.{Kind, Result, Solver, Sort, Term, TermManager}
 
 /** Runs a [[Replay]] through cvc5's Java API: what a verifier that builds
  *  cvc5's terms directly executes per query. The program is replayed on a fresh
  *  term manager and solver, so it pays declarations, term construction, the
- *  checks and the models, nothing else; a script that pushes or assumes gets the
- *  `incremental` option and one that asks for a model `produce-models`, as its
- *  text does through the parser.
+ *  checks and the models, nothing else; a script that pushes or assumes gets
+ *  the `incremental` option and one that asks for a model `produce-models`, as
+ *  its text does through the parser.
  *
  *  The binding keeps every term, sort and solver it creates until
  *  `Context.deletePointers()` frees them all at once — the caller's call, after
  *  the run: it would pull the objects from under a run still going elsewhere.
  */
 object Cvc5Replay:
-  import Replay.{Op, decided}
+  import Replay.{decided, Op}
 
-  /** Replays the program against a fresh solver — asserts, `push`, `pop`,
-   *  the checks and `get-model` in script order — and returns the answers.
+  /** Replays the program against a fresh solver — asserts, `push`, `pop`, the
+   *  checks and `get-model` in script order — and returns the answers.
    */
   def check(program: Replay): List[Boolean] =
     val tm = TermManager()

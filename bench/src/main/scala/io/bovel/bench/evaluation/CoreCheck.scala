@@ -8,8 +8,8 @@ import io.bovel.vik.Session
 /** Checks VIK's unsat cores against z3: for every `get-unsat-core` of the
  *  selected corpus files, the script up to its `check-sat` with the named
  *  assertions outside the core dropped and the unnamed ones kept must be
- *  `unsat` for z3 — SMT-LIB's core is a subset of the named assertions that
- *  is unsatisfiable together with the unnamed ones. `sbt "bench/runMain
+ *  `unsat` for z3 — SMT-LIB's core is a subset of the named assertions that is
+ *  unsatisfiable together with the unnamed ones. `sbt "bench/runMain
  *  io.bovel.bench.evaluation.CoreCheck"` (optionally a regex selecting files;
  *  every file with a `get-unsat-core` otherwise).
  */
@@ -40,7 +40,9 @@ object CoreCheck:
               println(s"$file, get-unsat-core ${i + 1}: $reason")
     println(s"${checked - unchecked} cores checked, $wrong wrong, $unchecked not checkable by z3")
 
-  /** The script with only the core's named assertions, for z3; the reason when it is not unsat. */
+  /** The script with only the core's named assertions, for z3; the reason when
+   *  it is not unsat.
+   */
   private def verify(script: List[SExpr], core: Set[String]): Option[String] =
     val kept = script.flatMap {
       case SList(SSymbol("assert") :: SList(SSymbol("!") :: body :: attributes) :: Nil) =>
