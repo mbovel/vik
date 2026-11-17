@@ -94,7 +94,7 @@ final class UfTheory(
   def propagate(): Theory.Result =
     grown()
     if !touched then return Theory.ok
-    if eg.touchedLimit < 0 then eg.touchedLimit = math.max(1024, atoms.length)
+    eg.touchedLimit = atoms.length // listing more ids than there are atoms costs more than looking at them all
     eg.rebuild()
     eg.conflict match
       case Some(reasons) => Theory.Result.Conflict(lits(reasons))
@@ -137,7 +137,6 @@ final class UfTheory(
             if i == 0 || candidates(i) != candidates(i - 1) then look(candidates(i))
             i += 1
           ids.clear()
-        eg.touchedLimit = math.max(1024, atoms.length)
         again.clear()
         lastImplied = implied
         Theory.Result.Ok(implied)
