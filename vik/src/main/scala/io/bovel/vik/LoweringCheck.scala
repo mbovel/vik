@@ -1041,6 +1041,19 @@ final class LoweringCheck:
 
     private def sortIndexOf(ctx: Ctx, i: Int): Int = ctx.table.sortOf(i)
 
+    /** Node `i` as a term of sort `to`: an integer where a real is expected
+     *  goes through `to_real`, which SMT-LIB leaves implicit for numerals.
+     */
+    private def coerce(ctx: Ctx, i: Int, to: Sort): Int =
+      if to == Sort.Real && ctx.table.sortOf(i) == sort(Sort.Int) then
+        visit(ctx, node(ctx, s".toReal $i", sort(Sort.Real), values(i))._1)
+      else i
+
+    /** The nodes of `as`, coerced to reals when one of them is real. */
+    private def sameSort(as: List[s2.Term], ctx: Ctx): List[Int] =
+      val real = as.exists(sortOf(_, ctx.env) == Sort.Real)
+      as.map(a => if real then coerce(ctx, termNode(a, ctx), Sort.Real) else termNode(a, ctx))
+
     // What the lowering minted, by symbol, and the instances of definitions.
     private val mints = HashMap.empty[String, Mint]
     private val insts = ArrayBuffer.empty[(Int, List[Int])]
@@ -1060,10 +1073,10 @@ final class LoweringCheck:
         case s2.Formula.Iff(as) => many(".iff", as)
         case s2.Formula.Eq(as) =>
           if sortOf(as.head, ctx.env) == Sort.Bool then fail("an equality of Booleans")
-          terms(".eq", as)
+          make(s".eq ${list(sameSort(as, ctx))}")
         case s2.Formula.Distinct(as) =>
           if sortOf(as.head, ctx.env) == Sort.Bool then fail("a distinct of Booleans")
-          terms(".distinct", as)
+          make(s".distinct ${list(sameSort(as, ctx))}")
         case s2.Formula.Cmp(op, as) =>
           val name = op match
             case s2.CmpOp.Le => ".le"
@@ -1112,7 +1125,9 @@ final class LoweringCheck:
           call(name, args, ctx)
         case s2.Term.App(fun, args) =>
           val f = termNode(fun, ctx)
-          made(s".app $f ${list(args.map(termNode(_, ctx)))}")
+          val params = sortOf(fun, ctx.env).arrow.map(_._1).getOrElse(Nil)
+          val as = args.zipWithIndex.map((a, k) => coerce(ctx, termNode(a, ctx), params.lift(k).getOrElse(Sort.Bool)))
+          made(s".app $f ${list(as)}")
         case s2.Term.ArithApp(ArithOp.Div, List(s2.Term.Numeral(p0), s2.Term.Numeral(q0))) if q0.signum > 0 =>
           // a rational literal
           val g = p0.gcd(q0)
@@ -1131,11 +1146,17 @@ final class LoweringCheck:
         case s2.Term.BvApp(op, args) => bvNode(op, args, ctx, made)
         case s2.Term.Select(a, i) =>
           val x = termNode(a, ctx)
-          made(s".select $x ${termNode(i, ctx)}")
+          val idx = sortOf(a, ctx.env) match
+            case Sort.Array(idx, _) => idx
+            case _ => Sort.Bool
+          made(s".select $x ${coerce(ctx, termNode(i, ctx), idx)}")
         case s2.Term.Store(a, i, v) =>
           val x = termNode(a, ctx)
-          val y = termNode(i, ctx)
-          val (j, fresh) = make(s".store $x $y ${termNode(v, ctx)}")
+          val (idx, el) = sortOf(a, ctx.env) match
+            case Sort.Array(idx, el) => (idx, el)
+            case _ => (Sort.Bool, Sort.Bool)
+          val y = coerce(ctx, termNode(i, ctx), idx)
+          val (j, fresh) = make(s".store $x $y ${coerce(ctx, termNode(v, ctx), el)}")
           if fresh && ctx.live then
             values(j) match
               case App(Const(n), _) =>
@@ -1147,8 +1168,8 @@ final class LoweringCheck:
         case s2.Term.Ite(c, a, b) =>
           if s == Sort.Bool then fail("an ite of Booleans as a term")
           val x = formulaNode(c, ctx)
-          val y = termNode(a, ctx)
-          val (j, fresh) = make(s".ite $x $y ${termNode(b, ctx)}")
+          val y = coerce(ctx, termNode(a, ctx), s)
+          val (j, fresh) = make(s".ite $x $y ${coerce(ctx, termNode(b, ctx), s)}")
           if fresh && ctx.live then
             values(j) match
               case Const(n) => mints.getOrElseUpdate(n, Mint.Ite(j, sort(s)))
@@ -1234,7 +1255,7 @@ final class LoweringCheck:
       val (params, result, body) = m
       if params.length != args.length then fail(s"$name expects ${params.length} arguments")
       val d = definition(name, m)
-      val as = args.map(termNode(_, ctx))
+      val as = args.zip(params).map((a, p) => coerce(ctx, termNode(a, ctx), p._2))
       val (root, ms) =
         if !ctx.live then (-1, Nil)
         else
