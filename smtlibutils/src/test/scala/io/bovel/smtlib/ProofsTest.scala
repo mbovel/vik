@@ -9,8 +9,8 @@ import io.bovel.vik.{Session, Solver}
 /** The proofs of the corpus's `unsat` answers, one test per file that the
  *  corpus test answers (not on `corpus/ignore.txt`) and that has an `unsat`
  *  status: every `check-sat` answered `unsat` has a proof whose derivations
- *  check, and so do the certificates of the theory lemmas that come with
- *  one. `VIK_PROOFS_FILTER`, a regex, keeps the files whose path it matches.
+ *  check, and so do the certificates of the theory lemmas that come with one.
+ *  `VIK_PROOFS_FILTER`, a regex, keeps the files whose path it matches.
  */
 class ProofsTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
@@ -37,7 +37,7 @@ class ProofsTest extends munit.FunSuite:
             if session.run(Script(List(command))).contains("unsat") then
               session.solver.proof match
                 case None => errors += "an unsat without a proof"
-                case Some(_) => errors ++= session.solver.checkProof()
+                case Some(_) => errors ++= session.checkProof()
           errors.toList
         },
         budget * 2

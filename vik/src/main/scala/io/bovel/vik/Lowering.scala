@@ -43,6 +43,15 @@ import Term.*
 object Lowering:
   def apply(script: s2.Script): Script = Script(Lowerer().commands(script.commands))
 
+  /** A use of a rule that mints symbols (or, for `range`, asserts a fact on a
+   *  term), as the lowering records it with proofs on ([[Lowerer.tracing]]):
+   *  `key` is what the lowering memoizes the use by, `args` what the rule's
+   *  defining assertions are made of when the key does not say it all, and
+   *  `symbols` the fresh constants, in the order the rule declares them.
+   *  [[LoweringCheck]] replays the lowering against these.
+   */
+  final case class Intro(kind: String, key: List[Any], args: List[Any], symbols: List[String])
+
 /** One lowering: the declared sorts, the macros, the fresh constants of the
  *  assertion being lowered and their defining assertions.
  */
@@ -67,6 +76,14 @@ private final class Lowerer:
     if scopes.nonEmpty && !globalDeclarations then
       val previous = map.get(key)
       scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
+
+  /** With proofs: each fresh symbol is recorded in [[intros]] with the rule
+   *  that mints it, for [[LoweringCheck]].
+   */
+  var tracing = false
+  val intros = ArrayBuffer.empty[Lowering.Intro]
+  private def trace(kind: String, key: List[Any], symbols: List[Term], args: List[Any] = Nil): Unit =
+    if tracing then intros += Lowering.Intro(kind, key, args, symbols.map { case Const(n) => n; case t => t.toString })
 
   private var fresh = 0
 
@@ -856,6 +873,7 @@ private final class Lowerer:
           val k = Const(name)
           define(IntEq(Term.linear(List((q, k))), Num(p)))
           rationalValues(k) = (p, q)
+          trace("rat", List(p, q), List(k))
           k
         }
       )
@@ -1138,6 +1156,7 @@ private final class Lowerer:
       val fs = bs.map(b => Ge(b, Num(1)))
       for (f, b) <- fs.zip(bs) do bitConstants(f) = b
       loweredBits((t, width)) = fs
+      trace("bits", List(t, width), bs.toList)
       fs
     }
 
