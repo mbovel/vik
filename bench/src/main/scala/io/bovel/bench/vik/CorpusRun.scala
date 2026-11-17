@@ -7,15 +7,15 @@ import java.util.concurrent.Executors
 import scala.jdk.CollectionConverters.*
 
 import io.bovel.smtlib.{Corpus, Parser}
-import io.bovel.vik.Session
+import io.bovel.vik.{Session, Solver}
 
 /** Runs corpus files through VIK, warm, in one JVM, and writes how long each
  *  took and what it answered:
- *  `sbt "bench/runMain io.bovel.bench.vik.CorpusRun <seconds per file> <threads> <passes> <output tsv> [regex]"`.
+ *  `sbt "bench/runMain io.bovel.bench.vik.CorpusRun <seconds per file> <threads> <passes> <output tsv> [regex] [--proofs]"`.
  *  The regex selects files among the whole corpus (`/stainless/`, `^QF_BV/`;
  *  all of them by default); an absolute directory in its place is run instead,
  *  for files outside the corpus — the sessions `bench/import-stainless.py` is
- *  about to import. The tsv has a line per file of the last pass, the earlier
+ *  about to import. `--proofs` has the solver record proofs. The tsv has a line per file of the last pass, the earlier
  *  ones being the warm-up: its path, the wall-clock milliseconds, the CPU
  *  milliseconds of the file's thread, the solver steps (as the fuel counts
  *  them, the same on every machine for a file that finishes), the kilobytes the
@@ -31,7 +31,9 @@ import io.bovel.vik.Session
  *  to fill the heap, and are left out.
  */
 object CorpusRun:
-  def main(args: Array[String]): Unit =
+  def main(arguments: Array[String]): Unit =
+    val proofs = arguments.contains("--proofs")
+    val args = arguments.filterNot(_ == "--proofs")
     val seconds = args(0).toLong
     val threads = args(1).toInt
     val passes = args(2).toInt
@@ -50,7 +52,7 @@ object CorpusRun:
     var last = Vector.empty[String]
     for pass <- 1 to passes do
       val pool = Executors.newFixedThreadPool(threads)
-      val lines = files.map((name, path) => pool.submit(() => s"$name\t${run(path, seconds)}"))
+      val lines = files.map((name, path) => pool.submit(() => s"$name\t${run(path, seconds, proofs)}"))
       pool.shutdown()
       last = lines.map(_.get()).toVector
       System.err.println(s"pass $pass: ${files.length} files, ${last.map(_.split("\t")(1).toLong).sum} ms")
@@ -61,7 +63,7 @@ object CorpusRun:
    *  the steps, the kilobytes, the outcome and the answers, as the tsv has
    *  them. The thread has the stack a deep script asks of the parser.
    */
-  private def run(path: Path, seconds: Long): String =
+  private def run(path: Path, seconds: Long, proofs: Boolean): String =
     var outcome = "timeout"
     var answers = ""
     @volatile var cpu = 0L
@@ -76,7 +78,7 @@ object CorpusRun:
         val bytesStart = threads.getCurrentThreadAllocatedBytes
         try
           val script = Parser.parse(Files.readString(path))
-          val s = Session(deadline = Some(start + seconds * 1000000000L))
+          val s = Session(Solver(proofs = proofs), deadline = Some(start + seconds * 1000000000L))
           session = s
           val responses = s.run(script)
           answers = responses.collect { case "sat" => "s"; case "unsat" => "u"; case "unknown" => "?" }.mkString
