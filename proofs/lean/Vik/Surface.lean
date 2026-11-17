@@ -97,12 +97,18 @@ inductive SNode where
   | toReal (a : Nat)
   | toInt (a : Nat)
   | isInt (a : Nat)
+  /-- `(let ((x₁ t₁) … (xₙ tₙ)) body)`, with the terms `bs` bound: the value of
+      `body`, where each use of `xⱼ` is a `bound` node. -/
+  | letIn (bs : List Nat) (body : Nat)
+  /-- A use of a variable that `let` binds to the term `d`. -/
+  | bound (d : Nat)
   deriving DecidableEq, Repr
 
 def SNode.children : SNode → List Nat
   | .const _ | .num _ | .tt | .ff | .bvlit _ _ | .rat _ _ => []
   | .app f args => f :: args
-  | .not a | .neg a | .bvun _ _ a | .bv2int _ _ a | .int2bv _ a | .toReal a | .toInt a | .isInt a => [a]
+  | .not a | .neg a | .bvun _ _ a | .bv2int _ _ a | .int2bv _ a | .toReal a | .toInt a | .isInt a | .bound a => [a]
+  | .letIn bs b => bs ++ [b]
   | .bvbin _ _ a b | .bvcmp _ _ a b | .concat _ _ a b => [a, b]
   | .and as | .or as | .implies as | .iff as | .xor as | .eq as | .distinct as
   | .add as | .sub as | .mul as | .le as | .lt as | .ge as | .gt as | .div as => as
@@ -289,6 +295,8 @@ noncomputable def evalNode (I : Interp R U) (vals : List (Val R U)) : SNode → 
   | .toReal a => .num (get vals a).toR
   | .toInt a => .num ((floorOf (get vals a).toR : Int) : R)
   | .isInt a => .bool (decide ((get vals a).toR = ((floorOf (get vals a).toR : Int) : R)))
+  | .letIn _ b => get vals b
+  | .bound d => get vals d
 
 /-- The values of the nodes, in order. -/
 noncomputable def values (I : Interp R U) (nodes : List SNode) : List (Val R U) :=
@@ -384,6 +392,8 @@ theorem evalNode_congr (I : Interp R U) {v1 v2 : List (Val R U)} (n : SNode)
   case toReal => rw [h]
   case toInt => rw [h]
   case isInt => rw [h]
+  case bound => rw [h]
+  case letIn bs b => exact h b (by simp)
   all_goals first
     | rw [hl _ h]
     | (have e := map_get_congr (fun v : Val R U => v.truth) _ h; simp only at e; rw [e])
@@ -503,6 +513,8 @@ def nodeTyped (sig : SSig) (sortOf : List Nat) (n : SNode) (s : Nat) : Bool :=
   | .toReal a => sig.is s .real && sig.numeric (so a)
   | .toInt a => sig.is s .int && sig.numeric (so a)
   | .isInt a => bool && sig.numeric (so a)
+  | .letIn _ b => so b == s
+  | .bound d => so d == s
 
 def typed (sig : SSig) (nodes : List SNode) (sortOf : List Nat) : Bool :=
   sortOf.length == nodes.length &&
@@ -699,6 +711,14 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
     simp only [nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; simp only [evalNode]
     exact boolv hn.1 _
+  | letIn bs b =>
+    simp only [nodeTyped, beq_iff_eq] at hn
+    rw [hv]; simp only [evalNode]; rw [← hn]
+    exact ihc b (by simp [SNode.children])
+  | bound d =>
+    simp only [nodeTyped, beq_iff_eq] at hn
+    rw [hv]; simp only [evalNode]; rw [← hn]
+    exact ihc d (by simp [SNode.children])
   | tt | ff | not _ | and _ | or _ | implies _ | iff _ | xor _ | eq _ | distinct _
   | le _ | lt _ | ge _ | gt _ =>
     simp only [nodeTyped, Bool.and_eq_true] at hn
@@ -708,5 +728,189 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       | exact boolv hn.1 _
 
 end
+
+/-! ## Definitions
+
+`(define-fun f ((x₁ s₁) … (xₙ sₙ)) s t)` is, by SMT-LIB, the declaration of `f`
+with the assertion that `f(x₁, …, xₙ) = t` for all `x₁, …, xₙ` of their
+sorts. A definition here is the symbol `f`, the symbols of its parameters, and
+the table of its body `t`, whose nodes use the parameters as constants. A use
+of `f` is an `app` of a `const f` node, or `const f` when `f` has no
+parameters. -/
+
+structure SDef where
+  sym : Nat
+  params : List Nat
+  nodes : List SNode
+  root : Nat
+  deriving DecidableEq, Repr
+
+/-- Node `n` with each child `c` replaced by `m c`. -/
+def SNode.rename (m : Nat → Nat) : SNode → SNode
+  | .const k => .const k
+  | .app f args => .app (m f) (args.map m)
+  | .num v => .num v
+  | .tt => .tt
+  | .ff => .ff
+  | .not a => .not (m a)
+  | .and as => .and (as.map m)
+  | .or as => .or (as.map m)
+  | .implies as => .implies (as.map m)
+  | .iff as => .iff (as.map m)
+  | .xor as => .xor (as.map m)
+  | .eq as => .eq (as.map m)
+  | .distinct as => .distinct (as.map m)
+  | .ite c a b => .ite (m c) (m a) (m b)
+  | .add as => .add (as.map m)
+  | .sub as => .sub (as.map m)
+  | .neg a => .neg (m a)
+  | .mul as => .mul (as.map m)
+  | .le as => .le (as.map m)
+  | .lt as => .lt (as.map m)
+  | .ge as => .ge (as.map m)
+  | .gt as => .gt (as.map m)
+  | .select a i => .select (m a) (m i)
+  | .store a i v => .store (m a) (m i) (m v)
+  | .bvlit w v => .bvlit w v
+  | .bvun op w a => .bvun op w (m a)
+  | .bvbin op w a b => .bvbin op w (m a) (m b)
+  | .bvcmp op w a b => .bvcmp op w (m a) (m b)
+  | .concat wa wb a b => .concat wa wb (m a) (m b)
+  | .bv2int sg w a => .bv2int sg w (m a)
+  | .int2bv w a => .int2bv w (m a)
+  | .rat p q => .rat p q
+  | .div as => .div (as.map m)
+  | .toReal a => .toReal (m a)
+  | .toInt a => .toInt (m a)
+  | .isInt a => .isInt (m a)
+  | .letIn bs b => .letIn (bs.map m) (m b)
+  | .bound d => .bound (m d)
+
+/-- The interpretation `I` with the parameters `ps` taking the values `vs`. -/
+def Interp.bind (I : Interp R U) (ps : List Nat) (vs : List (Val R U)) : Interp R U :=
+  { I with const := fun c => ((ps.zip vs).lookup c).getD (I.const c) }
+
+/-- The assertion of definition `d` in model `M`. -/
+def SDef.Holds (sig : SSig) (M : Model R U) (d : SDef) : Prop :=
+  ∀ vs, Forall2 M.dom (d.params.map fun p => sig.decls.getD p 0) vs →
+    (if d.params = [] then M.const d.sym else M.app (M.const d.sym) vs) =
+      val (M.toInterp.bind d.params vs) d.nodes d.root
+
+theorem evalNode_rename (I J : Interp R U) (happ : I.app = J.app) (hst : I.store = J.store)
+    {v1 v2 : List (Val R U)} (m : Nat → Nat) (n : SNode) (hn : ∀ k, n ≠ .const k)
+    (h : ∀ c ∈ n.children, get v1 (m c) = get v2 c) : evalNode I v1 (n.rename m) = evalNode J v2 n := by
+  have hl : ∀ (as : List Nat), (∀ j ∈ as, get v1 (m j) = get v2 j) → (as.map m).map (get v1) = as.map (get v2) :=
+    fun as h => by rw [List.map_map]; exact List.map_congr_left h
+  have hF : ∀ {β : Type} (F : Val R U → β) (as : List Nat), (∀ j ∈ as, get v1 (m j) = get v2 j) →
+      (as.map m).map (fun a => F (get v1 a)) = as.map (fun a => F (get v2 a)) :=
+    fun F as h => by rw [List.map_map]; exact List.map_congr_left (fun a ma => by simp only [Function.comp_apply, h a ma])
+  have hall : ∀ (l : List Nat) (v : List (Val R U)),
+      l.all (fun a => (get v a).truth) = (l.map fun a => (get v a).truth).all id := by
+    intro l v; simp [List.all_map, Function.comp_def]
+  have hany : ∀ (l : List Nat) (v : List (Val R U)),
+      l.any (fun a => (get v a).truth) = (l.map fun a => (get v a).truth).any id := by
+    intro l v; simp [List.any_map, Function.comp_def]
+  cases n <;> simp only [SNode.children, List.mem_cons, List.not_mem_nil, or_false,
+    forall_eq_or_imp, forall_eq] at h <;> simp only [SNode.rename, evalNode]
+  case const k => exact absurd rfl (hn k)
+  case and as => rw [hall, hall, hF _ _ h]
+  case or as => rw [hany, hany, hF _ _ h]
+  case app f args => rw [happ, h.1, hl args h.2]
+  case not a => rw [h]
+  case neg a => rw [h]
+  case ite c a b => rw [h.1, h.2.1, h.2.2]
+  case select a i => rw [happ, h.1, h.2]
+  case store a i v => rw [hst, h.1, h.2.1, h.2.2]
+  case bvun => rw [h]
+  case bv2int => rw [h]
+  case int2bv => rw [h]
+  case bvbin => rw [h.1, h.2]
+  case bvcmp => rw [h.1, h.2]
+  case concat => rw [h.1, h.2]
+  case toReal => rw [h]
+  case toInt => rw [h]
+  case isInt => rw [h]
+  case bound => rw [h]
+  case letIn bs b => exact h b (by simp)
+  case sub as =>
+    cases as with
+    | nil => rfl
+    | cons a rest =>
+      simp only [List.mem_cons, forall_eq_or_imp] at h
+      simp only [List.map_cons, h.1, hl rest h.2]
+  case div as =>
+    cases as with
+    | nil => rfl
+    | cons a rest =>
+      simp only [List.mem_cons, forall_eq_or_imp] at h
+      simp only [List.map_cons, h.1, hl rest h.2]
+  all_goals first
+    | rw [hl _ h]
+    | rw [hF (fun v : Val R U => v.truth) _ h]
+    | rw [hF (fun v : Val R U => v.toR) _ h]
+
+/-- Whether nodes `ms` of `nodes` are an instance of the body of `d`, with its
+    parameters replaced by the nodes `args`: node `ms[b]` is node `b` of the
+    body, its children those of `ms`. -/
+def SDef.instOk (nodes : List SNode) (d : SDef) (args ms : List Nat) : Bool :=
+  ms.length == d.nodes.length &&
+    (List.range d.nodes.length).all fun b =>
+      match d.nodes[b]?, ms[b]? with
+      | some (.const p), some j =>
+        match (d.params.zip args).lookup p with
+        | some a => j == a
+        | none => nodes[j]? == some (.const p)
+      | some n, some j => nodes[j]? == some (n.rename fun c => ms.getD c 0)
+      | _, _ => false
+
+theorem lookup_zip_map {β γ : Type} (f : β → γ) :
+    ∀ (ps : List Nat) (xs : List β) (c : Nat), (ps.zip (xs.map f)).lookup c = ((ps.zip xs).lookup c).map f
+  | [], _, _ => rfl
+  | _ :: _, [], _ => rfl
+  | p :: ps, x :: xs, c => by
+    simp only [List.map_cons, List.zip_cons_cons, List.lookup_cons]
+    split
+    · rfl
+    · exact lookup_zip_map f ps xs c
+
+/-- An instance of the body of a definition takes the value of the body, with
+    the parameters taking the values of the arguments. -/
+theorem inst_val {nodes : List SNode} {d : SDef} {args ms : List Nat} (I : Interp R U)
+    (hw : wellFormed nodes = true) (hwd : wellFormed d.nodes = true) (h : d.instOk nodes args ms = true) :
+    ∀ b < d.nodes.length,
+      val I nodes (ms.getD b 0) = val (I.bind d.params (args.map (val I nodes))) d.nodes b := by
+  simp only [SDef.instOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+  obtain ⟨hlen, hb⟩ := h
+  intro b
+  induction b using Nat.strongRecOn with
+  | ind b ih =>
+  intro hbl
+  have hb' := hb b hbl
+  obtain ⟨n, hn⟩ : ∃ n, d.nodes[b]? = some n := ⟨_, List.getElem?_eq_getElem hbl⟩
+  have hms : ms[b]? = some (ms.getD b 0) := by
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]; rfl
+  rw [hn, hms] at hb'
+  have hc : ∀ j ∈ n.children, j < b := by
+    have := List.all_eq_true.mp hwd b (List.mem_range.mpr hbl)
+    rw [hn] at this; simpa using this
+  rw [val_node (I := I.bind d.params (args.map (val I nodes))) hwd hn]
+  split at hb'
+  · rename_i q j e1 e2
+    simp only [Option.some.injEq] at e1 e2
+    subst e1; subst e2
+    simp only [evalNode, Interp.bind, lookup_zip_map]
+    split at hb'
+    · rename_i a ha
+      rw [ha, beq_iff_eq.mp hb']; rfl
+    · rename_i ha
+      rw [ha, val_node hw (beq_iff_eq.mp hb')]; rfl
+  · rename_i n' j hnc e1 e2
+    simp only [Option.some.injEq] at e1 e2
+    subst e1; subst e2
+    rw [val_node hw (beq_iff_eq.mp hb')]
+    refine evalNode_rename I (I.bind d.params (args.map (val I nodes))) rfl rfl _ n (fun k e => hnc k e) (fun c mc => ?_)
+    exact ih c (hc c mc) (Nat.lt_trans (hc c mc) hbl)
+  · cases hb'
+
 
 end Vik.Surf

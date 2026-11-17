@@ -25,6 +25,7 @@ import Vik.Lower.Bv
 import Vik.Lower.Facts
 import Vik.Lower.BitOps
 import Vik.Lower.SDiv
+import Vik.Lower.Defs
 import Vik.Lower.Reals
 import Vik.Lower.Ops
 import Vik.Lower.Unsat

@@ -70,6 +70,9 @@ installs it on first use.
   bitwise equalities, products of unknowns, and barrel shifters.
 - `Vik/Lower/SDiv.lean`: signed division by an unknown, through the `udiv` of
   the magnitudes.
+- `Vik/Lower/Defs.lean`: `let` and `define-fun`, which the lowering inlines:
+  an inlined body is checked to be an instance of the definition
+  (`SDef.instOk`), and takes the value of the call (`defOk_sound`).
 - `Vik/Lower/Reals.lean`: rational literals, division by a literal,
   `to_real`, `to_int` and `is_int`, lowered to `rat`, `ratmul` and `floor`
   symbols (`realOk_sound`).
@@ -77,7 +80,8 @@ installs it on first use.
   value of the operation (`bvOk_sound`).
 - `Vik/Lower/Example.lean`: a two-line SMT-LIB script, its trace and answer,
   checked by the kernel, and the same script with a `check-sat-assuming`,
-  whose assumption Vik asserts under a level.
+  whose assumption Vik asserts under a level, and one with `let` and
+  `define-fun`.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.
