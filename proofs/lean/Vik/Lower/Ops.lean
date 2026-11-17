@@ -348,7 +348,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
         rw [modOk_sound hwP htP hG hML hrng hb e]
         simp only [BvBin.apply, BvBin.width, Vik.val, BitVec.toNat_mul, Int.natCast_emod, Int.natCast_mul,
           Int.natCast_pow, Int.cast_ofNat_Int]
-      · cases hb
+      · exact productOk_sound hwP htP hG hML hrng hb (hat a hai) (hat b hbi) ea eb
     case comp =>
       simp only [Bool.or_eq_true] at hb
       rcases hb with hb | hb
