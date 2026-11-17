@@ -73,9 +73,9 @@ theorem accepted : problem.accepts answer = true := by decide +kernel
 /-- No model of the script satisfies its assertions. -/
 theorem no_model {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
     [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Surf.Model R U)
-    (size : Val R U → Nat) (hL : script.Laws M size) (h2 : Surf.holds M.toInterp script.nodes 2)
-    (h3 : Surf.holds M.toInterp script.nodes 3) : False :=
-  Trace.unsat checked accepted M size hL (by
+    (size : Val R U → Nat) (hL : script.Laws M size) (hfl : ∀ r : R, ∃ k : Int, Vik.Real.IsFloor r k)
+    (h2 : Surf.holds M.toInterp script.nodes 2) (h3 : Surf.holds M.toInterp script.nodes 3) : False :=
+  Trace.unsat checked accepted M size hL hfl (by
     intro a ha
     simp only [script, List.mem_cons, List.not_mem_nil, or_false] at ha
     rcases ha with rfl | rfl

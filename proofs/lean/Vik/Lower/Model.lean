@@ -142,6 +142,21 @@ theorem Rule.ival_congr (r : Rule) (j : Nat) {ι ι' : Nat → Int} {τ τ' : Na
   cases r <;> simp only [Rule.args, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq] at hι hτ <;>
     cases j <;> simp only [Rule.ival, hι, hτ]
 
+/-- The value of the symbol of a real rule, `ϱ` the reals of its arguments. -/
+noncomputable def RRule.val (ϱ : Nat → R) : RRule → R
+  | .rat p q => (p : R) / ((q : Int) : R)
+  | .ratmul p q t => (p : R) / ((q : Int) : R) * ϱ t
+  | .floor t => ((floorOf (ϱ t) : Int) : R)
+
+theorem RRule.val_congr (r : RRule) {ϱ ϱ' : Nat → R} (h : ∀ x ∈ r.args, ϱ x = ϱ' x) : r.val ϱ = r.val ϱ' := by
+  cases r <;> simp only [RRule.args, List.mem_cons, List.mem_nil_iff, or_false, forall_eq] at h <;>
+    simp only [RRule.val, h]
+
+/-- Whether the lowered model computes the value of a minted symbol. -/
+def Mint.computed : Mint → Bool
+  | .rule _ _ | .real _ => true
+  | _ => false
+
 section
 variable (SP : SProblem) (P : Problem) (tr : Trace) (Ms : Surf.Model R U)
 
@@ -177,6 +192,9 @@ noncomputable def ruleConst : Nat → Nat → Val R (U ⊕ Nat)
       | some (.rule r j) =>
         let I : Low.Interp R (U ⊕ Nat) := ⟨ruleConst m, lowApp Ms⟩
         .num ((Rule.ival (fun x => intOf (Low.val I P.nodes x)) (fun x => (Low.val I P.nodes x).truth) r j : Int) : R)
+      | some (.real r) =>
+        let I : Low.Interp R (U ⊕ Nat) := ⟨ruleConst m, lowApp Ms⟩
+        .num (r.val fun x => (Low.val I P.nodes x).toR)
       | _ => ruleConst m k
     else ruleConst m k
 
@@ -194,7 +212,8 @@ theorem ruleConst_succ_ne {m k : Nat} (h : k ≠ SP.sig.decls.length + m) :
   simp [ruleConst, h]
 
 /-- The symbols that no rule mints keep their base values. -/
-theorem ruleConst_base {k : Nat} (h : ∀ r j, SP.sig.decls.length ≤ k → tr.mints[k - SP.sig.decls.length]? ≠ some (.rule r j)) :
+theorem ruleConst_base {k : Nat}
+    (h : ∀ mt, SP.sig.decls.length ≤ k → tr.mints[k - SP.sig.decls.length]? = some mt → mt.computed = false) :
     ∀ m, ruleConst SP P tr Ms m k = baseConst SP tr Ms k
   | 0 => rfl
   | m + 1 => by
@@ -203,7 +222,8 @@ theorem ruleConst_base {k : Nat} (h : ∀ r j, SP.sig.decls.length ≤ k → tr.
       simp only [ruleConst, e, if_true]
       rw [← e, hm]
       split
-      · rename_i r j hr; exact absurd hr (h r j (by omega))
+      · rename_i r j hr; cases h _ (by omega) hr
+      · rename_i r hr; cases h _ (by omega) hr
       · exact ruleConst_base h m
     · rw [ruleConst_succ_ne SP P tr Ms e]; exact ruleConst_base h m
 
@@ -227,20 +247,40 @@ theorem app_enc_enc (f : Val R U) (xs : List (Val R U)) :
 theorem const_base {k : Nat} (h : k < SP.sig.decls.length) :
     (lowModel SP P tr Ms).const k = enc (Ms.const k) := by
   simp only [lowModel]
-  rw [ruleConst_base SP P tr Ms (fun _ _ h' => absurd h' (by omega))]
+  rw [ruleConst_base SP P tr Ms (fun _ h' => absurd h' (by omega))]
   simp [baseConst, h]
 
 theorem const_ite {k i : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k - SP.sig.decls.length]? = some (.ite i)) :
     (lowModel SP P tr Ms).const k = enc (Surf.val Ms.toInterp SP.nodes i) := by
   simp only [lowModel]
-  rw [ruleConst_base SP P tr Ms (fun _ _ _ => by rw [hm]; simp)]
+  rw [ruleConst_base SP P tr Ms (fun _ _ e => by rw [hm] at e; cases e; rfl)]
   simp [baseConst, hm, Nat.not_lt.mpr h]
 
 theorem const_store {k s : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k - SP.sig.decls.length]? = some (.store s)) :
     (lowModel SP P tr Ms).const k = .obj (.inr k) := by
   simp only [lowModel]
-  rw [ruleConst_base SP P tr Ms (fun _ _ _ => by rw [hm]; simp)]
+  rw [ruleConst_base SP P tr Ms (fun _ _ e => by rw [hm] at e; cases e; rfl)]
   simp [baseConst, hm, Nat.not_lt.mpr h]
+
+/-- The minted symbols agree in the model of the first `m` symbols and in the
+    lowered model on the nodes of depth at most `m`. -/
+theorem agree_upto (hw : Low.wellFormed P.nodes = true) {m x : Nat} (hm : m ≤ tr.mints.length)
+    (hx : depthOf (depths (tr.rank SP) P.nodes) x ≤ m) :
+    Low.val (⟨ruleConst SP P tr Ms m, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x =
+      Low.val (⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x := by
+  refine val_agree (R := R) (U := U ⊕ Nat) (I := ⟨ruleConst SP P tr Ms m, lowApp Ms⟩)
+    (I' := ⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩) hw rfl (fun n hn => ?_) x hx
+  show ruleConst SP P tr Ms m n = ruleConst SP P tr Ms tr.mints.length n
+  by_cases hr : ∃ mt, SP.sig.decls.length ≤ n ∧ tr.mints[n - SP.sig.decls.length]? = some mt ∧ mt.computed = true
+  · obtain ⟨mt, hle, hr', hc⟩ := hr
+    have hrank : tr.rank SP n = n - SP.sig.decls.length + 1 := by
+      cases mt <;> simp_all [Trace.rank, Mint.computed]
+    have hlt' : n - SP.sig.decls.length < tr.mints.length := (List.getElem?_eq_some_iff.mp hr').1
+    have e : n = SP.sig.decls.length + (n - SP.sig.decls.length) := by omega
+    rw [e, ruleConst_stable SP P tr Ms _ (by omega), ruleConst_stable SP P tr Ms _ hlt']
+  · have hb : ∀ mt, SP.sig.decls.length ≤ n → tr.mints[n - SP.sig.decls.length]? = some mt → mt.computed = false :=
+      fun mt h e => by cases hc : mt.computed; rfl; exact absurd ⟨mt, h, e, hc⟩ hr
+    rw [ruleConst_base SP P tr Ms hb, ruleConst_base SP P tr Ms hb]
 
 /-- A rule symbol takes the value of its rule on the values of its arguments
     in the lowered model, when its arguments only depend on the symbols
@@ -255,23 +295,22 @@ theorem const_rule (hw : Low.wellFormed P.nodes = true) {m : Nat} {r : Rule} {j 
   simp only [lowModel]
   rw [ruleConst_stable SP P tr Ms _ hlt]
   simp only [ruleConst, if_true, hm]
-  -- the arguments have the same values in the model of the first `m` symbols
-  have agree : ∀ x ∈ r.args,
-      Low.val (⟨ruleConst SP P tr Ms m, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x =
-        Low.val (⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x := by
-    intro x hx
-    refine val_agree (R := R) (U := U ⊕ Nat) (I := ⟨ruleConst SP P tr Ms m, lowApp Ms⟩) (I' := ⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩) hw rfl (fun n hn => ?_) x (hargs x hx)
-    show ruleConst SP P tr Ms m n = ruleConst SP P tr Ms tr.mints.length n
-    by_cases hr : ∃ r' j', SP.sig.decls.length ≤ n ∧ tr.mints[n - SP.sig.decls.length]? = some (.rule r' j')
-    · obtain ⟨r', j', hle, hr'⟩ := hr
-      have hrank : tr.rank SP n = n - SP.sig.decls.length + 1 := by simp [Trace.rank, hle, hr']
-      have hlt' : n - SP.sig.decls.length < tr.mints.length := (List.getElem?_eq_some_iff.mp hr').1
-      have e : n = SP.sig.decls.length + (n - SP.sig.decls.length) := by omega
-      rw [e, ruleConst_stable SP P tr Ms _ (by omega), ruleConst_stable SP P tr Ms _ hlt']
-    · have hb : ∀ r j, SP.sig.decls.length ≤ n → tr.mints[n - SP.sig.decls.length]? ≠ some (.rule r j) :=
-        fun r j h e => hr ⟨r, j, h, e⟩
-      rw [ruleConst_base SP P tr Ms hb, ruleConst_base SP P tr Ms hb]
+  have agree := fun x hx => agree_upto SP P tr Ms hw (Nat.le_of_lt hlt) (hargs x hx)
   rw [Rule.ival_congr r j (fun x hx => by rw [agree x hx]) (fun x hx => by rw [agree x hx])]
+
+/-- The symbol of a real rule takes its value on the values of its arguments
+    in the lowered model. -/
+theorem const_real (hw : Low.wellFormed P.nodes = true) {m : Nat} {r : RRule}
+    (hm : tr.mints[m]? = some (.real r))
+    (hargs : ∀ x ∈ r.args, depthOf (depths (tr.rank SP) P.nodes) x ≤ m) :
+    (lowModel SP P tr Ms).const (SP.sig.decls.length + m) =
+      .num (r.val fun x => (Low.val (lowModel SP P tr Ms).toInterp P.nodes x).toR) := by
+  have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hm).1
+  simp only [lowModel]
+  rw [ruleConst_stable SP P tr Ms _ hlt]
+  simp only [ruleConst, if_true, hm]
+  have agree := fun x hx => agree_upto SP P tr Ms hw (Nat.le_of_lt hlt) (hargs x hx)
+  rw [RRule.val_congr r (fun x hx => by rw [agree x hx])]
 
 theorem app_store (k : Nat) (a i v : Val R U) :
     (lowModel SP P tr Ms).app (.obj (.inr k)) [enc a, enc i, enc v] = enc (Ms.store a i v) := by

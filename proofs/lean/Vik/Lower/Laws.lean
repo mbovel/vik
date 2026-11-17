@@ -60,6 +60,10 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
   rule : ∀ m r j, tr.mints[m]? = some (.rule r j) →
     (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧ SP.sig.sorts[s]? = some .int) ∧
       ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
+  real : ∀ m r, tr.mints[m]? = some (.real r) →
+    (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
+      SP.sig.sorts[s]? = some (if r.isInt then .int else .real)) ∧
+      ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
   bvIndex : P.bvIndex = SP.bvIndex
@@ -69,7 +73,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
-  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
+  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
     rw [← List.getElem?_map, ← hs, List.getElem?_take_of_lt hs']
   · intro k hk
@@ -127,6 +131,16 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
       · rw [hm'] at h'; simpa using h'
     · cases this
   · intro m r j hmr
+    have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hmr).1
+    have := hm m hlt
+    rw [hmr] at this
+    simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at this
+    obtain ⟨hd1, hargs⟩ := this
+    refine ⟨?_, hargs⟩
+    split at hd1
+    · rename_i s e; exact ⟨s, e, by simpa using hd1⟩
+    · cases hd1
+  · intro m r hmr
     have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hmr).1
     have := hm m hlt
     rw [hmr] at this
@@ -402,6 +416,17 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
         simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
         exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+      | real r =>
+        obtain ⟨⟨s1, hd1, hs1⟩, hargs⟩ := hG.real m r hx
+        rw [h] at hd1; cases hd1
+        rw [const_real SP P tr Ms hwl hx (fun x hx' => (hargs x hx').2)]
+        have hsl := lt_of_get hs1
+        have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; split at e <;> cases e)
+        simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
+        cases r with
+        | floor t => exact ⟨.num _, (hM.int s _ (by simpa [RRule.isInt] using hs1)).mpr ⟨_, rfl⟩, rfl⟩
+        | rat p q => exact ⟨.num _, (hM.real s _ (by simpa [RRule.isInt] using hs1)).mpr ⟨_, rfl⟩, rfl⟩
+        | ratmul p q t => exact ⟨.num _, (hM.real s _ (by simpa [RRule.isInt] using hs1)).mpr ⟨_, rfl⟩, rfl⟩
 
 include hw ht in
 /-- The lowered model satisfies the laws of the lowered problem. -/

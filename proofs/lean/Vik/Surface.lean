@@ -90,15 +90,22 @@ inductive SNode where
   | bv2int (signed : Bool) (w a : Nat)
   /-- `((_ int_to_bv w) a)`. -/
   | int2bv (w a : Nat)
+  /-- The rational `p / q`, `q > 0`: a decimal literal or `(/ p q)` of literals. -/
+  | rat (p : Int) (q : Nat)
+  /-- `(/ a₁ a₂ … aₙ)`, `a₁` divided by the others. -/
+  | div (as : List Nat)
+  | toReal (a : Nat)
+  | toInt (a : Nat)
+  | isInt (a : Nat)
   deriving DecidableEq, Repr
 
 def SNode.children : SNode → List Nat
-  | .const _ | .num _ | .tt | .ff | .bvlit _ _ => []
+  | .const _ | .num _ | .tt | .ff | .bvlit _ _ | .rat _ _ => []
   | .app f args => f :: args
-  | .not a | .neg a | .bvun _ _ a | .bv2int _ _ a | .int2bv _ a => [a]
+  | .not a | .neg a | .bvun _ _ a | .bv2int _ _ a | .int2bv _ a | .toReal a | .toInt a | .isInt a => [a]
   | .bvbin _ _ a b | .bvcmp _ _ a b | .concat _ _ a b => [a, b]
   | .and as | .or as | .implies as | .iff as | .xor as | .eq as | .distinct as
-  | .add as | .sub as | .mul as | .le as | .lt as | .ge as | .gt as => as
+  | .add as | .sub as | .mul as | .le as | .lt as | .ge as | .gt as | .div as => as
   | .ite c a b => [c, a, b]
   | .select a i => [a, i]
   | .store a i v => [a, i, v]
@@ -225,6 +232,18 @@ theorem ofBv_bvOf {w : Nat} {k : Int} (h0 : 0 ≤ k) (h1 : k < 2 ^ w) :
   rw [this]; omega
 
 open Classical in
+/-- The floor of `r`, if it has one (in the reals, always). -/
+noncomputable def floorOf (r : R) : Int := if h : ∃ k : Int, IsFloor r k then h.choose else 0
+
+theorem floorOf_spec {r : R} (h : ∃ k : Int, IsFloor r k) : IsFloor r (floorOf r) := by
+  simp only [floorOf, h, dite_true]; exact h.choose_spec
+
+/-- `a / b₁ / … / bₙ`. -/
+def divR (a : R) : List (Val R U) → R
+  | [] => a
+  | b :: bs => divR (a / b.toR) bs
+
+open Classical in
 /-- The value of a node, over the values of the nodes before it. -/
 noncomputable def evalNode (I : Interp R U) (vals : List (Val R U)) : SNode → Val R U
   | .const n => I.const n
@@ -262,6 +281,14 @@ noncomputable def evalNode (I : Interp R U) (vals : List (Val R U)) : SNode → 
   | .bv2int signed w a =>
     .num (if signed then ((bvOf w (get vals a)).toInt : R) else (((bvOf w (get vals a)).toNat : Int) : R))
   | .int2bv w a => ofBv (BitVec.ofInt w (intOf (get vals a)))
+  | .rat p q => .num ((p : R) / ((q : Int) : R))
+  | .div as =>
+    match as with
+    | [] => .num 0
+    | a :: rest => .num (divR (get vals a).toR (rest.map (get vals)))
+  | .toReal a => .num (get vals a).toR
+  | .toInt a => .num ((floorOf (get vals a).toR : Int) : R)
+  | .isInt a => .bool (decide ((get vals a).toR = ((floorOf (get vals a).toR : Int) : R)))
 
 /-- The values of the nodes, in order. -/
 noncomputable def values (I : Interp R U) (nodes : List SNode) : List (Val R U) :=
@@ -348,6 +375,15 @@ theorem evalNode_congr (I : Interp R U) {v1 v2 : List (Val R U)} (n : SNode)
     | cons a rest =>
       simp only [List.mem_cons, forall_eq_or_imp] at h
       simp only [h.1, hl rest h.2]
+  case div as =>
+    cases as with
+    | nil => rfl
+    | cons a rest =>
+      simp only [List.mem_cons, forall_eq_or_imp] at h
+      simp only [h.1, hl rest h.2]
+  case toReal => rw [h]
+  case toInt => rw [h]
+  case isInt => rw [h]
   all_goals first
     | rw [hl _ h]
     | (have e := map_get_congr (fun v : Val R U => v.truth) _ h; simp only at e; rw [e])
@@ -462,6 +498,11 @@ def nodeTyped (sig : SSig) (sortOf : List Nat) (n : SNode) (s : Nat) : Bool :=
   | .concat wa wb a b => sig.is (so a) (.bv wa) && sig.is (so b) (.bv wb) && sig.is s (.bv (wa + wb))
   | .bv2int _ w a => sig.is (so a) (.bv w) && sig.is s .int
   | .int2bv w a => sig.is (so a) .int && sig.is s (.bv w)
+  | .rat _ q => sig.is s .real && 0 < q
+  | .div as => sig.is s .real && as.all (fun a => sig.numeric (so a))
+  | .toReal a => sig.is s .real && sig.numeric (so a)
+  | .toInt a => sig.is s .int && sig.numeric (so a)
+  | .isInt a => bool && sig.numeric (so a)
 
 def typed (sig : SSig) (nodes : List SNode) (sortOf : List Nat) : Bool :=
   sortOf.length == nodes.length &&
@@ -644,6 +685,20 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
     simp only [nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; simp only [evalNode]
     exact boolv hn.2 _
+  | rat _ _ | div _ | toReal _ =>
+    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    rw [hv]; simp only [evalNode]
+    first
+      | exact (hM.real _ _ hn.1).mpr ⟨_, rfl⟩
+      | (split <;> exact (hM.real _ _ hn.1).mpr ⟨_, rfl⟩)
+  | toInt _ =>
+    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    rw [hv]; simp only [evalNode]
+    exact (hM.int _ _ hn.1).mpr ⟨_, rfl⟩
+  | isInt _ =>
+    simp only [nodeTyped, Bool.and_eq_true] at hn
+    rw [hv]; simp only [evalNode]
+    exact boolv hn.1 _
   | tt | ff | not _ | and _ | or _ | implies _ | iff _ | xor _ | eq _ | distinct _
   | le _ | lt _ | ge _ | gt _ =>
     simp only [nodeTyped, Bool.and_eq_true] at hn
