@@ -24,6 +24,7 @@ import Vik.Lower.Corr
 import Vik.Lower.Bv
 import Vik.Lower.Facts
 import Vik.Lower.BitOps
+import Vik.Lower.SDiv
 import Vik.Lower.Ops
 import Vik.Lower.Unsat
 import Vik.Lower.Example
