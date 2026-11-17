@@ -3,7 +3,8 @@ package io.bovel.smtlib
 import io.bovel.smtlib.Alike.Level
 import io.bovel.smtlib.sexpr.SExprParser
 
-/** The canonical forms of [[Alike]]: what each level joins, and what none may. */
+/** The canonical forms of [[Alike]]: what each level joins, and what none may.
+ */
 class AlikeTest extends munit.FunSuite:
   private def form(script: String, level: Level) = Alike.canonical(SExprParser.parse(script), level)
 
@@ -72,7 +73,10 @@ class AlikeTest extends munit.FunSuite:
     val scoped = pq + "(assert p)(push 1)(assert (not p))(check-sat)(pop 1)"
     assertEquals(joined(scoped, pq + "(push 1)(assert (not p))(check-sat)(pop 1)(assert p)"), None)
     val named = pq + "(assert (! p :named a))(assert (=> a q))"
-    assertEquals(form(named, Level.Order).linesIterator.toList.takeRight(2).map(_.take(10)), List("(assert (!", "(assert (="))
+    assertEquals(
+      form(named, Level.Order).linesIterator.toList.takeRight(2).map(_.take(10)),
+      List("(assert (!", "(assert (=")
+    )
 
   test("the statuses are read per check-sat"):
     val script = SExprParser.parse(
@@ -83,7 +87,10 @@ class AlikeTest extends munit.FunSuite:
   test("the shapes leave names out, and a changed constant shows"):
     def shape(s: String) = Alike.shape(SExprParser.parse(s))
     val a = shape(xy + "(assert (> (+ x y) 1))(assert (< x 7))")
-    assertEquals(Alike.similarity(a, shape("(declare-const p Int)(declare-const q Int)(assert (< q 7))(assert (> (+ q p) 1))")), 1.0)
+    assertEquals(
+      Alike.similarity(a, shape("(declare-const p Int)(declare-const q Int)(assert (< q 7))(assert (> (+ q p) 1))")),
+      1.0
+    )
     val near = Alike.similarity(a, shape(xy + "(assert (> (+ x y) 2))(assert (< x 7))"))
     assert(near > 0.5 && near < 1, near)
 
@@ -93,4 +100,3 @@ class AlikeTest extends munit.FunSuite:
     assertEquals(operations(bv + "(assert (= (bvfoo x) (_ bv5 32)))").filter(_.startsWith("bv")), Set.empty[String])
     assert(operations(bv + "(assert (bvsle x (_ bv5 32)))").contains("bvsle"))
     assert(operations(bv + "(assert (= ((_ extract 7 0) x) #x00))").contains("extract"))
-

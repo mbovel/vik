@@ -7,11 +7,11 @@ import io.bovel.vik.Session
 
 /** Checks VIK's models against z3: for every `get-model` of the selected corpus
  *  files, the script up to its `check-sat` with the model's definitions in
- *  place of the declarations they value, and the abstract elements declared
- *  and told apart, must be `sat` for z3 — a model that contradicts its script
- *  is not (issue 35):
- *  `sbt "bench/runMain io.bovel.bench.evaluation.ModelCheck"` (optionally a
- *  regex selecting files; every file with a `get-model` otherwise).
+ *  place of the declarations they value, and the abstract elements declared and
+ *  told apart, must be `sat` for z3 — a model that contradicts its script is
+ *  not (issue 35): `sbt "bench/runMain io.bovel.bench.evaluation.ModelCheck"`
+ *  (optionally a regex selecting files; every file with a `get-model`
+ *  otherwise).
  */
 object ModelCheck:
   def main(args: Array[String]): Unit =
@@ -41,11 +41,20 @@ object ModelCheck:
               println(s"$file, get-model ${i + 1}: $reason")
     println(s"${checked - unchecked} models checked, $wrong wrong, $unchecked not checkable by z3")
 
-  /** The script with the model in it, for z3; the reason when z3 does not find it satisfiable. */
-  private def verify(file: String, at: Int, script: List[SExpr], model: List[SExpr], defined: Map[String, SExpr]): Option[String] =
+  /** The script with the model in it, for z3; the reason when z3 does not find
+   *  it satisfiable.
+   */
+  private def verify(
+      file: String,
+      at: Int,
+      script: List[SExpr],
+      model: List[SExpr],
+      defined: Map[String, SExpr]
+  ): Option[String] =
     // The abstract elements the model names, `@Sort!k`, declared and distinct.
     val elements = model.flatMap(symbols).filter(_.startsWith("@")).distinct
-    val declared = elements.map(e => SList(List(SSymbol("declare-const"), SSymbol(e), SSymbol(e.drop(1).takeWhile(_ != '!')))))
+    val declared =
+      elements.map(e => SList(List(SSymbol("declare-const"), SSymbol(e), SSymbol(e.drop(1).takeWhile(_ != '!')))))
     val apart = elements.groupBy(e => e.drop(1).takeWhile(_ != '!')).values.filter(_.length > 1).map(es =>
       SList(List(SSymbol("assert"), SList(SSymbol("distinct") :: es.map(SSymbol(_)))))
     )
@@ -58,7 +67,9 @@ object ModelCheck:
     }
     // The elements after the sorts and datatypes they are of, before anything that mentions them.
     val (sorts, rest) = rewritten.span {
-      case SList(SSymbol("set-logic" | "set-option" | "set-info" | "declare-sort" | "declare-datatype" | "declare-datatypes" | "define-sort") :: _) => true
+      case SList(SSymbol(
+            "set-logic" | "set-option" | "set-info" | "declare-sort" | "declare-datatype" | "declare-datatypes" | "define-sort"
+          ) :: _) => true
       case _ => false
     }
     val text = (sorts ++ declared ++ apart ++ rest).mkString("\n")

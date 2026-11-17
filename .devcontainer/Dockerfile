@@ -57,7 +57,7 @@ RUN apt-get update \
 # (Temurin 25) and the GraalVM Community of the same release, which
 # sbt-native-image uses instead of fetching its own (NATIVE_IMAGE_INSTALLED);
 # the sbt runner, which starts the sbt of project/build.properties; Scala 3's
-# `scala` and `scala-cli`. Another JDK, such as the CI matrix's 17 and 26, is
+# `scala` and `scala-cli`. Another JDK, such as the CI matrix's 17 and 27, is
 # one `cs java --jvm 17` away.
 #
 # The JDK's commands and native-image are linked into /usr/local/bin rather

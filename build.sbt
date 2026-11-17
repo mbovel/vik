@@ -69,7 +69,7 @@ lazy val egraph = projectMatrix
   .settings(
     name := "egraph",
     description := "A congruence closure engine with explanations (an e-graph)",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -81,7 +81,7 @@ lazy val cdclt = projectMatrix
   .settings(
     name := "cdclt",
     description := "A CDCL(T) SAT solver: watched literals, first-UIP learning, theories",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -93,7 +93,7 @@ lazy val lia = projectMatrix
   .settings(
     name := "lia",
     description := "Linear integer arithmetic: simplex, branch and bound in a small-model box",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -107,7 +107,7 @@ lazy val vik = projectMatrix
     name := "vik",
     description := "A minimal, readable SMT solver",
     Compile / mainClass := Some("io.bovel.vik.run"), // the command line, also as a native binary
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -119,7 +119,7 @@ lazy val smtlib = projectMatrix
   .settings(
     name := "smtlib",
     description := "SMT-LIB 2 as written: trees, parser, printer",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .jvmPlatform(scalaVersions = Seq(scala3Version), settings = forkedTests)
   .jsPlatform(scalaVersions = Seq(scala3Version))
@@ -177,7 +177,7 @@ lazy val graal = project
         Seq(out)
       }
     }.taskValue,
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test,
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test,
     nativeImageOptions ++= Seq("--no-fallback", "-O2")
   )
 
@@ -198,7 +198,7 @@ lazy val smtlibutils = (project in file("smtlibutils"))
   .settings(
     name := "smtlibutils",
     publish / skip := true, // corpus tooling and tests, not a library
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.5" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.6" % Test
   )
   .settings(forkedTests *)
 
@@ -337,6 +337,19 @@ addCommandAlias(
   "compileNative",
   "egraphNative/Test/compile; cdcltNative/Test/compile; liaNative/Test/compile; vikNative/Test/compile; " +
     "smtlibNative/Test/compile"
+)
+
+// Formatting, every project: the root aggregates the five modules' JVM rows only (their JS and Native rows share
+// the sources), so the projects outside it are named. `formatCheckAll` is CI's format job.
+addCommandAlias(
+  "formatAll",
+  "scalafmtAll; scalafmtSbt; bench/scalafmtAll; smtlibutils/scalafmtAll; playground/scalafmtAll; " +
+    "docsPlayground/scalafmtAll; graal/scalafmtAll"
+)
+addCommandAlias(
+  "formatCheckAll",
+  "scalafmtCheckAll; scalafmtSbtCheck; bench/scalafmtCheckAll; smtlibutils/scalafmtCheckAll; " +
+    "playground/scalafmtCheckAll; docsPlayground/scalafmtCheckAll; graal/scalafmtCheckAll"
 )
 
 lazy val root = (project in file("."))
