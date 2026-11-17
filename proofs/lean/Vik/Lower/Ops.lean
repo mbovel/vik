@@ -350,13 +350,21 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
           Int.natCast_pow, Int.cast_ofNat_Int]
       · cases hb
     case comp =>
-      rw [casesOk_sound hwP htP hG hML hrng hb (evf_const ρ 1) (evf_const ρ 0),
-        eqI_int MI ρ (ev_same_num MI ρ ea) (ev_same_num MI ρ eb)]
-      simp only [BvBin.apply, BvBin.width, decide_eq_true_eq]
-      by_cases h : x = y
-      · subst h; simp [Vik.val]
-      · have : Vik.val x ≠ Vik.val y := fun e => h (Vik.val_inj.mp e)
-        rw [if_neg this]; simp [h, Vik.val]
+      simp only [Bool.or_eq_true] at hb
+      rcases hb with hb | hb
+      · rw [casesOk_sound hwP htP hG hML hrng hb (evf_const ρ 1) (evf_const ρ 0),
+          eqI_int MI ρ (ev_same_num MI ρ ea) (ev_same_num MI ρ eb)]
+        simp only [BvBin.apply, BvBin.width, decide_eq_true_eq]
+        by_cases h : x = y
+        · subst h; simp [Vik.val]
+        · have : Vik.val x ≠ Vik.val y := fun e => h (Vik.val_inj.mp e)
+          rw [if_neg this]; simp [h, Vik.val]
+      · obtain ⟨c, _, hc, hk⟩ := casesBit_val hwP htP hG hML hrng hb
+        rw [hk, bitEqOk_sound hwP htP hG hML hrng hc (hat a hai) (hat b hbi) ea eb, truth_bool]
+        simp only [BvBin.apply, BvBin.width]
+        by_cases h : x = y
+        · subst h; simp [Vik.val, bitValue]
+        · simp [h, Vik.val, bitValue]
     case shl =>
       split at hb
       · rename_i c hc
@@ -442,6 +450,142 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
       · cases hb
     all_goals (split at hb <;> cases hb)
 
+
+theorem chainP_consec {α : Type} (r : α → α → Prop) : ∀ l : List α, chainP r l ↔ ∀ p ∈ consec l, r p.1 p.2
+  | [] => by simp [chainP, consec]
+  | [_] => by simp [chainP, consec]
+  | a :: b :: rest => by
+    simp only [chainP, consec, List.mem_cons, forall_eq_or_imp]
+    rw [chainP_consec r (b :: rest)]
+
+theorem mem_consec {α : Type} : ∀ {l : List α} {p : α × α}, p ∈ consec l → p.1 ∈ l ∧ p.2 ∈ l
+  | [], _, h => by simp [consec] at h
+  | [_], _, h => by simp [consec] at h
+  | a :: b :: rest, p, h => by
+    simp only [consec, List.mem_cons] at h
+    rcases h with rfl | h
+    · simp
+    · have := mem_consec h; simp_all
+
+theorem pairwiseP_allPairs {α : Type} (r : α → α → Prop) :
+    ∀ l : List α, pairwiseP r l ↔ ∀ p ∈ allPairs l, r p.1 p.2
+  | [] => by simp [pairwiseP, allPairs]
+  | a :: rest => by
+    simp only [pairwiseP, allPairs, List.mem_append, List.mem_map]
+    rw [pairwiseP_allPairs r rest]
+    constructor
+    · rintro ⟨h1, h2⟩ p (⟨b, hb, rfl⟩ | hp)
+      · exact h1 b hb
+      · exact h2 p hp
+    · intro h
+      exact ⟨fun b hb => h (a, b) (Or.inl ⟨b, hb, rfl⟩), fun p hp => h p (Or.inr hp)⟩
+
+theorem mem_allPairs' {α : Type} {l : List α} {p : α × α} (h : p ∈ allPairs l) : p.1 ∈ l ∧ p.2 ∈ l :=
+  mem_allPairs (x := p.1) (y := p.2) h
+
+include hwP in
+theorem low_child {x : Nat} {n : Node} (h : P.nodes[x]? = some n) {y : Nat} (hy : y ∈ n.children) : y < x := by
+  have hx := lt_of_get h
+  have := List.all_eq_true.mp hwP x (List.mem_range.mpr hx)
+  rw [h] at this
+  simp only [List.all_eq_true, decide_eq_true_eq] at this
+  exact this y hy
+
+/-- A pair of surface bit-vectors of width `w` whose lowerings are their values. -/
+def PairGood (SP : SProblem) (P : Problem) (tr : Trace) (ρ' : Nat → Val R (U ⊕ Nat)) (vs' : Nat → Val R U)
+    (w : Nat) (p : Nat × Nat) : Prop :=
+  p.1 < SP.nodes.length ∧ p.2 < SP.nodes.length ∧ SP.sig.is (SP.sort p.1) (.bv w) = true ∧
+    SP.sig.is (SP.sort p.2) (.bv w) = true ∧ ρ' (tr.at p.1) = enc (vs' p.1) ∧ ρ' (tr.at p.2) = enc (vs' p.2) ∧
+    tr.at p.1 < P.nodes.length ∧ tr.at p.2 < P.nodes.length
+
+open Classical in
+include hM hw ht hwP htP hG hML hrng in
+/-- `equal` on two surface bit-vectors. -/
+theorem pairEqOk_sound {w x : Nat} {p : Nat × Nat} (h : tr.pairEqOk SP P w x p.1 p.2 = true) (hx : x < P.nodes.length)
+    (hp : PairGood SP P tr ρ vs w p) : ρ x = .bool (decide (vs p.1 = vs p.2)) := by
+  obtain ⟨ha, hb, hsa, hsb, ea, eb, hla, hlb⟩ := hp
+  obtain ⟨X, hX, eX, _⟩ := bv_child hM hw ht hwP ha hsa ea
+  obtain ⟨Y, hY, eY, _⟩ := bv_child hM hw ht hwP hb hsb eb
+  have iff : vs p.1 = vs p.2 ↔ X = Y := by
+    rw [hX, hY]; constructor
+    · intro e; have := congrArg (bvOf w) e; simpa [bvOf_ofBv] using this
+    · rintro rfl; rfl
+  simp only [Trace.pairEqOk, Bool.or_eq_true] at h
+  rcases h with h | h
+  · rw [fits_sound hML hwP htP hrng x hx _ h]
+    simp only [eqS, if_true, Shape.ev, Shape.allTrue, eX, eY, toR_num, truth_bool, Bool.and_true]
+    congr 1
+    apply bool_eq_decide
+    rw [iff, ← Vik.val_inj]
+    simp only [Bool.and_eq_true, decide_eq_true_eq, cast_le_iff]
+    omega
+  · rw [bitEqOk_sound hwP htP hG hML hrng h hla hlb eX eY]
+    congr 1
+    exact decide_eq_decide.mpr iff.symm
+
+open Classical in
+include hM hw ht hwP htP hG hML hrng in
+theorem pairCondOk_sound {w y : Nat} {neg : Bool} {p : Nat × Nat} (h : tr.pairCondOk SP P w neg y p = true)
+    (hy : y < P.nodes.length) (hp : PairGood SP P tr ρ vs w p) :
+    ρ y = .bool (decide (vs p.1 = vs p.2) ^^ neg) := by
+  unfold Trace.pairCondOk at h
+  cases neg
+  · simp only [Bool.false_eq_true, if_false] at h
+    rw [pairEqOk_sound hM hw ht hwP htP hG hML hrng h hy hp, Bool.xor_false]
+  · simp only [if_true] at h
+    split at h
+    · rename_i z hz
+      have hzy := low_child hwP hz (y := z) (by simp [Node.children])
+      rw [Low.val_node hwP hz]
+      simp only [Low.evalNode, Bool.xor_true]
+      change Val.bool (!(ρ z).truth) = _
+      rw [pairEqOk_sound hM hw ht hwP htP hG hML hrng h (by omega) hp, truth_bool]
+    · cases h
+
+open Classical in
+include hM hw ht hwP htP hG hML hrng in
+theorem chainOk_sound {w x : Nat} {ps : List (Nat × Nat)} {neg : Bool} (h : tr.chainOk SP P w x ps neg = true)
+    (hx : x < P.nodes.length) (hps : ∀ p ∈ ps, PairGood SP P tr ρ vs w p) :
+    ρ x = .bool (ps.all fun p => decide (vs p.1 = vs p.2) ^^ neg) := by
+  unfold Trace.chainOk at h
+  split at h
+  · rename_i p
+    rw [pairCondOk_sound hM hw ht hwP htP hG hML hrng h hx (hps p (by simp))]
+    simp
+  · split at h
+    · rename_i xs hxs
+      simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+      obtain ⟨hlen, hall⟩ := h
+      rw [Low.val_node hwP hxs]
+      simp only [Low.evalNode, Val.bool.injEq]
+      have key : ∀ j < ps.length, (ρ (xs.getD j 0)).truth = (decide (vs (ps.getD j (0, 0)).1 = vs (ps.getD j (0, 0)).2) ^^ neg) := by
+        intro j hj
+        have hm : xs.getD j 0 ∈ xs := by
+          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]; exact List.getElem_mem _
+        have hpm : ps.getD j (0, 0) ∈ ps := by
+          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]; exact List.getElem_mem _
+        have hjl := low_child hwP hxs (y := xs.getD j 0) (by simpa [Node.children] using hm)
+        rw [pairCondOk_sound hM hw ht hwP htP hG hML hrng (hall j hj) (by omega) (hps _ hpm), truth_bool]
+      apply Bool.eq_iff_iff.mpr
+      simp only [List.all_eq_true]
+      have gd : ∀ {β : Type} {l : List β} {j : Nat} {d : β} (h : j < l.length), l.getD j d = l[j] := by
+        intro β l j d h; simp [h]
+      constructor
+      · intro hh p hp
+        obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hp
+        have := key j hj
+        rw [gd hj, gd (l := xs) (by omega)] at this
+        rw [← this]
+        exact hh _ (List.getElem_mem _)
+      · intro hh a ha
+        obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem ha
+        have := key j (by omega)
+        rw [gd hj, gd (l := ps) (by omega)] at this
+        change (ρ xs[j]).truth = true
+        rw [this]
+        exact hh _ (List.getElem_mem _)
+    · cases h
+
 include hM hw ht hwP htP hG hML hrng in
 /-- Each bit-vector operation that `Trace.bvOk` accepts takes the value of its
     surface node. -/
@@ -495,6 +639,66 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
       exact Low.val_num hwP (by simpa using hb)
     · rw [sym_val hwP hG (beq_iff_eq.mp hb)]
       simp only [Rule.ival, ea, intOf_num]
+  | eq as =>
+    cases as with
+    | nil => simp [Trace.bvOk, hn] at hb
+    | cons a rest =>
+      simp only [Trace.bvOk, hn] at hb
+      split at hb
+      · rename_i w hwa
+        simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        have good : ∀ p ∈ consec (a :: rest), PairGood SP P tr ρ vs w p := by
+          intro p hp
+          obtain ⟨m1, m2⟩ := mem_consec hp
+          have c1 := children_lt hw hn p.1 m1
+          have c2 := children_lt hw hn p.2 m2
+          have hs : ∀ z ∈ a :: rest, SP.sig.is (SP.sort z) (.bv w) = true := by
+            intro z hz
+            have e : SP.sort z = SP.sort a := by
+              simp only [List.mem_cons] at hz; rcases hz with rfl | hz
+              · rfl
+              · exact hty.2 z hz
+            unfold SProblem.width SProblem.sortWidth at hwa
+            rw [e]; unfold SSig.is; split at hwa <;> simp_all
+          exact ⟨by omega, by omega, hs _ m1, hs _ m2, ih _ c1, ih _ c2, hat _ c1, hat _ c2⟩
+        classical
+        rw [chainOk_sound hM hw ht hwP htP hG hML hrng hb hl good, hv]
+        simp only [Surf.evalNode, enc_bool, Bool.xor_false, surf_get_values]
+        congr 1
+        apply Bool.eq_iff_iff.mpr
+        rw [List.all_eq_true, decide_eq_true_iff, chainP_map, chainP_consec]
+        simp
+      · cases hb
+  | distinct as =>
+    cases as with
+    | nil => simp [Trace.bvOk, hn] at hb
+    | cons a rest =>
+      simp only [Trace.bvOk, hn] at hb
+      split at hb
+      · rename_i w hwa
+        simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        have good : ∀ p ∈ allPairs (a :: rest), PairGood SP P tr ρ vs w p := by
+          intro p hp
+          obtain ⟨m1, m2⟩ := mem_allPairs' hp
+          have c1 := children_lt hw hn p.1 m1
+          have c2 := children_lt hw hn p.2 m2
+          have hs : ∀ z ∈ a :: rest, SP.sig.is (SP.sort z) (.bv w) = true := by
+            intro z hz
+            have e : SP.sort z = SP.sort a := by
+              simp only [List.mem_cons] at hz; rcases hz with rfl | hz
+              · rfl
+              · exact hty.2 z hz
+            unfold SProblem.width SProblem.sortWidth at hwa
+            rw [e]; unfold SSig.is; split at hwa <;> simp_all
+          exact ⟨by omega, by omega, hs _ m1, hs _ m2, ih _ c1, ih _ c2, hat _ c1, hat _ c2⟩
+        classical
+        rw [chainOk_sound hM hw ht hwP htP hG hML hrng hb hl good, hv]
+        simp only [Surf.evalNode, enc_bool, Bool.xor_true, surf_get_values]
+        congr 1
+        apply Bool.eq_iff_iff.mpr
+        rw [List.all_eq_true, decide_eq_true_iff, pairwiseP_map, pairwiseP_allPairs]
+        simp
+      · cases hb
   | _ => simp [Trace.bvOk, hn] at hb
 
 end

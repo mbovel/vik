@@ -761,6 +761,70 @@ theorem bitwiseOk_sound {op : BvBin} {w l ta tb : Nat} {x y : BitVec w}
           rw [← this]; simp
       · cases hg
 
+
+include hwP htP hG hML hrng in
+theorem sameOk_sound {x : Nat} {r s : BitRef} {br bs : Bool} (h : tr.sameOk SP P x r s = true)
+    (hr : RefVal ρ r br) (hs : RefVal ρ s bs) : (ρ x).truth = (br == bs) := by
+  have L : ∀ {c b : Bool}, RefVal ρ (.lit c) b → b = c := fun h => (refVal_lit ρ).mp h
+  unfold Trace.sameOk at h
+  split at h
+  · rename_i e; subst e; rw [L hr, refFits_sound hwP htP hG hML hrng h hs]; cases bs <;> rfl
+  split at h
+  · rename_i e; subst e; rw [L hs, refFits_sound hwP htP hG hML hrng h hr]; cases br <;> rfl
+  split at h
+  · rename_i e; subst e
+    rw [L hr, refFits_sound hwP htP hG hML hrng h ((refVal_neg ρ (b := !bs)).mpr (by simpa using hs))]; cases bs <;> rfl
+  split at h
+  · rename_i e; subst e
+    rw [L hs, refFits_sound hwP htP hG hML hrng h ((refVal_neg ρ (b := !br)).mpr (by simpa using hr))]; cases br <;> rfl
+  split at h
+  · rename_i e; subst e
+    rw [refVal_unique ρ hr hs]
+    simp only [beq_iff_eq] at h
+    rw [Low.val_node hwP h]; simp [Low.evalNode, truth_bool]
+  split at h
+  · rename_i p q hpq
+    simp only [Bool.and_eq_true] at h
+    rw [Low.val_node hwP hpq]
+    simp only [Low.evalNode, truth_bool]
+    change ((ρ p).truth == (ρ q).truth) = _
+    rw [refFits_sound hwP htP hG hML hrng h.1 hr, refFits_sound hwP htP hG hML hrng h.2 hs]
+  · cases h
+
+include hwP htP hG hML hrng in
+/-- `equal` bit by bit is the equality of the values. -/
+theorem bitEqOk_sound {x ta tb w : Nat} {X Y : BitVec w} (h : tr.bitEqOk SP P x ta tb w = true)
+    (hta : ta < P.nodes.length) (htb : tb < P.nodes.length)
+    (ea : ρ ta = .num ((Vik.val X : Int) : R)) (eb : ρ tb = .num ((Vik.val Y : Int) : R)) :
+    ρ x = .bool (decide (X = Y)) := by
+  unfold Trace.bitEqOk at h
+  split at h
+  · rename_i A B xs hA hB hx
+    simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+    obtain ⟨⟨⟨_, _⟩, hxl⟩, hall⟩ := h
+    obtain ⟨_, rA⟩ := tbits_sound hwP htP hG hML hrng hA hta ea
+    obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB htb eb
+    rw [Low.val_node hwP hx]
+    simp only [Low.evalNode, Val.bool.injEq]
+    apply bool_eq_decide
+    rw [Vik.eq_iff_bits, List.all_eq_true]
+    constructor
+    · intro hh i hi
+      have e := sameOk_sound hwP htP hG hML hrng (hall i hi) (rA i hi) (rB i hi)
+      have hm : xs.getD i 0 ∈ xs := by
+        rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]; exact List.getElem_mem _
+      have := hh _ hm
+      change (ρ (xs.getD i 0)).truth = true at this
+      rw [e] at this
+      simpa using this
+    · intro hh a ha
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
+      have e := sameOk_sound hwP htP hG hML hrng (hall i (by omega)) (rA i (by omega)) (rB i (by omega))
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some] at e
+      change (ρ xs[i]).truth = true
+      rw [e]; simpa using hh i (by omega)
+  · cases h
+
 end
 
 end Vik.Lower

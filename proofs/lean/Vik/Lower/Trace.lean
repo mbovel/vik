@@ -907,6 +907,52 @@ def Trace.bitwiseOk (op : BvBin) (w l ta tb : Nat) : Bool :=
 
 
 
+/-- `same`: formula node `x` is `f ↔ g` for the bits `r` and `s`, folded on
+    literals and equal bits. -/
+def Trace.sameOk (x : Nat) (r s : BitRef) : Bool :=
+  if r = .lit true then tr.refFits SP P x s
+  else if s = .lit true then tr.refFits SP P x r
+  else if r = .lit false then tr.refFits SP P x (.neg s)
+  else if s = .lit false then tr.refFits SP P x (.neg r)
+  else if r = s then P.nodes[x]? == some .tt
+  else
+    match P.nodes[x]? with
+    | some (.iff p q) => tr.refFits SP P p r && tr.refFits SP P q s
+    | _ => false
+
+/-- `equal` bit by bit: formula node `x` is the conjunction of `same` on the
+    bits of the lowered nodes `ta` and `tb`, of width `w`. -/
+def Trace.bitEqOk (x ta tb w : Nat) : Bool :=
+  match tr.tbits SP P ta w, tr.tbits SP P tb w, P.nodes[x]? with
+  | some A, some B, some (.and xs) =>
+    A.length == w && B.length == w && xs.length == w &&
+      (List.range w).all fun i => tr.sameOk SP P (xs.getD i 0) (bitAt A i) (bitAt B i)
+  | _, _, _ => false
+
+/-- `equal` of the surface bit-vectors `a` and `b` of width `w`, at formula
+    node `x`: two bounds, or bit by bit. -/
+def Trace.pairEqOk (w x a b : Nat) : Bool :=
+  fits P.sig P.nodes P.sortOf x (eqS true (.same (tr.at a)) (.same (tr.at b))) ||
+    tr.bitEqOk SP P x (tr.at a) (tr.at b) w
+
+/-- One condition of `chainOk`: `equal`, or its negation. -/
+def Trace.pairCondOk (w : Nat) (neg : Bool) (x : Nat) (p : Nat × Nat) : Bool :=
+  if neg then
+    match P.nodes[x]? with
+    | some (.not z) => tr.pairEqOk SP P w z p.1 p.2
+    | _ => false
+  else tr.pairEqOk SP P w x p.1 p.2
+
+/-- `chain` of `equal` (or of its negation) on the pairs `ps`, at node `x`. -/
+def Trace.chainOk (w x : Nat) (ps : List (Nat × Nat)) (neg : Bool) : Bool :=
+  match ps with
+  | [p] => tr.pairCondOk SP P w neg x p
+  | _ =>
+    match P.nodes[x]? with
+    | some (.and xs) =>
+      xs.length == ps.length && (List.range ps.length).all fun j => tr.pairCondOk SP P w neg (xs.getD j 0) (ps.getD j (0, 0))
+    | _ => false
+
 /-- A binary bit-vector operation, not on two constants, at node `l`. -/
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
@@ -919,7 +965,9 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
     match mul2 fa fb with
     | some p => tr.modOk SP P l p w
     | none => false
-  | .comp => tr.casesOk SP P l (eqI (.same (tr.at a)) (.same (tr.at b))) ([], 1) ([], 0)
+  | .comp =>
+    tr.casesOk SP P l (eqI (.same (tr.at a)) (.same (tr.at b))) ([], 1) ([], 0) ||
+      tr.casesBit SP P l fun c => tr.bitEqOk SP P c (tr.at a) (tr.at b) w
   | .and | .or | .xor | .nand | .nor | .xnor => tr.bitwiseOk SP P op w l (tr.at a) (tr.at b)
   | _ =>
     match constOf fb with
@@ -975,6 +1023,14 @@ def Trace.bvOk (i : Nat) : Bool :=
     match constOf (linOf P tr a) with
     | some ca => isNum (ca % 2 ^ w)
     | none => tr.symAt SP P l == some (.int2bv (tr.at a) w, 0)
+  | some (.eq (a :: rest)) =>
+    match SP.width a with
+    | some w => tr.chainOk SP P w l (consec (a :: rest)) false
+    | none => false
+  | some (.distinct (a :: rest)) =>
+    match SP.width a with
+    | some w => tr.chainOk SP P w l (allPairs (a :: rest)) true
+    | none => false
   | _ => false
 
 /-- The facts of the `ite` symbol `k`: `c → k = t`, or `¬c → k = e`. -/
