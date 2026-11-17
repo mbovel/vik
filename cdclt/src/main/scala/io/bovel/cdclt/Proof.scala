@@ -7,7 +7,8 @@ import scala.collection.mutable.ArrayBuffer
  *  each a clause with its justification, referring to earlier steps by their
  *  index.
  *
- *    - `Input`: a clause given to [[Solver.addClause]];
+ *    - `Input`: a clause given to [[Solver.addClause]] (`origin` is the
+ *      client's account of where it comes from, when it gives one);
  *    - `Lemma`: a clause of the theory, a conflict or an explanation — valid in
  *      the theory, which the proof takes on trust (`certificate` is the
  *      theory's account of it, when it gives one);
@@ -31,10 +32,14 @@ final class Proof:
     steps.length - 1
 
   /** Checks every derived step up to the conclusion by unit propagation over
-   *  its hints, and every lemma with `lemma` (`None` when it holds): `None`
-   *  when they all hold, the first that does not otherwise.
+   *  its hints, every lemma with `lemma` and every input with `input` (`None`
+   *  when it holds): `None` when they all hold, the first that does not
+   *  otherwise.
    */
-  def check(lemma: Step.Lemma => Option[String] = _ => None): Option[String] =
+  def check(
+      lemma: Step.Lemma => Option[String] = _ => None,
+      input: Step.Input => Option[String] = _ => None
+  ): Option[String] =
     var value = new Array[Byte](0) // per literal index: 1 true, -1 false
     def assign(l: Lit, trail: ArrayBuffer[Lit]): Unit =
       if l.index + 2 > value.length then value = java.util.Arrays.copyOf(value, 2 * (l.index + 2))
@@ -79,13 +84,13 @@ final class Proof:
       error = steps(i) match
         case Step.Derived(clause, hints) => rup(clause, hints, i)
         case l: Step.Lemma => lemma(l).map(e => s"step $i: the lemma ${l.clause.map(_.show).mkString(" ")}: $e")
-        case Step.Input(_) => None
+        case in: Step.Input => input(in).map(e => s"step $i: the input ${in.clause.map(_.show).mkString(" ")}: $e")
       i += 1
     error
 
 object Proof:
   enum Step:
-    case Input(clause: Array[Lit])
+    case Input(clause: Array[Lit], origin: AnyRef | Null = null)
     case Lemma(clause: Array[Lit], certificate: AnyRef | Null = null)
     case Derived(clause: Array[Lit], hints: Array[Int])
 

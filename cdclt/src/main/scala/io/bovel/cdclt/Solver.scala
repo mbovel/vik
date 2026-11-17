@@ -190,12 +190,17 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Adds a clause; only before the search. */
   def addClause(lits: Lit*): Unit = addClause(lits.toArray)
 
-  def addClause(lits: Array[Lit]): Unit =
+  def addClause(lits: Array[Lit]): Unit = addClause(lits, null)
+
+  /** Adds a clause, with what it stands for in the proof (see
+   *  [[Proof.Step.Input]]).
+   */
+  def addClause(lits: Array[Lit], origin: AnyRef | Null): Unit =
     backtrack(0) // a clause added between two solves leaves the previous model
     val c = lits.distinct
     if c.exists(l => c.contains(l.neg)) then return // a tautology
     val p = proof
-    if p != null then stepOf.put(c, p.add(Proof.Step.Input(c.clone())))
+    if p != null then stepOf.put(c, p.add(Proof.Step.Input(c.clone(), origin)))
     // Literals false at level 0 are false for good: move the others first, and treat the clause accordingly.
     val alive = c.count(l => value(l.index) >= 0)
     if alive == 0 then
