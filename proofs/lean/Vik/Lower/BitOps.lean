@@ -825,6 +825,132 @@ theorem bitEqOk_sound {x ta tb w : Nat} {X Y : BitVec w} (h : tr.bitEqOk SP P x 
       rw [e]; simpa using hh i (by omega)
   · cases h
 
+
+include hG in
+theorem findSym_sym {pred : Rule → Bool} {x : Nat} (h : tr.findSym SP P pred = some x) :
+    x < P.nodes.length ∧ ∃ r, tr.symAt SP P x = some (r, 0) ∧ pred r = true := by
+  unfold Trace.findSym at h
+  split at h
+  · rename_i m hm
+    simp only at h
+    split at h
+    · rename_i hx
+      simp only [Option.some.injEq] at h; subst h
+      refine ⟨hx, ?_⟩
+      obtain ⟨hlt, hp, _⟩ := List.findIdx?_eq_some_iff_getElem.mp hm
+      have e1 := getElem?_idxOf P.nodes _ hx
+      have hmi : tr.mints[m]? = some tr.mints[m] := List.getElem?_eq_getElem hlt
+      revert hp hmi
+      generalize tr.mints[m] = mt
+      intro hp hmi
+      cases mt with
+      | rule r j =>
+        cases j with
+        | zero =>
+          refine ⟨r, ?_, by simpa using hp⟩
+          unfold Trace.symAt
+          rw [e1]
+          simp only [Nat.le_add_right, if_true, Nat.add_sub_cancel_left, hmi]
+        | succ j => simp at hp
+      | _ => simp at hp
+    · cases h
+  · cases h
+
+include hwP htP hG hML hrng in
+theorem partialOf_sound {kept i : Nat} {r : BitRef} {b : Bool} {K : Int} {f : Lia.Form × Int}
+    (h : tr.partialOf SP P kept r i = some f) (hr : RefVal ρ r b) (hk : evf ρ (lin P.nodes kept) = (K : R)) :
+    evf ρ f = ((if b then 2 ^ i * K else 0 : Int) : R) := by
+  have hsh : evf ρ (Lia.scale ((2 ^ i : Int) : Rat) (lin P.nodes kept).1, 2 ^ i * (lin P.nodes kept).2) =
+      ((2 ^ i * K : Int) : R) := by
+    rw [evf_scale, hk, Ring.intCast_mul]
+  unfold Trace.partialOf at h
+  simp only at h
+  split at h
+  · cases h; rw [(refVal_lit ρ).mp hr]; simpa using hsh
+  · cases h; rw [(refVal_lit ρ).mp hr]; simp [evf_const]
+  · obtain ⟨x, hx, rfl⟩ := Option.map_eq_some_iff.mp h
+    obtain ⟨hxl, rl, hs, hp⟩ := findSym_sym hG hx
+    cases rl with
+    | cases c t e lo hi =>
+      simp only [Bool.and_eq_true] at hp
+      obtain ⟨⟨hc, ht'⟩, he⟩ := hp
+      have args := (symAt_args hG hs).2
+      have ex := sym_val (Ms := Ms) hwP hG hs
+      simp only [Rule.ival] at ex
+      rw [fits_num hwP htP hML hrng ht' (args t (by simp [Rule.args])) hsh,
+        fits_num hwP htP hML hrng (f := ([], 0)) he (args e (by simp [Rule.args])) (evf_const ρ 0),
+        refFits_sound hwP htP hG hML hrng hc hr, intOf_num, intOf_num] at ex
+      exact evf_sym1 ρ ex
+    | _ => simp at hp
+
+include hwP htP hG hML hrng in
+theorem partialForms_sound {kept : Nat} {B : List BitRef} {K Y : Int} (hk : evf ρ (lin P.nodes kept) = (K : R))
+    (hB : ∀ i < B.length, RefVal ρ (bitAt B i) (bit Y i == 1)) :
+    ∀ n, n ≤ B.length → ∀ {F}, tr.partialForms SP P kept B n = some F → evf ρ F = ((partials K Y n : Int) : R)
+  | 0, _, F, h => by simp only [Trace.partialForms, Option.some.injEq] at h; subst h; simp [partials, evf_const]
+  | n + 1, hn, F, h => by
+    simp only [Trace.partialForms] at h
+    obtain ⟨g, hg, hF⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨f, hf, rfl⟩ := Option.map_eq_some_iff.mp hF
+    rw [evf_add, partialForms_sound hk hB n (by omega) hg,
+      partialOf_sound hwP htP hG hML hrng hf (hB n (by omega)) hk]
+    simp only [partials, Ring.intCast_add]
+    congr 2
+    by_cases h1 : bit Y n = 1
+    · simp [h1, Int.mul_comm]
+    · simp [h1]
+
+include hwP htP hG hML hrng in
+/-- `bvmul` of two unknowns. -/
+theorem productOk_sound {w l ta tb : Nat} {x y : BitVec w} (h : tr.productOk SP P w l ta tb = true)
+    (hta : ta < P.nodes.length) (htb : tb < P.nodes.length)
+    (ea : ρ ta = .num ((Vik.val x : Int) : R)) (eb : ρ tb = .num ((Vik.val y : Int) : R)) :
+    ρ l = .num ((Vik.val (x * y) : Int) : R) := by
+  have la : evf ρ (lin P.nodes ta) = ((Vik.val x : Int) : R) := by
+    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) ta; rw [ea, toR_num] at this; exact this.symm
+  have lb : evf ρ (lin P.nodes tb) = ((Vik.val y : Int) : R) := by
+    have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) tb; rw [eb, toR_num] at this; exact this.symm
+  have side : ∀ {v kept blasted : Nat} {X Y : BitVec w}, v < P.nodes.length → blasted < P.nodes.length →
+      evf ρ (lin P.nodes kept) = ((Vik.val X : Int) : R) → ρ blasted = .num ((Vik.val Y : Int) : R) →
+      (match tr.tbits SP P blasted w with
+        | some B => B.length == w &&
+          match tr.partialForms SP P kept B w with
+          | some F => fits P.sig P.nodes P.sortOf v (.num F.1 F.2)
+          | none => false
+        | none => false) = true →
+      ρ v = .num ((Vik.val X * Vik.val Y : Int) : R) := by
+    intro v kept blasted X Y hv hbl hk hb hs
+    split at hs
+    · rename_i B hB
+      simp only [Bool.and_eq_true, beq_iff_eq] at hs
+      obtain ⟨hlen, hs⟩ := hs
+      obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB hbl hb
+      split at hs
+      · rename_i F hF
+        have hB' : ∀ i < B.length, RefVal ρ (bitAt B i) (bit (Vik.val Y) i == 1) := by
+          intro i hi; rw [bit_getLsbD]; exact rB i (by omega)
+        have e := partialForms_sound hwP htP hG hML hrng hk hB' w (by omega) hF
+        rw [exactProduct_eq _ (Vik.val_range Y)] at e
+        exact fits_num hwP htP hML hrng hs hv e
+      · cases hs
+    · cases hs
+  unfold Trace.productOk at h
+  simp only at h
+  split at h
+  · rename_i v w' lo hi hsl
+    simp only [Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true] at h
+    obtain ⟨rfl, h⟩ := h
+    have hv := (symAt_args hG hsl).2 v (by simp [Rule.args])
+    rw [sym_val hwP hG hsl]
+    simp only [Rule.ival]
+    have ev : ρ v = .num ((Vik.val x * Vik.val y : Int) : R) := by
+      rcases h with h | h
+      · exact side hv htb la eb h
+      · rw [Int.mul_comm]; exact side hv hta lb ea h
+    rw [ev, intOf_num]
+    simp only [Vik.val, BitVec.toNat_mul, Int.natCast_emod, Int.natCast_mul, Int.natCast_pow, Int.cast_ofNat_Int]
+  · cases h
+
 end
 
 end Vik.Lower

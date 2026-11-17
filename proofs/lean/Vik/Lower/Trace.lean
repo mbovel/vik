@@ -953,6 +953,53 @@ def Trace.chainOk (w x : Nat) (ps : List (Nat × Nat)) (neg : Bool) : Bool :=
       xs.length == ps.length && (List.range ps.length).all fun j => tr.pairCondOk SP P w neg (xs.getD j 0) (ps.getD j (0, 0))
     | _ => false
 
+/-- The node of the first symbol `0` of a rule satisfying `pred`. -/
+def Trace.findSym (pred : Rule → Bool) : Option Nat :=
+  match tr.mints.findIdx? (fun m => match m with
+    | .rule r 0 => pred r
+    | _ => false) with
+  | some m =>
+    let x := P.nodes.idxOf (.const (SP.sig.decls.length + m))
+    if x < P.nodes.length then some x else none
+  | none => none
+
+/-- A partial product: `2^i · kept` when bit `r` is set, `0` otherwise (the
+    `cases` tagged `part`). -/
+def Trace.partialOf (kept : Nat) (r : BitRef) (i : Nat) : Option (Lia.Form × Int) :=
+  let k := lin P.nodes kept
+  let sh : Lia.Form × Int := (Lia.scale ((2 ^ i : Int) : Rat) k.1, 2 ^ i * k.2)
+  match r with
+  | .lit true => some sh
+  | .lit false => some ([], 0)
+  | _ =>
+    (tr.findSym SP P fun rl => match rl with
+      | .cases c t e _ _ =>
+        tr.refFits SP P c r && fits P.sig P.nodes P.sortOf t (.num sh.1 sh.2) &&
+          fits P.sig P.nodes P.sortOf e (.num [] 0)
+      | _ => false).map fun x => ([(x, 1)], 0)
+
+/-- The sum of the partial products of `kept` by the bits `B`, below `n`. -/
+def Trace.partialForms (kept : Nat) (B : List BitRef) : Nat → Option (Lia.Form × Int)
+  | 0 => some ([], 0)
+  | n + 1 =>
+    (Trace.partialForms kept B n).bind fun g =>
+      (tr.partialOf SP P kept (bitAt B n) n).map fun f => (g.1 ++ f.1, g.2 + f.2)
+
+/-- `bvmul` of two unknowns at node `l`: the remainder of a `modulo` of the sum
+    of the partial products of one operand by the bits of the other. -/
+def Trace.productOk (w l ta tb : Nat) : Bool :=
+  let sum (v kept blasted : Nat) : Bool :=
+    match tr.tbits SP P blasted w with
+    | some B =>
+      B.length == w &&
+        match tr.partialForms SP P kept B w with
+        | some F => fits P.sig P.nodes P.sortOf v (.num F.1 F.2)
+        | none => false
+    | none => false
+  match tr.symAt SP P l with
+  | some (.modulo v w' _ _, 0) => w' == w && (sum v ta tb || sum v tb ta)
+  | _ => false
+
 /-- A binary bit-vector operation, not on two constants, at node `l`. -/
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
@@ -964,7 +1011,7 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   | .mul =>
     match mul2 fa fb with
     | some p => tr.modOk SP P l p w
-    | none => false
+    | none => tr.productOk SP P w l (tr.at a) (tr.at b)
   | .comp =>
     tr.casesOk SP P l (eqI (.same (tr.at a)) (.same (tr.at b))) ([], 1) ([], 0) ||
       tr.casesBit SP P l fun c => tr.bitEqOk SP P c (tr.at a) (tr.at b) w
