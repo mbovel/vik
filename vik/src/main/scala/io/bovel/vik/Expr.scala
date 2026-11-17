@@ -39,13 +39,19 @@ enum Term:
    *  at each lookup of each term containing it. The case-class hash, with the
    *  numbers hashed as the JDK hashes them on every platform
    *  ([[io.bovel.lia.Rational.hash]], issue 58): the value the JVM always gave.
+   *  Kept in a plain field and not a lazy value, which boxes the number and
+   *  checks it at each read: 0 stands for not computed yet (a hash of 0 is
+   *  computed at each call, as `String` does).
    */
-  private lazy val hash: Int = this match
-    case Num(value) => MurmurHash3.caseClassHash(Tuple1(Term.Hashed(value)), "Num")
-    case Linear(terms, constant) =>
-      MurmurHash3.caseClassHash((terms.map((a, t) => (Term.Hashed(a), t)), Term.Hashed(constant)), "Linear")
-    case _ => MurmurHash3.caseClassHash(this)
-  override def hashCode: Int = hash
+  private var hash = 0
+  override def hashCode: Int =
+    if hash == 0 then
+      hash = this match
+        case Num(value) => MurmurHash3.caseClassHash(Tuple1(Term.Hashed(value)), "Num")
+        case Linear(terms, constant) =>
+          MurmurHash3.caseClassHash((terms.map((a, t) => (Term.Hashed(a), t)), Term.Hashed(constant)), "Linear")
+        case _ => MurmurHash3.caseClassHash(this)
+    hash
 
 object Term:
   /** A number's stand-in in a hash: hashed as the JDK hashes the number, so
@@ -118,8 +124,10 @@ enum Formula:
   case Less(lhs: Term, rhs: Term)
 
   /** Computed once, as for terms. */
-  private lazy val hash: Int = MurmurHash3.caseClassHash(this)
-  override def hashCode: Int = hash
+  private var hash = 0
+  override def hashCode: Int =
+    if hash == 0 then hash = MurmurHash3.caseClassHash(this)
+    hash
 
   /** The terms at the leaves: the sides of `Eq` and `Le`, the term of `Pred`.
    */
