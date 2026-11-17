@@ -136,6 +136,12 @@ theorem sortWidth_eq {SP : SProblem} {s w : Nat} : SP.sortWidth s = some w ↔ S
 
 /-! ## The lowered model -/
 
+/-- The value of a rule symbol only depends on its arguments. -/
+theorem Rule.ival_congr (r : Rule) (j : Nat) {ι ι' : Nat → Int} {τ τ' : Nat → Bool}
+    (hι : ∀ x ∈ r.args, ι x = ι' x) (hτ : ∀ x ∈ r.args, τ x = τ' x) : r.ival ι τ j = r.ival ι' τ' j := by
+  cases r <;> simp only [Rule.args, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq] at hι hτ <;>
+    cases j <;> simp only [Rule.ival, hι, hτ]
+
 section
 variable (SP : SProblem) (P : Problem) (tr : Trace) (Ms : Surf.Model R U)
 
@@ -143,24 +149,72 @@ variable (SP : SProblem) (P : Problem) (tr : Trace) (Ms : Surf.Model R U)
 def isStore (k : Nat) : Prop :=
   SP.sig.decls.length ≤ k ∧ ∃ s, tr.mints[k - SP.sig.decls.length]? = some (.store s)
 
+/-- The applications of the lowered model: a store symbol stores, every
+    other value applies as in the surface model. -/
+noncomputable def lowApp (f : Val R (U ⊕ Nat)) (xs : List (Val R (U ⊕ Nat))) : Val R (U ⊕ Nat) :=
+  match f, xs with
+  | .obj (.inr _), [a, i, v] => enc (Ms.store (dec a) (dec i) (dec v))
+  | .obj (.inr _), _ => .bool false
+  | f, xs => enc (Ms.app (dec f) (xs.map dec))
+
+/-- The symbols of the lowered model, but those of rules. -/
+noncomputable def baseConst (k : Nat) : Val R (U ⊕ Nat) :=
+  if k < SP.sig.decls.length then enc (Ms.const k)
+  else
+    match tr.mints[k - SP.sig.decls.length]? with
+    | some (.ite i) => enc (Surf.val Ms.toInterp SP.nodes i)
+    | some (.store _) => .obj (.inr k)
+    | _ => .bool false
+
+/-- The symbols of the lowered model once the first `m` minted symbols have
+    their values: a rule symbol takes the value of its rule on its arguments,
+    which only depend on the symbols minted before it. -/
+noncomputable def ruleConst : Nat → Nat → Val R (U ⊕ Nat)
+  | 0 => baseConst SP tr Ms
+  | m + 1 => fun k =>
+    if k = SP.sig.decls.length + m then
+      match tr.mints[m]? with
+      | some (.rule r j) =>
+        let I : Low.Interp R (U ⊕ Nat) := ⟨ruleConst m, lowApp Ms⟩
+        .num ((Rule.ival (fun x => intOf (Low.val I P.nodes x)) (fun x => (Low.val I P.nodes x).truth) r j : Int) : R)
+      | _ => ruleConst m k
+    else ruleConst m k
+
 noncomputable def lowModel : Low.Model R (U ⊕ Nat) where
-  const k :=
-    if k < SP.sig.decls.length then enc (Ms.const k)
-    else
-      match tr.mints[k - SP.sig.decls.length]? with
-      | some (.ite i) => enc (Surf.val Ms.toInterp SP.nodes i)
-      | some (.store _) => .obj (.inr k)
-      | none => .bool false
-  app f xs :=
-    match f, xs with
-    | .obj (.inr _), [a, i, v] => enc (Ms.store (dec a) (dec i) (dec v))
-    | .obj (.inr _), _ => .bool false
-    | f, xs => enc (Ms.app (dec f) (xs.map dec))
+  const := ruleConst SP P tr Ms tr.mints.length
+  app := lowApp Ms
   dom s v :=
     if s < SP.sig.sorts.length then
       if (SP.sortWidth s).isSome then ∃ k : Int, v = .num (k : R)
       else ∃ w, Ms.dom s w ∧ v = enc w
     else ∃ k, v = .obj (.inr k) ∧ isStore SP tr k ∧ P.sig.decls[k]? = some s
+
+theorem ruleConst_succ_ne {m k : Nat} (h : k ≠ SP.sig.decls.length + m) :
+    ruleConst SP P tr Ms (m + 1) k = ruleConst SP P tr Ms m k := by
+  simp [ruleConst, h]
+
+/-- The symbols that no rule mints keep their base values. -/
+theorem ruleConst_base {k : Nat} (h : ∀ r j, SP.sig.decls.length ≤ k → tr.mints[k - SP.sig.decls.length]? ≠ some (.rule r j)) :
+    ∀ m, ruleConst SP P tr Ms m k = baseConst SP tr Ms k
+  | 0 => rfl
+  | m + 1 => by
+    by_cases e : k = SP.sig.decls.length + m
+    · have hm : tr.mints[m]? = tr.mints[k - SP.sig.decls.length]? := by rw [e]; simp
+      simp only [ruleConst, e, if_true]
+      rw [← e, hm]
+      split
+      · rename_i r j hr; exact absurd hr (h r j (by omega))
+      · exact ruleConst_base h m
+    · rw [ruleConst_succ_ne SP P tr Ms e]; exact ruleConst_base h m
+
+/-- A minted symbol keeps its value once it has one. -/
+theorem ruleConst_stable {m' : Nat} : ∀ M, m' < M →
+    ruleConst SP P tr Ms M (SP.sig.decls.length + m') = ruleConst SP P tr Ms (m' + 1) (SP.sig.decls.length + m')
+  | 0, h => absurd h (Nat.not_lt_zero _)
+  | M + 1, h => by
+    rcases Nat.lt_succ_iff_lt_or_eq.mp h with h | rfl
+    · rw [ruleConst_succ_ne SP P tr Ms (by omega)]; exact ruleConst_stable M h
+    · rfl
 
 theorem app_enc (f : Val R U) (xs : List (Val R (U ⊕ Nat))) :
     (lowModel SP P tr Ms).app (enc f) xs = enc (Ms.app f (xs.map dec)) := by
@@ -172,19 +226,56 @@ theorem app_enc_enc (f : Val R U) (xs : List (Val R U)) :
 
 theorem const_base {k : Nat} (h : k < SP.sig.decls.length) :
     (lowModel SP P tr Ms).const k = enc (Ms.const k) := by
-  simp [lowModel, h]
+  simp only [lowModel]
+  rw [ruleConst_base SP P tr Ms (fun _ _ h' => absurd h' (by omega))]
+  simp [baseConst, h]
 
 theorem const_ite {k i : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k - SP.sig.decls.length]? = some (.ite i)) :
     (lowModel SP P tr Ms).const k = enc (Surf.val Ms.toInterp SP.nodes i) := by
-  simp [lowModel, hm, Nat.not_lt.mpr h]
+  simp only [lowModel]
+  rw [ruleConst_base SP P tr Ms (fun _ _ _ => by rw [hm]; simp)]
+  simp [baseConst, hm, Nat.not_lt.mpr h]
 
 theorem const_store {k s : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k - SP.sig.decls.length]? = some (.store s)) :
     (lowModel SP P tr Ms).const k = .obj (.inr k) := by
-  simp [lowModel, hm, Nat.not_lt.mpr h]
+  simp only [lowModel]
+  rw [ruleConst_base SP P tr Ms (fun _ _ _ => by rw [hm]; simp)]
+  simp [baseConst, hm, Nat.not_lt.mpr h]
+
+/-- A rule symbol takes the value of its rule on the values of its arguments
+    in the lowered model, when its arguments only depend on the symbols
+    minted before it. -/
+theorem const_rule (hw : Low.wellFormed P.nodes = true) {m : Nat} {r : Rule} {j : Nat}
+    (hm : tr.mints[m]? = some (.rule r j))
+    (hargs : ∀ x ∈ r.args, depthOf (depths (tr.rank SP) P.nodes) x ≤ m) :
+    (lowModel SP P tr Ms).const (SP.sig.decls.length + m) =
+      .num ((Rule.ival (fun x => intOf (Low.val (lowModel SP P tr Ms).toInterp P.nodes x))
+        (fun x => (Low.val (lowModel SP P tr Ms).toInterp P.nodes x).truth) r j : Int) : R) := by
+  have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hm).1
+  simp only [lowModel]
+  rw [ruleConst_stable SP P tr Ms _ hlt]
+  simp only [ruleConst, if_true, hm]
+  -- the arguments have the same values in the model of the first `m` symbols
+  have agree : ∀ x ∈ r.args,
+      Low.val (⟨ruleConst SP P tr Ms m, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x =
+        Low.val (⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩ : Low.Interp R (U ⊕ Nat)) P.nodes x := by
+    intro x hx
+    refine val_agree (R := R) (U := U ⊕ Nat) (I := ⟨ruleConst SP P tr Ms m, lowApp Ms⟩) (I' := ⟨ruleConst SP P tr Ms tr.mints.length, lowApp Ms⟩) hw rfl (fun n hn => ?_) x (hargs x hx)
+    show ruleConst SP P tr Ms m n = ruleConst SP P tr Ms tr.mints.length n
+    by_cases hr : ∃ r' j', SP.sig.decls.length ≤ n ∧ tr.mints[n - SP.sig.decls.length]? = some (.rule r' j')
+    · obtain ⟨r', j', hle, hr'⟩ := hr
+      have hrank : tr.rank SP n = n - SP.sig.decls.length + 1 := by simp [Trace.rank, hle, hr']
+      have hlt' : n - SP.sig.decls.length < tr.mints.length := (List.getElem?_eq_some_iff.mp hr').1
+      have e : n = SP.sig.decls.length + (n - SP.sig.decls.length) := by omega
+      rw [e, ruleConst_stable SP P tr Ms _ (by omega), ruleConst_stable SP P tr Ms _ hlt']
+    · have hb : ∀ r j, SP.sig.decls.length ≤ n → tr.mints[n - SP.sig.decls.length]? ≠ some (.rule r j) :=
+        fun r j h e => hr ⟨r, j, h, e⟩
+      rw [ruleConst_base SP P tr Ms hb, ruleConst_base SP P tr Ms hb]
+  rw [Rule.ival_congr r j (fun x hx => by rw [agree x hx]) (fun x hx => by rw [agree x hx])]
 
 theorem app_store (k : Nat) (a i v : Val R U) :
     (lowModel SP P tr Ms).app (.obj (.inr k)) [enc a, enc i, enc v] = enc (Ms.store a i v) := by
-  simp [lowModel]
+  simp [lowModel, lowApp]
 
 theorem dom_base {s : Nat} (hs : s < SP.sig.sorts.length) (hb : SP.sortWidth s = none) (v : Val R (U ⊕ Nat)) :
     (lowModel SP P tr Ms).dom s v ↔ ∃ w, Ms.dom s w ∧ v = enc w := by
