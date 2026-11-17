@@ -118,7 +118,7 @@ def SNode.children : SNode → List Nat
 
 def wellFormed (nodes : List SNode) : Bool :=
   (List.range nodes.length).all fun i =>
-    match nodes[i]? with
+    match Tab.at nodes i with
     | some n => n.children.all (· < i)
     | none => false
 
@@ -411,7 +411,7 @@ theorem val_node {I : Interp R U} {nodes : List SNode} (hw : wellFormed nodes = 
     · rw [List.getElem?_eq_none h'] at h; cases h
   have hc : ∀ j ∈ n.children, j < i := by
     have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
-    rw [h] at this
+    rw [Tab.at_eq, h] at this
     simpa using this
   unfold val Low.get
   rw [values_get I nodes i n h]
@@ -472,7 +472,7 @@ def arithTyped (sig : SSig) (so : Nat → Nat) (as : List Nat) (s : Nat) : Bool 
 
 /-- Whether node `n` has sort `s`, its children those of `sortOf`. -/
 def nodeTyped (sig : SSig) (sortOf : List Nat) (n : SNode) (s : Nat) : Bool :=
-  let so (i : Nat) := sortOf[i]?.getD 0
+  let so (i : Nat) := (Tab.at sortOf i).getD 0
   let isBool (i : Nat) := sig.is (so i) .bool
   let bool := sig.is s .bool
   match n with
@@ -519,8 +519,8 @@ def nodeTyped (sig : SSig) (sortOf : List Nat) (n : SNode) (s : Nat) : Bool :=
 def typed (sig : SSig) (nodes : List SNode) (sortOf : List Nat) : Bool :=
   sortOf.length == nodes.length &&
     (List.range nodes.length).all fun i =>
-      match nodes[i]? with
-      | some n => nodeTyped sig sortOf n (sortOf[i]?.getD 0)
+      match Tab.at nodes i with
+      | some n => nodeTyped sig sortOf n ((Tab.at sortOf i).getD 0)
       | none => false
 
 theorem sumR_int : ∀ (vs : List (Val R U)), (∀ v ∈ vs, ∃ k : Int, v = .num (k : R)) →
@@ -558,13 +558,13 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
   induction i using Nat.strongRecOn with
   | ind i ih =>
   intro hi
-  simp only [typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+  simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
   have hn := ht.2 i hi
   obtain ⟨n, hn'⟩ : ∃ n, nodes[i]? = some n := ⟨nodes[i], List.getElem?_eq_getElem hi⟩
   rw [hn'] at hn
   have hc : ∀ j ∈ n.children, j < i := by
     have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
-    rw [hn'] at this; simpa using this
+    rw [Tab.at_eq, hn'] at this; simpa using this
   have ihc : ∀ j ∈ n.children, M.dom (sortOf[j]?.getD 0) (val M.toInterp nodes j) :=
     fun j m => ih j (hc j m) (Nat.lt_trans (hc j m) hi)
   have hv := val_node (I := M.toInterp) hw hn'
@@ -596,10 +596,10 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       exact (hM.real _ _ hs).mpr ⟨r, rfl⟩
   cases n with
   | const k =>
-    simp only [nodeTyped, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at hn
     rw [hv]; exact hM.const _ _ hn
   | app f args =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     split at hn
     · rename_i as r hs
       simp only [Bool.and_eq_true, beq_iff_eq] at hn
@@ -610,27 +610,27 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       exact forall2_map _ _ _ args (fun j m => ihc j (by simp [SNode.children, m]))
     · cases hn
   | num v =>
-    simp only [nodeTyped, SSig.is, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, SSig.is, beq_iff_eq] at hn
     rw [hv]; exact (hM.int _ _ hn).mpr ⟨v, rfl⟩
   | ite c a b =>
-    simp only [nodeTyped, Bool.and_eq_true, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, beq_iff_eq] at hn
     obtain ⟨⟨_, ha⟩, hb⟩ := hn
     rw [hv]; simp only [evalNode]
     split
     · rw [← ha]; exact ihc a (by simp [SNode.children])
     · rw [← hb]; exact ihc b (by simp [SNode.children])
   | add as =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [hv]; simp only [evalNode]
     exact arith as (fun j m => m) hn _ (fun _ h => sumR_int _ (fun v m => by
       obtain ⟨a, ma, rfl⟩ := List.mem_map.mp m; exact h a ma))
   | mul as =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [hv]; simp only [evalNode]
     exact arith as (fun j m => m) hn _ (fun _ h => prodR_int _ (fun v m => by
       obtain ⟨a, ma, rfl⟩ := List.mem_map.mp m; exact h a ma))
   | sub as =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [hv]; simp only [evalNode]
     cases as with
     | nil => exact arith [] (fun j m => by simp at m) hn _ (fun _ _ => ⟨0, by rw [Ring.intCast_zero]⟩)
@@ -642,14 +642,14 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
         simp only [val] at hk
         exact ⟨k - m, by rw [hk, hm, Ring.intCast_sub]; rfl⟩)
   | neg a =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [hv]; simp only [evalNode]
     exact arith [a] (fun j m => by simp at m; subst m; simp [SNode.children]) hn _ (fun _ h => by
       obtain ⟨k, hk⟩ := h a (by simp)
       simp only [val] at hk
       exact ⟨-k, by rw [hk, Ring.intCast_neg]; rfl⟩)
   | select a i =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     split at hn
     · rename_i idx el hs
       simp only [Bool.and_eq_true, beq_iff_eq] at hn
@@ -659,7 +659,7 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       exact hM.select _ _ _ _ _ hs (ihc a (by simp [SNode.children])) di
     · cases hn
   | store a i v =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     split at hn
     · rename_i idx el hs
       simp only [Bool.and_eq_true, beq_iff_eq] at hn
@@ -672,56 +672,56 @@ theorem val_dom {nodes : List SNode} {sortOf : List Nat} (hw : wellFormed nodes 
       exact (hM.store _ _ _ _ _ _ hs da di dv).1
     · cases hn
   | bvlit w v =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [hv]; exact bvv hn _
   | bvun op w a =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; exact bvv hn.2 _
   | bvbin op w a b =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; exact bvv hn.2 _
   | concat wa wb a b =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; exact bvv hn.2 _
   | int2bv w a =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; exact bvv hn.2 _
   | bv2int sg w a =>
-    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
     rw [hv]; simp only [evalNode]
     refine (hM.int _ _ hn.2).mpr ?_
     split
     · exact ⟨_, rfl⟩
     · exact ⟨_, rfl⟩
   | bvcmp _ _ _ _ =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; simp only [evalNode]
     exact boolv hn.2 _
   | rat _ _ | div _ | toReal _ =>
-    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
     rw [hv]; simp only [evalNode]
     first
       | exact (hM.real _ _ hn.1).mpr ⟨_, rfl⟩
       | (split <;> exact (hM.real _ _ hn.1).mpr ⟨_, rfl⟩)
   | toInt _ =>
-    simp only [nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, SSig.is, beq_iff_eq] at hn
     rw [hv]; simp only [evalNode]
     exact (hM.int _ _ hn.1).mpr ⟨_, rfl⟩
   | isInt _ =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; simp only [evalNode]
     exact boolv hn.1 _
   | letIn bs b =>
-    simp only [nodeTyped, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at hn
     rw [hv]; simp only [evalNode]; rw [← hn]
     exact ihc b (by simp [SNode.children])
   | bound d =>
-    simp only [nodeTyped, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at hn
     rw [hv]; simp only [evalNode]; rw [← hn]
     exact ihc d (by simp [SNode.children])
   | tt | ff | not _ | and _ | or _ | implies _ | iff _ | xor _ | eq _ | distinct _
   | le _ | lt _ | ge _ | gt _ =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [hv]; simp only [evalNode]
     first
       | exact boolv hn _
@@ -892,7 +892,7 @@ theorem inst_val {nodes : List SNode} {d : SDef} {args ms : List Nat} (I : Inter
   rw [hn, hms] at hb'
   have hc : ∀ j ∈ n.children, j < b := by
     have := List.all_eq_true.mp hwd b (List.mem_range.mpr hbl)
-    rw [hn] at this; simpa using this
+    rw [Tab.at_eq, hn] at this; simpa using this
   rw [val_node (I := I.bind d.params (args.map (val I nodes))) hwd hn]
   split at hb'
   · rename_i q j e1 e2

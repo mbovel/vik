@@ -150,7 +150,7 @@ theorem bvun_sound (hwP : Low.wellFormed P.nodes = true) {i w a : Nat} {op : BvU
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hal : a < SP.nodes.length := by have := lt_of_get hn; omega
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht hal hty.1
   have ea := ih a hai
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
@@ -210,7 +210,7 @@ theorem concat_sound (hwP : Low.wellFormed P.nodes = true) {i wa wb a b : Nat} {
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1.1
   obtain ⟨y, hy⟩ := v_bv hM hw ht (by omega) hty.1.2
   have la := lin_ev hwP (ih a hai)
@@ -233,7 +233,7 @@ theorem bv2int_sound {i w a : Nat} {sg : Bool} {s : Shape}
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1
   cases sg with
   | true => simp only [expect, hn] at h; cases h
@@ -253,7 +253,7 @@ theorem bvcmp_sound (hwP : Low.wellFormed P.nodes = true) {i w a b : Nat} {op : 
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1.1
   obtain ⟨y, hy⟩ := v_bv hM hw ht (by omega) hty.1.2
   have ea := ih a hai

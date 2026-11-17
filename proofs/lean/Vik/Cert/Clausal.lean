@@ -1,3 +1,5 @@
+import Vik.Tab
+
 /-!
 # Clausal proofs
 
@@ -221,6 +223,84 @@ theorem accepts_sound {ρ : Assignment} {steps : List Step} {conclusion : Nat} {
     simp only [beq_iff_eq] at h
     exact hall goal (List.mem_of_getElem? h)
   · simp at h
+
+/-! ## A faster check
+
+`check` looks up each hint in the clauses before its step, a list it extends
+at each step: the kernel takes time quadratic in the steps. `checkT` looks
+hints up in one tree of all the steps' clauses, bounded by the step's index,
+and gives the same answer.
+-/
+
+/-- `propagate` over the first `k` clauses of `tab`. -/
+def propagateT (tab : List Clause) (k : Nat) (τ : List Lit) : List Nat → Bool
+  | [] => false
+  | i :: hints =>
+    match (if i < k then Tab.at tab i else none) with
+    | none => false
+    | some h =>
+      match unit τ h with
+      | some none => true
+      | some (some u) => propagateT tab k (u :: τ) hints
+      | none => false
+
+theorem propagateT_eq (tab : List Clause) (k : Nat) :
+    ∀ (hints : List Nat) (τ : List Lit), propagateT tab k τ hints = propagate (tab.take k) τ hints
+  | [], _ => rfl
+  | i :: hints, τ => by
+    have e : (if i < k then Tab.at tab i else none) = (tab.take k)[i]? := by
+      rw [List.getElem?_take, Tab.at_eq]
+    simp only [propagateT, propagate, e]
+    split <;> try rfl
+    split <;> try rfl
+    exact propagateT_eq tab k hints _
+
+def rupT (tab : List Clause) (k : Nat) (c : Clause) (hints : List Nat) : Bool :=
+  c.any (fun l => c.contains l.neg) || propagateT tab k (c.map Lit.neg) hints
+
+/-- Whether the steps from the `k`-th on pass, `tab` the clauses of all steps. -/
+def checkT (tab : List Clause) : Nat → List Step → Bool
+  | _, [] => true
+  | k, .derived c hints :: rest => rupT tab k c hints && checkT tab (k + 1) rest
+  | k, _ :: rest => checkT tab (k + 1) rest
+
+theorem checkT_sound (tab : List Clause) :
+    ∀ (rest : List Step) (k : Nat), tab.drop k = rest.map Step.clause →
+      checkT tab k rest = true → check (tab.take k) rest = some tab
+  | [], k, hd, _ => by
+    simp only [List.map_nil, List.drop_eq_nil_iff] at hd
+    simp only [check, List.take_of_length_le hd]
+  | s :: rest, k, hd, h => by
+    have hk : tab[k]? = some s.clause := by
+      have : (tab.drop k)[0]? = some s.clause := by rw [hd]; rfl
+      rwa [List.getElem?_drop, Nat.add_zero] at this
+    have ht : tab.take (k + 1) = tab.take k ++ [s.clause] := by
+      rw [List.take_add_one, hk]; rfl
+    have hd' : tab.drop (k + 1) = rest.map Step.clause := by
+      rw [← List.drop_drop, hd]; rfl
+    cases s with
+    | derived c hints =>
+      simp only [checkT, Bool.and_eq_true] at h
+      have hr : rup (tab.take k) c hints = true := by
+        unfold rup; rw [← propagateT_eq]; exact h.1
+      simp only [check, hr, ↓reduceIte]
+      simp only [Step.clause] at ht
+      rw [← ht]; exact checkT_sound tab rest (k + 1) hd' h.2
+    | input c =>
+      simp only [checkT] at h
+      simp only [check, Step.clause]
+      simp only [Step.clause] at ht
+      rw [← ht]; exact checkT_sound tab rest (k + 1) hd' h
+    | lemma c =>
+      simp only [checkT] at h
+      simp only [check, Step.clause]
+      simp only [Step.clause] at ht
+      rw [← ht]; exact checkT_sound tab rest (k + 1) hd' h
+
+theorem check_of_checkT {steps : List Step} (h : checkT (steps.map Step.clause) 0 steps = true) :
+    check [] steps = some (steps.map Step.clause) := by
+  have := checkT_sound (steps.map Step.clause) steps 0 (by simp) h
+  simpa using this
 
 /-- In particular, an accepted proof of the empty clause leaves no assignment
     that satisfies its premises. -/

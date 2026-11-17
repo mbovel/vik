@@ -240,9 +240,13 @@ section
 variable (SP : SProblem) (P : Problem) (tr : Trace)
 
 /-- The lowered node of surface node `i`. -/
-def Trace.at (i : Nat) : Nat := tr.node[i]?.getD 0
+def Trace.at (i : Nat) : Nat := (Tab.at tr.node i).getD 0
+
+theorem Trace.at_eq (i : Nat) : tr.at i = tr.node[i]?.getD 0 := by simp [Trace.at]
 
 def SProblem.sort (i : Nat) : Nat := SP.sortOf[i]?.getD 0
+
+theorem SProblem.sort_eq (i : Nat) : SP.sort i = SP.sortOf[i]?.getD 0 := rfl
 
 def SProblem.isBool (i : Nat) : Bool := SP.sig.is (SP.sort i) .bool
 def SProblem.isInt (i : Nat) : Bool := SP.sig.is (SP.sort i) .int

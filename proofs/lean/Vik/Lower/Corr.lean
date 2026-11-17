@@ -337,7 +337,7 @@ theorem lin_ev (hwP : Low.wellFormed P.nodes = true) {a : Nat} (e : ρ (tr.at a)
 theorem typed_at {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) :
     Surf.nodeTyped SP.sig SP.sortOf n (SP.sort i) = true := by
   have hi := lt_of_get hn
-  simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+  simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
   have := ht.2 i hi
   rw [hn] at this
   exact this
@@ -345,7 +345,7 @@ theorem typed_at {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) :
 omit hM ht in
 theorem children_lt {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) : ∀ c ∈ n.children, c < i := by
   have := List.all_eq_true.mp hw i (List.mem_range.mpr (lt_of_get hn))
-  rw [hn] at this
+  rw [Tab.at_eq, hn] at this
   simpa using this
 
 open Classical in

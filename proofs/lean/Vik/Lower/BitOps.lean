@@ -395,6 +395,7 @@ theorem refFits_sound {r : BitRef} : ∀ {x : Nat} {b : Bool}, tr.refFits SP P x
     rcases h with h | h
     · have hx : x < P.nodes.length := by
         unfold fits at h
+        rw [Tab.at_eq] at h
         split at h
         · rename_i n hn; exact lt_of_get' hn
         · cases h
@@ -1075,6 +1076,7 @@ theorem stageNode_sound {op : BvBin} {w ta : Nat} {B : List BitRef} {x y : BitVe
 theorem fits_le_lt {x : Nat} {a b : Shape} (h : fits P.sig P.nodes P.sortOf x (.le a b) = true) :
     x < P.nodes.length := by
   unfold fits at h
+  rw [Tab.at_eq] at h
   split at h
   · rename_i n hn; exact lt_of_get' hn
   · cases h

@@ -57,7 +57,9 @@ def scan {α : Type} (F : List α → Node → α) (nodes : List Node) : List α
 
 def depths (rank : Nat → Nat) (nodes : List Node) : List Nat := scan (depthNode rank) nodes
 
-def depthOf (ds : List Nat) (i : Nat) : Nat := ds[i]?.getD 0
+def depthOf (ds : List Nat) (i : Nat) : Nat := (Tab.at ds i).getD 0
+
+theorem depthOf_eq (ds : List Nat) (i : Nat) : depthOf ds i = ds[i]?.getD 0 := by simp [depthOf]
 
 theorem le_foldl_max : ∀ (l : List Nat) (acc : Nat), acc ≤ l.foldl max acc
   | [], _ => Nat.le_refl _
@@ -131,7 +133,7 @@ theorem lt_length_of_get {nodes : List Node} {i : Nat} {n : Node} (h : nodes[i]?
 theorem children_lt {nodes : List Node} (hw : wellFormed nodes = true) {i : Nat} {n : Node}
     (h : nodes[i]? = some n) : ∀ j ∈ n.children, j < i := by
   have := List.all_eq_true.mp hw i (List.mem_range.mpr (lt_length_of_get h))
-  rw [h] at this; simpa using this
+  rw [Tab.at_eq, h] at this; simpa using this
 
 /-- A node is at least as deep as its own symbol and as its children. -/
 theorem depth_node {rank : Nat → Nat} {nodes : List Node} (hw : wellFormed nodes = true) {i : Nat} {n : Node}
@@ -141,13 +143,13 @@ theorem depth_node {rank : Nat → Nat} {nodes : List Node} (hw : wellFormed nod
   have hi := lt_length_of_get h
   have hc := children_lt hw h
   have e : depthOf (depths rank nodes) i = depthNode rank (scan (depthNode rank) (nodes.take i)) n := by
-    unfold depthOf depths; rw [scan_get _ nodes i n h]; rfl
+    rw [depthOf_eq]; unfold depths; rw [scan_get _ nodes i n h]; rfl
   rw [e]
   refine ⟨Nat.le_max_left _ _, fun j m => ?_⟩
   unfold depthNode
   refine Nat.le_trans ?_ (Nat.le_max_right _ _)
   have : (scan (depthNode rank) (nodes.take i))[j]?.getD 0 = depthOf (depths rank nodes) j := by
-    unfold depthOf depths; rw [scan_take _ nodes (hc j m) (Nat.le_of_lt hi)]
+    rw [depthOf_eq]; unfold depths; rw [scan_take _ nodes (hc j m) (Nat.le_of_lt hi)]
   rw [← this]
   exact le_maxOf (List.mem_map.mpr ⟨j, m, rfl⟩)
 
@@ -242,12 +244,12 @@ theorem chain_sorts {sig : Sig} {nodes : List Node} {sortOf : List Nat} (ht : ty
     · rename_i h' c hF
       simp only [Bool.and_eq_true, beq_iff_eq] at h
       have ih := chain_sorts ht rest h' h.2
-      simp only [typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+      simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
       have tF := ht.2 F (lt_length_of_get hF)
       rw [hF] at tF
       have tc := ht.2 c (lt_length_of_get h.1)
       rw [h.1] at tc
-      simp only [nodeTyped, beq_iff_eq] at tF tc
+      simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tF tc
       split at tF
       · rename_i as r hs
         simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil] at tF

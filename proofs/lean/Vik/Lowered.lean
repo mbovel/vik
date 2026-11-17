@@ -1,4 +1,5 @@
 import Vik.Cert.RatCast
+import Vik.Tab
 
 /-!
 # Lowered formulas
@@ -57,7 +58,7 @@ def Node.children : Node → List Nat
 /-- Whether every node refers to earlier nodes only. -/
 def wellFormed (nodes : List Node) : Bool :=
   (List.range nodes.length).all fun i =>
-    match nodes[i]? with
+    match Tab.at nodes i with
     | some n => n.children.all (· < i)
     | none => false
 
@@ -237,7 +238,7 @@ theorem val_node {I : Interp R U} {nodes : List Node} (hw : wellFormed nodes = t
     · rw [List.getElem?_eq_none h'] at h; cases h
   have hc : ∀ j ∈ n.children, j < i := by
     have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
-    rw [h] at this
+    rw [Tab.at_eq, h] at this
     simpa using this
   unfold val get
   rw [values_get I nodes i n h]
@@ -347,10 +348,10 @@ def Sig.numeric (sig : Sig) (s : Nat) : Bool := sig.is s .int || sig.is s .real
 
 /-- Whether node `n` has sort `s`, its children those of `sortOf`. -/
 def nodeTyped (sig : Sig) (sortOf : List Nat) (n : Node) (s : Nat) : Bool :=
-  let so (i : Nat) := sortOf[i]?.getD 0
+  let so (i : Nat) := (Tab.at sortOf i).getD 0
   let isBool (i : Nat) := sig.is (so i) .bool
   match n with
-  | .const k => sig.decls[k]? == some s
+  | .const k => Tab.at sig.decls k == some s
   | .app f args =>
     match sig.sorts[so f]? with
     | some (.fn as r) => r == s && args.map so == as
@@ -372,8 +373,8 @@ def nodeTyped (sig : Sig) (sortOf : List Nat) (n : Node) (s : Nat) : Bool :=
 def typed (sig : Sig) (nodes : List Node) (sortOf : List Nat) : Bool :=
   sortOf.length == nodes.length &&
     (List.range nodes.length).all fun i =>
-      match nodes[i]? with
-      | some n => nodeTyped sig sortOf n (sortOf[i]?.getD 0)
+      match Tab.at nodes i with
+      | some n => nodeTyped sig sortOf n ((Tab.at sortOf i).getD 0)
       | none => false
 
 /-- `r` relates the lists pairwise. -/
@@ -442,13 +443,13 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
   induction i using Nat.strongRecOn with
   | ind i ih =>
   intro hi hrng
-  simp only [typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+  simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, Tab.at_eq] at ht
   have hn := ht.2 i hi
   obtain ⟨n, hn'⟩ : ∃ n, nodes[i]? = some n := ⟨nodes[i], List.getElem?_eq_getElem hi⟩
   rw [hn'] at hn
   have hc : ∀ j ∈ n.children, j < i := by
     have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
-    rw [hn'] at this; simpa using this
+    rw [Tab.at_eq, hn'] at this; simpa using this
   have ihc : ∀ j ∈ n.children, M.dom (sortOf[j]?.getD 0) (val M.toInterp nodes j) :=
     fun j m => ih j (hc j m) (Nat.lt_trans (hc j m) hi) (fun j' h' => hrng j' (by have := hc j m; omega))
   generalize sortOf[i]?.getD 0 = s at *
@@ -462,10 +463,10 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
     fun b e hb => by rw [e]; exact boolv hb b
   cases n with
   | const k =>
-    simp only [nodeTyped, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at hn
     rw [val_const hw hn']; exact hM.const _ _ hn
   | app f args =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     split at hn
     · rename_i as r hs
       simp only [Bool.and_eq_true, beq_iff_eq] at hn
@@ -478,10 +479,10 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
           hrng j (hc j (by simp [Node.children, m]))⟩)
     · cases hn
   | num v =>
-    simp only [nodeTyped, Sig.is, beq_iff_eq] at hn
+    simp only [Tab.at_eq, nodeTyped, Sig.is, beq_iff_eq] at hn
     rw [val_num hw hn']; exact (hM.int _ _ hn).mpr ⟨v, rfl⟩
   | linear ts c =>
-    simp only [nodeTyped, Bool.or_eq_true, Bool.and_eq_true, List.all_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.or_eq_true, Bool.and_eq_true, List.all_eq_true] at hn
     rw [val_linear hw hn']
     rcases hn with ⟨hs, hts⟩ | ⟨hs, _⟩
     · simp only [Sig.is, beq_iff_eq] at hs
@@ -494,13 +495,13 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
     · simp only [Sig.is, beq_iff_eq] at hs
       exact (hM.real _ _ hs).mpr ⟨_, rfl⟩
   | bterm f =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     exact val_bool _ (val_bterm hw hn') hn.1
   | tt | ff =>
-    simp only [nodeTyped] at hn
+    simp only [Tab.at_eq, nodeTyped] at hn
     rw [val_node hw hn']; exact boolv hn _
   | not a | pred a | and _ | or _ | implies _ _ | iff _ _ | ite _ _ _ | eq _ _ | le _ _ | lt _ _ =>
-    simp only [nodeTyped, Bool.and_eq_true] at hn
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
     rw [val_node hw hn']
     simp only [evalNode]
     first

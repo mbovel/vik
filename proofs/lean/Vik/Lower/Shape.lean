@@ -103,55 +103,55 @@ mutual
 def fits (j : Nat) : Shape → Bool
   | .same t => j == t
   | .bool t =>
-    (j == t && sig.is (sortOf[t]?.getD 0) .bool) || nodes[j]? == some (.bterm t) || nodes[j]? == some (.pred t)
+    (j == t && sig.is ((Tab.at sortOf t).getD 0) .bool) || Tab.at nodes j == some (.bterm t) || Tab.at nodes j == some (.pred t)
   | .num f c =>
     let (g, d) := lin nodes j
     canon (g ++ Lia.neg f) == [] && d == c &&
-      (sig.numeric (sortOf[j]?.getD 0) ||
-        match nodes[j]? with
+      (sig.numeric ((Tab.at sortOf j).getD 0) ||
+        match Tab.at nodes j with
         | some (.num _) | some (.linear _ _) => true
         | _ => false)
-  | .const k => nodes[j]? == some (.const k)
+  | .const k => Tab.at nodes j == some (.const k)
   | .app f args =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.app g xs) => fits g f && fitsAll xs args
     | _ => false
-  | .tt => nodes[j]? == some .tt
-  | .ff => nodes[j]? == some .ff
+  | .tt => Tab.at nodes j == some .tt
+  | .ff => Tab.at nodes j == some .ff
   | .not a =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.not x) => fits x a
     | _ => false
   | .and as =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.and xs) => fitsAll xs as
     | _ => false
   | .or as =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.or xs) => fitsAll xs as
     | _ => false
   | .implies a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.implies x y) => fits x a && fits y b
     | _ => false
   | .iff a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.iff x y) => fits x a && fits y b
     | _ => false
   | .ite c a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.ite z x y) => fits z c && fits x a && fits y b
     | _ => false
   | .eq a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.eq x y) => fits x a && fits y b
     | _ => false
   | .le a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.le x y) => fits x a && fits y b
     | _ => false
   | .lt a b =>
-    match nodes[j]? with
+    match Tab.at nodes j with
     | some (.lt x y) => fits x a && fits y b
     | _ => false
 
@@ -185,7 +185,7 @@ theorem fits_node_lt {j : Nat} {n : Node} (h : nodes[j]? = some n) : j < nodes.l
 
 theorem fits_child_lt {j : Nat} {n : Node} (h : nodes[j]? = some n) : ∀ c ∈ n.children, c < j := by
   have := List.all_eq_true.mp hw j (List.mem_range.mpr (fits_node_lt hM hw ht hrng h))
-  rw [h] at this; simpa using this
+  rw [Tab.at_eq, h] at this; simpa using this
 
 theorem bool_of_sort {t : Nat} (ht' : t < nodes.length) (hb : sig.is (sortOf[t]?.getD 0) .bool = true) :
     ∃ b, val M.toInterp nodes t = .bool b := by
@@ -229,9 +229,9 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     have := fits_child_lt hM hw ht hrng hn x hx
     exact ih x this (by omega) s h
   cases s with
-  | same t => simp only [fits, beq_iff_eq] at hs; subst hs; rfl
+  | same t => simp only [Tab.at_eq, fits, beq_iff_eq] at hs; subst hs; rfl
   | bool t =>
-    simp only [fits, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at hs
+    simp only [Tab.at_eq, fits, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at hs
     rcases hs with (⟨rfl, hb⟩ | hb) | hb
     · obtain ⟨b, hb'⟩ := bool_of_sort hM hw ht hrng hj hb
       show _ = Val.bool _
@@ -240,7 +240,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     · have := val_node (I := M.toInterp) hw hb
       simp only [val] at this ⊢; rw [this]; rfl
   | num f c =>
-    simp only [fits, Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hs
+    simp only [Tab.at_eq, fits, Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hs
     obtain ⟨⟨hc, hd⟩, hk⟩ := hs
     have e := congrArg (Lia.eval (nums M.toInterp nodes)) hc
     rw [eval_canon, eval_append, Lia.eval_neg] at e
@@ -262,10 +262,10 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     have : Lia.eval (nums M.toInterp nodes) f = Lia.eval (fun u => (val M.toInterp nodes u).toR) f := rfl
     grind
   | const k =>
-    simp only [fits, beq_iff_eq] at hs
+    simp only [Tab.at_eq, fits, beq_iff_eq] at hs
     exact val_const hw hs
   | app f args =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i g xs hn
       simp only [Bool.and_eq_true] at hs
@@ -274,10 +274,10 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [one hn (by simp [Node.children]) f hs.1,
         hall xs args (fun x m => fits_child_lt hM hw ht hrng hn x (by simp [Node.children, m])) hs.2]
     · cases hs
-  | tt => simp only [fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
-  | ff => simp only [fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
+  | tt => simp only [Tab.at_eq, fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
+  | ff => simp only [Tab.at_eq, fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
   | not a =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i x hn
       have := val_node (I := M.toInterp) hw hn; simp only [val] at this ⊢; rw [this]
@@ -285,7 +285,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [← one hn (by simp [Node.children]) a hs]; rfl
     · cases hs
   | and as =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i xs hn
       have := val_node (I := M.toInterp) hw hn; simp only [val] at this ⊢; rw [this]
@@ -295,7 +295,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [all_as_map xs, all_as_map as]; simp only [val] at this; rw [this]
     · cases hs
   | or as =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i xs hn
       have := val_node (I := M.toInterp) hw hn; simp only [val] at this ⊢; rw [this]
@@ -305,7 +305,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [any_as_map xs, any_as_map as]; simp only [val] at this; rw [this]
     · cases hs
   | implies a b | iff a b | eq a b | le a b | lt a b =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i x y hn
       simp only [Bool.and_eq_true] at hs
@@ -314,7 +314,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [← one hn (by simp [Node.children]) a hs.1, ← one hn (by simp [Node.children]) b hs.2]; rfl
     · cases hs
   | ite c a b =>
-    simp only [fits] at hs
+    simp only [Tab.at_eq, fits] at hs
     split at hs
     · rename_i z x y hn
       simp only [Bool.and_eq_true] at hs

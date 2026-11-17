@@ -28,7 +28,7 @@ def canon (f : Lia.Form) : Lia.Form := f.foldl (fun acc p => Lia.add acc [p]) []
 
 /-- The node `i` as a linear combination of nodes and a constant. -/
 def lin (nodes : List Node) (i : Nat) : Lia.Form × Int :=
-  match nodes[i]? with
+  match Tab.at nodes i with
   | some (.num v) => ([], v)
   | some (.linear ts c) => (ts.map (fun p => (p.2, (p.1 : Rat))), c)
   | _ => ([(i, 1)], 0)
@@ -311,6 +311,7 @@ include hw
 theorem lin_sound (i : Nat) :
     (val I nodes i).toR = Lia.eval (nums I nodes) (lin nodes i).1 + ((lin nodes i).2 : R) := by
   unfold lin
+  rw [Tab.at_eq]
   split
   · rename_i v h
     rw [val_num hw h]; simp [Val.toR, Lia.eval]; grind

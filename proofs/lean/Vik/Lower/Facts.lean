@@ -395,12 +395,12 @@ theorem nodeIv_sound (leaf : Nat → Option (Int × Int)) (hleaf : ∀ u p, leaf
         obtain ⟨k, e, -⟩ := hleaf x p hp
         exact ⟨_, e⟩
       cases hn : P.nodes[x]? with
-      | none => exact viaLeaf (by simp [lin, hn])
+      | none => exact viaLeaf (by simp [lin, Tab.at_eq, hn])
       | some n =>
         cases n
         case num v => exact ⟨_, Low.val_num hwP hn⟩
         case linear ts c => exact ⟨_, by rw [Low.val_node hwP hn]; rfl⟩
-        all_goals exact viaLeaf (by simp [lin, hn])
+        all_goals exact viaLeaf (by simp [lin, Tab.at_eq, hn])
     obtain ⟨r, hr⟩ := hnum
     refine ⟨k + (lin P.nodes x).2, ?_, by simp only at h0 ⊢; omega, by simp only at h1 ⊢; omega⟩
     rw [hr, toR_num] at hv

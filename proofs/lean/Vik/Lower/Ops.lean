@@ -285,7 +285,7 @@ theorem bvun_ops_sound {i w a : Nat} {op : BvUn} (hn : SP.nodes[i]? = some (.bvu
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hal : a < SP.nodes.length := by have := lt_of_get hn; omega
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP hal hty.1 (ih a hai)
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
   simp only [Surf.evalNode, surf_get_values, hx, bvOf_ofBv] at hv
@@ -357,7 +357,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hil := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP (by omega) hty.1.1 (ih a hai)
   obtain ⟨y, hy, eb, lb⟩ := bv_child hM hw ht hwP (by omega) hty.1.2 (ih b hbi)
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
@@ -538,7 +538,7 @@ include hwP in
 theorem low_child {x : Nat} {n : Node} (h : P.nodes[x]? = some n) {y : Nat} (hy : y ∈ n.children) : y < x := by
   have hx := lt_of_get h
   have := List.all_eq_true.mp hwP x (List.mem_range.mpr hx)
-  rw [h] at this
+  rw [Tab.at_eq, h] at this
   simp only [List.all_eq_true, decide_eq_true_eq] at this
   exact this y hy
 
@@ -654,7 +654,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
     | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | true =>
     have hai := children_lt hw hn a (by simp [SNode.children])
-    simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP (by omega) hty.1 (ih a hai)
     simp only [Surf.evalNode, surf_get_values, hx, bvOf_ofBv, if_true] at hv
     rw [hv, enc_num]
@@ -672,7 +672,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       rw [signedOk_sound hwP htP hG hML hrng hb.2 ea, Vik.toInt_eq x hb.1]; rfl
   | int2bv w a =>
     have hai := children_lt hw hn a (by simp [SNode.children])
-    simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨k, hk⟩ := v_int hM hw ht (a := a) (by omega) (by simpa [SProblem.isInt, SProblem.sort] using hty.1)
     have ea := ih a hai
     rw [hk, enc_num] at ea
@@ -697,7 +697,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       simp only [Trace.bvOk, hn] at hb
       split at hb
       · rename_i w hwa
-        simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have good : ∀ p ∈ consec (a :: rest), PairGood SP P tr ρ vs w p := by
           intro p hp
           obtain ⟨m1, m2⟩ := mem_consec hp
@@ -727,7 +727,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       simp only [Trace.bvOk, hn] at hb
       split at hb
       · rename_i w hwa
-        simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have good : ∀ p ∈ allPairs (a :: rest), PairGood SP P tr ρ vs w p := by
           intro p hp
           obtain ⟨m1, m2⟩ := mem_allPairs' hp
