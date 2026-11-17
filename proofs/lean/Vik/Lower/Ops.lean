@@ -109,6 +109,51 @@ theorem symNode_val {r : Rule} {j x : Nat} (h : tr.symNode SP P r j = some x) :
     ρ x = .num ((r.ival ιρ τρ j : Int) : R) :=
   sym_val hwP hG (symNode_sym h).2
 
+include hwP htP hG hML hrng in
+/-- Shifts by an unknown amount. -/
+theorem shiftOk_sound {op : BvBin} {w l ta tam : Nat} {x y : BitVec w} (hop : op = .shl ∨ op = .lshr ∨ op = .ashr)
+    (h : tr.shiftOk SP P op w l ta tam = true) (htam : tam < P.nodes.length)
+    (ea : ρ ta = .num ((Vik.val x : Int) : R)) (eb : ρ tam = .num ((Vik.val y : Int) : R)) :
+    ρ l = .num ((Vik.val (op.apply x y) : Int) : R) := by
+  obtain ⟨hn, hnw⟩ := stagesOf_spec w
+  unfold Trace.shiftOk at h
+  simp only at h
+  split at h
+  · rename_i B hB
+    simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+    obtain ⟨⟨_, hw0⟩, h⟩ := h
+    obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB htam eb
+    split at h
+    · rename_i sh c th el lo hi hst hsl
+      simp only [Bool.and_eq_true, beq_iff_eq] at h
+      obtain ⟨⟨rfl, hfar⟩, hth⟩ := h
+      have esh := stageNode_sound hwP htP hG hML hrng hw0 hop rB ea _ hnw hst
+      have ec := farOk_sound hwP htP hG hML hrng hfar hn rB eb
+      have args := (symAt_args hG hsl).2
+      rw [sym_val hwP hG hsl]
+      simp only [Rule.ival, ec, esh, intOf_num]
+      rcases hop with rfl | rfl | rfl
+      · have e0 := fits_num hwP htP hML hrng (f := ([], 0)) hth (args th (by simp [Rule.args])) (evf_const ρ 0)
+        rw [e0, intOf_num]
+        simp only [BvBin.apply, BvBin.width, BitVec.shiftLeft_eq', Vik.shl_lowering x y hn]
+        by_cases hf : w ≤ y.toNat
+        · simp [hf, Vik.val]
+        · simp [hf, stepBv]
+      · have e0 := fits_num hwP htP hML hrng (f := ([], 0)) hth (args th (by simp [Rule.args])) (evf_const ρ 0)
+        rw [e0, intOf_num]
+        simp only [BvBin.apply, BvBin.width, BitVec.ushiftRight_eq', Vik.lshr_lowering x y hn]
+        by_cases hf : w ≤ y.toNat
+        · simp [hf, Vik.val]
+        · simp [hf, stepBv]
+      · rw [casesOk_sound hwP htP hG hML hrng hth (evf_const ρ _) (evf_const ρ 0), negS_int MI ρ hwP rfl ea,
+          intOf_num]
+        simp only [BvBin.apply, BvBin.width, Vik.ashr_lowering x y hn hw0]
+        by_cases hf : w ≤ y.toNat
+        · simp [hf]
+        · simp [hf, stepBv]
+    · cases h
+  · cases h
+
 end
 
 /-! ## The operations -/
@@ -377,7 +422,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
         · rw [if_neg (by omega), modOk_sound hwP htP hG hML hrng hb (V := 2 ^ c.toNat * Vik.val x)
             (by rw [evf_scale, la, Ring.intCast_mul])]
           rw [hct, Int.mul_comm]; simp
-      · cases hb
+      · exact shiftOk_sound hwP htP hG hML hrng (by simp) hb (hat b hbi) ea eb
     case lshr =>
       split at hb
       · rename_i c hc
@@ -388,7 +433,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
         split at hb
         · rw [Vik.lshr_const_far x _ (by omega), Low.val_num hwP (by simpa using hb)]
         · rw [(Vik.lshr_const_val x _ (by omega)).1, divOk_sound hwP htP hG hML hrng hb la, hct]; simp
-      · cases hb
+      · exact shiftOk_sound hwP htP hG hML hrng (by simp) hb (hat b hbi) ea eb
     case udiv =>
       split at hb
       · rename_i c hc
@@ -439,7 +484,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
             have hct : c.toNat = y.toNat := by omega
             simp only [signedI, hct]
         · cases hb
-      · cases hb
+      · exact shiftOk_sound hwP htP hG hML hrng (by simp) hb (hat b hbi) ea eb
     case and | or | xor | nand | nor | xnor =>
       exact bitwiseOk_sound hwP htP hG hML hrng hb hl (hat a hai) (hat b hbi) ea eb
     case sdiv | srem | smod =>

@@ -1000,6 +1000,66 @@ def Trace.productOk (w l ta tb : Nat) : Bool :=
   | some (.modulo v w' _ _, 0) => w' == w && (sum v ta tb || sum v tb ta)
   | _ => false
 
+/-- The number of stages of a barrel shifter of width `w`: the least `n` with
+    `w ≤ 2^n`. -/
+def stagesOf (w : Nat) : Nat := ((List.range (w + 1)).find? fun j => decide (w ≤ 2 ^ j)).getD 0
+
+/-- A stage of a barrel shifter: `t` shifted by `2^j`, as `times`, `divide`, or
+    `modulo` of the floor quotient of `sdivide`. -/
+def Trace.stepNode (op : BvBin) (w t j : Nat) : Option Nat :=
+  let d : Int := 2 ^ (2 ^ j)
+  match op with
+  | .shl =>
+    tr.findSym SP P fun r => match r with
+      | .modulo v w' lo hi =>
+        w' == w && lo == 0 && hi == d - 1 &&
+          fits P.sig P.nodes P.sortOf v (.num (Lia.scale (d : Rat) (lin P.nodes t).1) (d * (lin P.nodes t).2))
+      | _ => false
+  | .lshr => tr.symNode SP P (.divide t d (2 ^ w / d - 1)) 0
+  | _ => (tr.symNode SP P (.sdivide t w d true) 0).bind fun q => tr.symNode SP P (.modulo q w (-1) 0) 0
+
+/-- The first `j` stages of a barrel shifter of `ta` by the bits `B`. -/
+def Trace.stageNode (op : BvBin) (w ta : Nat) (B : List BitRef) : Nat → Option Nat
+  | 0 => some ta
+  | j + 1 =>
+    (Trace.stageNode op w ta B j).bind fun t =>
+      if bitAt B j = .lit false then some t
+      else
+        (tr.stepNode SP P op w t j).bind fun s =>
+          if bitAt B j = .lit true then some s
+          else
+            tr.findSym SP P fun r => match r with
+              | .cases c th el _ _ => tr.refFits SP P c (bitAt B j) && th == s && el == t
+              | _ => false
+
+/-- The `far` condition of a shift by `tam` (bits `B`) with `n` stages, at
+    formula node `c`: the bits from `n` on, and `w ≤ tam` when `w ≠ 2^n`. -/
+def Trace.farOk (w n tam : Nat) (B : List BitRef) (c : Nat) : Bool :=
+  let ge : Shape := .le (.num [] w) (.same tam)
+  match P.nodes[c]? with
+  | some (.or xs) =>
+    (xs.all fun x => (List.range w).any (fun j => n ≤ j && tr.refFits SP P x (bitAt B j)) ||
+      fits P.sig P.nodes P.sortOf x ge) &&
+    ((List.range w).all fun j => j < n || bitAt B j == .lit false || xs.any fun x => tr.refFits SP P x (bitAt B j)) &&
+    (2 ^ n == w || xs.any fun x => fits P.sig P.nodes P.sortOf x ge)
+  | _ => false
+
+/-- A shift of `ta` by the unknown `tam`, at node `l`: a barrel shifter over
+    the bits of `tam`, and the value past the width when `tam` reaches it. -/
+def Trace.shiftOk (op : BvBin) (w l ta tam : Nat) : Bool :=
+  let n := stagesOf w
+  match tr.tbits SP P tam w with
+  | some B =>
+    B.length == w && 0 < w &&
+      match tr.stageNode SP P op w ta B n, tr.symAt SP P l with
+      | some sh, some (.cases c th el _ _, 0) =>
+        el == sh && tr.farOk SP P w n tam B c &&
+          match op with
+          | .ashr => tr.casesOk SP P th (negS P ta w) ([], 2 ^ w - 1) ([], 0)
+          | _ => fits P.sig P.nodes P.sortOf th (.num [] 0)
+      | _, _ => false
+  | none => false
+
 /-- A binary bit-vector operation, not on two constants, at node `l`. -/
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
@@ -1029,7 +1089,10 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
       | .sdiv | .srem | .smod => 0 < w && tr.sdivOk SP P op w l (tr.at a) c
       | .ashr => 0 < w && tr.ashrOk SP P w l (tr.at a) c
       | _ => false
-    | none => false
+    | none =>
+      match op with
+      | .shl | .lshr | .ashr => tr.shiftOk SP P op w l (tr.at a) (tr.at b)
+      | _ => false
 
 /-- Whether the lowering of surface node `i`, a bit-vector operation, is the
     combination of rule symbols the lowering gives it. -/
