@@ -187,7 +187,7 @@ final class Session(
     asserted.clear(); asserted += ArrayBuffer.empty
     declaredAt.clear(); declaredAt += ArrayBuffer.empty
     val produceModels = current.produceModels
-    current = Solver(simplify = current.simplify)
+    current = Solver(simplify = current.simplify, proofs = current.proofs)
     current.produceModels = produceModels
 
   /** Plays lowered commands. */
