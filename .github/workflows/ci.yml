@@ -9,10 +9,10 @@ on:
 jobs:
   format:
     name: format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -27,7 +27,7 @@ jobs:
       matrix:
         java: [17, 27]
     name: test (JDK ${{ matrix.java }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # The corpus test's five seconds are for one's own machine, where a file at the edge is caught; on a
     # shared runner the guard is a hard limit only. It is the job's, not the step's: the sbt server starts
     # with the first step that calls sbt and outlives it, so a variable set on a later step never reaches
@@ -35,8 +35,8 @@ jobs:
     env:
       VIK_CORPUS_BUDGET_MS: 30000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
@@ -48,18 +48,18 @@ jobs:
         run: sbt --server testJVM
   test-js:
     name: test (Scala.js)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - uses: actions/setup-node@v4 # the tests run on the WebAssembly backend: a recent Node.js
+      - uses: actions/setup-node@v7 # the tests run on the WebAssembly backend: a recent Node.js
         with:
-          node-version: 24
+          node-version: 26
       - name: Compile (Scala.js)
         run: sbt --server compileJS
       - name: Test (Scala.js)
@@ -68,10 +68,10 @@ jobs:
         run: sbt --server docsAssets && bench/platforms.sh <(ls corpus/*/vik/*.smt2) node --stack-size=900000 bench/vik-node.mjs
   test-native:
     name: test (Scala Native)
-    runs-on: ubuntu-latest # clang comes with the runner image
+    runs-on: ubuntu-26.04 # clang comes with the runner image
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -89,12 +89,12 @@ jobs:
     # built by the bench job, which measures it.
     if: github.ref_type != 'tag'
     name: test (Graal Native Image)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       VIK_CORPUS_BUDGET_MS: 30000 # the job's, not the step's: see the test job
       NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: graalvm/setup-graalvm@v1
         with:
           java-version: 25
@@ -119,11 +119,11 @@ jobs:
       matrix:
         java: [25] # one JDK: the benchmarks are dry runs, and the tests cover 17 and 27
     name: bench (JDK ${{ matrix.java }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       NATIVE_IMAGE_INSTALLED: "true" # the action's GraalVM (GRAALVM_HOME), not a coursier download
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: graalvm/setup-graalvm@v1
         # GraalVM's JDK, so that this job also builds the solver's native image, the binary the cold
         # table measures: it belongs with the benchmarks rather than with the tests.
@@ -134,7 +134,7 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Solver binaries and native libraries, cached by the versions in bench/fetch-native.sh
         # GitHub rate-limits release downloads (403, 429) when three jobs fetch them at once.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: bench/native
           key: native-${{ hashFiles('bench/fetch-native.sh') }}
@@ -181,12 +181,12 @@ jobs:
     # and SONATYPE_PASSWORD — the one-time setup is "Releasing" in CONTRIBUTING.md.
     if: github.ref_type == 'tag'
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # sbt-dynver reads the version from the tag
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -215,10 +215,10 @@ jobs:
       group: docs-upload
       cancel-in-progress: false
     if: github.ref_type != 'tag' # a release tag runs only the tests and the publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -226,7 +226,7 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Documentation (the guide, with runnable snippets, and the API of the six modules)
         run: sbt --server site
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: docs
           path: target/unidoc
@@ -238,7 +238,7 @@ jobs:
         # runner: on 2026-11-11 their names did not resolve for two attempts of this job, twenty minutes,
         # the documentation built. lftp is one package, its dependencies being in the image, so the file
         # is kept, and apt is asked only when there is none or it no longer installs.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/lftp
           key: lftp-ubuntu-${{ steps.image.outputs.release }}-${{ runner.arch }}
