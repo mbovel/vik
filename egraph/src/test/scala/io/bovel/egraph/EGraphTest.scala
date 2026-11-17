@@ -386,6 +386,66 @@ class EGraphTest extends munit.FunSuite:
     t.merge(a, b)
     assertEquals(t.eg.conflict, None)
 
+  test("touched ids: the absorbed class, the smaller side of a disequality, null past the limit"):
+    val t = TestGraph()
+    val Seq(a, b, c, d, e) = Seq("a", "b", "c", "d", "e").map(t.sym)
+    t.merge(a, b) // before anyone watches: not listed
+    t.eg.touchedLimit = 10
+    assertEquals(t.eg.takeTouched().nn.toSet, Set.empty[EClassId])
+    t.merge(a, c) // absorbs c
+    assertEquals(t.eg.takeTouched().nn.toSet, Set(c))
+    t.eg.takeTouched().nn.clear()
+    t.disequate(a, d) // d's class is the smaller
+    assertEquals(t.eg.takeTouched().nn.toSet, Set(d))
+    t.eg.takeTouched().nn.clear()
+    t.merge(d, e) // {d, e} is now disequal to {a, b, c}, and still the smaller
+    assertEquals(t.eg.takeTouched().nn.toSet, Set(d, e))
+    t.eg.takeTouched().nn.clear()
+    t.eg.touchedLimit = 1
+    t.merge(a, d)
+    assertEquals(t.eg.takeTouched(), null)
+    assertEquals(t.eg.takeTouched().nn.toSet, Set.empty[EClassId])
+
+  test("touched ids: random pairs that became equal or disequal have a touched side"):
+    val rnd = scala.util.Random(13)
+    var checked = 0
+    var overflows = 0
+    for _ <- 0 until 100 do
+      val t = TestGraph()
+      val leaves = Seq.tabulate(8)(i => t.sym(s"a$i"))
+      val terms = leaves ++ leaves.map(t.node("f", _)) ++ leaves.take(4).map(x => t.node("g", x, leaves(7)))
+      t.eg.touchedLimit = if rnd.nextInt(4) == 0 then 4 else 1000
+      def term() = terms(rnd.nextInt(terms.length))
+      // 1 for equal, 2 for disequal, 0 for neither, of every pair
+      def statuses() =
+        for x <- terms; y <- terms yield if t.find(x) == t.find(y) then 1 else if t.eg.areDisequal(x, y) then 2 else 0
+      var before = statuses()
+      for _ <- 0 until 40 do
+        for _ <- 0 to rnd.nextInt(3) do
+          rnd.nextInt(8) match
+            case 0 | 1 => t.eg.push()
+            case 2 => if t.eg.level > 0 then t.eg.pop()
+            case 3 => t.disequate(term(), term())
+            case _ => t.merge(term(), term())
+        t.eg.rebuild()
+        if t.eg.conflict.isEmpty then // as a theory does, which looks at nothing on a conflict
+          val ids = t.eg.takeTouched()
+          val after = statuses()
+          if ids == null then overflows += 1
+          else
+            val listed = ids.toSet
+            for i <- terms.indices; j <- terms.indices do
+              val k = i * terms.length + j
+              if after(k) != 0 && after(k) != before(k) then
+                checked += 1
+                assert(
+                  listed(terms(i)) || listed(terms(j)),
+                  s"${terms(i)} and ${terms(j)}: ${before(k)} to ${after(k)}"
+                )
+            ids.clear()
+          before = after
+    assert(checked > 1000 && overflows > 10, s"$checked pairs checked, $overflows overflows")
+
   test("explain: transitivity, with the relevant reasons only"):
     val t = TestGraph()
     val a = t.sym("a")
