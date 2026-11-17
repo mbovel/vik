@@ -27,7 +27,25 @@ is then a refutation of the surface script, provided two things hold:
    values, each lowered term evaluates to the value of its surface term. For a
    bit-vector, that value is the unsigned one, in `[0, 2^w - 1]`.
 
-The lemmas here are exactly those two kinds. Not yet covered are the formats of
-the certificates themselves: clausal proofs, congruence explanations and
-cutting-planes steps. A checker either replays those as it reads them, or
-proves the checker functions it runs.
+The lemmas here are exactly those two kinds.
+
+## Checking the certificates
+
+The Lean folder also holds a checker for whole answers, with its soundness
+proved: `Problem.accepts_sound` says that when the checker accepts an answer, no
+model satisfies the lowered assertions together with the levels the answer
+assumed. The checker runs inside Lean's kernel (`decide +kernel`), so a proof
+of a given answer adds no axiom. It covers:
+
+- clausal proofs: input, lemma and derived (RUP) steps;
+- input clauses: definitions of Tseitin variables, assertions, retired levels,
+  datatype exhaustiveness, shared splits, numerals, congruence and
+  read-over-write;
+- equality proofs for uninterpreted functions and datatypes: congruence,
+  selectors, testers, injectivity, distinct constructors, expansion and
+  acyclicity;
+- cutting-planes proofs for linear arithmetic, with rounding and splits.
+
+Not yet covered are the extensionality and witness-range input clauses, which
+introduce fresh witnesses, the step from the SMT-LIB script to the lowered
+problem inside Lean, and an exporter that writes Vik's answers as Lean terms.

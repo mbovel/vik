@@ -263,9 +263,10 @@ structure Env.Sound {V : Type} (env : Env) (M : Model V) (ρ : Assignment) : Pro
     M.val x = M.val y → xs.map M.val = ys.map M.val
   distinct : ∀ x y c d xs ys, ctorOf env x = some (c, xs) → ctorOf env y = some (d, ys) → c ≠ d →
     env.sameType c d = true → M.val x ≠ M.val y
-  expandConst : ∀ t c a, env.tester t = some c → env.ctors c = some [] →
+  expandConst : ∀ p t c a, env.node p = some (t, [a]) → env.tester t = some c → env.ctors c = some [] →
     M.app (M.val t) [M.val a] = M.val env.trueClass → M.val a = M.val c
-  expand : ∀ t c ss a b fields, env.tester t = some c → env.ctors c = some ss →
+  expand : ∀ p t c ss a b fields, env.node p = some (t, [a]) → env.tester t = some c →
+    env.ctors c = some ss →
     M.app (M.val t) [M.val a] = M.val env.trueClass → ctorOf env b = some (c, fields) →
     fields.map M.val = ss.map (fun s => M.app (M.val s) [M.val a]) → M.val a = M.val b
   smaller : ∀ x c args a, ctorOf env x = some (c, args) → a ∈ args →
@@ -397,13 +398,13 @@ theorem oriented_sound {a b p q : Nat} (h : oriented env a b p q = true) (hpq : 
         · rename_i hc
           simp only [beq_iff_eq] at h
           subst h
-          exact hS.expandConst _ _ _ ht hc hp
+          exact hS.expandConst _ _ _ _ hn ht hc hp
         · rename_i ss _ hc
           split at h
           · rename_i d fields hb
             simp only [Bool.and_eq_true, beq_iff_eq] at h
             obtain ⟨rfl, hf⟩ := h
-            exact hS.expand _ _ _ _ _ _ ht hc hp hb (fieldsOk_map hS hf)
+            exact hS.expand _ _ _ _ _ _ _ hn ht hc hp hb (fieldsOk_map hS hf)
           · cases h
         · cases h
       · cases h

@@ -31,6 +31,22 @@ installs it on first use.
   ordered field of characteristic zero, as `grind` describes them (Mathlib's
   `ℝ` is one).
 
+- `Vik/Lowered.lean`: the lowered terms and formulas, one table of nodes, with
+  their sorts and their meaning in a model.
+- `Vik/Cert/Clausal.lean`: clausal proofs, checked by unit propagation.
+- `Vik/Cert/RatCast.lean`: rational constants in an ordered field.
+- `Vik/Cert/Lia.lean`: cutting-planes certificates.
+- `Vik/Cert/Uf.lean`: equality proofs over classes, for uninterpreted
+  functions and datatypes.
+- `Vik/Cert/Inputs.lean`: input clauses against the lowered formulas.
+- `Vik/Cert/Proof.lean`: the checker of a whole answer and its soundness,
+  `Problem.accepts_sound`.
+- `Vik/Cert/Example.lean`: a small answer the kernel accepts, and what follows
+  from it.
+
+Each checker is a Boolean function that `decide +kernel` evaluates on concrete
+certificates, with a theorem that an accepted certificate is sound.
+
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their
 usual names.
