@@ -37,7 +37,7 @@ class ProofsTest extends munit.FunSuite:
             if session.run(Script(List(command))).contains("unsat") then
               session.solver.proof match
                 case None => errors += "an unsat without a proof"
-                case Some(proof) => errors ++= proof.check()
+                case Some(_) => errors ++= session.solver.checkProof()
           errors.toList
         },
         budget * 2

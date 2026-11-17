@@ -3,7 +3,7 @@ package io.bovel.vik
 import scala.collection.mutable.ArrayBuffer
 
 import io.bovel.cdclt.{Lit, Theory, Var}
-import io.bovel.egraph.{EClassId, EGraph}
+import io.bovel.egraph.{App, EClassId, EConflict, EGraph, EqProof}
 
 /** Equality with uninterpreted functions over an [[io.bovel.egraph.EGraph]], as
  *  a theory of the CDCL(T) solver: the atom of variable `v` is `t = u` for
@@ -97,7 +97,10 @@ final class UfTheory(
     eg.touchedLimit = atoms.length // listing more ids than there are atoms costs more than looking at them all
     eg.rebuild()
     eg.conflict match
-      case Some(reasons) => Theory.Result.Conflict(lits(reasons))
+      case Some(reasons) =>
+        lastHolding = null
+        lastExplained = -1
+        Theory.Result.Conflict(lits(reasons))
       case None =>
         touched = false
         val implied = ArrayBuffer.empty[Lit]
@@ -144,16 +147,82 @@ final class UfTheory(
   override def finalCheck(): Theory.Result = propagate() match
     case Theory.Result.Ok(implied) if implied.isEmpty =>
       eg.finalCheck() match
-        case Some(reasons) => Theory.Result.Conflict(lits(reasons))
+        case Some(holding) =>
+          lastHolding = holding
+          lastExplained = -1
+          Theory.Result.Conflict(lits(eg.explainAll(holding)))
         case None => Theory.ok
     case other => other
 
   def explain(lit: Lit): ArrayBuffer[Lit] =
+    lastExplained = lit.index
     val (t, u) = atoms(lit.variable).nn
     if lit.positive then lits(eg.explain(t, u))
     else
       val (s, s2, reason) = impliedBy(lit.variable).nn
       lits(eg.explain(t, s) ++= eg.explain(u, s2) += reason)
+
+  /** What [[certificate]] is about: the literal last explained (its index),
+   *  else the conflict of the rules' final check, else the graph's conflict.
+   */
+  private var lastExplained = -1
+  private var lastHolding: Seq[(EClassId, EClassId)] | Null = null
+
+  /** A [[UfTheory.Certificate]], computed from the graph as it stands. */
+  override def certificate(): AnyRef | Null =
+    val holding = lastHolding
+    val certificate =
+      if lastExplained < 0 then
+        UfTheory.Certificate.Conflict(
+          if holding == null then eg.conflictProof.get else EConflict.Contradiction(eg.proveAll(holding))
+        )
+      else
+        val lit = Lit.fromIndex(lastExplained)
+        val (t, u) = atoms(lit.variable).nn
+        if lit.positive then UfTheory.Certificate.Equal(eg.prove(t, u))
+        else
+          val (s, s2, reason) = impliedBy(lit.variable).nn
+          UfTheory.Certificate.Apart(eg.prove(t, s), eg.prove(u, s2), reason)
+    UfTheory.Certified(certificate, nodes(certificate))
+
+  /** The applications of the classes `certificate` mentions, and of their
+   *  functions and arguments, recursively: a class made inside a level is gone,
+   *  its id given to another, once the level is popped.
+   */
+  private def nodes(certificate: UfTheory.Certificate): Map[EClassId, App] =
+    val out = scala.collection.mutable.HashMap.empty[EClassId, App]
+    val todo = ArrayBuffer.empty[EClassId]
+    def proof(p: EqProof): Unit = p match
+      case EqProof.Refl(a) => todo += a
+      case EqProof.Given(a, b, _) => todo += a += b
+      case EqProof.Symm(q) => proof(q)
+      case EqProof.Trans(q, r) =>
+        proof(q)
+        proof(r)
+      case EqProof.Cong(a, b, f, args) =>
+        todo += a += b
+        proof(f)
+        args.foreach(proof)
+      case EqProof.Rule(a, b, premises) =>
+        todo += a += b
+        premises.foreach(proof)
+    certificate match
+      case UfTheory.Certificate.Conflict(EConflict.Disequal(p, _)) => proof(p)
+      case UfTheory.Certificate.Conflict(EConflict.Contradiction(ps)) => ps.foreach(proof)
+      case UfTheory.Certificate.Equal(p) => proof(p)
+      case UfTheory.Certificate.Apart(p, q, _) =>
+        proof(p)
+        proof(q)
+    val seen = scala.collection.mutable.HashSet.empty[EClassId]
+    while todo.nonEmpty do
+      val x = todo.remove(todo.length - 1)
+      if seen.add(x) then
+        val app = eg.app(x)
+        if app != null then
+          out(x) = app
+          todo += app.fun
+          todo ++= app.args
+    out.toMap
 
   def push(): Unit =
     eg.push()
@@ -169,3 +238,20 @@ final class UfTheory(
       again += v
     for l <- lastImplied do again += l.variable
     lastImplied = ArrayBuffer.empty
+
+object UfTheory:
+  /** The account of a lemma of the theory (see [[UfTheory.certificate]]), its
+   *  equalities proved from the literals of the lemma: a conflict of the graph;
+   *  an atom `t = u` implied true, with a proof of `t = u`; or implied false,
+   *  with proofs of `t = s` and `u = s2` where `s != s2` was asserted for
+   *  `reason`.
+   */
+  enum Certificate:
+    case Conflict(conflict: EConflict)
+    case Equal(proof: EqProof)
+    case Apart(left: EqProof, right: EqProof, reason: Int)
+
+  /** A certificate with the applications of the classes it mentions (see
+   *  `UfTheory.nodes`): what the class ids stood for when it was made.
+   */
+  final case class Certified(certificate: Certificate, nodes: Map[EClassId, App])

@@ -191,6 +191,11 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   def proof: Option[cdclt.Proof] = Option(encoder).flatMap(e => Option(e.proof)).filter(_.conclusion >= 0)
 
+  /** Checks the [[proof]] of the last `Unsat` (see `Encoder.checkProof`):
+   *  `None` when it holds.
+   */
+  def checkProof(): Option[String] = proof.flatMap(_ => encoder.nn.checkProof())
+
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
    *  [[Model]]).
@@ -1100,6 +1105,23 @@ private final class Encoder(
     proofs = proofs
   )
   def proof: cdclt.Proof | Null = sat.proof
+
+  /** Checks [[proof]]: its derivations, and the lemmas of the theories that
+   *  come with a certificate (see [[UfLemmas]]); the others are taken on trust.
+   *  `None` when it holds, what is wrong otherwise.
+   */
+  def checkProof(): Option[String] =
+    val constructors = datatypes.flatMap(_.constructors).map(c =>
+      classOf(Term.Const(c.name)) -> c.selectors.map((s, _) => classOf(Term.Const(s)))
+    ).toMap
+    val testers =
+      datatypes.flatMap(_.constructors).map(c => classOf(Term.Const(c.tester)) -> classOf(Term.Const(c.name))).toMap
+    val uf = UfLemmas(atoms, trueTerm, falseTerm, trueLit, constructors, testers)
+    sat.proof.nn.check(lemma =>
+      lemma.certificate match
+        case c: UfTheory.Certified => uf.check(lemma.clause, c)
+        case _ => None
+    )
   private var clauseCursor = 0
 
   /** The model of the last `Sat`, taken while the engines still held the answer
@@ -1351,7 +1373,14 @@ private final class Theories(
   def assertLit(lit: Lit): Unit = theories.foreach(_.assertLit(lit))
   def propagate(): Theory.Result = combine(_.propagate())
   override def finalCheck(): Theory.Result = combine(_.finalCheck())
-  def explain(lit: Lit): ArrayBuffer[Lit] = implier.getOrElse(lit.variable, owner(lit.variable)).explain(lit)
+  def explain(lit: Lit): ArrayBuffer[Lit] =
+    val theory = implier.getOrElse(lit.variable, owner(lit.variable))
+    last = theory
+    theory.explain(lit)
+
+  /** The theory of the last conflict or explanation, for its certificate. */
+  private var last: Theory = theories.head
+  override def certificate(): AnyRef | Null = last.certificate()
   override def phase(v: cdclt.Var): Option[Boolean] = owner(v).phase(v)
   def push(): Unit = theories.foreach(_.push())
   def pop(): Unit = theories.foreach(_.pop())
@@ -1362,7 +1391,9 @@ private final class Theories(
     val results = theories.map(theory =>
       check(theory) match
         case Theory.Result.Ok(lits) => (theory, lits)
-        case other => break(other)
+        case other =>
+          last = theory
+          break(other)
     )
     if anyShared() then
       for (theory, lits) <- results; l <- lits if shared(l.variable) do implier(l.variable) = theory

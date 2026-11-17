@@ -31,10 +31,10 @@ final class Proof:
     steps.length - 1
 
   /** Checks every derived step up to the conclusion by unit propagation over
-   *  its hints, and every lemma with `lemma`: `None` when they all hold, the
-   *  first that does not otherwise.
+   *  its hints, and every lemma with `lemma` (`None` when it holds): `None`
+   *  when they all hold, the first that does not otherwise.
    */
-  def check(lemma: Step.Lemma => Boolean = _ => true): Option[String] =
+  def check(lemma: Step.Lemma => Option[String] = _ => None): Option[String] =
     var value = new Array[Byte](0) // per literal index: 1 true, -1 false
     def assign(l: Lit, trail: ArrayBuffer[Lit]): Unit =
       if l.index + 2 > value.length then value = java.util.Arrays.copyOf(value, 2 * (l.index + 2))
@@ -78,8 +78,7 @@ final class Proof:
     while i <= conclusion && error.isEmpty do
       error = steps(i) match
         case Step.Derived(clause, hints) => rup(clause, hints, i)
-        case l: Step.Lemma =>
-          if lemma(l) then None else Some(s"step $i: the lemma ${l.clause.map(_.show).mkString(" ")} does not hold")
+        case l: Step.Lemma => lemma(l).map(e => s"step $i: the lemma ${l.clause.map(_.show).mkString(" ")}: $e")
         case Step.Input(_) => None
       i += 1
     error

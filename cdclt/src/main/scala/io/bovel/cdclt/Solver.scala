@@ -136,7 +136,6 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       vmtfPrev = java.util.Arrays.copyOf(vmtfPrev, n / 2)
       vmtfNext = java.util.Arrays.copyOf(vmtfNext, n / 2)
       vmtfStamp = java.util.Arrays.copyOf(vmtfStamp, n / 2)
-      position = java.util.Arrays.copyOf(position, n / 2)
       if proof != null then
         reasonStep = java.util.Arrays.copyOf(reasonStep, n / 2)
         unitStep = java.util.Arrays.copyOf(unitStep, n / 2)
@@ -234,7 +233,6 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     value(lit.neg.index) = -1
     level(lit.variable) = decisionLevel
     reason(lit.variable) = why
-    position(lit.variable) = trail.length
     trail += lit
 
   /** Boolean and theory propagation to a fixpoint. Returns a false clause when
@@ -327,7 +325,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       else if reasonStep(lit.variable) >= 0 then p.steps(reasonStep(lit.variable)).clause
       else
         val clause = theoryClause(lit)
-        reasonStep(lit.variable) = p.add(Proof.Step.Lemma(clause.clone()))
+        reasonStep(lit.variable) = p.add(Proof.Step.Lemma(clause.clone(), theory.certificate()))
         clause
 
   /** The proof, when the solver was asked for one (`proofs`): the clauses, the
@@ -338,19 +336,17 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   /** For the proof: the step of each clause of the database and of each theory
    *  lemma met (by identity), the step of the theory lemma explaining each
-   *  variable assigned by the theory (while it is), the step of the unit clause
-   *  of each variable assigned at level 0 (once derived), and the position on
-   *  the trail of each assigned variable.
+   *  variable assigned by the theory (while it is), and the step of the unit
+   *  clause of each variable assigned at level 0 (once derived).
    */
   private val stepOf = java.util.IdentityHashMap[Array[Lit], Integer]()
   private var reasonStep = if proofs then Array.fill(numVars)(-1) else new Array[Int](0)
   private var unitStep = if proofs then Array.fill(numVars)(-1) else new Array[Int](0)
-  private var position = new Array[Int](numVars)
 
   /** A clause of the theory, a conflict, recorded as a lemma of the proof. */
   private def lemma(clause: Array[Lit]): Array[Lit] =
     val p = proof
-    if p != null then stepOf.put(clause, p.add(Proof.Step.Lemma(clause.clone())))
+    if p != null then stepOf.put(clause, p.add(Proof.Step.Lemma(clause.clone(), theory.certificate())))
     clause
 
   /** The step of the reason of the assigned `v`, once [[reasonClause]] has
@@ -370,8 +366,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       val v = todo.remove(todo.length - 1)
       if unitStep(v) < 0 && needed.add(v) then
         for l <- reasonClause(Lit(v, value(Lit(v).index) > 0)) if l.variable != v do todo += l.variable
-    for v <- needed.toArray.sortBy(position(_)) do
-      val lit = Lit(v, value(Lit(v).index) > 0)
+    // In trail order: a unit's reason only has variables assigned before it.
+    for lit <- trail.iterator.takeWhile(l => level(l.variable) == 0) if needed(lit.variable) do
+      val v = lit.variable
       val hints = ArrayBuffer.empty[Int]
       for l <- reasonClause(lit) if l.variable != v do hints += unitStep(l.variable)
       hints += reasonId(v)
