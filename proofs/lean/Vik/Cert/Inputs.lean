@@ -246,7 +246,7 @@ noncomputable def nums (I : Interp R U) (nodes : List Node) (u : Nat) : R := (va
 
 theorem rat_one : rat (1 : Rat) = (1 : R) := by
   have := Lia.rat_intCast (R := R) 1
-  simp only [Int.cast_ofNat_Int, Ring.intCast_one] at this
+  simp only [Ring.intCast_one] at this
   exact this
 
 theorem eval_canon (ρ : Nat → R) (f : Lia.Form) : Lia.eval ρ (canon f) = Lia.eval ρ f := by
@@ -365,7 +365,7 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
           simp only [Bool.and_eq_true, beq_iff_eq] at h
           obtain ⟨rfl, hna⟩ := h
           unfold Lit.holds; rw [hpos, hmean _ _ hm, holds_or hw hn, holds_implies hw hf]
-          simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false,
+          simp only [List.mem_cons, List.not_mem_nil, or_false,
             exists_eq_or_imp, exists_eq_left]
           rw [holds_not hw (by simpa using hna)]
           constructor
@@ -444,7 +444,7 @@ theorem sides_sound {m l r : Nat} (h : sides e m = some (l, r)) (hv : val I e.no
         obtain ⟨rfl, rfl⟩ := hc
         rw [holds_and hw hm]
         intro z hz
-        simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hz
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
         rcases hz with rfl | rfl
         · rw [holds_le hw hx, hv]; exact Std.le_refl _
         · rw [holds_le hw hy, hv]; exact Std.le_refl _
