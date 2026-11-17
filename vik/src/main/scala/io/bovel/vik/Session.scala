@@ -173,6 +173,15 @@ final class Session(
    *  of the solver's proof of its last unsat ([[Solver.checkProof]]).
    */
   def checkProof(): List[String] = loweringErrors.toList ++ current.checkProof()
+
+  /** With proofs: the proof of the last `Unsat` as Lean terms, from the script
+   *  the check saw to its lowering and the solver's proof of it (see
+   *  [[LeanExport]]), or why it cannot be written.
+   */
+  def leanProof(): Either[String, String] =
+    if loweringCheck == null then Left("no proofs")
+    else if loweringErrors.nonEmpty then Left(loweringErrors.head)
+    else loweringCheck.surface().flatMap(sf => current.leanProof(Some(sf)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining

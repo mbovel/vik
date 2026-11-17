@@ -273,9 +273,9 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
   /** The [[proof]] of the last `Unsat` as Lean terms that `proofs/lean` checks
    *  (see [[LeanExport]]), or why it cannot be written.
    */
-  def leanProof(): Either[String, String] = proof match
+  def leanProof(surface: Option[LeanExport.Surface] = None): Either[String, String] = proof match
     case None => Left("no proof")
-    case Some(_) => encoder.nn.lean(levels.head.toList, proved._2.toList.sorted)
+    case Some(_) => encoder.nn.lean(levels.head.toList, proved._2.toList.sorted, surface)
 
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
@@ -1530,7 +1530,11 @@ private final class Encoder(
    *  the atoms these mention against the formulas their variables stand for.
    *  `None` when it holds, what is wrong otherwise.
    */
-  def lean(inputs: List[Formula], assumed: List[cdclt.Var]): Either[String, String] =
+  def lean(
+      inputs: List[Formula],
+      assumed: List[cdclt.Var],
+      surface: Option[LeanExport.Surface]
+  ): Either[String, String] =
     val p = sat.proof
     if p == null then Left("no proof")
     else
@@ -1554,7 +1558,8 @@ private final class Encoder(
           inputs,
           guards.iterator.map((v, fs) => (v, fs.toList)).toList,
           assumed
-        )
+        ),
+        surface
       )
 
   def checkProof(inputs: Set[Formula], assumed: Set[cdclt.Var]): Option[String] =

@@ -2,7 +2,8 @@ package io.bovel.vik
 
 import io.bovel.smtlib.Parser
 
-/** The proofs of a few `Unsat`s, written as Lean terms, each to a file of
+/** The proofs of a few `Unsat`s, from the script to its lowering and the
+ *  solver's proof, written as Lean terms, each to a file of
  *  `target/lean-export` for `proofs/lean` to check (`proofs/lean/exported.sh`).
  */
 class LeanExportTest extends munit.FunSuite:
@@ -15,11 +16,11 @@ class LeanExportTest extends munit.FunSuite:
     val session = Session(Solver(proofs = true))
     val answers = session.run(Parser.parse(script))
     assertEquals(answers.lastOption, Some("unsat"))
-    val lean = session.solver.leanProof() match
+    val lean = session.leanProof() match
       case Right(text) => text
       case Left(why) => fail(s"no Lean proof: $why")
     for dir <- out do
-      val header = s"import Vik\n\nnamespace Vik.Low.Exported.$name\n\nopen Vik.Low Vik.Clausal\n\n"
+      val header = s"import Vik\n\nnamespace Vik.Low.Exported.$name\n\nopen Vik.Low Vik.Surf Vik.Clausal\n\n"
       java.nio.file.Files.writeString(
         java.nio.file.Path.of(dir, s"$name.lean"),
         header + lean + s"\nend Vik.Low.Exported.$name\n"
@@ -76,6 +77,31 @@ class LeanExportTest extends munit.FunSuite:
       "Extensionality",
       "(declare-const a (Array Int Int)) (declare-const b (Array Int Int)) (declare-const i Int) " +
         "(assert (not (= a b))) (assert (= a (store b i (select b i)))) (check-sat)"
+    )
+
+  test("let and define-fun"):
+    write(
+      "Defs",
+      "(declare-const x Int) (define-fun pos ((y Int)) Bool (< 0 y)) (define-fun zero () Int 0) " +
+        "(assert (let ((z x)) (<= z zero))) (assert (pos x)) (check-sat)"
+    )
+
+  test("ite"):
+    write(
+      "Ite",
+      "(declare-const x Int) (declare-const p Bool) (assert (< (ite p x 1) 0)) (assert (<= 0 x)) (check-sat)"
+    )
+
+  test("reals"):
+    write("Reals", "(declare-const r Real) (assert (< r 0.5)) (assert (> (* 2.0 r) 1.0)) (check-sat)")
+
+  test("to_int"):
+    write("ToInt", "(declare-const r Real) (assert (= (to_int r) 1)) (assert (< r 1.0)) (check-sat)")
+
+  test("bit-vector comparisons"):
+    write(
+      "BvCmp",
+      "(declare-const a (_ BitVec 4)) (assert (bvult a #x2)) (assert (bvugt a #x3)) (check-sat)"
     )
 
   test("bit-vector indices"):
