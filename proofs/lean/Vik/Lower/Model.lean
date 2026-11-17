@@ -182,6 +182,7 @@ noncomputable def baseConst (k : Nat) : Val R (U ⊕ Nat) :=
     | some (.ite i) => enc (Surf.val Ms.toInterp SP.nodes i)
     | some (.store _) => .obj (.inr k)
     | some (.witness s) => if SP.sig.sorts[s]? = some .bool then .bool false else .num 0
+    | some (.pick i) => enc (Surf.val Ms.toInterp SP.nodes i)
     | _ => .bool false
 
 /-- The symbols of the lowered model once the first `m` minted symbols have
@@ -261,6 +262,13 @@ theorem const_ite {k i : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k -
 
 theorem const_store {k s : Nat} (h : SP.sig.decls.length ≤ k) (hm : tr.mints[k - SP.sig.decls.length]? = some (.store s)) :
     (lowModel SP P tr Ms).const k = .obj (.inr k) := by
+  simp only [lowModel]
+  rw [ruleConst_base SP P tr Ms (fun _ _ e => by rw [hm] at e; cases e; rfl)]
+  simp [baseConst, hm, Nat.not_lt.mpr h]
+
+theorem const_pick {k i : Nat} (h : SP.sig.decls.length ≤ k)
+    (hm : tr.mints[k - SP.sig.decls.length]? = some (.pick i)) :
+    (lowModel SP P tr Ms).const k = enc (Surf.val Ms.toInterp SP.nodes i) := by
   simp only [lowModel]
   rw [ruleConst_base SP P tr Ms (fun _ _ e => by rw [hm] at e; cases e; rfl)]
   simp [baseConst, hm, Nat.not_lt.mpr h]

@@ -152,9 +152,13 @@ inductive Mint where
   | rule (r : Rule) (j : Nat)
   /-- The symbol of a real rule. -/
   | real (r : RRule)
-  /-- A witness of the answer (an index where two arrays differ), of the
-      surface sort `s`, a Boolean or a number: any value of its sort. -/
+  /-- A symbol no reason defines, of the surface sort `s`, a Boolean or a
+      number: a witness of the answer (an index where two arrays differ), or a
+      symbol an earlier check minted. Any value of its sort. -/
   | witness (s : Nat)
+  /-- A symbol no reason defines, valued as surface node `i`: a witness of
+      the answer of a sort without numbers, such as an uninterpreted one. -/
+  | pick (i : Nat)
   deriving DecidableEq, Repr
 
 /-- Why a lowered input holds. -/
@@ -1455,6 +1459,7 @@ def Trace.sigOk : Bool :=
         match SP.sig.sorts[s]? with
         | some .bool | some .int | some .real | some (.bv _) => true
         | _ => false
+    | some (.pick i) => i < SP.nodes.length && P.sig.decls[k]? == some (SP.sort i)
     | none => false) &&
   P.stores.all (fun n => n ≥ SP.sig.decls.length &&
     match tr.mints[n - SP.sig.decls.length]? with

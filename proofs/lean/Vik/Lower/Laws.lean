@@ -68,6 +68,8 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
     P.sig.decls[SP.sig.decls.length + m]? = some s ∧
       (SP.sig.sorts[s]? = some .bool ∨ SP.sig.sorts[s]? = some .int ∨ SP.sig.sorts[s]? = some .real ∨
         ∃ w, SP.sig.sorts[s]? = some (.bv w))
+  pick : ∀ m i, tr.mints[m]? = some (.pick i) →
+    i < SP.nodes.length ∧ P.sig.decls[SP.sig.decls.length + m]? = some (SP.sort i)
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
   bvIndex : P.bvIndex = SP.bvIndex
@@ -77,7 +79,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
-  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
+  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
     rw [← List.getElem?_map, ← hs, List.getElem?_take_of_lt hs']
   · intro k hk
@@ -167,6 +169,12 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     · exact .inr (.inr (.inl (by assumption)))
     · rename_i w e; exact .inr (.inr (.inr ⟨w, e⟩))
     · cases hs1
+  · intro m i hmi
+    have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hmi).1
+    have := hm m hlt
+    rw [hmi] at this
+    simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at this
+    exact this
   · intro n hn
     have := hst n hn
     simp only [decide_eq_true_eq] at this
@@ -433,6 +441,17 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
         simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
         exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+      | pick i =>
+        obtain ⟨hil, hd'⟩ := hG.pick m i hx
+        rw [h] at hd'; cases hd'
+        rw [const_pick SP P tr Ms hk (by rw [hm]; exact hx)]
+        have hso : SP.sortOf.length = SP.nodes.length := by
+          simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
+        have hsl : SP.sort i < SP.sig.sorts.length := by
+          unfold SProblem.sort
+          rw [List.getElem?_eq_getElem (by omega)]
+          exact hS.sortOf i _ (List.getElem?_eq_getElem (by omega))
+        exact dom_of_surf hM hsl (Surf.val_dom hM hw ht i hil)
       | witness s0 =>
         obtain ⟨hd1, hs1⟩ := hG.witness m s0 hx
         rw [h] at hd1; cases hd1
