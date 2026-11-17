@@ -26,7 +26,7 @@ import io.bovel.lia
  *  two stores, which the search needs from the start, are the exception (see
  *  `Encoder.pairStores`).
  */
-final class Solver(val simplify: Boolean = true):
+final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
   enum Result:
     case Sat
     case Unsat
@@ -258,6 +258,12 @@ final class Solver(val simplify: Boolean = true):
   private[vik] def dropModel(): Unit =
     val e = encoder
     if e != null then e.lastModel = null
+
+  /** The clausal proof of the last [[solve]]'s `Unsat`, when the solver was
+   *  made with `proofs`: over the variables of the SAT search, with the theory
+   *  lemmas taken on trust (see [[cdclt.Proof]]).
+   */
+  def proof: Option[cdclt.Proof] = Option(encoder).flatMap(e => Option(e.proof)).filter(_.conclusion >= 0)
 
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
@@ -543,7 +549,8 @@ private final class Encoder(
     datatypes: List[Datatype],
     auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
-    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
+    keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
+    proofs: Boolean
 ):
   private var steps = 0L
 
@@ -1416,6 +1423,7 @@ private final class Encoder(
       preferEqual
     )
   )
+  def proof: cdclt.Proof | Null = sat.proof
   private var clauseCursor = 0
 
   /** The model of the last `Sat`, taken while the engines still held the answer
