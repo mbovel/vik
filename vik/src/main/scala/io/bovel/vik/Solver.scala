@@ -24,7 +24,7 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *  atom of both theories, and the SAT solver decides the arrangement (Nelson
  *  and Oppen; see `Encoder.shareIntegers`).
  */
-final class Solver(val simplify: Boolean = true):
+final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
   enum Result:
     case Sat
     case Unsat
@@ -185,6 +185,12 @@ final class Solver(val simplify: Boolean = true):
     val e = encoder
     if e != null then e.lastModel = null
 
+  /** The clausal proof of the last [[solve]]'s `Unsat`, when the solver was
+   *  made with `proofs`: over the variables of the SAT search, with the theory
+   *  lemmas taken on trust (see [[cdclt.Proof]]).
+   */
+  def proof: Option[cdclt.Proof] = Option(encoder).flatMap(e => Option(e.proof)).filter(_.conclusion >= 0)
+
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
    *  [[Model]]).
@@ -317,7 +323,7 @@ final class Solver(val simplify: Boolean = true):
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val e = Encoder(declarations, datatypes.toList, () => anyStore, () => asked())
+      val e = Encoder(declarations, datatypes.toList, () => anyStore, () => asked(), proofs)
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -442,7 +448,8 @@ private final class Encoder(
     declarations: HashMap[String, (List[String], String)],
     datatypes: List[Datatype],
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
-    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
+    keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
+    proofs: Boolean
 ):
   private var steps = 0L
 
@@ -1089,8 +1096,10 @@ private final class Encoder(
       v => if atoms(v) != null then theories.head else theories.last,
       v => atoms(v) != null && liaAtoms(v) != null, // only a shared equality needs its implier remembered
       () => anySharedAtom
-    )
+    ),
+    proofs = proofs
   )
+  def proof: cdclt.Proof | Null = sat.proof
   private var clauseCursor = 0
 
   /** The model of the last `Sat`, taken while the engines still held the answer

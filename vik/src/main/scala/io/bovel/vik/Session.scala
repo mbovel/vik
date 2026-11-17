@@ -275,7 +275,7 @@ final class Session(
     val produceModels = current.produceModels
     replaced += current.spent
     for ((_, n), i) <- current.statistics.zipWithIndex do replacedCounts(i) += n
-    current = Solver(simplify = current.simplify)
+    current = Solver(simplify = current.simplify, proofs = current.proofs)
     current.produceModels = produceModels
     current.checkModels = checking
 
