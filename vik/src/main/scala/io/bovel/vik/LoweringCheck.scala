@@ -970,7 +970,7 @@ final class LoweringCheck:
           case Sort.Array(i, el) =>
             val (a, b) = (sort(i), sort(el))
             SortEntry(s".array $a $b", sortString(s), s".fn [$a] $b", Some(b), None)
-          case Sort.Named(n) => SortEntry(".user", n, ".user", None, None)
+          case Sort.Named(_) => SortEntry(".user", s.text, ".user", None, None)
         sorts += e
         sortIds(s) = sorts.length - 1
         sorts.length - 1
@@ -1113,6 +1113,10 @@ final class LoweringCheck:
         case s2.Term.App(fun, args) =>
           val f = termNode(fun, ctx)
           made(s".app $f ${list(args.map(termNode(_, ctx)))}")
+        case s2.Term.ArithApp(ArithOp.Div, List(s2.Term.Numeral(p0), s2.Term.Numeral(q0))) if q0.signum > 0 =>
+          // a rational literal
+          val g = p0.gcd(q0)
+          made(s".rat ${int(p0 / g)} ${q0 / g}")
         case s2.Term.ArithApp(op, args) =>
           val as = args.map(termNode(_, ctx))
           op match
@@ -1296,6 +1300,8 @@ final class LoweringCheck:
         reasons.getOrElseUpdate(formula(f, Map.empty), Reason.Assert(a))
         a
       }
+      // Every symbol declared, for the proof may mention any.
+      for (name, _) <- functions.toList.sortBy(_._1) if !minted(name) && !macros.contains(name) do symbol(name)
       // The bit-vector symbols, whose ranges the lowering asserts.
       for case (name, Sort.BitVec(_)) <- functions.toList.sortBy(_._1) if !minted(name) && !macros.contains(name) do
         termNode(s2.Term.Const(name), top)
