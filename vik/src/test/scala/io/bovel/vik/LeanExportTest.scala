@@ -49,3 +49,41 @@ class LeanExportTest extends munit.FunSuite:
       "Assuming",
       "(declare-const x Int) (declare-const p Bool) (assert (=> p (< 0 x))) (assert (<= x 0)) (check-sat-assuming (p))"
     )
+
+  test("datatypes"):
+    write(
+      "Datatypes",
+      "(declare-datatypes ((L 0)) (((nil) (cons (hd Int) (tl L))))) (declare-const x L) " +
+        "(assert (not ((_ is nil) x))) (assert (not ((_ is cons) x))) (check-sat)"
+    )
+
+  test("injectivity"):
+    write(
+      "Injective",
+      "(declare-datatypes ((L 0)) (((nil) (cons (hd Int) (tl L))))) (declare-const a Int) (declare-const b Int) " +
+        "(assert (= (cons a nil) (cons b nil))) (assert (< a b)) (check-sat)"
+    )
+
+  test("arrays"):
+    write(
+      "Arrays",
+      "(declare-const a (Array Int Int)) (declare-const i Int) (declare-const v Int) " +
+        "(assert (not (= (select (store a i v) i) v))) (check-sat)"
+    )
+
+  test("extensionality"):
+    write(
+      "Extensionality",
+      "(declare-const a (Array Int Int)) (declare-const b (Array Int Int)) (declare-const i Int) " +
+        "(assert (not (= a b))) (assert (= a (store b i (select b i)))) (check-sat)"
+    )
+
+  test("bit-vector indices"):
+    write(
+      "BvIndex",
+      """(declare-const a (Array (_ BitVec 1) Bool)) (declare-const b (Array (_ BitVec 1) Bool))
+      (declare-const c (Array (_ BitVec 1) Bool)) (declare-const d (Array (_ BitVec 1) Bool))
+      (declare-const e (Array (_ BitVec 1) Bool))
+      (assert (distinct a b c d e))
+      (check-sat)"""
+    )
