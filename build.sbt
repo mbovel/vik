@@ -339,6 +339,19 @@ addCommandAlias(
     "smtlibNative/Test/compile"
 )
 
+// Formatting, every project: the root aggregates the five modules' JVM rows only (their JS and Native rows share
+// the sources), so the projects outside it are named. `formatCheckAll` is CI's format job.
+addCommandAlias(
+  "formatAll",
+  "scalafmtAll; scalafmtSbt; bench/scalafmtAll; smtlibutils/scalafmtAll; playground/scalafmtAll; " +
+    "docsPlayground/scalafmtAll; graal/scalafmtAll"
+)
+addCommandAlias(
+  "formatCheckAll",
+  "scalafmtCheckAll; scalafmtSbtCheck; bench/scalafmtCheckAll; smtlibutils/scalafmtCheckAll; " +
+    "playground/scalafmtCheckAll; docsPlayground/scalafmtCheckAll; graal/scalafmtCheckAll"
+)
+
 lazy val root = (project in file("."))
   .enablePlugins(ScalaUnidocPlugin)
   .aggregate(
