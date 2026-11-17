@@ -39,10 +39,16 @@ installs it on first use.
 - `Vik/Cert/Uf.lean`: equality proofs over classes, for uninterpreted
   functions and datatypes.
 - `Vik/Cert/Inputs.lean`: input clauses against the lowered formulas.
-- `Vik/Cert/Proof.lean`: the checker of a whole answer and its soundness,
-  `Problem.accepts_sound`.
-- `Vik/Cert/Example.lean`: a small answer the kernel accepts, and what follows
-  from it.
+- `Vik/Cert/Witnesses.lean`: what the checker computes to tell that the
+  witnesses of extensionality are fresh (the rank of each symbol, the depth of
+  each node), and the application chains of an instance.
+- `Vik/Cert/Proof.lean`: the checker of a whole answer and its soundness in a
+  model whose witnesses take the right values, `accepts_sound_of_witnesses`.
+- `Vik/Cert/Extend.lean`: any model extends to such a model, so the checker
+  is sound, `Problem.accepts_sound`.
+- `Vik/Cert/Example.lean`: small answers the kernel accepts, one of them with
+  an extensionality instance and the range of its witness, and what follows
+  from them.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.
