@@ -86,14 +86,14 @@ theorem wits_info :
     (∀ f ∈ P.inputs, depthOf (depths A.rank P.nodes) f = 0) ∧
     (∀ l ∈ A.levels, ∀ f ∈ l.2, depthOf (depths A.rank P.nodes) f = 0) ∧
     (∀ i < P.nodes.length, depthOf (depths A.rank P.nodes) i = 0 ∨ (P.bvIndex.lookup (P.sort i)).isNone ∨
-      ∃ n, P.node i = some (.const n) ∧ n ∈ A.witnesses) ∧
+      ∃ n, P.nodes[i]? = some (.const n) ∧ n ∈ A.witnesses) ∧
     (∀ k eq eqw ws, A.exts[k]? = some (eq, eqw, ws) → nodupB ws = true ∧ (∀ n ∈ ws, A.rank n = k + 2) ∧
-      ∃ f g F G, P.node eq = some (.eq f g) ∧ P.node eqw = some (.eq F G) ∧
+      ∃ f g F G, P.nodes[eq]? = some (.eq f g) ∧ P.nodes[eqw]? = some (.eq F G) ∧
         depthOf (depths A.rank P.nodes) f < k + 2 ∧ depthOf (depths A.rank P.nodes) g < k + 2 ∧
         chainRev P.nodes f F ws.reverse = true ∧ chainRev P.nodes g G ws.reverse = true) := by
   have h := hA.wits
   unfold Problem.witnessesOk at h
-  simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq, List.mem_range] at h
+  simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq, List.mem_range, Tab.at_eq, Problem.node_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩, h6⟩, h7⟩ := h
   refine ⟨h1, h2, h3, h4, h5, fun i hi => ?_, fun k eq eqw ws hk => ?_⟩
   · have := h6 i hi
@@ -150,7 +150,7 @@ open Classical in
     they do. -/
 noncomputable def stepConst (P : Problem) (M : Model R U) (c : Nat → Val R U) (e : Nat × Nat × List Nat)
     (n : Nat) : Val R U :=
-  match P.node e.1 with
+  match P.nodes[e.1]? with
   | some (.eq f g) =>
     if h : ∃ xs, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (e.2.2.map P.sig.declOf) xs ∧
         appAll (M.withConst c).toInterp (val (M.withConst c).toInterp P.nodes f) xs ≠
@@ -336,7 +336,7 @@ theorem rng_build (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (
   · intro w hw'; simp [hw'] at hn
   · intro w hw'
     have tn := typed_node hA.typed hn
-    simp only [nodeTyped, beq_iff_eq] at tn
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tn
     have hwd : (P.enc A).width n = some w := by
       simp only [Enc.width, Problem.enc, List.contains_iff_mem.mpr hwit, ↓reduceIte, tn]
       exact hw'
@@ -384,7 +384,7 @@ theorem instance_holds (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort
   have dg := val_dom hsk hw hA.typed (rng_build hA hrng k) g (by have := lt_of_node he; omega)
   have tg : P.sortOf[g]?.getD 0 = P.sortOf[f]?.getD 0 := by
     have := typed_node hA.typed he
-    simp only [nodeTyped, Bool.and_eq_true, beq_iff_eq] at this
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, beq_iff_eq] at this
     exact this.2.symm
   rw [tg] at dg
   have ex := exists_differ hL _ _ _ _ _ hs df dg hfg
@@ -508,7 +508,7 @@ theorem Problem.accepts_sound {P : Problem} {A : Answer} (h : P.accepts A = true
     · intro w hw'; simp [hw'] at hn
     · intro w hw'
       have tn := typed_node hA.typed hn
-      simp only [nodeTyped, beq_iff_eq] at tn
+      simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tn
       have hwd : (P.enc A).width n = some w := by
         simp only [Enc.width, Problem.enc, List.contains_iff_mem.mpr hwit, ↓reduceIte, tn]
         exact hw'

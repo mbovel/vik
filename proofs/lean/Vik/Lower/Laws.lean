@@ -421,7 +421,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         rw [const_ite SP P tr Ms hk (by rw [hm]; exact hx)]
         have hil := lt_of_get hi
         have hso : SP.sortOf.length = SP.nodes.length := by
-          simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
+          simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
         have hsl : SP.sort i < SP.sig.sorts.length := by
           unfold SProblem.sort
           rw [List.getElem?_eq_getElem (by omega)]
@@ -446,7 +446,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         rw [h] at hd'; cases hd'
         rw [const_pick SP P tr Ms hk (by rw [hm]; exact hx)]
         have hso : SP.sortOf.length = SP.nodes.length := by
-          simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
+          simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
         have hsl : SP.sort i < SP.sig.sorts.length := by
           unfold SProblem.sort
           rw [List.getElem?_eq_getElem (by omega)]

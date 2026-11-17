@@ -151,10 +151,10 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     split at h
     · rename_i hb
       simp only [Option.some.injEq] at h; subst h
-      simp only [Surf.nodeTyped, Bool.and_eq_true, beq_iff_eq] at hty
+      simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, beq_iff_eq] at hty
       obtain ⟨⟨_, hsa⟩, hsb⟩ := hty
-      have ba : SP.isBool a = true := by simp only [SProblem.isBool, SProblem.sort] at hb ⊢; rw [hsa]; exact hb
-      have bb : SP.isBool b = true := by simp only [SProblem.isBool, SProblem.sort] at hb ⊢; rw [hsb]; exact hb
+      have ba : SP.isBool a = true := by simp only [SProblem.isBool, SProblem.sort_eq] at hb ⊢; rw [hsa]; exact hb
+      have bb : SP.isBool b = true := by simp only [SProblem.isBool, SProblem.sort_eq] at hb ⊢; rw [hsb]; exact hb
       obtain ⟨xa, hxa⟩ := v_bool hM hw ht (lenc a (by simp [SNode.children])) ba
       obtain ⟨xb, hxb⟩ := v_bool hM hw ht (lenc b (by simp [SNode.children])) bb
       rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev]
@@ -246,7 +246,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       · cases h
       · rename_i hnb
         simp only [Option.some.injEq] at h; subst h
-        simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have sorts : ∀ x ∈ a :: rest, SP.sort x = SP.sort a := by
           intro x m; simp only [List.mem_cons] at m
           rcases m with rfl | m
@@ -288,7 +288,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     | nil => cases h
     | cons a rest =>
       simp only at h
-      simp only [Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+      simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
       have sorts : ∀ x ∈ a :: rest, SP.sort x = SP.sort a := by
         intro x m; simp only [List.mem_cons] at m
         rcases m with rfl | m
@@ -516,7 +516,7 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
     intro n hn; rw [← hs]; exact typed_node hA.typed hn
   obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ := hG.bvNodes j hj (by rw [← hs] at hlw; rw [hlw]; rfl)
   · have hd := hty hk
-    simp only [Low.nodeTyped, beq_iff_eq] at hd
+    simp only [Tab.at_eq, Low.nodeTyped, beq_iff_eq] at hd
     rw [Low.val_const hA.wf hk]
     rcases Nat.lt_or_ge k SP.sig.decls.length with hkl | hkl
     · rw [hG.decls k hkl] at hd
@@ -551,7 +551,7 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         rw [const_witness SP P tr Ms hkl (by rw [hm]; exact hx)]
         simp [hsw, enc, Ring.intCast_zero]
   · have hd := hty hfx
-    simp only [Low.nodeTyped] at hd
+    simp only [Tab.at_eq, Low.nodeTyped] at hd
     split at hd
     · rename_i as r hfs
       simp only [Bool.and_eq_true, beq_iff_eq] at hd

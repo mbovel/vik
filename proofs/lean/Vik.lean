@@ -5,6 +5,7 @@ import Vik.Signed
 import Vik.Bits
 import Vik.Shifts
 import Vik.Real
+import Vik.Tab
 import Vik.Cert.Clausal
 import Vik.Cert.RatCast
 import Vik.Cert.Lia

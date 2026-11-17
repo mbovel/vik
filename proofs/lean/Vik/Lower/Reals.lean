@@ -251,7 +251,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     simp only [Trace.realOk, hn] at hb
     have hai := hch a (by simp [SNode.children])
     simp only [beq_iff_eq] at hb
-    simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨r, hr⟩ := v_num hM hw ht (a := a) (by omega) hty.2
     rw [hb, ih a hai, hv]
     simp only [Surf.evalNode, surf_get_values, hr, toR_num]

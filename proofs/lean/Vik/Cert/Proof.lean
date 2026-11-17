@@ -79,12 +79,20 @@ structure Answer where
 section Checker
 variable (P : Problem) (A : Answer)
 
-def Answer.ufAtom (v : Nat) : Option (Nat × Nat) := (A.ufAtoms[v]?).getD none
-def Answer.liaAtom (v : Nat) : Option LiaAtom := (A.liaAtoms[v]?).getD none
-def Answer.liaForm (x : Nat) : Lia.Form := (A.liaForms[x]?).getD []
+def Answer.ufAtom (v : Nat) : Option (Nat × Nat) := (Tab.at A.ufAtoms v).getD none
+def Answer.liaAtom (v : Nat) : Option LiaAtom := (Tab.at A.liaAtoms v).getD none
+def Answer.liaForm (x : Nat) : Lia.Form := (Tab.at A.liaForms x).getD []
 
-def Problem.node (i : Nat) : Option Node := P.nodes[i]?
+def Problem.node (i : Nat) : Option Node := Tab.at P.nodes i
 def Problem.sort (i : Nat) : Nat := P.sortOf[i]?.getD 0
+
+theorem Answer.ufAtom_eq (v : Nat) : A.ufAtom v = (A.ufAtoms[v]?).getD none := by simp [Answer.ufAtom]
+theorem Answer.liaAtom_eq (v : Nat) : A.liaAtom v = (A.liaAtoms[v]?).getD none := by simp [Answer.liaAtom]
+theorem Answer.liaForm_eq (x : Nat) : A.liaForm x = (A.liaForms[x]?).getD [] := by simp [Answer.liaForm]
+theorem Problem.node_eq (i : Nat) : P.node i = P.nodes[i]? := by simp [Problem.node]
+theorem Problem.sort_eq (i : Nat) : P.sort i = P.sortOf[i]?.getD 0 := rfl
+theorem Problem.node_some {P : Problem} {i : Nat} {n : Node} (h : P.node i = some n) : P.nodes[i]? = some n := by
+  rw [← Problem.node_eq]; exact h
 def Problem.symOf (i : Nat) : Option Nat :=
   match P.node i with
   | some (.const n) => some n
@@ -95,7 +103,7 @@ def Problem.ctorEntry (C : Nat) : Option (Nat × Nat × List Nat) :=
   P.datatypes.findSome? fun (d, cs) =>
     (cs.find? (·.1 == C)).map fun (_, T, Ss) => (d, T, Ss)
 
-def Problem.isInt (u : Nat) : Bool := u < P.nodes.length && P.sig.is (P.sort u) .int
+def Problem.isInt (u : Nat) : Bool := u < P.nodes.length && P.sig.is ((Tab.at P.sortOf u).getD 0) .int
 
 def Problem.enc : Enc where
   nodes := P.nodes
@@ -164,7 +172,7 @@ def Problem.atomOk (v : Nat) : Bool :=
   let uf := match A.ufAtom v with
     | none => true
     | some (a, b) =>
-      (b != A.trueClass || (a < P.nodes.length && P.sig.is (P.sort a) .bool)) &&
+      (b != A.trueClass || (a < P.nodes.length && P.sig.is ((Tab.at P.sortOf a).getD 0) .bool)) &&
         match (A.meaning[v]?).getD none with
         | none => (A.liaAtom v).isNone
         | some m =>
@@ -267,7 +275,7 @@ def Problem.witnessesOk : Bool :=
   P.inputs.all (fun f => depthOf ds f == 0) &&
   A.levels.all (fun l => l.2.all fun f => depthOf ds f == 0) &&
   (List.range P.nodes.length).all (fun i =>
-    depthOf ds i == 0 || (P.bvIndex.lookup (P.sort i)).isNone ||
+    depthOf ds i == 0 || (P.bvIndex.lookup ((Tab.at P.sortOf i).getD 0)).isNone ||
       match P.node i with
       | some (.const n) => A.witnesses.contains n
       | _ => false) &&
@@ -282,6 +290,63 @@ def Problem.witnessesOk : Bool :=
         | _, _ => false
     | none => false
 
+theorem all_fun_true {α : Type} (l : List α) : (l.all fun _ => true) = true := by
+  induction l <;> simp_all
+
+theorem foldl_max_zero : ∀ (l : List Nat) (acc : Nat), (∀ x ∈ l, x = 0) → l.foldl max acc = acc
+  | [], _, _ => rfl
+  | x :: l, acc, h => by
+    simp only [List.foldl_cons, h x List.mem_cons_self, Nat.max_zero]
+    exact foldl_max_zero l acc (fun y m => h y (List.mem_cons_of_mem x m))
+
+theorem foldl_scan_zero (F : List Nat → Node → Nat) (hF : ∀ ds n, (∀ x ∈ ds, x = 0) → F ds n = 0) :
+    ∀ (nodes : List Node) (acc : List Nat), (∀ x ∈ acc, x = 0) →
+      ∀ x ∈ nodes.foldl (fun ds n => ds ++ [F ds n]) acc, x = 0
+  | [], _, h => h
+  | n :: nodes, acc, h => by
+    simp only [List.foldl_cons]
+    refine foldl_scan_zero F hF nodes _ (fun x m => ?_)
+    rcases List.mem_append.mp m with m | m
+    · exact h x m
+    · simp only [List.mem_singleton] at m; subst m; exact hF acc n h
+
+/-- With no witnesses, every node has depth 0. -/
+theorem depthOf_zero {rank : Nat → Nat} (hr : ∀ n, rank n = 0) (nodes : List Node) (i : Nat) :
+    depthOf (depths rank nodes) i = 0 := by
+  have hz : ∀ x ∈ depths rank nodes, x = 0 := by
+    refine foldl_scan_zero _ (fun ds n h => ?_) nodes [] (by simp)
+    unfold depthNode maxOf
+    have ho : n.own rank = 0 := by cases n <;> simp [Node.own, hr]
+    rw [ho, foldl_max_zero]
+    · rfl
+    · intro x m
+      obtain ⟨j, _, rfl⟩ := List.mem_map.mp m
+      cases hj : ds[j]? with
+      | none => rfl
+      | some y => exact h y (List.mem_of_getElem? hj)
+  rw [depthOf_eq]
+  cases hi : (depths rank nodes)[i]? with
+  | none => rfl
+  | some y => exact hz y (List.mem_of_getElem? hi)
+
+/-- `witnessesOk`, short when the answer has no witnesses. -/
+def Problem.witnessesOkF : Bool :=
+  if A.exts.isEmpty && A.witnesses.isEmpty then P.bvIndex.all (fun p => P.sig.is p.1 .int)
+  else P.witnessesOk A
+
+theorem Problem.witnessesOkF_eq : P.witnessesOkF A = P.witnessesOk A := by
+  unfold Problem.witnessesOkF
+  split
+  · rename_i h
+    simp only [Bool.and_eq_true, List.isEmpty_iff] at h
+    obtain ⟨he, hw⟩ := h
+    have hr : ∀ n, A.rank n = 0 := by
+      intro n
+      simp [Answer.rank, rankOf, extIndex, he, hw]
+    unfold Problem.witnessesOk
+    simp [hr, depthOf_zero hr, he, all_fun_true]
+  · rfl
+
 def Problem.justOk (s : Step) (j : Just) : Bool :=
   match s, j with
   | .input c, .input o => inputOk (P.enc A) c o
@@ -291,7 +356,7 @@ def Problem.justOk (s : Step) (j : Just) : Bool :=
   | _, _ => false
 
 def Problem.accepts : Bool :=
-  P.witnessesOk A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
+  P.witnessesOkF A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
     -- `true`, its literal and classes
     (match (A.meaning[A.trueLit.var]?).getD none with
       | some t => A.trueLit.pos && P.node t == some .tt
@@ -305,12 +370,10 @@ def Problem.accepts : Bool :=
     (List.range (max A.ufAtoms.length A.liaAtoms.length)).all (P.atomOk A) &&
     A.steps.length == A.justs.length &&
     (A.steps.zip A.justs).all (fun (s, j) => P.justOk A s j) &&
-    match Clausal.check [] A.steps with
-    | some db =>
-      match db[A.conclusion]? with
+    (Clausal.checkT (A.steps.map Clausal.Step.clause) 0 A.steps &&
+      match Tab.at (A.steps.map Clausal.Step.clause) A.conclusion with
       | some goal => goal.all fun l => !l.pos && A.assumed.contains l.var && (A.levels.lookup l.var).isSome
-      | none => false
-    | none => false
+      | none => false)
 
 end Checker
 
@@ -403,13 +466,13 @@ theorem lt_of_node {nodes : List Node} {i : Nat} {n : Node} (h : nodes[i]? = som
 theorem child_lt {nodes : List Node} (hw : wellFormed nodes = true) {i : Nat} {n : Node}
     (h : nodes[i]? = some n) {j : Nat} (m : j ∈ n.children) : j < i := by
   have := List.all_eq_true.mp hw i (List.mem_range.mpr (lt_of_node h))
-  rw [h] at this
+  rw [Tab.at_eq, h] at this
   simp only [List.all_eq_true, decide_eq_true_eq] at this
   exact this j m
 
 theorem typed_node {sig : Sig} {nodes : List Node} {sortOf : List Nat} (ht : typed sig nodes sortOf = true)
     {i : Nat} {n : Node} (h : nodes[i]? = some n) : nodeTyped sig sortOf n (sortOf[i]?.getD 0) = true := by
-  simp only [typed, Bool.and_eq_true, List.all_eq_true, List.mem_range] at ht
+  simp only [typed, Tab.at_eq, Bool.and_eq_true, List.all_eq_true, List.mem_range] at ht
   have := ht.2 i (lt_of_node h)
   rw [h] at this
   exact this
@@ -458,9 +521,9 @@ structure Accepted (P : Problem) (A : Answer) : Prop where
   dt : P.dtOk = true
   stores : P.storesOk = true
   classes : P.classesOk A = true
-  trueLit : ∃ t, (A.meaning[A.trueLit.var]?).getD none = some t ∧ A.trueLit.pos = true ∧ P.node t = some .tt
-  trueClass : ∃ t f, P.node A.trueClass = some (.bterm t) ∧ P.node A.falseClass = some (.bterm f) ∧
-    P.node t = some .tt ∧ P.node f = some .ff
+  trueLit : ∃ t, (A.meaning[A.trueLit.var]?).getD none = some t ∧ A.trueLit.pos = true ∧ P.nodes[t]? = some .tt
+  trueClass : ∃ t f, P.nodes[A.trueClass]? = some (.bterm t) ∧ P.nodes[A.falseClass]? = some (.bterm f) ∧
+    P.nodes[t]? = some .tt ∧ P.nodes[f]? = some .ff
   levels : ∀ s fs, (s, fs) ∈ A.levels →
     (A.meaning[s]?).getD none = none ∧ A.ufAtom s = none ∧ A.liaAtom s = none
   atoms : ∀ v, v < max A.ufAtoms.length A.liaAtoms.length → P.atomOk A v = true
@@ -471,7 +534,8 @@ structure Accepted (P : Problem) (A : Answer) : Prop where
 
 theorem accepted (h : P.accepts A = true) : Accepted P A := by
   unfold Problem.accepts at h
-  simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+  simp only [Problem.witnessesOkF_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, Problem.node_eq,
+    Tab.at_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hwit, hw⟩, ht⟩, hdt⟩, hst⟩, hcl⟩, htl⟩, htc⟩, hlv⟩, hat⟩, hlen⟩, hj⟩, hc⟩ := h
   refine ⟨hwit, hw, ht, hdt, hst, hcl, ?_, ?_, ?_, hat, fun s j m => hj (s, j) m, hlen, ?_⟩
   · split at htl
@@ -488,15 +552,13 @@ theorem accepted (h : P.accepts A = true) : Accepted P A := by
     have := hlv (s, fs) m
     simp only [Option.isNone_iff_eq_none] at this
     exact ⟨this.1.1, this.1.2, this.2⟩
-  · split at hc
-    · rename_i db hdb
-      split at hc
-      · rename_i goal hg
-        refine ⟨db, goal, hdb, hg, fun l m => ?_⟩
-        have := List.all_eq_true.mp hc l m
-        simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_iff_mem] at this
-        exact ⟨this.1.1, this.1.2, this.2⟩
-      · cases hc
+  · obtain ⟨hck, hc⟩ := hc
+    split at hc
+    · rename_i goal hg
+      refine ⟨_, goal, Clausal.check_of_checkT hck, hg, fun l m => ?_⟩
+      have := List.all_eq_true.mp hc l m
+      simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_iff_mem] at this
+      exact ⟨this.1.1, this.1.2, this.2⟩
     · cases hc
 
 variable (hA : Accepted P A) {I : Interp R U}
@@ -542,7 +604,7 @@ theorem assign_uf {v a b : Nat} (h : A.ufAtom v = some (a, b)) :
     assign P A I v = true ↔ val I P.nodes a = val I P.nodes b := by
   have hok := atomOk_of hA (v := v) (Or.inl (by simp [h]))
   unfold Problem.atomOk at hok
-  simp only [h, Bool.and_eq_true] at hok
+  simp only [Problem.node_eq, h, Bool.and_eq_true] at hok
   obtain ⟨⟨_, hm⟩, _⟩ := hok
   unfold assign
   rw [level_none hA (Or.inr (Or.inl (by simp [h])))]
@@ -569,7 +631,7 @@ theorem assign_uf {v a b : Nat} (h : A.ufAtom v = some (a, b)) :
 theorem on_sound {l r x : Nat} {c : Int} (h : P.on A l r x c = true) :
     (val I P.nodes l).toR - (val I P.nodes r).toR = liaVal P A I x - (c : R) := by
   unfold Problem.on at h
-  simp only [Bool.and_eq_true, beq_iff_eq] at h
+  simp only [Problem.node_eq, Bool.and_eq_true, beq_iff_eq] at h
   obtain ⟨hf, rfl⟩ := h
   have e := congrArg (Lia.eval (nums I P.nodes)) hf
   rw [eval_canon, eval_canon, eval_append, Lia.eval_neg] at e
@@ -587,7 +649,7 @@ include hA hM hrng
 
 theorem nums_int {u : Nat} (h : P.isInt u = true) : ∃ n : Int, nums M.toInterp P.nodes u = (n : R) := by
   unfold Problem.isInt at h
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  simp only [Tab.at_eq, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨k, hk⟩ := val_int hM hA.wf hA.typed hrng h.1 h.2
   exact ⟨k, by simp [nums, hk, Val.toR]⟩
 
@@ -607,7 +669,7 @@ theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
     assign P A M.toInterp v = true ↔ liaHolds P A M.toInterp a := by
   have hok := atomOk_of hA (v := v) (Or.inr (by simp [h]))
   unfold Problem.atomOk at hok
-  simp only [h, Bool.and_eq_true] at hok
+  simp only [Problem.node_eq, h, Bool.and_eq_true] at hok
   obtain ⟨huf, hm⟩ := hok
   clear huf
   unfold assign
@@ -737,15 +799,15 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         obtain ⟨rfl, harr⟩ := hst
         -- the sorts of the nodes
         have tk := typed_node hA.typed hk
-        simp only [nodeTyped, beq_iff_eq] at tk
+        simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tk
         rw [hd] at tk
         have ts := typed_node hA.typed hs
-        simp only [nodeTyped] at ts
+        simp only [Tab.at_eq, nodeTyped] at ts
         rw [← Option.some.inj tk, hs0] at ts
         simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil, List.cons.injEq] at ts
         obtain ⟨hsort, ha, hi, hv, -⟩ := ts
         have tr := typed_node hA.typed hr
-        simp only [nodeTyped] at tr
+        simp only [Tab.at_eq, nodeTyped] at tr
         rw [← hsort, harr] at tr
         simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil, List.cons.injEq] at tr
         obtain ⟨-, hj, -⟩ := tr
@@ -760,12 +822,12 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         have di := dom_of hA hL hrng (i := i) (by omega)
         have dv := dom_of hA hL hrng (i := v) (by omega)
         have dj := dom_of hA hL hrng (i := j) (by omega)
-        unfold Problem.sort at da di dv dj
+        simp only [Problem.sort_eq] at da di dv dj
         rw [ha] at da; rw [hi] at di; rw [hv] at dv; rw [hj] at dj
         have ri := hrng i (by omega)
         have rj := hrng j (by omega)
         have rv := hrng v (by omega)
-        unfold Problem.sort at ri rj rv
+        simp only [Problem.sort_eq] at ri rj rv
         rw [hi] at ri; rw [hj] at rj; rw [hv] at rv
         have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj ri rj rv
         rw [val_app hA.wf hr, val_app hA.wf hs, val_const hA.wf hk]
@@ -829,13 +891,13 @@ include hA hL hrng
 theorem symOf_val {c C : Nat} (h : P.symOf c = some C) : val M.toInterp P.nodes c = M.const C := by
   unfold Problem.symOf at h
   split at h
-  · rename_i n hn; cases h; exact val_const hA.wf hn
+  · rename_i n hn; cases h; exact val_const hA.wf (Problem.node_some hn)
   · cases h
 
 theorem symOf_node {c C : Nat} (h : P.symOf c = some C) : P.nodes[c]? = some (.const C) := by
   unfold Problem.symOf at h
   split at h
-  · rename_i n hn; cases h; exact hn
+  · rename_i n hn; cases h; exact Problem.node_some hn
   · cases h
 
 /-- What a constructor class stands for. -/
@@ -899,7 +961,7 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
           simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', List.isEmpty_eq_false_iff] at hc
           obtain ⟨C, d, T, Ss, hC, he, hm⟩ := ufCtor_info hA hL hrng hf
           have hn' : P.nodes[x]? = some (.app c args) := by
-            simp only [Problem.ufEnv, Problem.node] at hn
+            simp only [Problem.ufEnv, Problem.node_eq] at hn
             split at hn
             · rename_i f' args' h'; cases hn; exact h'
             · cases hn
@@ -914,7 +976,7 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
             simp [ctorVal, this]
           · have tx := typed_node hA.typed hn'
             have tc := typed_node hA.typed (symOf_node hA hL hrng hC)
-            simp only [nodeTyped, beq_iff_eq] at tx tc
+            simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tx tc
             split at tx
             · rename_i as' r hs
               simp only [Bool.and_eq_true, beq_iff_eq] at tx
@@ -946,7 +1008,7 @@ theorem ufTester_info {t c : Nat} (h : A.ufTesters.lookup t = some c) :
 
 theorem ufEnv_node {p f : Nat} {args : List Nat} (h : (P.ufEnv A).node p = some (f, args)) :
     P.nodes[p]? = some (.app f args) := by
-  simp only [Problem.ufEnv, Problem.node] at h
+  simp only [Problem.ufEnv, Problem.node_eq] at h
   split at h
   · rename_i f' args' h'; cases h; exact h'
   · cases h
@@ -984,7 +1046,7 @@ theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some 
   have hT' := (this.2 _ hct).1.2
   have tp := typed_node hA.typed hp
   have tt := typed_node hA.typed (symOf_node hA hL hrng hT)
-  simp only [nodeTyped, beq_iff_eq] at tp tt
+  simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tp tt
   split at hT'
   · rename_i s hs
     rw [hs] at tt
@@ -996,7 +1058,7 @@ theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some 
         List.cons.injEq] at tp
       have := dom_of hA hL hrng (i := a) (Nat.lt_trans (child_lt hA.wf hp (by simp [Node.children]))
         (lt_of_node hp))
-      unfold Problem.sort at this
+      simp only [Problem.sort_eq] at this
       rw [tp.2.1, hT'.1] at this
       exact this
     · cases hT'
@@ -1049,7 +1111,7 @@ theorem uf_sound : (P.ufEnv A).Sound (ufModel P M size) (assign P A M.toInterp) 
     have hok := atomOk_of hA (v := v) (Or.inl (by simp [Problem.ufEnv] at h; simp [h]))
     simp only [Problem.ufEnv] at h
     unfold Problem.atomOk at hok
-    simp only [h, Bool.and_eq_true, Bool.or_eq_true, bne_iff_ne, ne_eq, not_true_eq_false,
+    simp only [Problem.node_eq, Tab.at_eq, h, Bool.and_eq_true, Bool.or_eq_true, bne_iff_ne, ne_eq, not_true_eq_false,
       false_or, decide_eq_true_eq] at hok
     obtain ⟨⟨⟨hx, hb⟩, _⟩, _⟩ := hok
     have := dom_of hA hL hrng hx
