@@ -49,6 +49,10 @@ installs it on first use.
 - `Vik/Cert/Example.lean`: small answers the kernel accepts, one of them with
   an extensionality instance and the range of its witness, and what follows
   from them.
+- `Vik/Surface.lean`: the SMT-LIB terms before lowering (Booleans, integer
+  and real arithmetic, uninterpreted functions, arrays) and their values in a
+  model, with every node of a well-sorted table taking a value of its sort,
+  `val_dom`.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.
