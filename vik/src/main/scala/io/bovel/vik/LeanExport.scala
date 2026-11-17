@@ -17,6 +17,12 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *  the term the encoder made it for, an application that of its function
  *  applied to its arguments. An LIA unknown is the node of its term, and a
  *  variable the expression it stands for over them.
+ *
+ *  With the script the check saw ([[Surface]]), it also writes the script
+ *  (`Vik.Lower.SProblem`), the trace of its lowering (`Vik.Lower.Trace`), and
+ *  the theorem that no model of the script satisfies its assertions. The
+ *  table then starts with the script's sorts and symbols, then the minted
+ *  ones, as `Trace.check` requires.
  */
 private[vik] object LeanExport:
 
@@ -47,8 +53,54 @@ private[vik] object LeanExport:
   /** Not supported yet by the export. */
   final class Unsupported(msg: String) extends Exception(msg)
 
-  def apply(in: Input): Either[String, String] =
-    try Right(Writer(in).write())
+  /** The surface script at the check, from [[LoweringCheck.surface]]: its sorts
+   *  (each with its key among the lowered sorts, as the encoder names them, and
+   *  its lowering), its symbols with their sorts, its nodes with their sorts
+   *  and lowerings, and what the lowering minted. Written as the `SProblem` and
+   *  the `Trace` that `Trace.check` checks against the lowered problem.
+   */
+  final case class Surface(
+      sorts: Seq[SortEntry],
+      decls: Seq[(String, Int)],
+      mints: Seq[(String, Mint)],
+      nodes: Seq[String],
+      sortOf: Seq[Int],
+      values: Seq[Term | Formula],
+      asserts: Seq[Int],
+      datatypes: Seq[(Int, Seq[(Int, Int, Seq[Int])])],
+      defs: Seq[String],
+      insts: Seq[(Int, Seq[Int])],
+      reasons: collection.Map[Formula, Reason]
+  )
+
+  /** A surface sort: its Lean term, its key among the lowered sorts, the Lean
+   *  term of its lowering, the result of a function or array sort, the width of
+   *  a bit-vector.
+   */
+  final case class SortEntry(text: String, key: String, lowered: String, result: Option[Int], width: Option[Int])
+
+  /** A real rule (`Vik.Lower.RRule`). */
+  enum RRule:
+    case Rat(p: BigInt, q: BigInt)
+    case RatMul(p: BigInt, q: BigInt, t: Term)
+    case Floor(t: Term)
+
+  /** Why the lowering minted a symbol (`Vik.Lower.Mint`). */
+  enum Mint:
+    case Ite(node: Int, sort: Int)
+    case Store(sort: Int, index: Int, element: Int)
+    case Real(rule: RRule)
+
+  /** Why a lowered input holds (`Vik.Lower.InputWhy`). */
+  enum Reason:
+    case Assert(node: Int)
+    case IteThen(symbol: String)
+    case IteElse(symbol: String)
+    case Range(node: Int)
+    case Real(rule: RRule, fact: Int)
+
+  def apply(in: Input, surface: Option[Surface] = None): Either[String, String] =
+    try Right(Writer(in, surface).write())
     catch case e: Unsupported => Left(e.getMessage)
 
   private def lit(l: Lit): String = s"⟨${l.variable}, ${l.positive}⟩"
@@ -58,7 +110,7 @@ private[vik] object LeanExport:
     if r.isInteger then int(r.num) else s"((${r.num} : Rat) / ${r.den})"
   private def list(xs: Iterable[String]): String = xs.mkString("[", ", ", "]")
 
-  private final class Writer(in: Input):
+  private final class Writer(in: Input, surface: Option[Surface]):
     import in.*
 
     // Sorts: `Bool`, `Int` and `Real` first, the others as met. A bit-vector
@@ -67,6 +119,7 @@ private[vik] object LeanExport:
     private val sortIds = HashMap[String, Int]("Bool" -> 0, "Int" -> 1, "Real" -> 2)
     private val bvIndex = ArrayBuffer.empty[(Int, Int)]
     private val bitVector = """\(_ BitVec (\d+)\)""".r
+    private val results = HashMap.empty[Int, Int]
     private def newSort(key: String, text: String): Int = sortIds.getOrElseUpdate(
       key, {
         sorts += text
@@ -75,7 +128,9 @@ private[vik] object LeanExport:
     )
     private def fnSort(params: List[Int], result: Int): Int =
       val text = s".fn ${list(params.map(_.toString))} $result"
-      newSort(text, text)
+      val i = newSort(text, text)
+      results.getOrElseUpdate(i, result)
+      i
     private def sortId(s: String): Int = sortIds.get(s) match
       case Some(i) => i
       case None =>
@@ -97,6 +152,28 @@ private[vik] object LeanExport:
     // index and an element to an array.
     private val decls = LinkedHashMap.empty[String, Int]
     private val declSorts = HashMap.empty[String, Int]
+    // With a surface script, its sorts come first, then the sorts of the stores;
+    // its symbols, then the minted ones.
+    for sf <- surface do
+      sorts.clear()
+      sortIds.clear()
+      for (e, i) <- sf.sorts.zipWithIndex do
+        sorts += e.lowered
+        sortIds.getOrElseUpdate(e.key, i)
+        sortIds.getOrElseUpdate(e.lowered, i)
+        for r <- e.result do results(i) = r
+        for w <- e.width do bvIndex += ((i, w))
+      for (name, s) <- sf.decls do
+        declSorts(name) = s
+        decls(name) = decls.size
+      for (name, m) <- sf.mints do
+        declSorts(name) = m match
+          case Mint.Ite(_, s) => s
+          case Mint.Store(s, idx, el) => fnSort(List(s, idx, el), s)
+          case Mint.Real(RRule.Floor(_)) => 1
+          case Mint.Real(_) => 2
+        decls(name) = decls.size
+
     private def symbolSort(name: String): String = declarations.get(name) match
       case Some((args, result)) => Sorts.function(args, result)
       case None => introduced.getOrElse(name, throw Unsupported(s"the symbol $name"))
@@ -141,7 +218,10 @@ private[vik] object LeanExport:
           if args.length != full then throw Unsupported(s"the partial application $t")
           val f = term(fun)
           val as = args.map(term)
-          node(s".app $f ${list(as.map(_.toString))}", sortId(sortOf(t)))
+          val result = fun match
+            case Term.Const(n) => results.get(declSorts(n))
+            case _ => None
+          node(s".app $f ${list(as.map(_.toString))}", result.getOrElse(sortId(sortOf(t))))
         case Term.Num(v) => node(s".num ${int(v)}", 1)
         case Term.Linear(ts, c) =>
           val parts = ts.map((a, u) => s"(${int(a)}, ${term(u)})")
@@ -320,6 +400,69 @@ private[vik] object LeanExport:
         s".witnessRange ${formula(f)}"
       case other => throw Unsupported(s"the origin $other")
 
+    private def rrule(r: RRule): String = r match
+      case RRule.Rat(p, q) => s".rat ${int(p)} $q"
+      case RRule.RatMul(p, q, t) => s".ratmul ${int(p)} $q ${term(t)}"
+      case RRule.Floor(t) => s".floor ${term(t)}"
+
+    private def reason(sf: Surface, f: Formula): String = sf.reasons.get(f) match
+      case Some(Reason.Assert(a)) => s".assert $a"
+      case Some(Reason.IteThen(k)) => s".iteThen ${decls(k)}"
+      case Some(Reason.IteElse(k)) => s".iteElse ${decls(k)}"
+      case Some(Reason.Range(i)) => s".range $i"
+      case Some(Reason.Real(r, j)) => s".real (${rrule(r)}) $j"
+      case None => throw Unsupported(s"the input $f, of no reason")
+
+    /** The script and the trace, written before the lowered problem: they add
+     *  the nodes of the lowerings of the surface nodes.
+     */
+    private def surfaceText(sf: Surface): String =
+      val node = sf.values.map {
+        case t: Term => term(t)
+        case f: Formula => formula(f)
+      }
+      val mints = sf.mints.map((_, m) =>
+        m match
+          case Mint.Ite(i, _) => s".ite $i"
+          case Mint.Store(s, _, _) => s".store $s"
+          case Mint.Real(r) => s".real (${rrule(r)})"
+      ) ++ decls.keysIterator.drop(sf.decls.length + sf.mints.length).map { n =>
+        // the witnesses of the answer, of the sorts of the script
+        val s = declSorts(n)
+        if s >= sf.sorts.length then throw Unsupported(s"the symbol $n")
+        s".witness $s"
+      }
+      val reasons = inputs.map(reason(sf, _))
+      val levelReasons = assumed.map(v => list(levels.find(_._1 == v).fold(Nil)(_._2).map(reason(sf, _))))
+      val datatypes =
+        sf.datatypes.map((d, cs) => s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})")
+      val b = StringBuilder()
+      b ++= "def script : Vik.Lower.SProblem where\n"
+      b ++= s"  sig := ⟨${list(sf.sorts.map(_.text))}, ${list(sf.decls.map(_._2.toString))}⟩\n"
+      b ++= s"  nodes := ${list(sf.nodes)}\n"
+      b ++= s"  sortOf := ${list(sf.sortOf.map(_.toString))}\n"
+      b ++= s"  asserts := ${list(sf.asserts.map(_.toString))}\n"
+      b ++= s"  datatypes := ${list(datatypes)}\n"
+      b ++= s"  defs := ${list(sf.defs)}\n\n"
+      b ++= "def trace : Vik.Lower.Trace where\n"
+      b ++= s"  node := ${list(node.map(_.toString))}\n"
+      b ++= s"  mints := ${list(mints)}\n"
+      b ++= s"  inputs := ${list(reasons)}\n"
+      b ++= s"  levels := ${list(levelReasons)}\n"
+      b ++= s"  insts := ${list(sf.insts.map((i, ms) => s"($i, ${list(ms.map(_.toString))})"))}\n\n"
+      b.toString
+
+    private val surfaceTheorems =
+      """|theorem checked : trace.check script problem answer = true := by decide +kernel
+         |
+         |/-- No model of the script satisfies its assertions. -/
+         |theorem no_model {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
+         |    [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Vik.Surf.Model R U)
+         |    (size : Val R U → Nat) (hL : script.Laws M size) (hfl : ∀ r : R, ∃ k : Int, Vik.Real.IsFloor r k)
+         |    (h : ∀ a ∈ script.asserts, Vik.Surf.holds M.toInterp script.nodes a) : False :=
+         |  Vik.Lower.Trace.unsat checked accepted M size hL hfl h
+         |""".stripMargin
+
     def write(): String =
       val steps = ArrayBuffer.empty[String]
       val justs = ArrayBuffer.empty[String]
@@ -404,6 +547,7 @@ private[vik] object LeanExport:
       if order != extList.indices then throw Unsupported("extensionality instances out of the order of their witnesses")
       val extsText = extList.map((ws, eqs) => s"(${eqs._1}, ${eqs._2}, ${list(ws.map(sym(_).toString))})")
       val witnessSyms = (extList.flatMap(_._1) ++ ranges.filterNot(w => extList.exists(_._1.contains(w)))).map(sym)
+      val surfaceDefs = surface.map(surfaceText)
       val trueNode = classNode(trueClass)
       val falseNode = classNode(falseClass)
       formula(Formula.True)
@@ -415,7 +559,12 @@ private[vik] object LeanExport:
       b ++= s"  nodes := ${list(nodes)}\n"
       b ++= s"  sortOf := ${list(nodeSorts.map(_.toString))}\n"
       b ++= s"  inputs := ${list(inputIds.map(_.toString))}\n"
-      b ++= s"  datatypes := ${list(dts)}\n"
+      val dtsText = surface.fold(list(dts))(sf =>
+        list(sf.datatypes.map((d, cs) =>
+          s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})"
+        ))
+      )
+      b ++= s"  datatypes := $dtsText\n"
       b ++= s"  stores := ${list(stores)}\n"
       b ++= s"  bvIndex := ${list(bvIndex.map((s, w) => s"($s, $w)"))}\n\n"
       b ++= "def answer : Answer where\n"
@@ -435,4 +584,6 @@ private[vik] object LeanExport:
       b ++= s"  exts := ${list(extsText)}\n"
       b ++= s"  witnesses := ${list(witnessSyms.map(_.toString))}\n\n"
       b ++= "theorem accepted : problem.accepts answer = true := by decide +kernel\n"
+      for text <- surfaceDefs do
+        b ++= "\n" + text + surfaceTheorems
       b.toString

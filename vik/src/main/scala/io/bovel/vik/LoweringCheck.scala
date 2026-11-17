@@ -134,9 +134,11 @@ final class LoweringCheck:
         .toMap
 
   private def register(intro: Intro): Unit =
+    registered.put(intro, registered.size)
     for s <- intro.symbols do
       if declared(s) || minted(s) then fail(s"$s is not a new symbol")
       minted += s
+      introOf(s) = intro
     if intro.kind == "store" then stores(intro.key.head.asInstanceOf[String]) = intro
     else intros((intro.kind, intro.key)) = intro
     intro.kind match
@@ -294,6 +296,9 @@ final class LoweringCheck:
           functions(name) = Sort.fun(argSorts, sort)
           List(Command.DeclareFun(name, argSorts.map(sortString), sortString(sort)))
     case s2.Command.DeclareDatatypes(datatypes) =>
+      datatypeDecls ++= datatypes
+      if scopes.nonEmpty && !globalDeclarations then
+        scopes.last += (() => datatypeDecls.dropRightInPlace(datatypes.length))
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = Sort.Named(datatype.name)
         undoable(functions, constructor.name)
@@ -312,10 +317,17 @@ final class LoweringCheck:
       undoable(macros, name)
       macros(name) = (params, sort, body)
       Nil
-    case s2.Command.Assert(f) => List(Command.Assert(formula(f, Map.empty)))
-    case s2.Command.AssertNamed(name, f) => List(Command.AssertNamed(name, formula(f, Map.empty)))
-    case s2.Command.CheckSat => List(Command.CheckSat)
+    case s2.Command.Assert(f) =>
+      asserted(f)
+      List(Command.Assert(formula(f, Map.empty)))
+    case s2.Command.AssertNamed(name, f) =>
+      asserted(f)
+      List(Command.AssertNamed(name, formula(f, Map.empty)))
+    case s2.Command.CheckSat =>
+      assumed = Nil
+      List(Command.CheckSat)
     case s2.Command.CheckSatAssuming(assumptions) =>
+      assumed = assumptions
       List(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
     case s2.Command.Push(levels) =>
       for _ <- 1 to levels do scopes += ArrayBuffer.empty
@@ -325,11 +337,14 @@ final class LoweringCheck:
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
       clearMemos()
+      assertions.clear()
       Command.ResetAssertions +: functions.toList.sortBy(_._1).collect { case (n, Sort.BitVec(w)) =>
         Command.Assert(range(Const(n), w))
       }
     case s2.Command.Reset =>
       scopes.clear()
+      assertions.clear()
+      datatypeDecls.clear()
       globalDeclarations = false
       functions.clear()
       macros.clear()
@@ -906,6 +921,416 @@ final class LoweringCheck:
     else
       val (nl, nr) = (negative(l, width), negative(r, width))
       Or(List(And(List(nl, Not(nr))), And(List(Iff(nl, nr), unsigned))))
+
+  // The surface script at a check, for the Lean proofs.
+
+  // The assertions of the open levels, the assumptions of the last check, the
+  // datatypes declared, and the intros in the order the lowering made them.
+  private val assertions = ArrayBuffer.empty[s2.Formula]
+  private var assumed = List.empty[s2.Formula]
+  private val datatypeDecls = ArrayBuffer.empty[s2.Datatype]
+  private val registered = java.util.IdentityHashMap[Intro, Int]()
+  private val introOf = HashMap.empty[String, Intro]
+
+  private def asserted(f: s2.Formula): Unit =
+    assertions += f
+    if scopes.nonEmpty then scopes.last += (() => assertions.remove(assertions.length - 1))
+
+  /** The script the last check saw, as [[LeanExport.Surface]]: its assertions
+   *  and assumptions, their nodes as written (`let` and the uses of definitions
+   *  included, each instance of a definition's body before its use), the
+   *  lowering of each node as the replay lowers it, what the lowering minted
+   *  for them, and why each lowered assertion holds. `Left` for what the Lean
+   *  trace does not cover yet.
+   */
+  def surface(): Either[String, LeanExport.Surface] =
+    try Right(Transcript().result())
+    catch case Failed(msg) => Left(msg)
+
+  private final class Transcript:
+    import LeanExport.{Mint, Reason, RRule, SortEntry}
+
+    private def list(xs: Iterable[Any]): String = xs.mkString("[", ", ", "]")
+    private def int(v: BigInt): String = if v < 0 then s"($v)" else v.toString
+
+    // Sorts: `Bool`, `Int` and `Real` first, the others as met.
+    private val sorts = ArrayBuffer.empty[SortEntry]
+    private val sortIds = HashMap.empty[Sort, Int]
+    private def sort(s: Sort): Int = sortIds.get(s) match
+      case Some(i) => i
+      case None =>
+        val e = s match
+          case Sort.Bool => SortEntry(".bool", "Bool", ".bool", None, None)
+          case Sort.Int => SortEntry(".int", "Int", ".int", None, None)
+          case Sort.Real => SortEntry(".real", "Real", ".real", None, None)
+          case Sort.BitVec(w) => SortEntry(s".bv $w", s.text, ".int", None, Some(w))
+          case Sort.Fun(args, r) =>
+            val t = s".fn ${list(args.map(sort))} ${sort(r)}"
+            SortEntry(t, sortString(s), t, Some(sort(r)), None)
+          case Sort.Array(i, el) =>
+            val (a, b) = (sort(i), sort(el))
+            SortEntry(s".array $a $b", sortString(s), s".fn [$a] $b", Some(b), None)
+          case Sort.Named(n) => SortEntry(".user", n, ".user", None, None)
+        sorts += e
+        sortIds(s) = sorts.length - 1
+        sorts.length - 1
+    sort(Sort.Bool)
+    sort(Sort.Int)
+    sort(Sort.Real)
+
+    // Symbols: those of the script by name, those of definitions and their
+    // parameters by keys no symbol has.
+    private val decls = ArrayBuffer.empty[(String, Int)]
+    private val declIds = HashMap.empty[String, Int]
+    private def decl(key: String, s: Sort): Int = declIds.getOrElseUpdate(
+      key, {
+        decls += ((key, sort(s)))
+        decls.length - 1
+      }
+    )
+    private def symbol(name: String): Int =
+      if minted(name) then fail(s"the minted symbol $name in the script")
+      decl(name, functions.getOrElse(name, fail(s"unknown symbol $name")))
+
+    private val datatypes = datatypeDecls.toList.map { d =>
+      val s = sort(Sort.Named(d.name))
+      (s, d.constructors.map(c => (symbol(c.name), symbol(c.tester), c.selectors.map((n, _) => symbol(n)))))
+    }
+
+    // Nodes: those of the script, and one table per definition.
+    private final class Table:
+      val nodes = ArrayBuffer.empty[String]
+      val sortOf = ArrayBuffer.empty[Int]
+      val ids = HashMap.empty[String, Int]
+      // The nodes each step of the walk ends at, to match an instance of a
+      // definition's body with the body.
+      var visits = ArrayBuffer.empty[Int]
+    private val main = Table()
+    private val values = ArrayBuffer.empty[Term | Formula]
+
+    private enum Binding:
+      /** A variable of a `let`, bound to node `d`. */
+      case Bound(d: Int)
+
+      /** A parameter of an instance: the node of its argument. */
+      case Arg(j: Int)
+
+      /** A parameter of a definition: the symbol `p`. */
+      case Param(p: Int, s: Sort)
+
+    /** Where a walk is: its table and bindings, and the replay's environment —
+     *  in a definition's body, only for the sorts.
+     */
+    private final case class Ctx(table: Table, scope: Map[String, Binding], env: Env):
+      def live: Boolean = table eq main
+
+    private def node(ctx: Ctx, text: String, s: Int, value: => Term | Formula): (Int, Boolean) =
+      val tb = ctx.table
+      tb.ids.get(text) match
+        case Some(i) => (i, false)
+        case None =>
+          if ctx.live then values += value
+          tb.nodes += text
+          tb.sortOf += s
+          tb.ids(text) = tb.nodes.length - 1
+          (tb.nodes.length - 1, true)
+
+    private def visit(ctx: Ctx, i: Int): Int =
+      ctx.table.visits += i
+      i
+
+    private def sortIndexOf(ctx: Ctx, i: Int): Int = ctx.table.sortOf(i)
+
+    // What the lowering minted, by symbol, and the instances of definitions.
+    private val mints = HashMap.empty[String, Mint]
+    private val insts = ArrayBuffer.empty[(Int, List[Int])]
+
+    private def formulaNode(f: s2.Formula, ctx: Ctx): Int =
+      def make(text: String): Int = visit(ctx, node(ctx, text, 0, formula(f, ctx.env))._1)
+      def many(op: String, as: List[s2.Formula]): Int = make(s"$op ${list(as.map(formulaNode(_, ctx)))}")
+      def terms(op: String, as: List[s2.Term]): Int = make(s"$op ${list(as.map(termNode(_, ctx)))}")
+      f match
+        case s2.Formula.True => make(".tt")
+        case s2.Formula.False => make(".ff")
+        case s2.Formula.Not(a) => make(s".not ${formulaNode(a, ctx)}")
+        case s2.Formula.And(as) => many(".and", as)
+        case s2.Formula.Or(as) => many(".or", as)
+        case s2.Formula.Implies(as) => many(".implies", as)
+        case s2.Formula.Xor(as) => many(".xor", as)
+        case s2.Formula.Iff(as) => many(".iff", as)
+        case s2.Formula.Eq(as) =>
+          if sortOf(as.head, ctx.env) == Sort.Bool then fail("an equality of Booleans")
+          terms(".eq", as)
+        case s2.Formula.Distinct(as) =>
+          if sortOf(as.head, ctx.env) == Sort.Bool then fail("a distinct of Booleans")
+          terms(".distinct", as)
+        case s2.Formula.Cmp(op, as) =>
+          val name = op match
+            case s2.CmpOp.Le => ".le"
+            case s2.CmpOp.Lt => ".lt"
+            case s2.CmpOp.Ge => ".ge"
+            case s2.CmpOp.Gt => ".gt"
+          terms(name, as)
+        case s2.Formula.BvCmp(op, a, b) =>
+          val w = width(a, ctx.env)
+          make(s".bvcmp .${op.toString.toLowerCase} $w ${termNode(a, ctx)} ${termNode(b, ctx)}")
+        case s2.Formula.Ite(c, a, b) =>
+          make(s".ite ${formulaNode(c, ctx)} ${formulaNode(a, ctx)} ${formulaNode(b, ctx)}")
+        case s2.Formula.IsConstructor(c, arg) =>
+          val x = termNode(arg, ctx)
+          val tester = s"(_ is $c)"
+          val t = visit(ctx, node(ctx, s".const ${symbol(tester)}", sort(functions(tester)), Const(tester))._1)
+          val value = formula(f, ctx.env) match
+            case Pred(term) => term
+            case other => fail(s"a tester lowered to $other")
+          visit(ctx, node(ctx, s".app $t [$x]", 0, value)._1)
+        case s2.Formula.IsInt(a) => make(s".isInt ${termNode(a, ctx)}")
+        case s2.Formula.Let(bindings, body) => let(bindings, body, ctx)
+        case s2.Formula.Pred(t) => visit(ctx, termNode(t, ctx))
+
+    private def termNode(t: s2.Term, ctx: Ctx): Int =
+      lazy val s = sortOf(t, ctx.env)
+      def make(text: String): (Int, Boolean) = node(ctx, text, sort(s), term(t, ctx.env))
+      def made(text: String): Int = visit(ctx, make(text)._1)
+      t match
+        case s2.Term.Const(name) =>
+          ctx.scope.get(name) match
+            case Some(Binding.Bound(d)) =>
+              visit(ctx, node(ctx, s".bound $d", sortIndexOf(ctx, d), values(d))._1)
+            case Some(Binding.Arg(j)) => visit(ctx, j)
+            case Some(Binding.Param(p, ps)) => visit(ctx, node(ctx, s".const $p", sort(ps), True)._1)
+            case None =>
+              if macros.contains(name) then call(name, Nil, ctx)
+              else made(s".const ${symbol(name)}")
+        case s2.Term.Numeral(v) => made(s".num ${int(v)}")
+        case s2.Term.Decimal(unscaled, scale) =>
+          val q0 = BigInt(10).pow(scale)
+          val g = unscaled.gcd(q0)
+          made(s".rat ${int(unscaled / g)} ${q0 / g}")
+        case s2.Term.Bits(v, w) => made(s".bvlit $w $v")
+        case s2.Term.App(s2.Term.Const(name), args) if macros.contains(name) && !ctx.scope.contains(name) =>
+          call(name, args, ctx)
+        case s2.Term.App(fun, args) =>
+          val f = termNode(fun, ctx)
+          made(s".app $f ${list(args.map(termNode(_, ctx)))}")
+        case s2.Term.ArithApp(op, args) =>
+          val as = args.map(termNode(_, ctx))
+          op match
+            case ArithOp.Add => made(s".add ${list(as)}")
+            case ArithOp.Sub => made(s".sub ${list(as)}")
+            case ArithOp.Neg => made(s".neg ${as.head}")
+            case ArithOp.Mul => made(s".mul ${list(as)}")
+            case ArithOp.Div => made(s".div ${list(as)}")
+            case ArithOp.ToReal => made(s".toReal ${as.head}")
+            case ArithOp.ToInt => made(s".toInt ${as.head}")
+            case _ => fail(s"${op.name} is not supported")
+        case s2.Term.BvApp(op, args) => bvNode(op, args, ctx, made)
+        case s2.Term.Select(a, i) =>
+          val x = termNode(a, ctx)
+          made(s".select $x ${termNode(i, ctx)}")
+        case s2.Term.Store(a, i, v) =>
+          val x = termNode(a, ctx)
+          val y = termNode(i, ctx)
+          val (j, fresh) = make(s".store $x $y ${termNode(v, ctx)}")
+          if fresh && ctx.live then
+            values(j) match
+              case App(Const(n), _) =>
+                sortOf(a, ctx.env) match
+                  case Sort.Array(idx, el) => mints.getOrElseUpdate(n, Mint.Store(sort(s), sort(idx), sort(el)))
+                  case other => fail(s"a store on $other")
+              case other => fail(s"a store lowered to $other")
+          visit(ctx, j)
+        case s2.Term.Ite(c, a, b) =>
+          if s == Sort.Bool then fail("an ite of Booleans as a term")
+          val x = formulaNode(c, ctx)
+          val y = termNode(a, ctx)
+          val (j, fresh) = make(s".ite $x $y ${termNode(b, ctx)}")
+          if fresh && ctx.live then
+            values(j) match
+              case Const(n) => mints.getOrElseUpdate(n, Mint.Ite(j, sort(s)))
+              case other => fail(s"an ite lowered to $other")
+          visit(ctx, j)
+        case s2.Term.Let(bindings, body) => let(bindings, body, ctx)
+        case s2.Term.Bool(f) => visit(ctx, formulaNode(f, ctx))
+
+    private def bvNode(op: BvOp, args: List[s2.Term], ctx: Ctx, made: String => Int): Int =
+      def w(a: s2.Term): Int = width(a, ctx.env)
+      lazy val a = termNode(args.head, ctx)
+      def un(text: String): Int = made(s".bvun $text ${w(args.head)} $a")
+      op match
+        case BvOp.Concat | BvOp.Add | BvOp.Mul | BvOp.And | BvOp.Or | BvOp.Xor if args.length > 2 =>
+          termNode(args.reduceLeft((x, y) => s2.Term.BvApp(op, List(x, y))), ctx)
+        case BvOp.UbvToInt => made(s".bv2int false ${w(args.head)} $a")
+        case BvOp.SbvToInt => made(s".bv2int true ${w(args.head)} $a")
+        case BvOp.IntToBv(n) => made(s".int2bv $n $a")
+        case BvOp.Neg => un(".neg")
+        case BvOp.Not => un(".not")
+        case BvOp.Extract(i, j) => un(s"(.extract $i $j)")
+        case BvOp.ZeroExtend(k) => un(s"(.zeroExtend $k)")
+        case BvOp.SignExtend(k) => un(s"(.signExtend $k)")
+        case BvOp.Repeat(k) => un(s"(.repeat $k)")
+        case BvOp.RotateLeft(k) => un(s"(.rotateLeft $k)")
+        case BvOp.RotateRight(k) => un(s"(.rotateRight $k)")
+        case BvOp.Concat =>
+          val b = termNode(args(1), ctx)
+          made(s".concat ${w(args.head)} ${w(args(1))} $a $b")
+        case _ =>
+          val b = termNode(args(1), ctx)
+          made(s".bvbin .${op.toString.toLowerCase} ${w(args.head)} $a $b")
+
+    private def let(bindings: List[(String, s2.Term | s2.Formula)], body: s2.Term | s2.Formula, ctx: Ctx): Int =
+      val ds = bindings.map((_, v) =>
+        v match
+          case t: s2.Term => termNode(t, ctx)
+          case f: s2.Formula => formulaNode(f, ctx)
+      )
+      val env = if ctx.live then bind(bindings, ctx.env) else ctx.env ++ bindings.map((n, v) => n -> dummy(v, ctx.env))
+      val inner = Ctx(ctx.table, ctx.scope ++ bindings.map(_._1).zip(ds.map(Binding.Bound(_))), env)
+      val b = body match
+        case t: s2.Term => termNode(t, inner)
+        case f: s2.Formula => formulaNode(f, inner)
+      visit(ctx, node(ctx, s".letIn ${list(ds)} $b", sortIndexOf(ctx, b), values(b))._1)
+
+    /** A value with the sort of `v`, for the sorts of a definition's body. */
+    private def dummy(v: s2.Term | s2.Formula, env: Env): Value = v match
+      case t: s2.Term =>
+        val s = sortOf(t, env)
+        if s == Sort.Bool then Value.F(True) else Value.T(Num(0), s)
+      case _: s2.Formula => Value.F(True)
+
+    // The definitions: each its symbol, its parameters, its body's nodes and
+    // the node each step of the walk of the body ends at.
+    private type Macro = (List[(String, Sort)], Sort, s2.Term | s2.Formula)
+    private final case class Def(sym: Int, params: List[Int], size: Int, visits: List[Int], text: String)
+    private val defs = ArrayBuffer.empty[Def | Null]
+    private val defIds = java.util.IdentityHashMap[Macro, Int]()
+
+    private def definition(name: String, m: Macro): Def =
+      if defIds.containsKey(m) then defs(defIds.get(m)).nn
+      else
+        val (params, result, body) = m
+        val k = defs.length
+        defs += null
+        defIds.put(m, k)
+        val sym = decl(s"define-fun $k $name", Sort.fun(params.map(_._2), result))
+        val ps = params.map((p, s) => decl(s"define-fun $k $name $p", s))
+        val tb = Table()
+        val scope = params.zip(ps).map { case ((p, s), d) => p -> Binding.Param(d, s) }.toMap
+        val env: Env = params.map((p, s) => p -> (if s == Sort.Bool then Value.F(True) else Value.T(Num(0), s))).toMap
+        val ctx = Ctx(tb, scope, env)
+        val root = body match
+          case t: s2.Term => termNode(t, ctx)
+          case f: s2.Formula => formulaNode(f, ctx)
+        val d = Def(sym, ps, tb.nodes.length, tb.visits.toList, s"⟨$sym, ${list(ps)}, ${list(tb.nodes)}, $root⟩")
+        defs(k) = d
+        d
+
+    private def call(name: String, args: List[s2.Term], ctx: Ctx): Int =
+      val m = macros(name)
+      val (params, result, body) = m
+      if params.length != args.length then fail(s"$name expects ${params.length} arguments")
+      val d = definition(name, m)
+      val as = args.map(termNode(_, ctx))
+      val (root, ms) =
+        if !ctx.live then (-1, Nil)
+        else
+          // the instance of the body, as the lowering expands it
+          val env: Env = params.zip(args).map { case ((p, s), a) =>
+            p -> (if s == Sort.Bool then Value.F(Formula.pred(term(a, ctx.env))) else Value.T(term(a, ctx.env), s))
+          }.toMap
+          val saved = main.visits
+          main.visits = ArrayBuffer.empty
+          val inner = Ctx(main, params.map(_._1).zip(as.map(Binding.Arg(_))).toMap, env)
+          val root = body match
+            case t: s2.Term => termNode(t, inner)
+            case f: s2.Formula => formulaNode(f, inner)
+          val seen = main.visits
+          main.visits = saved
+          val ms = Array.fill(d.size)(-1)
+          for (b, j) <- d.visits.zip(seen) do ms(b) = j
+          if ms.contains(-1) || d.visits.length != seen.length then fail(s"the instance of $name")
+          (root, ms.toList)
+      val key = decls(d.sym)._1
+      val text =
+        if params.isEmpty then s".const ${d.sym}"
+        else
+          val f = visit(ctx, node(ctx, s".const ${d.sym}", decls(d.sym)._2, Const(key))._1)
+          s".app $f ${list(as)}"
+      val (i, fresh) = node(ctx, text, sort(result), values(root))
+      if fresh && ctx.live then insts += ((i, ms))
+      visit(ctx, i)
+
+    def result(): LeanExport.Surface =
+      val top = Ctx(main, Map.empty, Map.empty)
+      val reasons = HashMap.empty[Formula, Reason]
+      val asserts = (assertions.toList ++ assumed).map { f =>
+        val a = formulaNode(f, top)
+        reasons.getOrElseUpdate(formula(f, Map.empty), Reason.Assert(a))
+        a
+      }
+      // The bit-vector symbols, whose ranges the lowering asserts.
+      for case (name, Sort.BitVec(_)) <- functions.toList.sortBy(_._1) if !minted(name) && !macros.contains(name) do
+        termNode(s2.Term.Const(name), top)
+      // The ranges of the bit-vector nodes.
+      for i <- main.nodes.indices do
+        (sorts(main.sortOf(i)).width, values(i)) match
+          case (Some(w), t: Term) => reasons.getOrElseUpdate(range(t, w), Reason.Range(i))
+          case _ => ()
+      // The minted symbols the lowerings mention, and those of their rules.
+      val pending = scala.collection.mutable.Stack.empty[String]
+      def mention(t: Term): Unit = pending.pushAll(Term.constants(t).filter(minted))
+      values.foreach {
+        case t: Term => mention(t)
+        case f: Formula => f.terms.foreach(mention)
+      }
+      val seen = HashMap.empty[String, Intro]
+      while pending.nonEmpty do
+        val n = pending.pop()
+        if !seen.contains(n) then
+          val intro = introOf.getOrElse(n, fail(s"the minted symbol $n of no intro"))
+          seen(n) = intro
+          intro.key.foreach {
+            case t: Term => mention(t)
+            case _ => ()
+          }
+      val ordered = seen.toList.sortBy((n, intro) => (registered.get(intro), intro.symbols.indexOf(n)))
+      val mintList = ordered.map { (n, intro) =>
+        val m = (intro.kind, intro.key) match
+          case ("ite" | "store", _) => mints.getOrElse(n, fail(s"the ${intro.kind} $n of no surface node"))
+          case ("rat", List(p: BigInt, q: BigInt)) => Mint.Real(RRule.Rat(p, q))
+          case ("ratmul", List(p: BigInt, q: BigInt, t: Term)) => Mint.Real(RRule.RatMul(p, q, t))
+          case ("floor", List(r: Term)) => Mint.Real(RRule.Floor(r))
+          case _ => fail(s"the ${intro.kind} rule is not in the Lean trace yet")
+        (n, m)
+      }
+      // The facts of the intros.
+      for (n, m) <- mintList do
+        facts.clear()
+        declarations.clear()
+        check(introOf(n))
+        val fs = facts.toList
+        val why: List[Reason] = m match
+          case Mint.Ite(i, _) =>
+            val branches = List(Reason.IteThen(n), Reason.IteElse(n))
+            if fs.length == 3 then Reason.Range(i) :: branches else branches
+          case Mint.Store(_, _, _) => Nil
+          case Mint.Real(r) => fs.indices.toList.map(Reason.Real(r, _))
+        for (f, r) <- fs.zip(why) do reasons.getOrElseUpdate(f, r)
+      facts.clear()
+      declarations.clear()
+      LeanExport.Surface(
+        sorts.toList,
+        decls.toList,
+        mintList,
+        main.nodes.toList,
+        main.sortOf.toList,
+        values.toList,
+        asserts,
+        datatypes,
+        defs.toList.map(_.nn.text),
+        insts.toList,
+        reasons
+      )
 
 object LoweringCheck:
   private final case class Failed(msg: String) extends Exception(msg, null, false, false)
