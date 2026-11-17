@@ -9,9 +9,10 @@ import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, CmpOp, Command, Datatype, Formul
  *  executes per query, before any solver's API is named. [[VikReplay]],
  *  [[Z3Replay]], [[Cvc5Replay]], [[PrincessReplay]] and [[SmtInterpolReplay]]
  *  run one against their solver — declarations, term construction, asserts,
- *  `push`/`pop`, `reset-assertions`, every `check-sat` and `check-sat-assuming`,
- *  and every `get-model`, nothing else: no text is parsed, and VIK's tree is
- *  built by VIK's own front end from the terms handed to it.
+ *  `push`/`pop`, `reset-assertions`, every `check-sat` and
+ *  `check-sat-assuming`, and every `get-model`, nothing else: no text is
+ *  parsed, and VIK's tree is built by VIK's own front end from the terms handed
+ *  to it.
  *
  *  [[Replay.compile]] reads the surface script once, before measuring, and does
  *  what every solver's front end does with the text: a `let` binding becomes a
@@ -40,9 +41,9 @@ final class Replay(
   def models: Boolean = ops.contains(Replay.Op.GetModel)
 
   /** The program for a solver whose assumptions cannot be used: each
-   *  `check-sat-assuming` a level of its own, the assumptions asserted under
-   *  it and the `get-model` that may follow still inside it, since the model
-   *  must satisfy them too.
+   *  `check-sat-assuming` a level of its own, the assumptions asserted under it
+   *  and the `get-model` that may follow still inside it, since the model must
+   *  satisfy them too.
    */
   def leveled: Array[Replay.Op] =
     import Replay.Op
@@ -130,8 +131,8 @@ object Replay:
     case Pop(levels: Int)
 
     /** `(set-logic ...)` where the script has it, after a `reset` too: for the
-     *  solvers set through their script commands (VIK, SMTInterpol); the
-     *  others are given [[Replay.logic]], the first, once.
+     *  solvers set through their script commands (VIK, SMTInterpol); the others
+     *  are given [[Replay.logic]], the first, once.
      */
     case SetLogic(logic: String)
 

@@ -21,9 +21,10 @@ class CorpusTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
   private val fuel = 2000000L
   private val ignoredFuel = 1000L // enough to notice a file that became easy
-  /** The wall-clock guard: five seconds, the budget of the benchmarks, where the machine is
-   *  one's own; CI sets a hard limit above it (`VIK_CORPUS_BUDGET_MS`, see build.sbt), since a
-   *  file at the edge of the budget is caught here, not on a shared runner.
+  /** The wall-clock guard: five seconds, the budget of the benchmarks, where
+   *  the machine is one's own; CI sets a hard limit above it
+   *  (`VIK_CORPUS_BUDGET_MS`, see build.sbt), since a file at the edge of the
+   *  budget is caught here, not on a shared runner.
    */
   // The wall a file may take. The property is how the forked JVM tests carry it; the variable is how a
   // run with no JVM to configure gets it — the suites in the native image (`graal/nativeImageTestRun`).

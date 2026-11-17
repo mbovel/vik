@@ -15,8 +15,9 @@ import io.bovel.smtlib.Sort as SmtSort
 
 /** Runs a [[Replay]] through princess's API against a fresh prover: symbol
  *  creation, term construction, asserts, `push`/`pop`, every `check-sat` and
- *  every `get-model`, nothing else. The API route also sidesteps the SMT-LIB parser's environment,
- *  which rejects a re-declaration after `pop` (external-issues.md).
+ *  every `get-model`, nothing else. The API route also sidesteps the SMT-LIB
+ *  parser's environment, which rejects a re-declaration after `pop`
+ *  (external-issues.md).
  *
  *  Sorts follow princess's own SMT-LIB parser: reals are the `Rationals`
  *  theory, bit-vectors `ModuloArithmetic`, arrays `ExtArray`; a `Bool` constant
@@ -141,7 +142,8 @@ object PrincessReplay:
               case ArithOp.Mul =>
                 val flat = flatten(aop, as).map(term)
                 if real then flat.reduceLeft[ITerm](Rationals.mul) else flat.reduceLeft[ITerm](p.mulTheory.mult)
-              case ArithOp.Div => ts.reduceLeft[ITerm](Rationals.divWithSpecialZero) // n-ary, left-associative (issue 53)
+              case ArithOp.Div =>
+                ts.reduceLeft[ITerm](Rationals.divWithSpecialZero) // n-ary, left-associative (issue 53)
               case ArithOp.IntDiv => ts.reduceLeft[ITerm](p.mulTheory.eDivWithSpecialZero)
               case ArithOp.Mod => p.mulTheory.eModWithSpecialZero(ts(0), ts(1))
               case ArithOp.Abs => abs(ts.head)
@@ -238,10 +240,11 @@ object PrincessReplay:
             p.push()
             depth = 1
           case Op.Check =>
-            answers += (p.checkSat(true) match
-              case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true
-              case SimpleAPI.ProverStatus.Unsat | SimpleAPI.ProverStatus.Invalid => false
-              case status => throw Replay.Undecided("princess", status.toString))
+            answers +=
+              (p.checkSat(true) match
+                case SimpleAPI.ProverStatus.Sat | SimpleAPI.ProverStatus.Valid => true
+                case SimpleAPI.ProverStatus.Unsat | SimpleAPI.ProverStatus.Invalid => false
+                case status => throw Replay.Undecided("princess", status.toString))
           case Op.CheckAssuming(_) => throw IllegalStateException("assumptions are leveled for princess")
           case Op.GetModel => if answers.last then p.partialModelAsFormula.toString // what its parser asks for
       answers.toList

@@ -5,8 +5,8 @@ import org.scalajs.dom.{document, html}
 import io.bovel.smtlib.{Parser, Printer}
 import io.bovel.vik.Session
 
-/** The SMT-LIB page: a script in, the responses of its commands and
- *  the script as VIK plays it (bit-vectors lowered to integers) out.
+/** The SMT-LIB page: a script in, the responses of its commands and the script
+ *  as VIK plays it (bit-vectors lowered to integers) out.
  */
 object Smt2Page:
   def setup(): Unit =

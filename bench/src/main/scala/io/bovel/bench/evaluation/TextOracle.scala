@@ -32,7 +32,8 @@ object TextOracle:
       val output = String(process.getInputStream.readAllBytes(), "UTF-8")
       process.waitFor()
       val found = answers(output)
-      if found.isEmpty then throw RuntimeException(output.linesIterator.find(_.startsWith("(error")).getOrElse(output.take(200)))
+      if found.isEmpty then
+        throw RuntimeException(output.linesIterator.find(_.startsWith("(error")).getOrElse(output.take(200)))
       found
     finally java.nio.file.Files.deleteIfExists(file)
 

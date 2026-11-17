@@ -7,15 +7,15 @@ import io.bovel.vik.Session
 
 /** Runs a [[Replay]] through VIK's [[Session]] — the API a tool that embeds the
  *  solver calls with the trees of `io.bovel.smtlib` — against a fresh session:
- *  declarations, term construction, asserts, `push`/`pop`, every check
- *  and every `get-model`, nothing else. The trees are the ones VIK's parser builds from
- *  the same text — a Boolean equality is an `Iff`, a Boolean-sorted term in a
- *  formula position a `Pred`, a formula in a term position a `Bool` — so the
- *  session lowers exactly what it would have parsed, and the lowering is part
- *  of the operation, as it is of every call through this API.
+ *  declarations, term construction, asserts, `push`/`pop`, every check and
+ *  every `get-model`, nothing else. The trees are the ones VIK's parser builds
+ *  from the same text — a Boolean equality is an `Iff`, a Boolean-sorted term
+ *  in a formula position a `Pred`, a formula in a term position a `Bool` — so
+ *  the session lowers exactly what it would have parsed, and the lowering is
+ *  part of the operation, as it is of every call through this API.
  */
 object VikReplay:
-  import Replay.{Op, decided}
+  import Replay.{decided, Op}
 
   /** Replays the program and returns the `check-sat` answers. */
   def check(program: Replay): List[Boolean] =

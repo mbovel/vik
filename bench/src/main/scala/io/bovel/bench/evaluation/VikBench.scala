@@ -10,9 +10,10 @@ import io.bovel.vik.Session
 
 /** VIK on the evaluation's instances, in process: `api` replays the script's
  *  own terms through a `Session` — declarations, terms, asserts, `push`/`pop`,
- *  every `check-sat` and `get-model`, what a tool that builds the terms itself pays, the
- *  lowering included — and `text` parses the file first, what the solvers that
- *  parse are measured on. Every operation runs under the ten-second [[Budget]].
+ *  every `check-sat` and `get-model`, what a tool that builds the terms itself
+ *  pays, the lowering included — and `text` parses the file first, what the
+ *  solvers that parse are measured on. Every operation runs under the
+ *  ten-second [[Budget]].
  */
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))

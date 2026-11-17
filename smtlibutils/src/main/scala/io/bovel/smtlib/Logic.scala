@@ -15,7 +15,8 @@ private[smtlib] final case class Logic(
   def name: String =
     val others = functions || bitVectors || datatypes || arithmetic.nonEmpty
     (if quantifierFree then "QF_" else "") + (if arrays then (if others then "A" else "AX") else "") +
-      (if functions then "UF" else "") + (if bitVectors then "BV" else "") + (if datatypes then "DT" else "") + arithmetic
+      (if functions then "UF" else "") + (if bitVectors then "BV" else "") + (if datatypes then "DT" else "") +
+      arithmetic
 
   private def ints = arithmetic.contains("I")
   private def reals = arithmetic.contains("R")
@@ -23,27 +24,60 @@ private[smtlib] final case class Logic(
   /** How many theories it has, integers and reals apart. */
   def theories: Int = List(arrays, functions, bitVectors, datatypes, ints, reals).count(identity)
 
-  /** How strong its arithmetic is: none, difference logic, linear, nonlinear. */
-  def strength: Int = arithmetic.headOption.fold(0)(c => if c == 'N' then 3 else if arithmetic.endsWith("DL") then 1 else 2)
+  /** How strong its arithmetic is: none, difference logic, linear, nonlinear.
+   */
+  def strength: Int =
+    arithmetic.headOption.fold(0)(c => if c == 'N' then 3 else if arithmetic.endsWith("DL") then 1 else 2)
 
   /** Whether everything it allows, `other` allows. */
   def within(other: Logic): Boolean =
-    (!arrays || other.arrays) && (!functions || other.functions) && (!bitVectors || other.bitVectors) &&
-      (!datatypes || other.datatypes) && (!ints || other.ints) && (!reals || other.reals) && strength <= other.strength &&
+    (!arrays || other.arrays) &&
+      (!functions || other.functions) &&
+      (!bitVectors || other.bitVectors) &&
+      (!datatypes || other.datatypes) &&
+      (!ints || other.ints) &&
+      (!reals || other.reals) && strength <= other.strength &&
       (quantifierFree || !other.quantifierFree)
 
 object Logic:
   private val pattern = "(QF_)?(AX|A)?(UF)?(BV)?(DT)?(IDL|RDL|LIRA|LIA|LRA|NIRA|NIA|NRA)?".r
   private val setLogic = "\\(set-logic ([A-Za-z_]+)\\)".r
 
-  /** The quantifier-free logics of SMT-LIB that the corpus's theories make,
-   *  and the corpus's own `QF_UFBVDT`; on a tie, the earlier wins. z3 takes a
-   *  name it does not know for `ALL`, so only these are tried.
+  /** The quantifier-free logics of SMT-LIB that the corpus's theories make, and
+   *  the corpus's own `QF_UFBVDT`; on a tie, the earlier wins. z3 takes a name
+   *  it does not know for `ALL`, so only these are tried.
    */
   val standard: List[String] = List(
-    "QF_UF", "QF_IDL", "QF_RDL", "QF_LIA", "QF_LRA", "QF_NIA", "QF_NRA", "QF_LIRA", "QF_NIRA", "QF_BV", "QF_DT", "QF_AX",
-    "QF_UFIDL", "QF_UFLIA", "QF_UFLRA", "QF_UFNIA", "QF_UFNRA", "QF_UFBV", "QF_UFDT", "QF_ABV", "QF_ALIA", "QF_ANIA",
-    "QF_BVLRA", "QF_UFDTLIA", "QF_UFBVDT", "QF_UFBVLIA", "QF_AUFBV", "QF_AUFLIA", "QF_AUFNIA", "QF_UFDTLIRA",
+    "QF_UF",
+    "QF_IDL",
+    "QF_RDL",
+    "QF_LIA",
+    "QF_LRA",
+    "QF_NIA",
+    "QF_NRA",
+    "QF_LIRA",
+    "QF_NIRA",
+    "QF_BV",
+    "QF_DT",
+    "QF_AX",
+    "QF_UFIDL",
+    "QF_UFLIA",
+    "QF_UFLRA",
+    "QF_UFNIA",
+    "QF_UFNRA",
+    "QF_UFBV",
+    "QF_UFDT",
+    "QF_ABV",
+    "QF_ALIA",
+    "QF_ANIA",
+    "QF_BVLRA",
+    "QF_UFDTLIA",
+    "QF_UFBVDT",
+    "QF_UFBVLIA",
+    "QF_AUFBV",
+    "QF_AUFLIA",
+    "QF_AUFNIA",
+    "QF_UFDTLIRA",
     "QF_AUFBVLIA"
   )
 
@@ -84,21 +118,21 @@ object Logic:
   lazy val enforced: List[Logic] =
     standard.flatMap(parse).filter(l => features(l).forall(f => z3Error(s"(set-logic ${l.name})\n$f\n").nonEmpty))
 
-  /** The smallest standard logic the script fits: `QF_UF` if it does, else
-   *  the fewest theories, then one within the logic the script sets, then the
+  /** The smallest standard logic the script fits: `QF_UF` if it does, else the
+   *  fewest theories, then one within the logic the script sets, then the
    *  weakest arithmetic, then the earlier in [[standard]]. Only the logics z3
    *  holds a script to ([[enforced]]) are tried, and, when the script sets a
    *  standard logic, only those within it: that logic is the answer when none
    *  of them fits. Difference logic (`QF_IDL`, `QF_RDL`, `QF_UFIDL`) is tried
    *  only for a script that sets one: z3 holds a script to less than SMT-LIB's
    *  definition (it lets `(<= x 5)` through, which is none of the standard's
-   *  atoms), and VIK solves it as linear arithmetic. A logic fits when z3 reads the script under it (z3 holds a
-   *  script to its logic's signature: `Int` is unknown under `QF_UFDT`, and so
-   *  are a numeral, a quantifier, a product of two unknowns under `QF_LIA` and
-   *  a sum under `QF_IDL`), VIK's parser still reads it, and it has `UF` or
-   *  arrays when the script declares a sort, which z3 lets through. None for a
-   *  script that sets two logics, that z3 refuses as it is, or that sets no
-   *  standard logic and fits none.
+   *  atoms), and VIK solves it as linear arithmetic. A logic fits when z3 reads
+   *  the script under it (z3 holds a script to its logic's signature: `Int` is
+   *  unknown under `QF_UFDT`, and so are a numeral, a quantifier, a product of
+   *  two unknowns under `QF_LIA` and a sum under `QF_IDL`), VIK's parser still
+   *  reads it, and it has `UF` or arrays when the script declares a sort, which
+   *  z3 lets through. None for a script that sets two logics, that z3 refuses
+   *  as it is, or that sets no standard logic and fits none.
    */
   def smallest(text: String): Option[String] =
     claimed(text) match
@@ -122,6 +156,8 @@ object Logic:
     val claim = claimed(text).headOption
     val lines = text.linesIterator.toList
     val header = lines.takeWhile(_.startsWith(";"))
-    val note = s"; logic: $to, the smallest the script fits${claim.fold(", which set none")(c => s", for $c")} (prune logic)"
-    val body = lines.drop(header.length).map(l => setLogic.replaceAllIn(code(l), s"(set-logic $to)") + l.drop(code(l).length))
+    val note =
+      s"; logic: $to, the smallest the script fits${claim.fold(", which set none")(c => s", for $c")} (prune logic)"
+    val body =
+      lines.drop(header.length).map(l => setLogic.replaceAllIn(code(l), s"(set-logic $to)") + l.drop(code(l).length))
     (header ++ (note :: (if claim.isEmpty then s"(set-logic $to)" :: body else body))).mkString("", "\n", "\n")

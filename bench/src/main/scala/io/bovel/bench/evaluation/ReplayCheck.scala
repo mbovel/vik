@@ -1,8 +1,8 @@
 package io.bovel.bench.evaluation
 
 import com.microsoft.z3.Context
-import io.github.cvc5.Context as Cvc5Context
 import io.bovel.smtlib.{Corpus, Parser}
+import io.github.cvc5.Context as Cvc5Context
 
 /** Checks a solver's [[Replay]] against its own front end on some files:
  *  `sbt "bench/runMain io.bovel.bench.evaluation.replaycheck z3 3 file.smt2 …"`

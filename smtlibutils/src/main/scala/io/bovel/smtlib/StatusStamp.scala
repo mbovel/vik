@@ -8,10 +8,10 @@ import scala.jdk.CollectionConverters.*
 /** Answers the corpus files' `check-sat`s with another solver and holds the
  *  files' statuses to it: a `:status unknown` (or no status at all) before a
  *  `check-sat` is replaced by the solver's answer, so that `CorpusTest` checks
- *  the file from then on — half the corpus was `unknown`, the compiler's queries
- *  above all, and an `unknown` checks nothing but termination; a `sat` or
- *  `unsat` the solver contradicts is reported, never rewritten: one of the two
- *  is wrong, and that is for a person to settle. A stamped file records the
+ *  the file from then on — half the corpus was `unknown`, the compiler's
+ *  queries above all, and an `unknown` checks nothing but termination; a `sat`
+ *  or `unsat` the solver contradicts is reported, never rewritten: one of the
+ *  two is wrong, and that is for a person to settle. A stamped file records the
  *  solver in its header. Usage:
  *  `sbt "smtlibutils/runMain io.bovel.smtlib.statusstamp [z3|cvc5] [seconds] [prefix ...]"`
  *  — the solver on the PATH (default `z3`), its time per file (default 20), the
@@ -67,12 +67,14 @@ import scala.jdk.CollectionConverters.*
   println(s"$stamped files stamped")
   val d = disagreements.result()
   val u = unanswered.result()
-  if u.nonEmpty then println(s"${u.length} files not fully answered (timeouts, errors):"); u.foreach(l => println(s"  $l"))
+  if u.nonEmpty then println(s"${u.length} files not fully answered (timeouts, errors):");
+  u.foreach(l => println(s"  $l"))
   if d.nonEmpty then println(s"${d.length} disagreements with the files' statuses:"); d.foreach(l => println(s"  $l"))
 
 private def isCheckSat(line: String): Boolean =
   val t = line.trim
-  t == "(check-sat)" || t.startsWith("(check-sat-assuming") || t.startsWith("(check-sat-using") || t.startsWith("(check-sat ")
+  t == "(check-sat)" || t.startsWith("(check-sat-assuming") || t.startsWith("(check-sat-using") ||
+  t.startsWith("(check-sat ")
 
 /** The solver's answers to the file's `check-sat`s, in order: the lines that
  *  are `sat`, `unsat` or `unknown` (a model or a core in between is skipped);
@@ -100,7 +102,9 @@ def withoutStatuses(text: String): String =
   text.linesIterator.map(l => if l.startsWith("(set-info :status ") then "(set-info :status unknown)" else l)
     .mkString("", "\n", "\n")
 
-/** Runs a command with a time limit; its output lines (empty when killed or failed). */
+/** Runs a command with a time limit; its output lines (empty when killed or
+ *  failed).
+ */
 private def run(command: List[String], seconds: Int): List[String] =
   val process = ProcessBuilder(command*).redirectErrorStream(true).start()
   val output = new String(process.getInputStream.readAllBytes())
