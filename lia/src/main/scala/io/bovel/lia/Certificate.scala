@@ -17,9 +17,10 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
  *      coefficients);
  *    - `Split`: the expression `x` (integer valued) is at most `floor` or at
  *      least `ceil`, nothing lying in between, and both cases are refuted;
- *      `reason` is the reason of their hypotheses;
- *    - `Trusted`: a step without a certificate (the small-model box, see
- *      [[Solver.check]]), taken on trust.
+ *      `reason` is the reason of their hypotheses. With a disequality `x ≠ at`
+ *      asserted for `except`, the value `at` may lie in between: the split of a
+ *      disequality, its sides strict when `x` may be real (`x < at` or
+ *      `x > at`, with `floor` and `ceil` both `at`).
  *
  *  Nodes are shared: a derived bound is the premise of many others.
  */
@@ -27,8 +28,17 @@ enum Certificate:
   case Hyp(reason: Int, x: Var, c: BigInt, strict: Boolean, upper: Boolean)
   case Comb(factors: Array[Rational], parts: Array[Certificate])
   case Round(of: Certificate)
-  case Split(reason: Int, x: Var, floor: BigInt, ceil: BigInt, low: Certificate, high: Certificate)
-  case Trusted(why: String)
+  case Split(
+      reason: Int,
+      x: Var,
+      floor: BigInt,
+      ceil: BigInt,
+      low: Certificate,
+      high: Certificate,
+      except: Int = -1,
+      at: BigInt = 0,
+      strict: Boolean = false
+  )
 
 object Certificate:
   /** `Σ coefs(u)·u ≤ rhs`. */
@@ -40,10 +50,17 @@ object Certificate:
   /** Checks certificates against the unknowns of a solver: `form(x)` is the
    *  expression `x` stands for over the unknowns, `isInteger(u)` whether the
    *  unknown is integer, `hyp(h)` whether the bound of a hypothesis with a
-   *  non-negative reason is the one asserted for that reason (`None` if so).
-   *  What a node proves is kept for the next certificates, which share it.
+   *  non-negative reason is the one asserted for that reason (`None` if so),
+   *  `distinct(reason, x, c)` whether `x ≠ c` is the disequality asserted for
+   *  `reason`. What a node proves is kept for the next certificates, which
+   *  share it.
    */
-  final class Checker(form: Var => Map[Var, Rational], isInteger: Var => Boolean, hyp: Hyp => Option[String]):
+  final class Checker(
+      form: Var => Map[Var, Rational],
+      isInteger: Var => Boolean,
+      hyp: Hyp => Option[String],
+      distinct: (Int, Var, BigInt) => Option[String] = (_, _, _) => Some("no disequalities")
+  ):
     /** What a node proves, the hypotheses of the enclosing splits it rests on,
      *  and the reasons of the others.
      */
@@ -55,7 +72,6 @@ object Certificate:
 
     /** Checks that `certificate` derives a contradiction from the hypotheses of
      *  the reasons `assumed` allows: `None` if so, what is wrong otherwise.
-     *  [[trusted]] counts the `Trusted` steps met.
      */
     def check(certificate: Certificate, assumed: Int => Boolean): Option[String] =
       def fail(msg: String): Nothing = throw CheckFailed(msg)
@@ -120,19 +136,27 @@ object Certificate:
               val g = coefs.valuesIterator.foldLeft(BigInt(0))((g, a) => g gcd (a.num * (l / a.den)))
               val r = Rational(g, l)
               q.copy(inequality = Inequality(coefs, Delta(r * Rational((q.inequality.rhs / r).floor))))
-          case Split(reason, x, floor, top, low, high) =>
-            val f = formOf(x)
-            for u <- f.keys if !isInteger(u) do fail(s"a split over the real u$u")
-            if f.valuesIterator.exists(!_.isInteger) then fail("a split over an expression with fractions")
-            // The expression's values are the multiples of the gcd of its coefficients: none strictly between.
-            val g = f.valuesIterator.foldLeft(BigInt(0))(_ gcd _.num)
-            if g == 0 then fail("a split over a constant")
-            val next = (floor - floor.mod(g)) + g // the least multiple of g above `floor`
-            if next < top then fail(s"the split at $floor and $top leaves $next out")
+          case Split(reason, x, floor, top, low, high, except, at, strict) =>
+            if except >= 0 then distinct(except, x, at).foreach(e => fail(s"the disequality $except: $e"))
+            if strict then
+              // `x < at` or `x > at`: only `at` lies in between, which the disequality excludes.
+              if except < 0 || floor != at || top != at then fail(s"a strict split at $floor and $top")
+            else
+              val f = formOf(x)
+              for u <- f.keys if !isInteger(u) do fail(s"a split over the real u$u")
+              if f.valuesIterator.exists(!_.isInteger) then fail("a split over an expression with fractions")
+              // The expression's values are the multiples of the gcd of its coefficients: none strictly
+              // between, or `at` alone when the disequality excludes it.
+              val g = f.valuesIterator.foldLeft(BigInt(0))(_ gcd _.num)
+              if g == 0 then fail("a split over a constant")
+              val next = (floor - floor.mod(g)) + g // the least multiple of g above `floor`
+              val left = if except >= 0 && next == at then next + g else next
+              if left < top then fail(s"the split at $floor and $top leaves $left out")
             def discharge(q: Proved, upper: Boolean, c: BigInt): Set[Hyp] =
               val (mine, others) = q.open.partition(_.reason == reason)
               for h <- mine do
-                if h.x != x || h.upper != upper || h.c != c || h.strict then fail(s"the hypothesis $h of the split")
+                if h.x != x || h.upper != upper || h.c != c || h.strict != strict then
+                  fail(s"the hypothesis $h of the split")
               others
             val lo = prove(low)
             val hi = prove(high)
@@ -141,11 +165,8 @@ object Certificate:
             Proved(
               Inequality(Map.empty, Delta(Rational(-1))),
               discharge(lo, true, floor) ++ discharge(hi, false, top),
-              lo.reasons ++ hi.reasons
+              lo.reasons ++ hi.reasons ++ (if except >= 0 then Set(except) else Set.empty)
             )
-          case Trusted(_) =>
-            trusted += 1
-            Proved(Inequality(Map.empty, Delta(Rational(-1))), Set.empty, Set.empty)
         memo.put(c, p)
         p
       try
@@ -154,9 +175,6 @@ object Certificate:
         else if !contradiction(p.inequality) then Some(s"no contradiction: ${p.inequality}")
         else p.reasons.find(!assumed(_)).map(r => s"the hypothesis $r is not one of the lemma")
       catch case CheckFailed(msg) => Some(msg)
-
-    /** The `Trusted` steps met by [[check]] so far. */
-    var trusted = 0
 
   private def contradiction(i: Inequality): Boolean = i.coefs.isEmpty && i.rhs < Delta.zero
 
