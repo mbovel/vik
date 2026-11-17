@@ -1244,6 +1244,7 @@ private final class Encoder(
           liaSolver.numVars,
           liaSolver.form,
           p.nn,
+          datatypes,
           inputs,
           guards.iterator.map((v, fs) => (v, fs.toList)).toList,
           assumed
