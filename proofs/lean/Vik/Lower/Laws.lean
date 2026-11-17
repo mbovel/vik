@@ -57,6 +57,9 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
     ∃ idx el ds, SP.sig.sorts[s]? = some (.array idx el) ∧ P.sig.decls[SP.sig.decls.length + m]? = some ds ∧
       SP.sig.sorts.length ≤ ds ∧ P.sig.sorts[ds]? = some (.fn [s, idx, el] s) ∧
       ∀ m' s', m' ≠ m → tr.mints[m']? = some (.store s') → P.sig.decls[SP.sig.decls.length + m']? ≠ some ds
+  rule : ∀ m r j, tr.mints[m]? = some (.rule r j) →
+    (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧ SP.sig.sorts[s]? = some .int) ∧
+      ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
   bvIndex : P.bvIndex = SP.bvIndex
@@ -66,7 +69,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
-  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
+  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
     rw [← List.getElem?_map, ← hs, List.getElem?_take_of_lt hs']
   · intro k hk
@@ -123,6 +126,16 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
       · exact absurd h' hne
       · rw [hm'] at h'; simpa using h'
     · cases this
+  · intro m r j hmr
+    have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hmr).1
+    have := hm m hlt
+    rw [hmr] at this
+    simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at this
+    obtain ⟨hd1, hargs⟩ := this
+    refine ⟨?_, hargs⟩
+    split at hd1
+    · rename_i s e; exact ⟨s, e, by simpa using hd1⟩
+    · cases hd1
   · intro n hn
     have := hst n hn
     simp only [decide_eq_true_eq] at this
@@ -272,7 +285,7 @@ theorem dom_enc_rng {s : Nat} (hs : s < SP.sig.sorts.length) {v : Val R (U ⊕ N
   exact (rdom SP P tr Ms hL.sound hs v).mp ⟨h, hr⟩
 
 include hw ht in
-theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
+theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
   have hM := hL.sound
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro s v h
@@ -381,10 +394,18 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
         rw [const_store SP P tr Ms hk (by rw [hm]; exact hx)]
         simp only [lowModel, Nat.not_lt.mpr hle, if_false]
         exact ⟨_, rfl, ⟨hk, s0, by rw [hm]; exact hx⟩, h⟩
+      | rule r j =>
+        obtain ⟨⟨s1, hd1, hs1⟩, hargs⟩ := hG.rule m r j hx
+        rw [h] at hd1; cases hd1
+        rw [const_rule SP P tr Ms hwl hx (fun x hx' => (hargs x hx').2)]
+        have hsl := lt_of_get hs1
+        have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
+        simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
+        exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
 
 include hw ht in
 /-- The lowered model satisfies the laws of the lowered problem. -/
-theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := by
+theorem lowModel_laws (hwl : Low.wellFormed P.nodes = true) : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := by
   have hM := hL.sound
   have dtC : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
       (d, cs) ∈ SP.datatypes ∧ d < SP.sig.sorts.length ∧ C < SP.sig.decls.length ∧ T < SP.sig.decls.length ∧
@@ -400,7 +421,7 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
   have dtd : ∀ d cs, (d, cs) ∈ SP.datatypes → ∀ {v : Val R (U ⊕ Nat)}, (lowModel SP P tr Ms).dom d v →
       ∃ w, Ms.dom d w ∧ v = enc w := fun d cs hd v hv =>
     dom_enc hS hG hL (hS.dt d cs hd).1 (hS.dt d cs hd).2.1 (by intro _ e; cases e) hv
-  refine ⟨lowModel_sound hS hG hL hw ht, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨lowModel_sound hS hG hL hw ht hwl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- sel
     intro d cs C T Ss hd hc xs i S x hxs hS' hx
     obtain ⟨hd', _, hC, _, hSs⟩ := dtC d cs C T Ss hd hc

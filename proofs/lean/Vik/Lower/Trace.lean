@@ -45,12 +45,72 @@ structure SProblem where
   asserts : List Nat
   datatypes : List (Nat × List (Nat × Nat × List Nat))
 
+/-- A rule of the lowering that mints integer symbols (the rules of
+    `LoweringCheck.check`), over lowered nodes. -/
+inductive Rule where
+  /-- `modulo(v, w, lo, hi)`: `v mod 2^w`, and `v div 2^w` unless `hi - lo < 4`. -/
+  | modulo (v w : Nat) (lo hi : Int)
+  /-- `cases(c, thn, els, lo, hi)`: `thn` if the formula `c` holds, `els` otherwise. -/
+  | cases (c thn els : Nat) (lo hi : Int)
+  /-- `divide(v, d, qmax)`: `v div d` and `v mod d`. -/
+  | divide (v : Nat) (d qmax : Int)
+  /-- `sdivide(t, w, d, floor)`: the quotient and remainder of the signed
+      value of `t` by `d`, floored or truncated. -/
+  | sdivide (t w : Nat) (d : Int) (floor : Bool)
+  /-- `int2bv(t, w)`: `t mod 2^w` and `t div 2^w`. -/
+  | int2bv (t w : Nat)
+  /-- `smodz(a, c, w)`: whether `bvsmod` by the constant `c` corrects the
+      remainder. -/
+  | smodz (a : Nat) (c : Int) (w : Nat)
+  deriving DecidableEq, Repr
+
+/-- The lowered nodes a rule applies to. -/
+def Rule.args : Rule → List Nat
+  | .modulo v _ _ _ | .divide v _ _ | .sdivide v _ _ _ | .int2bv v _ | .smodz v _ _ => [v]
+  | .cases c t e _ _ => [c, t, e]
+
+/-- The number of symbols of a rule. -/
+def Rule.nsyms : Rule → Nat
+  | .modulo _ _ lo hi => if hi - lo < 4 then 1 else 2
+  | .cases .. | .smodz .. => 1
+  | _ => 2
+
+/-- The signed value of `t`, of width `w`. -/
+def signedI (w : Nat) (t : Int) : Int := if 2 ^ (w - 1) ≤ t then t - 2 ^ w else t
+
+/-- The signed divisor of `bvsmod` by the constant `c`. -/
+def smodT (c : Int) (w : Nat) : Int := if 2 ^ w / 2 ≤ c then c - 2 ^ w else c
+
+/-- `smodz`: `1` when the signs of `a` and of the divisor differ and the
+    truncated remainder is not zero. -/
+def smodzVal (a c : Int) (w : Nat) : Int :=
+  let t := smodT c w
+  let neg := decide (2 ^ (w - 1) ≤ a)
+  let differ := if 0 < t then neg else !neg
+  if differ && (signedI w a).tmod t.natAbs != 0 then 1 else 0
+
+/-- The value of symbol `j` of a rule, the integers of its arguments `ι` and
+    the truths of its conditions `τ`. -/
+def Rule.ival (ι : Nat → Int) (τ : Nat → Bool) : Rule → Nat → Int
+  | .modulo v w _ _, 0 => ι v % 2 ^ w
+  | .modulo v w _ _, _ => ι v / 2 ^ w
+  | .cases c t e _ _, _ => if τ c then ι t else ι e
+  | .divide v d _, 0 => ι v / d
+  | .divide v d _, _ => ι v % d
+  | .sdivide t w d fl, 0 => if fl then signedI w (ι t) / d else (signedI w (ι t)).tdiv d
+  | .sdivide t w d fl, _ => if fl then signedI w (ι t) % d else (signedI w (ι t)).tmod d
+  | .int2bv t w, 0 => ι t % 2 ^ w
+  | .int2bv t w, _ => ι t / 2 ^ w
+  | .smodz a c w, _ => smodzVal (ι a) c w
+
 /-- Why the lowering mints a symbol. -/
 inductive Mint where
   /-- The value of the `ite` at surface node `i`. -/
   | ite (i : Nat)
   /-- The store of the arrays of surface sort `s`. -/
   | store (s : Nat)
+  /-- Symbol `j` of a rule. -/
+  | rule (r : Rule) (j : Nat)
   deriving DecidableEq, Repr
 
 /-- Why a lowered input holds. -/
@@ -64,6 +124,9 @@ inductive InputWhy where
   /-- `0 ≤ t ≤ 2^w - 1` for the lowered node `t` of the surface node `i`, a
       bit-vector of width `w`. -/
   | range (i : Nat)
+  /-- Fact `f` of rule `r`, `aux` the node of the signed value of `sdivide`,
+      or of the remainder for `smodz`. -/
+  | rule (r : Rule) (f aux : Nat)
   deriving DecidableEq, Repr
 
 structure Trace where
@@ -167,18 +230,232 @@ def eqS (num : Bool) (a b : Shape) : Shape := if num then .and [.le a b, .le b a
 
 def Trace.nsd : Nat := SP.sig.decls.length
 
+/-- `negative(t, w)`: the sign of the lowered node `t`, `2^(w-1) ≤ t`. -/
+def negS (t w : Nat) : Shape :=
+  match P.nodes[t]? with
+  | some (.num v) => if 2 ^ (w - 1) ≤ v then .tt else .ff
+  | _ => .le (.num [] (2 ^ (w - 1))) (.same t)
+
+/-! ## The symbols of rules -/
+
+/-- The rank of a symbol: one more than its index among the minted symbols if
+    a rule mints it, `0` otherwise. A rule's arguments only depend on the
+    symbols of rules minted before it. -/
+def Trace.rank (k : Nat) : Nat :=
+  if SP.sig.decls.length ≤ k then
+    match tr.mints[k - SP.sig.decls.length]? with
+    | some (.rule _ _) => k - SP.sig.decls.length + 1
+    | _ => 0
+  else 0
+
+/-- The rule and index of the symbol of lowered node `x`, if a rule mints it. -/
+def Trace.symAt (x : Nat) : Option (Rule × Nat) :=
+  match P.nodes[x]? with
+  | some (.const k) =>
+    if SP.sig.decls.length ≤ k then
+      match tr.mints[k - SP.sig.decls.length]? with
+      | some (.rule r j) => some (r, j)
+      | _ => none
+    else none
+  | _ => none
+
+/-- The lowered node of symbol `j` of rule `r`. -/
+def Trace.symNode (r : Rule) (j : Nat) : Option Nat :=
+  let m := tr.mints.idxOf (.rule r j)
+  if m < tr.mints.length then
+    let x := P.nodes.idxOf (.const (SP.sig.decls.length + m))
+    if x < P.nodes.length then some x else none
+  else none
+
+/-! ## Intervals of lowered integers -/
+
+/-- The width of a lowered node of a bit-vector: of its sort, or of a
+    surface node it lowers. -/
+def Trace.bvWidth (l : Nat) : Option Nat :=
+  match SP.sortWidth (P.sortOf[l]?.getD 0) with
+  | some w => some w
+  | none => (List.range SP.nodes.length).findSome? fun i => if tr.at i == l then SP.width i else none
+
+/-- The interval of a linear combination, from those of its unknowns. -/
+def linIv (leaf : Nat → Option (Int × Int)) : Lia.Form → Option (Int × Int)
+  | [] => some (0, 0)
+  | (u, a) :: f =>
+    if a.den = 1 then
+      match leaf u, linIv leaf f with
+      | some (l, h), some (L, H) => if 0 ≤ a.num then some (a.num * l + L, a.num * h + H) else some (a.num * h + L, a.num * l + H)
+      | _, _ => none
+    else none
+
+/-- The interval of lowered node `x`, from those of its unknowns. -/
+def nodeIv (leaf : Nat → Option (Int × Int)) (x : Nat) : Option (Int × Int) :=
+  (linIv leaf (lin P.nodes x).1).map fun p => (p.1 + (lin P.nodes x).2, p.2 + (lin P.nodes x).2)
+
+/-- Whether lowered node `x` is of sort `Int`. -/
+def isIntN (x : Nat) : Bool := P.sig.is (P.sortOf[x]?.getD 0) .int
+
+/-- The constraint `g + gc ≥ 0` a comparison of integers `x` gives when it
+    holds. -/
+def condAtom (x : Nat) : List (Lia.Form × Int) :=
+  match P.nodes[x]? with
+  | some (.le a b) =>
+    if isIntN P a && isIntN P b then [((lin P.nodes b).1 ++ Lia.neg (lin P.nodes a).1, (lin P.nodes b).2 - (lin P.nodes a).2)]
+    else []
+  | _ => []
+
+/-- The constraints `g + gc ≥ 0` the formula `c` gives, or its negation: those
+    of comparisons of integers. -/
+def condCons (c : Nat) (pos : Bool) : List (Lia.Form × Int) :=
+  if pos then
+    match P.nodes[c]? with
+    | some (.and xs) => xs.flatMap (condAtom P)
+    | _ => condAtom P c
+  else
+    match P.nodes[c]? with
+    | some (.le a b) =>
+      if isIntN P a && isIntN P b then [((lin P.nodes a).1 ++ Lia.neg (lin P.nodes b).1, (lin P.nodes a).2 - (lin P.nodes b).2 - 1)]
+      else []
+    | _ => []
+
+/-- The interval of a linear combination `f` narrowed by constraints: `f` is
+    at least `-gc` more than `g`, or at most `gc` less than `-g`. -/
+def refine (f : Lia.Form × Int) (cons : List (Lia.Form × Int)) (i : Option (Int × Int)) : Option (Int × Int) :=
+  cons.foldl (fun acc gc => acc.map fun p =>
+    (if (canon (f.1 ++ Lia.neg gc.1)).isEmpty then max p.1 (f.2 - gc.2) else p.1,
+     if (canon (f.1 ++ gc.1)).isEmpty then min p.2 (f.2 + gc.2) else p.2)) i
+
+def ivHull : Option (Int × Int) → Option (Int × Int) → Option (Int × Int)
+  | some (a, b), some (c, d) => some (min a c, max b d)
+  | _, _ => none
+
+def ivSub (i : Option (Int × Int)) (lo hi : Int) : Bool :=
+  match i with
+  | some (a, b) => lo ≤ a && b ≤ hi
+  | none => false
+
+/-- The interval of branch `t` of `cases` when `c` is `pos`. -/
+def branchIv (node : Nat → Option (Int × Int)) (c t : Nat) (pos : Bool) : Option (Int × Int) :=
+  refine (lin P.nodes t) (condCons P c pos) (node t)
+
+/-- The interval of symbol `j` of a rule, from those of the nodes. -/
+def Rule.iv (node : Nat → Option (Int × Int)) : Rule → Nat → Option (Int × Int)
+  | .modulo _ w _ _, 0 => some (0, 2 ^ w - 1)
+  | .modulo v w _ _, _ => (node v).map fun p => (p.1 / 2 ^ w, p.2 / 2 ^ w)
+  | .cases c t e _ _, _ => ivHull (branchIv P node c t true) (branchIv P node c e false)
+  | .divide v d _, 0 => if 0 < d then (node v).map fun p => (p.1 / d, p.2 / d) else none
+  | .divide _ d _, _ => if 0 < d then some (0, d - 1) else none
+  | .sdivide t w d fl, 0 =>
+    if 0 < d && 0 < w && ivSub (node t) 0 (2 ^ w - 1) then
+      let half : Int := 2 ^ (w - 1)
+      if fl then some ((-half) / d, (half - 1) / d)
+      else some (-(half / d), (half - 1) / d)
+    else none
+  | .sdivide _ _ d fl, _ => if 0 < d then (if fl then some (0, d - 1) else some (-(d - 1), d - 1)) else none
+  | .int2bv _ w, 0 => some (0, 2 ^ w - 1)
+  | .int2bv _ _, _ => none
+  | .smodz .., _ => some (0, 1)
+
+/-- The interval of a leaf: a number, a symbol of a rule (`sym`), or a
+    bit-vector. -/
+def Trace.leafIv (sym : Rule → Nat → Option (Int × Int)) (l : Nat) : Option (Int × Int) :=
+  match P.nodes[l]? with
+  | some (.num v) => some (v, v)
+  | some _ =>
+    match tr.symAt SP P l with
+    | some (r, j) => sym r j
+    | none => (tr.bvWidth SP P l).map fun w => (0, 2 ^ w - 1)
+  | none => none
+
+/-- The intervals of the lowered nodes, unfolding `n` rules deep. -/
+def Trace.ivAt : Nat → Nat → Option (Int × Int)
+  | 0 => nodeIv P (tr.leafIv SP P fun _ _ => none)
+  | n + 1 => nodeIv P (tr.leafIv SP P (Rule.iv P (Trace.ivAt n)))
+
+def Trace.iv (x : Nat) : Option (Int × Int) := tr.ivAt SP P (tr.mints.length + 1) x
+
+/-! ## The facts of rules -/
+
+/-- `lo ≤ k ≤ hi`. -/
+def intS (k : Nat) (lo hi : Int) : List Shape := [.le (.num [] lo) (.same k), .le (.same k) (.num [] hi)]
+
+/-- `a = b` on integers. -/
+def eqI (a b : Shape) : Shape := .and [.le a b, .le b a]
+
+/-- The facts of rule `r`, its symbols at nodes `ks`, `aux` the node of the
+    signed value of `sdivide` or of the remainder of `smodz`. -/
+def Rule.facts (ks : List Nat) (aux : Nat) : Rule → List Shape
+  | .modulo v w lo hi =>
+    let m : Int := 2 ^ w
+    let r := ks.getD 0 0
+    intS r 0 (m - 1) ++
+      if hi - lo < 4 then
+        [.or ((List.range (hi - lo + 1).toNat).map fun (i : Nat) => eqI (.same v) (.num [(r, 1)] ((lo + (i : Int)) * m)))]
+      else
+        let q := ks.getD 1 0
+        intS q lo hi ++ [eqI (.same v) (.num [(r, 1), (q, (m : Rat))] 0)]
+  | .cases c t e lo hi =>
+    let k := ks.getD 0 0
+    intS k lo hi ++ [.implies (.bool c) (eqI (.same k) (.same t)), .implies (.not (.bool c)) (eqI (.same k) (.same e))]
+  | .divide v d qmax =>
+    let q := ks.getD 0 0
+    let r := ks.getD 1 0
+    intS q 0 qmax ++ intS r 0 (d - 1) ++ [eqI (.same v) (.num [(q, (d : Rat)), (r, 1)] 0)]
+  | .sdivide t w d fl =>
+    let q := ks.getD 0 0
+    let r := ks.getD 1 0
+    let half : Int := 2 ^ (w - 1)
+    intS q (-(half / d) - 1) ((half - 1) / d) ++ intS r (if fl then 0 else -(d - 1)) (d - 1) ++
+      [eqI (.same aux) (.num [(q, (d : Rat)), (r, 1)] 0)] ++
+      if fl then []
+      else [.implies (negS P t w) (.le (.same r) (.num [] 0)), .implies (.not (negS P t w)) (.le (.num [] 0) (.same r))]
+  | .int2bv t w =>
+    let k0 := ks.getD 0 0
+    let k1 := ks.getD 1 0
+    intS k0 0 (2 ^ w - 1) ++ [eqI (.same t) (.num [(k0, 1), (k1, ((2 ^ w : Int) : Rat))] 0)]
+  | .smodz a c w =>
+    let z := ks.getD 0 0
+    let differ := if 0 < smodT c w then negS P a w else .not (negS P a w)
+    let rz := eqI (.same aux) (.num [] 0)
+    intS z 0 1 ++
+      [.implies (.not differ) (eqI (.same z) (.num [] 0)), .implies rz (eqI (.same z) (.num [] 0)),
+        .implies (.and [differ, .not rz]) (eqI (.same z) (.num [] 1))]
+
+/-- Whether node `x` is `signed(t, w)`: the constant, or the `cases` tagged
+    `signed`. -/
+def Trace.signedOk (t w x : Nat) : Bool :=
+  match P.nodes[t]? with
+  | some (.num v) => P.nodes[x]? == some (.num (signedI w v))
+  | _ =>
+    match tr.symAt SP P x with
+    | some (.cases c thn els lo hi, 0) =>
+      lo == -(2 ^ (w - 1)) && hi == 2 ^ (w - 1) - 1 && fits P.sig P.nodes P.sortOf c (negS P t w) &&
+        fits P.sig P.nodes P.sortOf thn (.num (lin P.nodes t).1 ((lin P.nodes t).2 - 2 ^ w)) && els == t
+    | _ => false
+
+/-- Whether the arguments of a rule are within the bounds under which its
+    facts hold. -/
+def Trace.ruleOk (r : Rule) (aux : Nat) : Bool :=
+  match r with
+  | .modulo v w lo hi => isIntN P v && ivSub (tr.iv SP P v) (lo * 2 ^ w) ((hi + 1) * 2 ^ w - 1)
+  | .cases c t e lo hi =>
+    isIntN P t && isIntN P e && P.sig.is (P.sortOf[c]?.getD 0) .bool &&
+      ivSub (branchIv P (tr.iv SP P) c t true) lo hi && ivSub (branchIv P (tr.iv SP P) c e false) lo hi
+  | .divide v d qmax => isIntN P v && 0 < d && ivSub (tr.iv SP P v) 0 (qmax * d + d - 1)
+  | .sdivide t w d _ => isIntN P t && 0 < d && 0 < w && ivSub (tr.iv SP P t) 0 (2 ^ w - 1) && tr.signedOk SP P t w aux
+  | .int2bv t _ => isIntN P t
+  | .smodz a c w =>
+    isIntN P a && 0 < w && smodT c w != 0 &&
+      tr.symAt SP P aux == some (.sdivide a w (smodT c w).natAbs false, 1)
+
+/-- The facts of the rule `r`, if its symbols have nodes. -/
+def Trace.ruleFacts (r : Rule) (aux : Nat) : Option (List Shape) :=
+  ((List.range r.nsyms).mapM fun j => tr.symNode SP P r j).map fun ks => r.facts P ks aux
+
 /-- `Σ_{j<k} 2^(j·w) · p`: `p` repeated `k` times. -/
 def repeatForm (w : Nat) (p : Lia.Form × Int) : Nat → Lia.Form × Int
   | 0 => ([], 0)
   | k + 1 =>
     let r := repeatForm w p k
     (r.1 ++ Lia.scale ((2 ^ (k * w) : Int) : Rat) p.1, r.2 + 2 ^ (k * w) * p.2)
-
-/-- `negative(t, w)`: the sign of the lowered node `t`, `2^(w-1) ≤ t`. -/
-def negS (t w : Nat) : Shape :=
-  match P.nodes[t]? with
-  | some (.num v) => if 2 ^ (w - 1) ≤ v then .tt else .ff
-  | _ => .le (.num [] (2 ^ (w - 1))) (.same t)
 
 /-- A signed comparison of the lowered nodes of `l` and `r`, of width `w`,
     from the unsigned one `u`: `(nl ∧ ¬nr) ∨ ((nl ↔ nr) ∧ u)`. -/
@@ -358,6 +635,11 @@ def Trace.sigOk : Bool :=
               | some (.store _) => P.sig.decls[SP.sig.decls.length + m']? != some ds
               | _ => true
       | _, _ => false
+    | some (.rule r _) =>
+      (match P.sig.decls[k]? with
+        | some s => SP.sig.sorts[s]? == some .int
+        | none => false) &&
+        r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
     | none => false) &&
   P.stores.all (fun n => n ≥ SP.sig.decls.length &&
     match tr.mints[n - SP.sig.decls.length]? with
@@ -380,6 +662,14 @@ def Trace.inputOk (f : Nat) : InputWhy → Bool
   | .iteElse k => match iteFact SP tr k false with
     | some s => fits P.sig P.nodes P.sortOf f s
     | none => false
+  | .rule r j aux =>
+    tr.ruleOk SP P r aux &&
+      match tr.ruleFacts SP P r aux with
+      | some fs =>
+        match fs[j]? with
+        | some s => fits P.sig P.nodes P.sortOf f s
+        | none => false
+      | none => false
   | .range i =>
     match SP.width i with
     | some w =>

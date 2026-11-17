@@ -1,4 +1,4 @@
-import Vik.Lower.Bv
+import Vik.Lower.Facts
 
 /-!
 # Lowered nodes take the values of their surface nodes
@@ -473,7 +473,7 @@ include hc hA hL
 /-- The lowered nodes of bit-vector sorts take values in their ranges: they are
     symbols and applications, whose values are surface ones. -/
 theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0) (ρ j) := by
-  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hS := hL.sound
   have hG := hc.sig
   intro j
@@ -510,6 +510,10 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         obtain ⟨_, _, ds, _, hd', hle, _, _⟩ := hG.store m s0 hx
         rw [hd] at hd'; cases hd'
         omega
+      | rule r j' =>
+        obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.rule m r j' hx
+        rw [hd] at hd1; cases hd1
+        rw [hsw] at hs1; cases hs1
   · have hd := hty hfx
     simp only [Low.nodeTyped] at hd
     split at hd
@@ -557,7 +561,7 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
 
 /-- Each lowered node of the trace takes the value of its surface node. -/
 theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
-  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hrngP := low_rng hc hA hL
   intro i
   induction i using Nat.strongRecOn with
@@ -579,7 +583,7 @@ theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.n
 /-- The lowered inputs hold when the surface assertions do. -/
 theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
     ∀ f ∈ P.inputs, Low.holds MI P.nodes f := by
-  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed
+  have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hrngP := low_rng hc hA hL
   have hco := corr hc hA hL
   intro f hf
@@ -593,6 +597,18 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
     rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hw.2, form_ev (hco a hal)]
     unfold Surf.holds at ha
     rw [ha, truth_bool]
+  | rule r j aux =>
+    simp only [Trace.inputOk, Bool.and_eq_true] at hw
+    obtain ⟨hok, hfs⟩ := hw
+    split at hfs
+    · rename_i fs hf
+      split at hfs
+      · rename_i s hs
+        rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hfs]
+        exact ruleFacts_hold hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hco hok hf s
+          (List.mem_of_getElem? hs)
+      · cases hfs
+    · cases hfs
   | range i =>
     simp only [Trace.inputOk] at hw
     split at hw
@@ -673,7 +689,7 @@ theorem Trace.unsat {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer}
   have hcs := check_spec hc
   have hAc := accepted hA
   apply Problem.accepts_sound hA (lowModel SP P tr Ms) (fun v => size (dec v))
-    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed) (inputs_hold hcs hAc hL hin)
+    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed hAc.wf) (inputs_hold hcs hAc hL hin)
   · intro s hs; rw [hcs.assumed] at hs; cases hs
   · exact low_rng hcs hAc hL
 
