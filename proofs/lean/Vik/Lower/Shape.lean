@@ -173,9 +173,10 @@ theorem truth_bool (b : Bool) : (Val.bool b : Val R U).truth = b := by
   cases b <;> simp [Val.truth]
 
 section
-variable {sig : Sig} {M : Model R U} (hM : M.Sound sig) {nodes : List Node} {sortOf : List Nat}
-  (hw : wellFormed nodes = true) (ht : typed sig nodes sortOf = true)
-include hM hw ht
+variable {sig : Sig} {bv : List (Nat × Nat)} {M : Model R U} (hM : M.Sound sig bv) {nodes : List Node}
+  {sortOf : List Nat} (hw : wellFormed nodes = true) (ht : typed sig nodes sortOf = true)
+  (hrng : ∀ i < nodes.length, inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i))
+include hM hw ht hrng
 
 theorem fits_node_lt {j : Nat} {n : Node} (h : nodes[j]? = some n) : j < nodes.length := by
   rcases Nat.lt_or_ge j nodes.length with h' | h'
@@ -183,12 +184,12 @@ theorem fits_node_lt {j : Nat} {n : Node} (h : nodes[j]? = some n) : j < nodes.l
   · rw [List.getElem?_eq_none h'] at h; cases h
 
 theorem fits_child_lt {j : Nat} {n : Node} (h : nodes[j]? = some n) : ∀ c ∈ n.children, c < j := by
-  have := List.all_eq_true.mp hw j (List.mem_range.mpr (fits_node_lt hM hw ht h))
+  have := List.all_eq_true.mp hw j (List.mem_range.mpr (fits_node_lt hM hw ht hrng h))
   rw [h] at this; simpa using this
 
 theorem bool_of_sort {t : Nat} (ht' : t < nodes.length) (hb : sig.is (sortOf[t]?.getD 0) .bool = true) :
     ∃ b, val M.toInterp nodes t = .bool b := by
-  have := val_dom hM hw ht t ht'
+  have := val_dom hM hw ht hrng t ht'
   simp only [Sig.is, beq_iff_eq] at hb
   exact (hM.bool _ _ hb).mp this
 
@@ -225,14 +226,14 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
   have one : ∀ {x : Nat} {n : Node}, nodes[j]? = some n → x ∈ n.children → ∀ s, fits sig nodes sortOf x s = true →
       val M.toInterp nodes x = s.ev M.toInterp (val M.toInterp nodes) := by
     intro x n hn hx s h
-    have := fits_child_lt hM hw ht hn x hx
+    have := fits_child_lt hM hw ht hrng hn x hx
     exact ih x this (by omega) s h
   cases s with
   | same t => simp only [fits, beq_iff_eq] at hs; subst hs; rfl
   | bool t =>
     simp only [fits, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at hs
     rcases hs with (⟨rfl, hb⟩ | hb) | hb
-    · obtain ⟨b, hb'⟩ := bool_of_sort hM hw ht hj hb
+    · obtain ⟨b, hb'⟩ := bool_of_sort hM hw ht hrng hj hb
       show _ = Val.bool _
       rw [hb', truth_bool (R := R) (U := U)]
     · rw [val_bterm hw hb]; rfl
@@ -247,7 +248,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     have hl := lin_sound (I := M.toInterp) hw j
     have hnum : ∃ r, val M.toInterp nodes j = .num r := by
       rcases hk with hk | hk
-      · exact dom_num_of_numeric hM hk (val_dom hM hw ht j hj)
+      · exact dom_num_of_numeric hM hk (val_dom hM hw ht hrng j hj)
       · split at hk
         · rename_i v h; exact ⟨_, val_num hw h⟩
         · rename_i ts c' h; exact ⟨_, val_linear hw h⟩
@@ -271,7 +272,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
       rw [val_app hw hn]
       simp only [Shape.ev]
       rw [one hn (by simp [Node.children]) f hs.1,
-        hall xs args (fun x m => fits_child_lt hM hw ht hn x (by simp [Node.children, m])) hs.2]
+        hall xs args (fun x m => fits_child_lt hM hw ht hrng hn x (by simp [Node.children, m])) hs.2]
     · cases hs
   | tt => simp only [fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
   | ff => simp only [fits, beq_iff_eq] at hs; have := val_node (I := M.toInterp) hw hs; simp only [val] at this ⊢; rw [this]; rfl
@@ -289,7 +290,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     · rename_i xs hn
       have := val_node (I := M.toInterp) hw hn; simp only [val] at this ⊢; rw [this]
       simp only [evalNode, Shape.ev, Shape.allTrue_eq]
-      have := truths xs as (fun x m => fits_child_lt hM hw ht hn x (by simpa [Node.children] using m)) hs
+      have := truths xs as (fun x m => fits_child_lt hM hw ht hrng hn x (by simpa [Node.children] using m)) hs
       congr 1
       rw [all_as_map xs, all_as_map as]; simp only [val] at this; rw [this]
     · cases hs
@@ -299,7 +300,7 @@ theorem fits_sound : ∀ j, j < nodes.length → ∀ s, fits sig nodes sortOf j 
     · rename_i xs hn
       have := val_node (I := M.toInterp) hw hn; simp only [val] at this ⊢; rw [this]
       simp only [evalNode, Shape.ev, Shape.anyTrue_eq]
-      have := truths xs as (fun x m => fits_child_lt hM hw ht hn x (by simpa [Node.children] using m)) hs
+      have := truths xs as (fun x m => fits_child_lt hM hw ht hrng hn x (by simpa [Node.children] using m)) hs
       congr 1
       rw [any_as_map xs, any_as_map as]; simp only [val] at this; rw [this]
     · cases hs

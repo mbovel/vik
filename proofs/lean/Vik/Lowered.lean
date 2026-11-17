@@ -391,17 +391,23 @@ theorem forall2_map {α β : Type} (r : α → β → Prop) (f : Nat → α) (g 
 structure Model (R U : Type) extends Interp R U where
   dom : Nat → Val R U → Prop
 
-/-- What a model of the sorts and symbols of `sig` satisfies. -/
-structure Model.Sound (sig : Sig) (M : Model R U) : Prop where
+/-- A value of sort `s` is in its range, if `s` is a sort of bit-vectors. -/
+def inRange (bv : List (Nat × Nat)) (s : Nat) (v : Val R U) : Prop :=
+  ∀ w, bv.lookup s = some w → ∃ k : Int, v = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
+
+/-- What a model of the sorts and symbols of `sig` satisfies, the sorts of
+    bit-vectors `bv` among its integer sorts: a function takes a value of its
+    sort on arguments of theirs, in their ranges. -/
+structure Model.Sound (sig : Sig) (bv : List (Nat × Nat)) (M : Model R U) : Prop where
   bool : ∀ s v, sig.sorts[s]? = some .bool → (M.dom s v ↔ ∃ b, v = .bool b)
   int : ∀ s v, sig.sorts[s]? = some .int → (M.dom s v ↔ ∃ k : Int, v = .num (k : R))
   real : ∀ s v, sig.sorts[s]? = some .real → (M.dom s v ↔ ∃ r, v = .num r)
   fn : ∀ s as r f xs, sig.sorts[s]? = some (.fn as r) → M.dom s f →
-    Forall2 M.dom as xs → M.dom r (M.app f xs)
+    Forall2 (fun a x => M.dom a x ∧ inRange bv a x) as xs → M.dom r (M.app f xs)
   const : ∀ k s, sig.decls[k]? = some s → M.dom s (M.const k)
 
 section
-variable {sig : Sig} {M : Model R U} (hM : M.Sound sig)
+variable {sig : Sig} {bv : List (Nat × Nat)} {M : Model R U} (hM : M.Sound sig bv)
 include hM
 
 theorem dom_num_of_numeric {s : Nat} {v : Val R U} (hs : sig.numeric s = true) (h : M.dom s v) :
@@ -426,9 +432,11 @@ theorem linSum_int {nodes : List Node} (ts : List (Int × Nat))
     rw [hk]
     simp only [Val.toR, Ring.intCast_add, Ring.intCast_mul]
 
-/-- In a well-sorted table, every node takes a value of its sort. -/
+/-- In a well-sorted table whose nodes of bit-vector sorts are in range, every
+    node takes a value of its sort. -/
 theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
-    (ht : typed sig nodes sortOf = true) :
+    (ht : typed sig nodes sortOf = true)
+    (hrng : ∀ i < nodes.length, inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i)) :
     ∀ i, i < nodes.length → M.dom (sortOf[i]?.getD 0) (val M.toInterp nodes i) := by
   intro i
   induction i using Nat.strongRecOn with
@@ -465,7 +473,9 @@ theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
       rw [val_app hw hn']
       apply hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children]))
       rw [← hargs]
-      exact forall2_map _ _ _ args (fun j m => ihc j (by simp [Node.children, m]))
+      exact forall2_map _ _ _ args (fun j m =>
+        ⟨ihc j (by simp [Node.children, m]),
+          hrng j (Nat.lt_trans (hc j (by simp [Node.children, m])) hi)⟩)
     · cases hn
   | num v =>
     simp only [nodeTyped, Sig.is, beq_iff_eq] at hn
@@ -501,10 +511,11 @@ theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
 end
 
 /-- An integer node takes an integer value. -/
-theorem val_int {sig : Sig} {M : Model R U} (hM : M.Sound sig) {nodes : List Node} {sortOf : List Nat}
-    (hw : wellFormed nodes = true) (ht : typed sig nodes sortOf = true) {i : Nat} (hi : i < nodes.length)
+theorem val_int {sig : Sig} {bv : List (Nat × Nat)} {M : Model R U} (hM : M.Sound sig bv) {nodes : List Node}
+    {sortOf : List Nat} (hw : wellFormed nodes = true) (ht : typed sig nodes sortOf = true)
+    (hrng : ∀ i < nodes.length, inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i)) {i : Nat} (hi : i < nodes.length)
     (hs : sig.is (sortOf[i]?.getD 0) .int = true) : ∃ k : Int, val M.toInterp nodes i = .num (k : R) := by
   simp only [Sig.is, beq_iff_eq] at hs
-  exact (hM.int _ _ hs).mp (val_dom hM hw ht i hi)
+  exact (hM.int _ _ hs).mp (val_dom hM hw ht hrng i hi)
 
 end Vik.Low

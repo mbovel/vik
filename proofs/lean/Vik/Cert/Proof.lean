@@ -30,8 +30,7 @@ structure Problem where
   /-- For each datatype sort, its constructors, with tester and selectors. -/
   datatypes : List (Nat × List (Nat × Nat × List Nat))
   stores : List Nat
-  /-- The sorts of bit-vector indices, integers to the lowering, with their
-      widths. -/
+  /-- The sorts of bit-vectors, integers to the lowering, with their widths. -/
   bvIndex : List (Nat × Nat)
 
 /-- A bound `x ≤ c` (`x < c` if strict) on an LIA variable, or `x = c`. -/
@@ -326,10 +325,6 @@ attribute [local instance low] Lean.Grind.Ring.intCast
 def ctorVal (M : Model R U) (C : Nat) (xs : List (Val R U)) : Val R U :=
   if xs.isEmpty then M.const C else M.app (M.const C) xs
 
-/-- A value of sort `s` is in its range, if `s` is a bit-vector index. -/
-def inRange (bv : List (Nat × Nat)) (s : Nat) (v : Val R U) : Prop :=
-  ∀ w, bv.lookup s = some w → ∃ k : Int, v = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
-
 /-- The sorts of the arguments of symbol `C`. -/
 def Problem.argSorts (P : Problem) (C : Nat) : List Nat :=
   match P.sig.decls[C]? with
@@ -342,28 +337,28 @@ def Problem.argSorts (P : Problem) (C : Nat) : List Nat :=
 /-- What a model of a problem satisfies: its sorts and symbols, the laws of
     datatypes (as a term algebra: `size` decreases from a constructor term to
     its arguments), those of array stores, and extensionality: two functions
-    are equal when they agree on all arguments, those in range for a
-    bit-vector index. -/
+    are equal when they agree on all arguments. Arguments of bit-vector sorts
+    only range over their values in range. -/
 structure Problem.Laws (P : Problem) (M : Model R U) (size : Val R U → Nat) : Prop where
-  sound : M.Sound P.sig
+  sound : M.Sound P.sig P.bvIndex
   sel : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
-    ∀ xs (i : Nat) S x, Forall2 M.dom (P.argSorts C) xs → Ss[i]? = some S → xs[i]? = some x →
+    ∀ xs (i : Nat) S x, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs → Ss[i]? = some S → xs[i]? = some x →
       M.app (M.const S) [ctorVal M C xs] = x
   test : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
-    ∀ xs, Forall2 M.dom (P.argSorts C) xs → M.app (M.const T) [ctorVal M C xs] = .bool true
+    ∀ xs, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs → M.app (M.const T) [ctorVal M C xs] = .bool true
   testOther : ∀ d cs C T Ss C' T' Ss', (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs → (C', T', Ss') ∈ cs →
-    C ≠ C' → ∀ ys, Forall2 M.dom (P.argSorts C') ys → M.app (M.const T) [ctorVal M C' ys] ≠ .bool true
+    C ≠ C' → ∀ ys, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C') ys → M.app (M.const T) [ctorVal M C' ys] ≠ .bool true
   inj : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
-    ∀ xs ys, Forall2 M.dom (P.argSorts C) xs → Forall2 M.dom (P.argSorts C) ys →
+    ∀ xs ys, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs → Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) ys →
       ctorVal M C xs = ctorVal M C ys → xs = ys
   distinct : ∀ d cs C T Ss C' T' Ss', (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs → (C', T', Ss') ∈ cs →
-    C ≠ C' → ∀ xs ys, Forall2 M.dom (P.argSorts C) xs → Forall2 M.dom (P.argSorts C') ys →
+    C ≠ C' → ∀ xs ys, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs → Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C') ys →
       ctorVal M C xs ≠ ctorVal M C' ys
   expand : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
     ∀ v, M.dom d v → M.app (M.const T) [v] = .bool true →
       v = ctorVal M C (Ss.map fun S => M.app (M.const S) [v])
   smaller : ∀ d cs C T Ss, (d, cs) ∈ P.datatypes → (C, T, Ss) ∈ cs →
-    ∀ xs x, Forall2 M.dom (P.argSorts C) xs → x ∈ xs → size x < size (ctorVal M C xs)
+    ∀ xs x, Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs → x ∈ xs → size x < size (ctorVal M C xs)
   exhaust : ∀ d cs, (d, cs) ∈ P.datatypes → ∀ v, M.dom d v →
     ∃ ct ∈ cs, M.app (M.const ct.2.1) [v] = .bool true
   store : ∀ n ∈ P.stores, ∀ s arr idx el, P.sig.decls[n]? = some s →
@@ -586,13 +581,14 @@ theorem on_sound {l r x : Nat} {c : Int} (h : P.on A l r x c = true) :
 end
 
 section
-variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} (hM : M.Sound P.sig)
-include hA hM
+variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} (hM : M.Sound P.sig P.bvIndex)
+  (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (val M.toInterp P.nodes i))
+include hA hM hrng
 
 theorem nums_int {u : Nat} (h : P.isInt u = true) : ∃ n : Int, nums M.toInterp P.nodes u = (n : R) := by
   unfold Problem.isInt at h
   simp only [Bool.and_eq_true, decide_eq_true_eq] at h
-  obtain ⟨k, hk⟩ := val_int hM hA.wf hA.typed h.1 h.2
+  obtain ⟨k, hk⟩ := val_int hM hA.wf hA.typed hrng h.1 h.2
   exact ⟨k, by simp [nums, hk, Val.toR]⟩
 
 /-- The environment of integer unknowns alone. -/
@@ -605,7 +601,7 @@ def intEnv (P : Problem) (A : Answer) : Lia.Env where
 theorem intEnv_sound : (intEnv P A).Sound (nums M.toInterp P.nodes) where
   hyp _ _ h := by simp [intEnv] at h
   distinct _ _ _ _ h := by simp [intEnv] at h
-  int _ h := nums_int hA hM h
+  int _ h := nums_int hA hM hrng h
 
 theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
     assign P A M.toInterp v = true ↔ liaHolds P A M.toInterp a := by
@@ -646,7 +642,7 @@ theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
         obtain ⟨hint, hon⟩ := hm
         have := on_sound hA (I := M.toInterp) hon
         obtain ⟨n, hn'⟩ := Lia.eval_integral (intEnv P A) (nums M.toInterp P.nodes)
-          (intEnv_sound hA hM) _ hint
+          (intEnv_sound hA hM hrng) _ hint
         have hv : liaVal P A M.toInterp x = (n : R) := hn'
         simp only [Bool.false_eq_true, ↓reduceIte]
         rw [Ring.intCast_add, Ring.intCast_one] at this
@@ -669,10 +665,10 @@ theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
       simp only [liaHolds]
       have nl : ∃ x, val M.toInterp P.nodes l = .num x := by
         unfold Enc.numeric at hl; simp only [Bool.and_eq_true, decide_eq_true_eq] at hl
-        exact dom_num_of_numeric hM hl.2 (val_dom hM hA.wf hA.typed l hl.1)
+        exact dom_num_of_numeric hM hl.2 (val_dom hM hA.wf hA.typed hrng l hl.1)
       have nr : ∃ x, val M.toInterp P.nodes r = .num x := by
         unfold Enc.numeric at hr; simp only [Bool.and_eq_true, decide_eq_true_eq] at hr
-        exact dom_num_of_numeric hM hr.2 (val_dom hM hA.wf hA.typed r hr.1)
+        exact dom_num_of_numeric hM hr.2 (val_dom hM hA.wf hA.typed hrng r hr.1)
       obtain ⟨a, ha⟩ := nl
       obtain ⟨b, hb⟩ := nr
       rw [ha, hb] at this ⊢
@@ -696,12 +692,12 @@ variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} {size : 
   (hext : ∀ (k eq eqw : Nat) (ws : List Nat), A.exts[k]? = some (eq, eqw, ws) →
     holds M.toInterp P.nodes eq ∨ ¬holds M.toInterp P.nodes eqw)
   (hwr : ∀ n w, (P.enc A).width n = some w → ∃ k : Int, M.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w)
-include hA hL
+include hA hL hrng
 
 theorem dom_of {i : Nat} (hi : i < P.nodes.length) : M.dom (P.sort i) (val M.toInterp P.nodes i) :=
-  val_dom hL.sound hA.wf hA.typed i hi
+  val_dom hL.sound hA.wf hA.typed hrng i hi
 
-include hin hrng hext hwr in
+include hin hext hwr in
 theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
   meaning v f h := assign_meaning hA h
   trueLit := by
@@ -724,10 +720,10 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
     intro hs; exact absurd hs.1 (by simpa [Problem.enc] using hn)
   numeric i h := by
     simp only [Enc.numeric, Problem.enc, Bool.and_eq_true, decide_eq_true_eq] at h
-    exact dom_num_of_numeric hL.sound h.2 (dom_of hA hL h.1)
+    exact dom_num_of_numeric hL.sound h.2 (dom_of hA hL hrng h.1)
   exhaustive t cs ht h := by
     simp only [Problem.enc] at h ht
-    exact hL.exhaust _ _ (lookup_mem h) _ (dom_of hA hL ht)
+    exact hL.exhaust _ _ (lookup_mem h) _ (dom_of hA hL hrng ht)
   store r s k n a i v j hr hs hk hn := by
     simp only [Enc.node, Problem.enc] at hr hs hk ⊢
     simp only [Problem.enc] at hn
@@ -760,10 +756,10 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         have la := child_lt hA.wf hs (j := a) (by simp [Node.children])
         have li := child_lt hA.wf hs (j := i) (by simp [Node.children])
         have lv := child_lt hA.wf hs (j := v) (by simp [Node.children])
-        have da := dom_of hA hL (i := a) (by omega)
-        have di := dom_of hA hL (i := i) (by omega)
-        have dv := dom_of hA hL (i := v) (by omega)
-        have dj := dom_of hA hL (i := j) (by omega)
+        have da := dom_of hA hL hrng (i := a) (by omega)
+        have di := dom_of hA hL hrng (i := i) (by omega)
+        have dv := dom_of hA hL hrng (i := v) (by omega)
+        have dj := dom_of hA hL hrng (i := j) (by omega)
         unfold Problem.sort at da di dv dj
         rw [ha] at da; rw [hi] at di; rw [hv] at dv; rw [hj] at dj
         have ri := hrng i (by omega)
@@ -827,7 +823,7 @@ variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} {size : 
   (hext : ∀ (k eq eqw : Nat) (ws : List Nat), A.exts[k]? = some (eq, eqw, ws) →
     holds M.toInterp P.nodes eq ∨ ¬holds M.toInterp P.nodes eqw)
   (hwr : ∀ n w, (P.enc A).width n = some w → ∃ k : Int, M.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w)
-include hA hL
+include hA hL hrng
 
 theorem symOf_val {c C : Nat} (h : P.symOf c = some C) : val M.toInterp P.nodes c = M.const C := by
   unfold Problem.symOf at h
@@ -865,18 +861,18 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
     ∃ C d T Ss ss, P.symOf c = some C ∧ P.ctorEntry C = some (d, T, Ss) ∧ A.ufCtors.lookup c = some ss ∧
       ss.map P.symOf = Ss.map some ∧ args.length = Ss.length ∧
       val M.toInterp P.nodes x = ctorVal M C (args.map (val M.toInterp P.nodes)) ∧
-      Forall2 M.dom (P.argSorts C) (args.map (val M.toInterp P.nodes)) := by
+      Forall2 (fun a x => M.dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) (args.map (val M.toInterp P.nodes)) := by
   unfold Uf.ctorOf at h
   split at h
   · rename_i hx
     cases h
-    obtain ⟨C, d, T, Ss, hC, he, hm⟩ := ufCtor_info hA hL hx
+    obtain ⟨C, d, T, Ss, hC, he, hm⟩ := ufCtor_info hA hL hrng hx
     have hSs : Ss = [] := by cases Ss with
       | nil => rfl
       | cons _ _ => simp at hm
     subst hSs
     refine ⟨C, d, T, [], [], hC, he, hx, hm, rfl, ?_, ?_⟩
-    · simp [ctorVal, symOf_val hA hL hC]
+    · simp [ctorVal, symOf_val hA hL hrng hC]
     · -- a constant constructor has no argument sorts
       obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
       have hdt := hA.dt
@@ -900,14 +896,14 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
         · rename_i hc
           cases h
           simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', List.isEmpty_eq_false_iff] at hc
-          obtain ⟨C, d, T, Ss, hC, he, hm⟩ := ufCtor_info hA hL hf
+          obtain ⟨C, d, T, Ss, hC, he, hm⟩ := ufCtor_info hA hL hrng hf
           have hn' : P.nodes[x]? = some (.app c args) := by
             simp only [Problem.ufEnv, Problem.node] at hn
             split at hn
             · rename_i f' args' h'; cases hn; exact h'
             · cases hn
-          refine ⟨C, d, T, Ss, ss, hC, he, hf, hm, by rw [hc.1, map_symOf_length hA hL hm], ?_, ?_⟩
-          · rw [val_app hA.wf hn', symOf_val hA hL hC]
+          refine ⟨C, d, T, Ss, ss, hC, he, hf, hm, by rw [hc.1, map_symOf_length hA hL hrng hm], ?_, ?_⟩
+          · rw [val_app hA.wf hn', symOf_val hA hL hrng hC]
             have : (args.map (val M.toInterp P.nodes)).isEmpty = false := by
               cases args with
               | nil => cases ss with
@@ -916,7 +912,7 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
               | cons _ _ => rfl
             simp [ctorVal, this]
           · have tx := typed_node hA.typed hn'
-            have tc := typed_node hA.typed (symOf_node hA hL hC)
+            have tc := typed_node hA.typed (symOf_node hA hL hrng hC)
             simp only [nodeTyped, beq_iff_eq] at tx tc
             split at tx
             · rename_i as' r hs
@@ -924,7 +920,8 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
               simp only [Problem.argSorts, tc, hs]
               rw [← tx.2]
               exact forall2_map _ _ _ args fun j m =>
-                dom_of hA hL (Nat.lt_trans (child_lt hA.wf hn' (by simp [Node.children, m])) (lt_of_node hn'))
+                have hj := Nat.lt_trans (child_lt hA.wf hn' (by simp [Node.children, m])) (lt_of_node hn')
+                ⟨dom_of hA hL hrng hj, hrng j hj⟩
             · cases tx
         · cases h
       · cases h
@@ -953,7 +950,7 @@ theorem ufEnv_node {p f : Nat} {args : List Nat} (h : (P.ufEnv A).node p = some 
   · rename_i f' args' h'; cases h; exact h'
   · cases h
 
-omit hA hL in
+omit hA hL hrng in
 theorem sel_get {ss Ss : List Nat} (hm : ss.map P.symOf = Ss.map some) {i s : Nat} (h : ss[i]? = some s) :
     ∃ S, Ss[i]? = some S ∧ P.symOf s = some S := by
   have := congrArg (·[i]?) hm
@@ -973,7 +970,7 @@ theorem sel_map {ss Ss : List Nat} (hm : ss.map P.symOf = Ss.map some) (v : Val 
     | nil => simp at hm
     | cons S Ss =>
       simp only [List.map_cons, List.cons.injEq] at hm ⊢
-      exact ⟨by rw [symOf_val hA hL hm.1], ih hm.2⟩
+      exact ⟨by rw [symOf_val hA hL hrng hm.1], ih hm.2⟩
 
 /-- The tester `T` of a sort `d` applies to the sort's values. -/
 theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some (.app t [a]))
@@ -985,7 +982,7 @@ theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some 
   have := (hdt.2 _ hd)
   have hT' := (this.2 _ hct).1.2
   have tp := typed_node hA.typed hp
-  have tt := typed_node hA.typed (symOf_node hA hL hT)
+  have tt := typed_node hA.typed (symOf_node hA hL hrng hT)
   simp only [nodeTyped, beq_iff_eq] at tp tt
   split at hT'
   · rename_i s hs
@@ -996,7 +993,7 @@ theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some 
       have hst : P.sortOf[t]?.getD 0 = s := (Option.some.inj tt).symm
       simp only [hst, hs', Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil,
         List.cons.injEq] at tp
-      have := dom_of hA hL (i := a) (Nat.lt_trans (child_lt hA.wf hp (by simp [Node.children]))
+      have := dom_of hA hL hrng (i := a) (Nat.lt_trans (child_lt hA.wf hp (by simp [Node.children]))
         (lt_of_node hp))
       unfold Problem.sort at this
       rw [tp.2.1, hT'.1] at this
@@ -1042,9 +1039,9 @@ theorem sameType_info {c d : Nat} (h : (P.ufEnv A).sameType c d = true) :
 
 theorem uf_sound : (P.ufEnv A).Sound (ufModel P M size) (assign P A M.toInterp) where
   node x f args h := by
-    simp only [ufModel]; rw [val_app hA.wf (ufEnv_node hA hL h)]
+    simp only [ufModel]; rw [val_app hA.wf (ufEnv_node hA hL hrng h)]
   atom v a b h := assign_uf hA h
-  trueLit := trueLit_holds hA hL
+  trueLit := trueLit_holds hA hL hrng
   trueFalse := by
     simp only [ufModel, Problem.ufEnv]; rw [val_trueClass hA, val_falseClass hA]; simp
   bool v x h := by
@@ -1054,57 +1051,57 @@ theorem uf_sound : (P.ufEnv A).Sound (ufModel P M size) (assign P A M.toInterp) 
     simp only [h, Bool.and_eq_true, Bool.or_eq_true, bne_iff_ne, ne_eq, not_true_eq_false,
       false_or, decide_eq_true_eq] at hok
     obtain ⟨⟨⟨hx, hb⟩, _⟩, _⟩ := hok
-    have := dom_of hA hL hx
+    have := dom_of hA hL hrng hx
     simp only [Sig.is, beq_iff_eq] at hb
     obtain ⟨b, hb'⟩ := (hL.sound.bool _ _ hb).mp this
     simp only [ufModel, Problem.ufEnv]
     rw [val_trueClass hA, val_falseClass hA, hb']
     cases b <;> simp
   select x c args ss i s b hx hc hs hb := by
-    obtain ⟨C, d, T, Ss, ss', hC, he, hl, hm, hlen, hv, hdom⟩ := ctorOf_info hA hL hx
+    obtain ⟨C, d, T, Ss, ss', hC, he, hl, hm, hlen, hv, hdom⟩ := ctorOf_info hA hL hrng hx
     simp only [Problem.ufEnv] at hc
     rw [hl] at hc; cases hc
     obtain ⟨S, hS, hsym⟩ := sel_get hm hs
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
     simp only [ufModel]
-    rw [symOf_val hA hL hsym, hv]
+    rw [symOf_val hA hL hrng hsym, hv]
     exact hL.sel _ _ _ _ _ hd hct _ i S _ hdom hS (by rw [List.getElem?_map, hb]; rfl)
   test x c args t hx ht := by
-    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hx
+    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hrng hx
     simp only [Problem.ufEnv] at ht
-    obtain ⟨T', C', d', Ss', hT', hC', he'⟩ := ufTester_info hA hL ht
+    obtain ⟨T', C', d', Ss', hT', hC', he'⟩ := ufTester_info hA hL hrng ht
     rw [hC] at hC'; cases hC'
     rw [he] at he'; cases he'
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
     simp only [ufModel, Problem.ufEnv]
-    rw [symOf_val hA hL hT', hv, val_trueClass hA]
+    rw [symOf_val hA hL hrng hT', hv, val_trueClass hA]
     exact hL.test _ _ _ _ _ hd hct _ hdom
   testOther x d args t c hx ht hne hsame := by
-    obtain ⟨D, e, TD, SD, ss, hD, heD, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hx
+    obtain ⟨D, e, TD, SD, ss, hD, heD, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hrng hx
     simp only [Problem.ufEnv] at ht
-    obtain ⟨T, C, e', Ss, hT, hC, heC⟩ := ufTester_info hA hL ht
+    obtain ⟨T, C, e', Ss, hT, hC, heC⟩ := ufTester_info hA hL hrng ht
     obtain ⟨C', D', e'', cs, T1, Ss1, T2, Ss2, hC', hD', hCD, hd, hc1, hc2, he1, he2⟩ :=
-      sameType_info hA hL hsame
+      sameType_info hA hL hrng hsame
     rw [hC] at hC'; cases hC'
     rw [hD] at hD'; cases hD'
     rw [heC] at he1; cases he1
     simp only [ufModel, Problem.ufEnv]
-    rw [symOf_val hA hL hT, hv, val_trueClass hA]
+    rw [symOf_val hA hL hrng hT, hv, val_trueClass hA]
     rw [heD] at he2; cases he2
     exact hL.testOther _ _ _ _ _ _ _ _ hd hc1 hc2 hCD _ hdom
   inj x y c xs ys hx hy hxy := by
-    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hx
-    obtain ⟨C', d', T', Ss', ss', hC', he', _, _, _, hv', hdom'⟩ := ctorOf_info hA hL hy
+    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hrng hx
+    obtain ⟨C', d', T', Ss', ss', hC', he', _, _, _, hv', hdom'⟩ := ctorOf_info hA hL hrng hy
     rw [hC] at hC'; cases hC'
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
     simp only [ufModel] at hxy ⊢
     rw [hv, hv'] at hxy
     exact hL.inj _ _ _ _ _ hd hct _ _ hdom hdom' hxy
   distinct x y c d xs ys hx hy hne hsame := by
-    obtain ⟨C, e, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hx
-    obtain ⟨D, e', T', Ss', ss', hD, he', _, _, _, hv', hdom'⟩ := ctorOf_info hA hL hy
+    obtain ⟨C, e, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hrng hx
+    obtain ⟨D, e', T', Ss', ss', hD, he', _, _, _, hv', hdom'⟩ := ctorOf_info hA hL hrng hy
     obtain ⟨C1, D1, e1, cs, T1, Ss1, T2, Ss2, hC1, hD1, hCD, hd, hc1, hc2, he1, he2⟩ :=
-      sameType_info hA hL hsame
+      sameType_info hA hL hrng hsame
     rw [hC] at hC1; cases hC1
     rw [hD] at hD1; cases hD1
     simp only [ufModel]
@@ -1112,8 +1109,8 @@ theorem uf_sound : (P.ufEnv A).Sound (ufModel P M size) (assign P A M.toInterp) 
     exact hL.distinct _ _ _ _ _ _ _ _ hd hc1 hc2 hCD _ _ hdom hdom'
   expandConst p t c a hp ht hc happ := by
     simp only [Problem.ufEnv] at ht hc
-    obtain ⟨T, C, d, Ss, hT, hC, he⟩ := ufTester_info hA hL ht
-    obtain ⟨C', d', T', Ss', hC', he', hm⟩ := ufCtor_info hA hL hc
+    obtain ⟨T, C, d, Ss, hT, hC, he⟩ := ufTester_info hA hL hrng ht
+    obtain ⟨C', d', T', Ss', hC', he', hm⟩ := ufCtor_info hA hL hrng hc
     rw [hC] at hC'; cases hC'
     rw [he] at he'; cases he'
     have hSs : Ss = [] := by cases Ss with
@@ -1121,27 +1118,27 @@ theorem uf_sound : (P.ufEnv A).Sound (ufModel P M size) (assign P A M.toInterp) 
       | cons _ _ => simp at hm
     subst hSs
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
-    have hp' := ufEnv_node hA hL hp
-    have hdom := tester_arg hA hL hp' hT he
+    have hp' := ufEnv_node hA hL hrng hp
+    have hdom := tester_arg hA hL hrng hp' hT he
     simp only [ufModel, Problem.ufEnv] at happ ⊢
-    rw [symOf_val hA hL hT, val_trueClass hA] at happ
-    rw [hL.expand _ _ _ _ _ hd hct _ hdom happ, symOf_val hA hL hC]
+    rw [symOf_val hA hL hrng hT, val_trueClass hA] at happ
+    rw [hL.expand _ _ _ _ _ hd hct _ hdom happ, symOf_val hA hL hrng hC]
     simp [ctorVal]
   expand p t c ss a b fields hp ht hc happ hb hf := by
     simp only [Problem.ufEnv] at ht hc
-    obtain ⟨T, C, d, Ss, hT, hC, he⟩ := ufTester_info hA hL ht
-    obtain ⟨C', d', T', Ss', ss', hC', he', hl, hm, _, hv, _⟩ := ctorOf_info hA hL hb
+    obtain ⟨T, C, d, Ss, hT, hC, he⟩ := ufTester_info hA hL hrng ht
+    obtain ⟨C', d', T', Ss', ss', hC', he', hl, hm, _, hv, _⟩ := ctorOf_info hA hL hrng hb
     rw [hC] at hC'; cases hC'
     rw [he] at he'; cases he'
     rw [hc] at hl; cases hl
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
-    have hp' := ufEnv_node hA hL hp
-    have hdom := tester_arg hA hL hp' hT he
+    have hp' := ufEnv_node hA hL hrng hp
+    have hdom := tester_arg hA hL hrng hp' hT he
     simp only [ufModel, Problem.ufEnv] at happ hf ⊢
-    rw [symOf_val hA hL hT, val_trueClass hA] at happ
-    rw [hL.expand _ _ _ _ _ hd hct _ hdom happ, hv, hf, sel_map hA hL hm]
+    rw [symOf_val hA hL hrng hT, val_trueClass hA] at happ
+    rw [hL.expand _ _ _ _ _ hd hct _ hdom happ, hv, hf, sel_map hA hL hrng hm]
   smaller x c args a hx ha := by
-    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hx
+    obtain ⟨C, d, T, Ss, ss, hC, he, _, _, _, hv, hdom⟩ := ctorOf_info hA hL hrng hx
     obtain ⟨cs, hd, hct⟩ := ctorEntry_mem he
     simp only [ufModel]
     rw [hv]
@@ -1170,7 +1167,7 @@ theorem lia_sound {c : Clause} {nodes : List Lia.Node} (h : Lia.accepts (P.liaEn
     · rename_i x k strict heq
       simp only [Bool.and_eq_true, beq_iff_eq] at hok
       obtain ⟨⟨⟨hx, hk⟩, hs⟩, hu⟩ := hok
-      have e := assign_lia hA hL.sound heq
+      have e := assign_lia hA hL.sound hrng heq
       rw [hlit] at e
       simp only [Lia.side, Lia.Ineq.holds, Problem.liaEnv, hx, hk, hs, hu, liaHolds, liaVal] at e ⊢
       cases pos <;> cases strict <;>
@@ -1179,7 +1176,7 @@ theorem lia_sound {c : Clause} {nodes : List Lia.Node} (h : Lia.accepts (P.liaEn
     · rename_i x k heq
       simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at hok
       obtain ⟨⟨⟨hp, hx⟩, hk⟩, hs⟩ := hok
-      have e := assign_lia hA hL.sound heq
+      have e := assign_lia hA hL.sound hrng heq
       rw [hlit, hp] at e
       simp only [Lia.side, Lia.Ineq.holds, Problem.liaEnv, hx, hk, hs, liaHolds, liaVal, true_iff] at e ⊢
       cases hy.upper <;>
@@ -1187,9 +1184,9 @@ theorem lia_sound {c : Clause} {nodes : List Lia.Node} (h : Lia.accepts (P.liaEn
           ] at e ⊢ <;> grind
     · cases hok
   · intro _ _ _ _ h; simp [Problem.liaEnv] at h
-  · intro u hu; exact nums_int hA hL.sound hu
+  · intro u hu; exact nums_int hA hL.sound hrng hu
 
-include hin hrng hext hwr in
+include hin hext hwr in
 /-- Every premise of an accepted proof holds. -/
 theorem premises_hold :
     ∀ s ∈ A.steps, s.premise = true → s.clause.holds (assign P A M.toInterp) := by
@@ -1198,8 +1195,8 @@ theorem premises_hold :
   have hok := hA.justs s j hj
   cases s <;> cases j <;> simp only [Problem.justOk, Step.premise, Bool.false_eq_true] at hok hp
   · exact inputOk_sound hA.wf (enc_sound hA hL hin hrng hext hwr) hok
-  · exact Uf.accepts_sound (uf_sound hA hL) hok
-  · exact lia_sound hA hL hok
+  · exact Uf.accepts_sound (uf_sound hA hL hrng) hok
+  · exact lia_sound hA hL hrng hok
 
 end
 
