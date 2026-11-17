@@ -575,7 +575,7 @@ theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
   · rw [fits_sound hM hA.wf hA.typed hrngP _ hlt s hf]
     exact expect_sound hL.sound hc.wf hc.typed hA.wf hn hs (fun c hci => ih c hci (by omega))
   · exact bvOk_sound hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hn hlt hb
-      (fun c hci => ih c hci (by omega))
+      (fun c hci => ih c hci (by omega)) (fun c hci => (hc.nodes c (by omega)).1)
 
 theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.nodes.length := by
   rcases Nat.lt_or_ge a SP.nodes.length with h' | h'

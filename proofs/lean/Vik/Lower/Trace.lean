@@ -63,17 +63,20 @@ inductive Rule where
   /-- `smodz(a, c, w)`: whether `bvsmod` by the constant `c` corrects the
       remainder. -/
   | smodz (a : Nat) (c : Int) (w : Nat)
+  /-- `bits(t, w)`: bit `j` of `t`, for each `j < w`. -/
+  | bits (t w : Nat)
   deriving DecidableEq, Repr
 
 /-- The lowered nodes a rule applies to. -/
 def Rule.args : Rule → List Nat
-  | .modulo v _ _ _ | .divide v _ _ | .sdivide v _ _ _ | .int2bv v _ | .smodz v _ _ => [v]
+  | .modulo v _ _ _ | .divide v _ _ | .sdivide v _ _ _ | .int2bv v _ | .smodz v _ _ | .bits v _ => [v]
   | .cases c t e _ _ => [c, t, e]
 
 /-- The number of symbols of a rule. -/
 def Rule.nsyms : Rule → Nat
   | .modulo _ _ lo hi => if hi - lo < 4 then 1 else 2
   | .cases .. | .smodz .. => 1
+  | .bits _ w => w
   | _ => 2
 
 /-- The signed value of `t`, of width `w`. -/
@@ -103,6 +106,7 @@ def Rule.ival (ι : Nat → Int) (τ : Nat → Bool) : Rule → Nat → Int
   | .int2bv t w, 0 => ι t % 2 ^ w
   | .int2bv t w, _ => ι t / 2 ^ w
   | .smodz a c w, _ => smodzVal (ι a) c w
+  | .bits t _, j => bit (ι t) j
 
 /-- Why the lowering mints a symbol. -/
 inductive Mint where
@@ -354,6 +358,7 @@ def Rule.iv (node : Nat → Option (Int × Int)) : Rule → Nat → Option (Int 
   | .int2bv _ w, 0 => some (0, 2 ^ w - 1)
   | .int2bv _ _, _ => none
   | .smodz .., _ => some (0, 1)
+  | .bits .., _ => some (0, 1)
 
 /-- The interval of a leaf: a number, a symbol of a rule (`sym`), or a
     bit-vector. -/
@@ -419,6 +424,9 @@ def Rule.facts (ks : List Nat) (aux : Nat) : Rule → List Shape
     intS z 0 1 ++
       [.implies (.not differ) (eqI (.same z) (.num [] 0)), .implies rz (eqI (.same z) (.num [] 0)),
         .implies (.and [differ, .not rz]) (eqI (.same z) (.num [] 1))]
+  | .bits t w =>
+    (List.range w).flatMap (fun (j : Nat) => intS (ks.getD j 0) 0 1) ++
+      [eqI (.same t) (.num ((List.range w).map fun (j : Nat) => (ks.getD j 0, ((2 ^ j : Int) : Rat))) 0)]
 
 /-- Whether node `x` is `signed(t, w)`: the constant, or the `cases` tagged
     `signed`. -/
@@ -446,6 +454,7 @@ def Trace.ruleOk (r : Rule) (aux : Nat) : Bool :=
   | .smodz a c w =>
     isIntN P a && 0 < w && smodT c w != 0 &&
       tr.symAt SP P aux == some (.sdivide a w (smodT c w).natAbs false, 1)
+  | .bits t w => isIntN P t && ivSub (tr.iv SP P t) 0 (2 ^ w - 1)
 
 /-- The facts of the rule `r`, if its symbols have nodes. -/
 def Trace.ruleFacts (r : Rule) (aux : Nat) : Option (List Shape) :=
@@ -667,6 +676,237 @@ def Trace.rotOk (l t w s : Nat) : Bool :=
     | some q, some rm => fits P.sig P.nodes P.sortOf l (.num [(rm, ((2 ^ s : Int) : Rat)), (q, ((1 : Int) : Rat))] 0)
     | _, _ => false
 
+/-! ## Bits -/
+
+/-- A bit as the lowering builds one: a literal, a symbol `k` in `{0, 1}` (a
+    bit of `bits`, or a `cases` between `1` and `0`), or the negation of a bit. -/
+inductive BitRef where
+  | lit (b : Bool)
+  | sym (k : Nat)
+  | neg (r : BitRef)
+  deriving DecidableEq, Repr
+
+/-- `bitConstant`: a bit as a linear combination, `0` or `1`. -/
+def BitRef.form : BitRef → Lia.Form × Int
+  | .lit b => ([], if b then 1 else 0)
+  | .sym k => ([(k, 1)], 0)
+  | .neg r => (Lia.neg r.form.1, 1 - r.form.2)
+
+/-- The complement of a bit. -/
+def BitRef.flip : BitRef → BitRef
+  | .lit b => .lit !b
+  | .neg r => r
+  | r => .neg r
+
+/-- `fromBits`: `Σ_{i<n} 2^i · bit i`. -/
+def bitsForm (d : Nat → BitRef) : Nat → Lia.Form × Int
+  | 0 => ([], 0)
+  | n + 1 =>
+    let g := bitsForm d n
+    let f := (d n).form
+    (g.1 ++ Lia.scale ((2 ^ n : Int) : Rat) f.1, g.2 + 2 ^ n * f.2)
+
+/-- Bit `i` of a list of bits. -/
+def bitAt (rs : List BitRef) (i : Nat) : BitRef := rs.getD i (.lit false)
+
+/-- The bits of a sum `Σ 2^i · bit i`, read off its terms: `2^i · k` is the
+    symbol `k`, `-2^i · k` its negation, and what is left of the constant
+    gives the literal bits. `Trace.sumOk` checks the reading. -/
+def decodeBits (f : Lia.Form × Int) (w : Nat) : List BitRef :=
+  let g := canon f.1
+  let base (i : Nat) : Option BitRef :=
+    match g.find? (fun p => p.2 == ((2 ^ i : Int) : Rat) || p.2 == -((2 ^ i : Int) : Rat)) with
+    | some (k, a) => some (if 0 < a then .sym k else .neg (.sym k))
+    | none => none
+  let negW : Int := (List.range w).foldl (fun s i => match base i with
+    | some (.neg _) => s + 2 ^ i
+    | _ => s) 0
+  (List.range w).map fun i => (base i).getD (.lit (bit (f.2 - negW) i == 1))
+
+/-- The two gates of a bitwise operation, folded on literals and equal bits. -/
+inductive Gate where
+  | ref (r : BitRef)
+  | and (r s : BitRef)
+  | or (r s : BitRef)
+  | xor (r s : BitRef)
+
+/-- `gate`: bit `i` of a bitwise operation of bits `x` and `y`. -/
+def gateOf (op : BvBin) (x y : BitRef) : Gate :=
+  match op with
+  | .and =>
+    if x = .lit true then .ref y else if y = .lit true then .ref x
+    else if x = .lit false ∨ y = .lit false then .ref (.lit false)
+    else if x = y then .ref x else .and x y
+  | .or =>
+    if x = .lit true ∨ y = .lit true then .ref (.lit true)
+    else if x = .lit false then .ref y else if y = .lit false then .ref x
+    else if x = y then .ref x else .or x y
+  | _ =>
+    if x = .lit true then .ref (.neg y) else if y = .lit true then .ref (.neg x)
+    else if x = .lit false then .ref y else if y = .lit false then .ref x
+    else if x = y then .ref (.lit false) else .xor x y
+
+/-- The operation of the bits of a bitwise operation, and whether its result
+    is complemented. -/
+def bitwiseOf : BvBin → Option (BvBin × Bool)
+  | .and => some (.and, false)
+  | .or => some (.or, false)
+  | .xor => some (.xor, false)
+  | .nand => some (.and, true)
+  | .nor => some (.or, true)
+  | .xnor => some (.xor, true)
+  | _ => none
+
+
+/-- Whether `k` is the symbol of a `cases` between `1` and `0`, on a formula
+    `c` for which `p c` holds. -/
+def Trace.casesBit (k : Nat) (p : Nat → Bool) : Bool :=
+  match tr.symAt SP P k with
+  | some (.cases c t e _ _, 0) => fits P.sig P.nodes P.sortOf t (.num [] 1) && fits P.sig P.nodes P.sortOf e (.num [] 0) && p c
+  | _ => false
+
+/-- Whether node `k` is in `{0, 1}`: a bit of `bits`, or a `cases` between `1`
+    and `0`. -/
+def Trace.bitSym (k : Nat) : Bool :=
+  match tr.symAt SP P k with
+  | some (.bits _ _, _) => true
+  | _ => tr.casesBit SP P k fun _ => true
+
+def Trace.refOk : BitRef → Bool
+  | .lit _ => true
+  | .sym k => tr.bitSym SP P k
+  | .neg r => Trace.refOk r
+
+/-- Whether lowered node `t` is the sum of bits `rs`. -/
+def Trace.sumOk (t : Nat) (rs : List BitRef) : Bool :=
+  rs.all (tr.refOk SP P) &&
+    fits P.sig P.nodes P.sortOf t (.num (bitsForm (bitAt rs) rs.length).1 (bitsForm (bitAt rs) rs.length).2)
+
+/-- The bits of `bits(u, w)`, if the trace mints them. -/
+def Trace.decomp (u w : Nat) : Option (List BitRef) :=
+  ((List.range w).mapM fun j => tr.symNode SP P (.bits u w) j).map (·.map .sym)
+
+/-- `knownBits`: the bits of the lowered node `t` of width `w`: a constant's,
+    a sum of bits, the decomposition of `t`, or the complement of a
+    decomposition. -/
+def Trace.tbits (t w : Nat) : Option (List BitRef) :=
+  let f := lin P.nodes t
+  match constOf f with
+  | some v => some ((List.range w).map fun i => .lit (bit v i == 1))
+  | none =>
+    let d := decodeBits f w
+    if tr.sumOk SP P t d then some d
+    else
+      match tr.decomp SP P t w with
+      | some rs => some rs
+      | none =>
+        match canon f.1 with
+        | [(u, a)] =>
+          if a == -1 && f.2 == 2 ^ w - 1 && isIntN P u then (tr.decomp SP P u w).map (·.map .neg) else none
+        | _ => none
+
+/-- Whether formula node `x` has the truth of bit `r`. -/
+def Trace.refFits (x : Nat) : BitRef → Bool
+  | .lit b => P.nodes[x]? == some (if b then .tt else .ff)
+  | .sym k => fits P.sig P.nodes P.sortOf x (.le (.num [] 1) (.same k)) || tr.casesBit SP P k (· == x)
+  | .neg r =>
+    match P.nodes[x]? with
+    | some (.not y) => Trace.refFits y r
+    | _ => false
+
+/-- Whether bit `d` has the truth of bit `r`: the same bit, a `cases` on a
+    formula of `r`, or negations of such bits. -/
+def Trace.refMatch : BitRef → BitRef → Bool
+  | d, r =>
+    d == r ||
+      match d, r with
+      | .sym k, r => tr.casesBit SP P k fun c => tr.refFits SP P c r
+      | .neg d', .neg r' => Trace.refMatch d' r'
+      | _, _ => false
+
+/-- Formula nodes `p` and `q` have the truths of `r` and `s`, in either order. -/
+def Trace.pairFits (p q : Nat) (r s : BitRef) : Bool :=
+  (tr.refFits SP P p r && tr.refFits SP P q s) || (tr.refFits SP P p s && tr.refFits SP P q r)
+
+/-- Whether bit `d` is the gate of `op` on bits `x` and `y`. -/
+def Trace.gateOk (op : BvBin) (x y d : BitRef) : Bool :=
+  match gateOf op x y with
+  | .ref r => tr.refMatch SP P d r
+  | .and r s =>
+    match d with
+    | .sym k => tr.casesBit SP P k fun c =>
+      match P.nodes[c]? with
+      | some (.and [p, q]) => tr.pairFits SP P p q r s
+      | _ => false
+    | _ => false
+  | .or r s =>
+    match d with
+    | .sym k => tr.casesBit SP P k fun c =>
+      match P.nodes[c]? with
+      | some (.or [p, q]) => tr.pairFits SP P p q r s
+      | _ => false
+    | _ => false
+  | .xor r s =>
+    match d with
+    | .sym k => tr.casesBit SP P k fun c =>
+      match P.nodes[c]? with
+      | some (.not z) =>
+        match P.nodes[z]? with
+        | some (.iff p q) => tr.pairFits SP P p q r s
+        | _ => false
+      | _ => false
+    | _ => false
+
+/-- `masked`: the bitwise operation `op` of the lowered node `t` (of linear
+    combination `f`) with a mask of a run of low or high ones. -/
+def Trace.maskForm (op : BvBin) (t : Nat) (f : Lia.Form × Int) (mask : Int) (w : Nat) :
+    Option (Lia.Form × Int) :=
+  match (List.range (w + 1)).find? (fun k => mask == 2 ^ k - 1 || mask == 2 ^ w - 2 ^ k) with
+  | none => none
+  | some k =>
+    let low : Option (Lia.Form × Int) :=
+      if k = w then some f
+      else if k = 0 then some ([], 0)
+      else (tr.symNode SP P (.divide t (2 ^ k) (2 ^ w / 2 ^ k - 1)) 1).map fun r => ([(r, 1)], 0)
+    low.map fun lo =>
+      let high : Lia.Form × Int := (f.1 ++ Lia.neg lo.1, f.2 - lo.2)
+      let km : (Lia.Form × Int) × (Lia.Form × Int) := if mask == 2 ^ k - 1 then (high, lo) else (lo, high)
+      match op with
+      | .and => km.2
+      | .or => (km.1.1, km.1.2 + mask)
+      | _ => (km.1.1 ++ Lia.neg km.2.1, km.1.2 + mask - km.2.2)
+
+/-- `masked` on whichever of `ta` and `tb` is a constant. -/
+def Trace.maskedOf (op : BvBin) (w ta tb : Nat) : Option (Lia.Form × Int) :=
+  match constOf (lin P.nodes tb) with
+  | some c => tr.maskForm SP P op ta (lin P.nodes ta) c w
+  | none =>
+    match constOf (lin P.nodes ta) with
+    | some c => tr.maskForm SP P op tb (lin P.nodes tb) c w
+    | none => none
+
+/-- A bitwise operation `op` of the lowered nodes `ta` and `tb`, at node `l`:
+    through a mask, or bit by bit. -/
+def Trace.bitwiseOk (op : BvBin) (w l ta tb : Nat) : Bool :=
+  match bitwiseOf op with
+  | none => false
+  | some (op', neg) =>
+    let viaMask :=
+      match tr.maskedOf SP P op' w ta tb with
+      | some E =>
+        fits P.sig P.nodes P.sortOf l (if neg then .num (Lia.neg E.1) (2 ^ w - 1 - E.2) else .num E.1 E.2)
+      | none => false
+    viaMask ||
+      match tr.tbits SP P ta w, tr.tbits SP P tb w with
+      | some A, some B =>
+        let D := decodeBits (lin P.nodes l) w
+        A.length == w && B.length == w && tr.sumOk SP P l D &&
+          (List.range w).all fun i =>
+            tr.gateOk SP P op' (bitAt A i) (bitAt B i) (if neg then (bitAt D i).flip else bitAt D i)
+      | _, _ => false
+
+
+
 /-- A binary bit-vector operation, not on two constants, at node `l`. -/
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
@@ -680,6 +920,7 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
     | some p => tr.modOk SP P l p w
     | none => false
   | .comp => tr.casesOk SP P l (eqI (.same (tr.at a)) (.same (tr.at b))) ([], 1) ([], 0)
+  | .and | .or | .xor | .nand | .nor | .xnor => tr.bitwiseOk SP P op w l (tr.at a) (tr.at b)
   | _ =>
     match constOf fb with
     | some c =>

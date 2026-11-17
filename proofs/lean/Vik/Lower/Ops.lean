@@ -1,4 +1,4 @@
-import Vik.Lower.Facts
+import Vik.Lower.BitOps
 import Vik.Shifts
 import Vik.Signed
 
@@ -23,25 +23,9 @@ variable {R U : Type} [Field R] [LE R] [LT R] [Std.IsLinearOrder R] [Std.LawfulO
 
 attribute [local instance low] Lean.Grind.Ring.intCast
 
-theorem constOf_eval {f : Lia.Form × Int} {c : Int} (h : constOf f = some c) (ρ' : Nat → R) :
-    Lia.eval ρ' f.1 + (f.2 : R) = (c : R) := by
-  unfold constOf at h
-  split at h
-  · rename_i he
-    cases h
-    have e := eval_canon ρ' f.1
-    rw [List.isEmpty_iff.mp he] at e
-    simp only [Lia.eval] at e
-    rw [← e]; grind
-  · cases h
-
 theorem ofInt_val {w : Nat} (x : BitVec w) : BitVec.ofInt w (Vik.val x) = x := by
   apply Vik.val_inj.mp
   rw [Vik.val_ofInt, Int.emod_eq_of_lt (Vik.val_nonneg x) (Vik.val_lt x)]
-
-/-- The value of a linear combination. -/
-noncomputable def evf {V : Type} (ρ' : Nat → Val R V) (f : Lia.Form × Int) : R :=
-  Lia.eval (fun u => (ρ' u).toR) f.1 + (f.2 : R)
 
 section
 variable {SP : SProblem} {P : Problem} {tr : Trace} {Ms : Surf.Model R U}
@@ -59,12 +43,6 @@ local notation "ιρ" => fun y => intOf (Low.val (lowModel SP P tr Ms).toInterp 
 set_option quotPrecheck false in
 local notation "τρ" => fun y => (Low.val (lowModel SP P tr Ms).toInterp P.nodes y).truth
 
-
-include hwP htP hML hrng in
-theorem fits_num {x : Nat} {f : Lia.Form × Int} {V : Int} (h : fits P.sig P.nodes P.sortOf x (.num f.1 f.2) = true)
-    (hx : x < P.nodes.length) (hf : (evf ρ f) = (V : R)) : ρ x = .num (V : R) := by
-  rw [fits_sound hML hwP htP hrng x hx _ h]
-  simp only [Shape.ev]; unfold evf at hf; rw [hf]
 
 include hwP htP hG hML hrng in
 theorem modOk_sound {l w : Nat} {f : Lia.Form × Int} {V : Int} (h : tr.modOk SP P l f w = true)
@@ -162,48 +140,6 @@ theorem bv_child {a w : Nat} (ha : a < SP.nodes.length) (hs : SP.sig.is (SP.sort
   have la := lin_ev hwP e
   rw [hx, ofBv_num, toR_num] at la
   exact la
-
-theorem evf_neg {V : Type} (ρ' : Nat → Val R V) (f : Lia.Form × Int) :
-    evf ρ' (Lia.neg f.1, -f.2) = -evf ρ' f := by
-  unfold evf; simp only [Lia.eval_neg, Ring.intCast_neg]; grind
-
-theorem evf_add {V : Type} (ρ' : Nat → Val R V) (f g : Lia.Form × Int) :
-    evf ρ' (f.1 ++ g.1, f.2 + g.2) = evf ρ' f + evf ρ' g := by
-  unfold evf; simp only [eval_append, Ring.intCast_add]; grind
-
-theorem evf_sub {V : Type} (ρ' : Nat → Val R V) (f g : Lia.Form × Int) :
-    evf ρ' (f.1 ++ Lia.neg g.1, f.2 - g.2) = evf ρ' f - evf ρ' g := by
-  unfold evf; simp only [eval_append, Lia.eval_neg, Ring.intCast_sub]; grind
-
-theorem evf_shift {V : Type} (ρ' : Nat → Val R V) (f : Lia.Form × Int) (k : Int) :
-    evf ρ' (f.1, f.2 + k) = evf ρ' f + (k : R) := by
-  unfold evf; simp only [Ring.intCast_add]; grind
-
-theorem evf_scale {V : Type} (ρ' : Nat → Val R V) (f : Lia.Form × Int) (k : Int) :
-    evf ρ' (Lia.scale ((k : Int) : Rat) f.1, k * f.2) = (k : R) * evf ρ' f := by
-  unfold evf; simp only [Lia.eval_scale, Lia.rat_intCast, Ring.intCast_mul]; grind
-
-theorem evf_const {V : Type} (ρ' : Nat → Val R V) (c : Int) : evf ρ' ([], c) = (c : R) := by
-  unfold evf; simp only [Lia.eval]; grind
-
-theorem evf_sym {V : Type} (ρ' : Nat → Val R V) {x : Nat} {X : Int} (hx : ρ' x = .num (X : R)) (a : Int) :
-    evf ρ' ([(x, ((a : Int) : Rat))], 0) = ((a * X : Int) : R) := by
-  unfold evf; simp only [Lia.eval, hx, toR_num, Lia.rat_intCast, Ring.intCast_mul]; grind
-
-theorem evf_sym2 {V : Type} (ρ' : Nat → Val R V) {x y : Nat} {X Y : Int} (hx : ρ' x = .num (X : R))
-    (hy : ρ' y = .num (Y : R)) (a b : Int) :
-    evf ρ' ([(x, ((a : Int) : Rat)), (y, ((b : Int) : Rat))], 0) = ((a * X + b * Y : Int) : R) := by
-  unfold evf; simp only [Lia.eval, hx, hy, toR_num, Lia.rat_intCast, Ring.intCast_mul, Ring.intCast_add]; grind
-
-theorem evf_sym1 {V : Type} (ρ' : Nat → Val R V) {x : Nat} {X : Int} (hx : ρ' x = .num (X : R)) :
-    evf ρ' ([(x, 1)], 0) = (X : R) := by
-  unfold evf; simp only [Lia.eval, hx, toR_num, rat_one]; grind
-
-theorem evf_sym2' {V : Type} (ρ' : Nat → Val R V) {x y : Nat} {X Y : Int} (hx : ρ' x = .num (X : R))
-    (hy : ρ' y = .num (Y : R)) (b : Int) :
-    evf ρ' ([(x, 1), (y, ((b : Int) : Rat))], 0) = ((X + b * Y : Int) : R) := by
-  unfold evf; simp only [Lia.eval, hx, hy, toR_num, rat_one, Lia.rat_intCast, Ring.intCast_mul, Ring.intCast_add]
-  grind
 
 theorem natAbs_mag (t : Int) : ((t.natAbs : Nat) : Int) = Vik.mag t := by unfold Vik.mag; split <;> omega
 
@@ -367,7 +303,8 @@ theorem bvun_ops_sound {i w a : Nat} {op : BvUn} (hn : SP.nodes[i]? = some (.bvu
 include hM hw ht hwP htP hG hML hrng in
 /-- The binary operations through rules. -/
 theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (.bvbin op w a b))
-    (hl : tr.at i < P.nodes.length) (hb : tr.bvOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c)) :
+    (hl : tr.at i < P.nodes.length) (hb : tr.bvOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c))
+    (hat : ∀ c < i, tr.at c < P.nodes.length) :
     ρ (tr.at i) = enc (vs i) := by
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hbi := children_lt hw hn b (by simp [SNode.children])
@@ -495,6 +432,8 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
             simp only [signedI, hct]
         · cases hb
       · cases hb
+    case and | or | xor | nand | nor | xnor =>
+      exact bitwiseOk_sound hwP htP hG hML hrng hb hl (hat a hai) (hat b hbi) ea eb
     case sdiv | srem | smod =>
       split at hb
       · rename_i c hc
@@ -507,13 +446,14 @@ include hM hw ht hwP htP hG hML hrng in
 /-- Each bit-vector operation that `Trace.bvOk` accepts takes the value of its
     surface node. -/
 theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.at i < P.nodes.length)
-    (hb : tr.bvOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c)) : ρ (tr.at i) = enc (vs i) := by
+    (hb : tr.bvOk SP P i = true) (ih : ∀ c < i, ρ (tr.at c) = enc (vs c))
+    (hat : ∀ c < i, tr.at c < P.nodes.length) : ρ (tr.at i) = enc (vs i) := by
   have hil := lt_of_get hn
   have hty := typed_at hM hw ht hn
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
   cases n with
   | bvun op w a => exact bvun_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih
-  | bvbin op w a b => exact bvbin_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih
+  | bvbin op w a b => exact bvbin_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih hat
   | bv2int sg w a =>
     cases sg with
     | false => simp [Trace.bvOk, hn] at hb
