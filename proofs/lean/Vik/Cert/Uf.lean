@@ -221,14 +221,14 @@ def accepts (env : Env) (clause : Clause) (proof : List Step) (cert : Cert) : Bo
       | none => false
     | .equal p =>
       match clause, done[p]? with
-      | [l], some q =>
+      | l :: _, some q =>
         l.pos && match env.atom l.var with
           | some atom => same q atom
           | none => false
       | _, _ => false
     | .apart left right reason =>
       match clause, done[left]?, done[right]? with
-      | [l], some (t, s), some (u, s2) =>
+      | l :: _, some (t, s), some (u, s2) =>
         !l.pos && apartOk env hyps s s2 reason &&
           match env.atom l.var with
           | some atom => (t, u) == atom
@@ -625,7 +625,7 @@ theorem accepts_sound {clause : Clause} {proof : List Step} {cert : Cert}
         · exact cycle_sound hS h this
       · cases h
     · split at h
-      · rename_i l q hq
+      · rename_i l _ q hq
         simp only [Bool.and_eq_true] at h
         obtain ⟨hpos, h⟩ := h
         split at h
@@ -639,7 +639,7 @@ theorem accepts_sound {clause : Clause} {proof : List Step} {cert : Cert}
         · cases h
       · cases h
     · split at h
-      · rename_i l t s u s2 hl hr
+      · rename_i l _ t s u s2 hl hr
         simp only [Bool.and_eq_true, Bool.not_eq_true'] at h
         obtain ⟨⟨hpos, hap⟩, h⟩ := h
         split at h
