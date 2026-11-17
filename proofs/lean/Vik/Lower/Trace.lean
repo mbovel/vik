@@ -1084,6 +1084,68 @@ def Trace.shiftOk (op : BvBin) (w l ta tam : Nat) : Bool :=
       | _, _ => false
   | none => false
 
+/-- Whether `x` is the magnitude of `t`, of width `w`: the `cases` tagged
+    `abs`, `2^w - t` when `t` is negative, `t` otherwise. -/
+def Trace.absOk (t w x : Nat) : Bool :=
+  match tr.symAt SP P x with
+  | some (.cases c th el _ _, 0) =>
+    fits P.sig P.nodes P.sortOf c (negS P t w) &&
+      fits P.sig P.nodes P.sortOf th (.num (Lia.neg (lin P.nodes t).1) (-(lin P.nodes t).2 + 2 ^ w)) &&
+      fits P.sig P.nodes P.sortOf el (.num (lin P.nodes t).1 (lin P.nodes t).2)
+  | _ => false
+
+/-- Whether `k` is symbol `j` of the `udiv` of the magnitudes of `ta` and `tb`. -/
+def Trace.magDivOk (ta tb w k j : Nat) : Bool :=
+  match tr.symAt SP P k with
+  | some (.udiv xa xb w', j') => j' == j && w' == w && tr.absOk SP P ta w xa && tr.absOk SP P tb w xb
+  | _ => false
+
+/-- The remainder of the magnitudes, `r`, if `rm` is the remainder of the sign
+    of `ta`: the `cases` tagged `sremr`, `2^w - r` when `ta` is negative and
+    `r ≥ 1`, `r` otherwise. -/
+def Trace.sremOf (ta tb w rm : Nat) : Option Nat :=
+  match tr.symAt SP P rm with
+  | some (.cases c th r _ _, 0) =>
+    if tr.magDivOk SP P ta tb w r 1 &&
+        fits P.sig P.nodes P.sortOf c (.and [negS P ta w, .le (.num [] 1) (.same r)]) &&
+        fits P.sig P.nodes P.sortOf th (.num [(r, -1)] (2 ^ w)) then some r
+    else none
+  | _ => none
+
+/-- `bvsdiv`, `bvsrem` or `bvsmod` of two unknowns at node `l`: the unsigned
+    division of the magnitudes, the signs SMT-LIB asks for, and the answer to a
+    zero divisor. -/
+def Trace.sdivUnknownOk (op : BvBin) (w l ta tb : Nat) : Bool :=
+  let fit := fits P.sig P.nodes P.sortOf
+  let na := negS P ta w
+  let nb := negS P tb w
+  match tr.symAt SP P l with
+  | some (.cases c0 t0 e0 _ _, 0) =>
+    0 < w && fit c0 (eqI (.same tb) (.num [] 0)) &&
+      match op with
+      | .sdiv =>
+        (match tr.symAt SP P t0 with
+          | some (.cases cn tn en _ _, 0) => fit cn na && fit tn (.num [] 1) && fit en (.num [] (2 ^ w - 1))
+          | _ => false) &&
+        (match tr.symAt SP P e0 with
+          | some (.cases cq tq q _ _, 0) =>
+            tr.magDivOk SP P ta tb w q 0 &&
+              fit cq (.and [.not (.iff na nb), .le (.num [] 1) (.same q)]) && fit tq (.num [(q, -1)] (2 ^ w))
+          | _ => false)
+      | .srem => fit t0 (.num (lin P.nodes ta).1 (lin P.nodes ta).2) && (tr.sremOf SP P ta tb w e0).isSome
+      | .smod =>
+        fit t0 (.num (lin P.nodes ta).1 (lin P.nodes ta).2) &&
+          match tr.symAt SP P e0 with
+          | some (.cases cd td rm _ _, 0) =>
+            match tr.sremOf SP P ta tb w rm, tr.symAt SP P td with
+            | some r, some (.modulo v w' _ _, 0) =>
+              w' == w && fit cd (.and [.not (.iff na nb), .not (eqI (.same r) (.num [] 0))]) &&
+                fit v (.num ([(rm, 1)] ++ (lin P.nodes tb).1) (0 + (lin P.nodes tb).2))
+            | _, _ => false
+          | _ => false
+      | _ => false
+  | _ => false
+
 /-- A binary bit-vector operation, not on two constants, at node `l`. -/
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
@@ -1118,6 +1180,7 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
       | .shl | .lshr | .ashr => tr.shiftOk SP P op w l (tr.at a) (tr.at b)
       | .udiv => tr.symAt SP P l == some (.udiv (tr.at a) (tr.at b) w, 0)
       | .urem => tr.symAt SP P l == some (.udiv (tr.at a) (tr.at b) w, 1)
+      | .sdiv | .srem | .smod => tr.sdivUnknownOk SP P op w l (tr.at a) (tr.at b)
       | _ => false
 
 /-- Whether the lowering of surface node `i`, a bit-vector operation, is the

@@ -1,4 +1,5 @@
 import Vik.Lower.BitOps
+import Vik.Lower.SDiv
 import Vik.Shifts
 import Vik.Signed
 
@@ -496,7 +497,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
       · rename_i c hc
         simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
         exact sdivOk_sound hwP htP hG hML hrng hb.1 ea (cst hc) (by simp) hb.2
-      · cases hb
+      · exact sdivUnknownOk_sound hwP htP hG hML hrng (by simp) hb ea eb
     all_goals (split at hb <;> cases hb)
 
 
