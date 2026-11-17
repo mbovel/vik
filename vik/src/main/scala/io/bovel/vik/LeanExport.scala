@@ -20,9 +20,9 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *
  *  With the script the check saw ([[Surface]]), it also writes the script
  *  (`Vik.Lower.SProblem`), the trace of its lowering (`Vik.Lower.Trace`), and
- *  the theorem that no model of the script satisfies its assertions. The
- *  table then starts with the script's sorts and symbols, then the minted
- *  ones, as `Trace.check` requires.
+ *  the theorem that no model of the script satisfies its assertions. The table
+ *  then starts with the script's sorts and symbols, then the minted ones, as
+ *  `Trace.check` requires.
  */
 private[vik] object LeanExport:
 
@@ -85,11 +85,25 @@ private[vik] object LeanExport:
     case RatMul(p: BigInt, q: BigInt, t: Term)
     case Floor(t: Term)
 
+  /** A rule of the lowering of bit-vectors (`Vik.Lower.Rule`), over lowered
+   *  terms.
+   */
+  enum Rule:
+    case Modulo(v: Term, w: Int, lo: BigInt, hi: BigInt)
+    case Cases(c: Formula, t: Term, e: Term, lo: BigInt, hi: BigInt)
+    case Divide(v: Term, d: BigInt, qmax: BigInt)
+    case SDivide(t: Term, w: Int, d: BigInt, floor: Boolean)
+    case Int2Bv(t: Term, w: Int)
+    case SModZ(a: Term, c: BigInt, w: Int)
+    case Bits(t: Term, w: Int)
+    case UDiv(a: Term, b: Term, w: Int)
+
   /** Why the lowering minted a symbol (`Vik.Lower.Mint`). */
   enum Mint:
     case Ite(node: Int, sort: Int)
     case Store(sort: Int, index: Int, element: Int)
     case Real(rule: RRule)
+    case Rule(rule: LeanExport.Rule, j: Int)
 
   /** Why a lowered input holds (`Vik.Lower.InputWhy`). */
   enum Reason:
@@ -98,6 +112,7 @@ private[vik] object LeanExport:
     case IteElse(symbol: String)
     case Range(node: Int)
     case Real(rule: RRule, fact: Int)
+    case Rule(rule: LeanExport.Rule, fact: Int, aux: Option[Term])
 
   def apply(in: Input, surface: Option[Surface] = None): Either[String, String] =
     try Right(Writer(in, surface).write())
@@ -170,7 +185,7 @@ private[vik] object LeanExport:
         declSorts(name) = m match
           case Mint.Ite(_, s) => s
           case Mint.Store(s, idx, el) => fnSort(List(s, idx, el), s)
-          case Mint.Real(RRule.Floor(_)) => 1
+          case Mint.Real(RRule.Floor(_)) | Mint.Rule(_, _) => 1
           case Mint.Real(_) => 2
         decls(name) = decls.size
 
@@ -405,12 +420,23 @@ private[vik] object LeanExport:
       case RRule.RatMul(p, q, t) => s".ratmul ${int(p)} $q ${term(t)}"
       case RRule.Floor(t) => s".floor ${term(t)}"
 
+    private def rule(r: Rule): String = r match
+      case Rule.Modulo(v, w, lo, hi) => s".modulo ${term(v)} $w ${int(lo)} ${int(hi)}"
+      case Rule.Cases(c, t, e, lo, hi) => s".cases ${formula(c)} ${term(t)} ${term(e)} ${int(lo)} ${int(hi)}"
+      case Rule.Divide(v, d, qmax) => s".divide ${term(v)} ${int(d)} ${int(qmax)}"
+      case Rule.SDivide(t, w, d, floor) => s".sdivide ${term(t)} $w ${int(d)} $floor"
+      case Rule.Int2Bv(t, w) => s".int2bv ${term(t)} $w"
+      case Rule.SModZ(a, c, w) => s".smodz ${term(a)} ${int(c)} $w"
+      case Rule.Bits(t, w) => s".bits ${term(t)} $w"
+      case Rule.UDiv(a, b, w) => s".udiv ${term(a)} ${term(b)} $w"
+
     private def reason(sf: Surface, f: Formula): String = sf.reasons.get(f) match
       case Some(Reason.Assert(a)) => s".assert $a"
       case Some(Reason.IteThen(k)) => s".iteThen ${decls(k)}"
       case Some(Reason.IteElse(k)) => s".iteElse ${decls(k)}"
       case Some(Reason.Range(i)) => s".range $i"
       case Some(Reason.Real(r, j)) => s".real (${rrule(r)}) $j"
+      case Some(Reason.Rule(r, j, aux)) => s".rule (${rule(r)}) $j ${aux.fold(0)(term)}"
       case None => throw Unsupported(s"the input $f, of no reason")
 
     /** The script and the trace, written before the lowered problem: they add
@@ -426,6 +452,7 @@ private[vik] object LeanExport:
           case Mint.Ite(i, _) => s".ite $i"
           case Mint.Store(s, _, _) => s".store $s"
           case Mint.Real(r) => s".real (${rrule(r)})"
+          case Mint.Rule(r, j) => s".rule (${rule(r)}) $j"
       ) ++ decls.keysIterator.drop(sf.decls.length + sf.mints.length).map { n =>
         // the witnesses of the answer, of the sorts of the script
         val s = declSorts(n)
@@ -514,11 +541,15 @@ private[vik] object LeanExport:
           case LiaTheory.Atom.Equal(x, c) => s"some (.equal $x ${int(c)})"
           case null => "none"
       }
+      // each form over the nodes of its unknowns, sorted, as `Lia.add` merges them
       val liaForms = (0 until liaVars).map { x =>
-        val f = liaForm(x).toList.map((u, a) =>
-          s"(${term(unknowns.getOrElse(u, throw Unsupported(s"the unknown $u")))}, ${rat(a)})"
-        )
-        list(f)
+        val f = liaForm(x).toList
+          .map((u, a) => (term(unknowns.getOrElse(u, throw Unsupported(s"the unknown $u"))), a))
+          .groupMapReduce(_._1)(_._2)(_ + _)
+          .toList
+          .filter(_._2 != lia.Rational.zero)
+          .sortBy(_._1)
+        list(f.map((n, a) => s"($n, ${rat(a)})"))
       }
       val inputIds = inputs.map(formula)
       val levelsText = levels.map((v, fs) => s"($v, ${list(fs.map(formula(_).toString))})")

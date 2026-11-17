@@ -104,6 +104,26 @@ class LeanExportTest extends munit.FunSuite:
       "(declare-const a (_ BitVec 4)) (assert (bvult a #x2)) (assert (bvugt a #x3)) (check-sat)"
     )
 
+  test("bit-vector sums"):
+    write(
+      "BvAdd",
+      "(declare-const a (_ BitVec 4)) (assert (= (bvadd a #x1) #x0)) (assert (bvult a #xe)) (check-sat)"
+    )
+
+  test("bit-vector operations"):
+    write(
+      "BvOps",
+      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) " +
+        "(assert (= ((_ extract 3 0) a) #x5)) (assert (= (bvand a #x0f) #x06)) (check-sat)"
+    )
+
+  test("bit-vector division"):
+    write(
+      "BvDiv",
+      "(declare-const a (_ BitVec 4)) (declare-const b (_ BitVec 4)) " +
+        "(assert (= (bvudiv a b) #x3)) (assert (= (bvurem a b) #x1)) (assert (= b #x5)) (check-sat)"
+    )
+
   test("bit-vector indices"):
     write(
       "BvIndex",
