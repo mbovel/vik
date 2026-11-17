@@ -216,7 +216,8 @@ final class InputClauses(
     inputs: Set[Formula],
     assumption: cdclt.Var => Boolean,
     testers: String => Option[List[String]],
-    sortOf: Term => String
+    sortOf: Term => String,
+    declared: String => Boolean
 ):
   import Formula.*
 
@@ -321,24 +322,46 @@ final class InputClauses(
           "not an array axiom"
         )
       case Encoder.Origin.Extensionality(witnesses) =>
-        // `f = g ∨ f(w) ≠ g(w)`, for fresh `w`.
-        val fresh = witnesses.forall {
-          case Term.Const(n) => n.startsWith("ext!")
-          case _ => false
-        }
+        // `f = g ∨ f(w) ≠ g(w)`, for fresh `w`: the witnesses of `f ≠ g`, Skolem constants of that one
+        // disequality, so of no other pair.
         def at(f: Term): Term = witnesses.foldLeft(f)((t, w) => Term.App(t, List(w)))
-        ok(
-          fresh && positives.exists {
-            case Eq(f, g) => negatives.contains(Eq(at(f), at(g)))
-            case _ => false
-          },
-          "not an instance of extensionality"
-        )
+        positives.collectFirst { case eq @ Eq(f, g) if negatives.contains(Eq(at(f), at(g))) => eq } match
+          case None => Some("not an instance of extensionality")
+          case Some(eq) =>
+            witnesses.zipWithIndex.iterator.flatMap { (w, i) =>
+              if !fresh(w) then Some(s"the witness $w is not a fresh symbol")
+              else
+                witnessOf.getOrElseUpdate(w, (eq, i)) match
+                  case (`eq`, `i`) => None
+                  case other => Some(s"the witness $w of $eq is also that of ${other._1}")
+            }.nextOption()
       case Encoder.Origin.WitnessRange(w, width) =>
-        ok(
-          (w match
-            case Term.Const(n) => n.startsWith("ext!")
-            case _ => false
-          ) && (has(Le(Term.Num(0), w)) || has(Le(w, Term.Num(BigInt(2).pow(width) - 1)))),
-          "not the range of a witness"
-        )
+        // The range of an index of bit-vectors, which the witness of such an index is in.
+        if !fresh(w) then Some(s"the witness $w is not a fresh symbol")
+        else
+          ranges += ((w, width))
+          ok(has(Le(Term.Num(0), w)) || has(Le(w, Term.Num(BigInt(2).pow(width) - 1))), "not the range of a witness")
+
+  /** The witnesses of the extensionality instances checked so far: the
+   *  disequality and the index of each.
+   */
+  private val witnessOf = scala.collection.mutable.HashMap.empty[Term, (Formula, Int)]
+  private val ranges = ArrayBuffer.empty[(Term, Int)]
+
+  private def fresh(w: Term): Boolean = w match
+    case Term.Const(n) => n.startsWith("ext!") && !declared(n)
+    case _ => false
+
+  /** Checks what the clauses checked say together: a witness given the range of
+   *  a bit-vector index is the witness of such an index (one that is the
+   *  witness of nothing in the proof is unconstrained but for the range).
+   */
+  def finish(): Option[String] =
+    ranges.iterator.flatMap { (w, width) =>
+      witnessOf.get(w) match
+        case Some((Eq(f, _), i)) =>
+          io.bovel.smtlib.Sorts.arrow(sortOf(f)).flatMap(_._1.lift(i)) match
+            case Some(s) if s == s"(_ BitVec $width)" => None
+            case s => Some(s"the witness $w is an index of sort $s, not of $width bits")
+        case _ => None
+    }.nextOption()
