@@ -242,7 +242,12 @@ theorem ev_of_boolShape {V : Type} (I : Low.Interp R V) (ρ' : Nat → Val R V) 
 theorem facts_bool (P : Problem) (r : Rule) (ks : List Nat) (aux : Nat) :
     ∀ s ∈ r.facts P ks aux, boolShape s = true := by
   intro s hs
-  cases r <;> simp only [Rule.facts, intS, eqI, List.mem_append, List.mem_cons, List.mem_nil_iff, or_false,
+  cases r
+  case bits t w =>
+    simp only [Rule.facts, intS, eqI, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_singleton,
+      List.mem_cons, List.mem_nil_iff, or_false] at hs
+    rcases hs with ⟨j, _, rfl | rfl⟩ | rfl <;> rfl
+  all_goals simp only [Rule.facts, intS, eqI, List.mem_append, List.mem_cons, List.mem_nil_iff, or_false,
     List.cons_append, List.nil_append] at hs
   all_goals first
     | (rcases hs with rfl | rfl | rfl | rfl | rfl | hs <;> first | rfl |
@@ -250,6 +255,18 @@ theorem facts_bool (P : Problem) (r : Rule) (ks : List Nat) (aux : Nat) :
     | (rcases hs with rfl | rfl | hs <;> first | rfl | (split at hs <;> simp at hs <;> rcases hs with rfl | rfl | hs <;>
         first | rfl | (simp at hs; rcases hs with rfl | rfl | rfl <;> rfl) | (rcases hs with rfl <;> rfl)))
     | (rcases hs with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> rfl)
+
+/-- The sum of the bits of `bits(t, w)`, as the linear combination of its fact. -/
+theorem eval_bitSum {V : Type} (ρ' : Nat → Val R V) (f : Nat → Nat) (b : Nat → Int) :
+    ∀ n, (∀ j < n, ρ' (f j) = .num ((b j : Int) : R)) →
+      Lia.eval (fun u => (ρ' u).toR) ((List.range n).map fun (j : Nat) => (f j, ((2 ^ j : Int) : Rat))) =
+        ((bitSum n b : Int) : R)
+  | 0, _ => by simp only [List.range_zero, List.map_nil, Lia.eval, bitSum, Ring.intCast_zero]
+  | n + 1, h => by
+    rw [List.range_succ, List.map_append, eval_append, eval_bitSum ρ' f b n (fun j hj => h j (by omega))]
+    simp only [List.map_cons, List.map_nil, Lia.eval, h n (by omega), toR_num, Lia.rat_intCast, bitSum,
+      Ring.intCast_add, Ring.intCast_mul]
+    grind
 
 /-! ## The values of rule symbols and intervals -/
 
@@ -608,6 +625,10 @@ theorem ruleIv_sound (node : Nat → Option (Int × Int)) (hnode : ∀ x q, node
     simp only [Rule.iv, Option.some.injEq] at h; subst h
     simp only [Rule.ival]
     exact smodzVal_bounds _ _ _
+  | bits t w =>
+    simp only [Rule.iv, Option.some.injEq] at h; subst h
+    simp only [Rule.ival]
+    exact bit_range _ _
 
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The intervals the trace computes hold. -/
@@ -868,6 +889,22 @@ theorem ruleFacts_truth {r : Rule} {aux : Nat} {fs : List Shape} (hok : tr.ruleO
       · refine implies_of_left MI ρ ?_
         simp only [Shape.ev, Shape.allTrue, truth_bool, hdiff, hrz, Bool.and_true]
         cases D <;> by_cases h' : rm = 0 <;> simp_all
+  | bits t w =>
+    simp only [Trace.ruleOk, Bool.and_eq_true] at hok
+    obtain ⟨_, hsub⟩ := hok
+    obtain ⟨q, hq, q0, q1⟩ := ivSub_sound hsub
+    obtain ⟨K, eK, k0, k1⟩ := ivs hq
+    have eb : ∀ j < w, ρ (ks.getD j 0) = .num ((bit K j : Int) : R) := by
+      intro j hj
+      have := (sym j (by simpa [Rule.nsyms] using hj)).2
+      simpa only [Rule.ival, eK, intOf_num] using this
+    simp only [Rule.facts, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_singleton] at hs
+    rcases hs with ⟨j, hj, hs⟩ | rfl
+    · exact intS_holds MI ρ (eb j hj) (bit_range K j).1 (bit_range K j).2 s hs
+    · refine eqI_holds MI ρ (ev_same_num MI ρ eK) (B := bitSum w (bit K)) ?_
+        (bits_facts (t := K) (w := w) ⟨Int.le_trans q0 k0, Int.le_trans k1 q1⟩).2
+      simp only [Shape.ev, toR_num, Ring.intCast_zero]
+      rw [eval_bitSum (R := R) _ _ _ w eb]; grind
 
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The facts of a rule hold, within the bounds `Trace.ruleOk` checks. -/
