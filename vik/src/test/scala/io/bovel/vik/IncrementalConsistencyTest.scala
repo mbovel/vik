@@ -16,7 +16,7 @@ class IncrementalConsistencyTest extends munit.FunSuite:
     (declare-fun p (Int) Bool)
   """
 
-  private val fuel = 200000L
+  private val fuel = 200_000_000L
 
   test("push, pop and re-solve agree with solving from scratch"):
     val random = scala.util.Random(20260901)

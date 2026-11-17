@@ -12,7 +12,7 @@ import io.bovel.vik.Session
 object Snippets:
   /** The responses of `script` (`sat`, `unsat`, `unknown`, `((:reason-unknown
    *  ...))`, ...), one per line, or the error; each `check-sat` gets `fuel`
-   *  steps, so a snippet cannot hang the page.
+   *  units of work (see `Solver.spent`), so a snippet cannot hang the page.
    */
   @JSExportTopLevel("solve")
   def solve(script: String, fuel: Double): String =

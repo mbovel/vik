@@ -31,13 +31,18 @@ object Solver:
    *  its premises, are collected only when a conflict needs them: derivations
    *  are many, conflicts few.
    */
-  private final class Bound(val value: Delta, val reason: Int, val premises: Array[Bound]):
+  /** A count shared by the bounds of one solver: see [[Solver.reasonWork]]. */
+  private final class Counter:
+    var n = 0L
+
+  private final class Bound(val value: Delta, val reason: Int, val premises: Array[Bound], work: Counter):
     lazy val reasons: Set[Int] = // once per bound: a conflict may ask again and again along a long derivation
       val literals = Set.newBuilder[Int]
       val seen = scala.collection.mutable.HashSet.empty[Bound] // premises are shared: a graph, not a tree
       val todo = ArrayBuffer(this)
       while todo.nonEmpty do
         val bound = todo.remove(todo.length - 1)
+        work.n += 1 + bound.premises.length
         if seen.add(bound) then
           if bound.premises.isEmpty then literals += bound.reason
           else todo ++= bound.premises
@@ -313,6 +318,7 @@ final class Solver:
 
   /** Adds `c × x` to the row of `owner`, keeping `columns` up to date. */
   private def add(owner: Var, row: Row, x: Var, c: Rational): Unit =
+    entries += 1
     val i = row.indexOf(x)
     if i < 0 then
       if !c.isZero then
@@ -383,7 +389,7 @@ final class Solver:
       if isInt(x) then Delta(Rational(floorDiv(if strict then c - 1 else c, scale(x))))
       else if strict then Delta.strictUpper(Rational(c))
       else Delta(Rational(c))
-    assertBound(x, Bound(value, reason, Array.empty), true)
+    assertBound(x, Bound(value, reason, Array.empty, reasons), true)
 
   /** Asserts `x ≥ c` for `reason`, as [[assertUpper]]. */
   def assertLower(x: Var, c: BigInt, reason: Int): Result = assertLower(x, c, false, reason)
@@ -394,7 +400,7 @@ final class Solver:
       if isInt(x) then Delta(Rational(-floorDiv(-(if strict then c + 1 else c), scale(x))))
       else if strict then Delta.strictLower(Rational(c))
       else Delta(Rational(c))
-    assertBound(x, Bound(value, reason, Array.empty), false)
+    assertBound(x, Bound(value, reason, Array.empty, reasons), false)
 
   /** Asserts `x ≠ c` (for a slack, that its combination is not `c`): a
    *  disequality is decided by [[check]], which branches on `x ≤ c − 1` or
@@ -517,6 +523,7 @@ final class Solver:
   /** Derives the bounds the row of `b` implies (see [[propagateBounds]]). */
   private def propagateRow(b: Var): Result = boundary:
     val row = rows(b).nn
+    entries += row.size
     // Whether every variable has the bound needed for the lowest and for the highest value of the row: a row
     // with neither derives nothing, and most rows are such, so finding that out does no arithmetic.
     var hasLow = true
@@ -553,7 +560,7 @@ final class Solver:
       out
     def derive(x: Var, c: Delta, premises: Array[Bound], isUpper: Boolean): Unit =
       val rounded = if isInt(x) then Delta(Rational(if isUpper then c.floor else c.ceil)) else c
-      assertBound(x, Bound(rounded, -1, premises), isUpper) match
+      assertBound(x, Bound(rounded, -1, premises, reasons), isUpper) match
         case Result.Sat => ()
         case unsat => break(unsat)
     if hasLow && (lower(b) == null || low > lower(b).nn.value) then derive(b, low, premises(true, null), false)
@@ -592,6 +599,7 @@ final class Solver:
     val moved = v.r - values(x)
     val movedD = if anyReal then v.d - valuesD(x) else Rational.zero
     val column = columns(x)
+    entries += column.size
     var i = 0
     while i < column.size do
       val b = column(i)
@@ -616,6 +624,7 @@ final class Solver:
       valuesD(b) = v.d
       valuesD(n) = valuesD(n) + thetaD
     val column = columns(n)
+    entries += column.size
     var i = 0
     while i < column.size do
       val k = column(i)
@@ -690,6 +699,19 @@ final class Solver:
    *  of a session, they steered the later ones into longer searches.
    */
   def forgetFailedSplits(): Unit = failedSplits.clear()
+
+  /** The bounds visited, with their premises, collecting the reasons of derived
+   *  bounds: the work of explaining, which a budget counts besides the steps
+   *  (see [[keepGoing]]).
+   */
+  def reasonWork: Long = reasons.n
+  private val reasons = Solver.Counter()
+
+  /** The entries of the tableau read or written (by a pivot, an update of the
+   *  basic values, a row propagation), the work of a step, for a budget.
+   */
+  def rowWork: Long = entries
+  private var entries = 0L
 
   /** For the tests: pretend the small-model box is this many bits wide. */
   private[lia] var boxBitsOverride: Long = -1

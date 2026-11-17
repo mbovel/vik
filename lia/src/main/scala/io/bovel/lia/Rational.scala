@@ -17,7 +17,8 @@ sealed abstract class Rational extends Ordered[Rational]:
           Math.addExact(Math.multiplyExact(n1, d2), Math.multiplyExact(n2, d1)),
           Math.multiplyExact(d1, d2)
         )
-      catch case _: ArithmeticException => Rational(num * that.den + that.num * den, den * that.den)
+      catch
+        case _: ArithmeticException => Rational.overflowed(Rational(num * that.den + that.num * den, den * that.den))
     case _ => Rational(num * that.den + that.num * den, den * that.den)
 
   def -(that: Rational): Rational = this + -that
@@ -25,7 +26,7 @@ sealed abstract class Rational extends Ordered[Rational]:
   def *(that: Rational): Rational = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
       try Rational.small(Math.multiplyExact(n1, n2), Math.multiplyExact(d1, d2))
-      catch case _: ArithmeticException => Rational(num * that.num, den * that.den)
+      catch case _: ArithmeticException => Rational.overflowed(Rational(num * that.num, den * that.den))
     case _ => Rational(num * that.num, den * that.den)
 
   def /(that: Rational): Rational =
@@ -33,7 +34,7 @@ sealed abstract class Rational extends Ordered[Rational]:
     (this, that) match
       case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
         try Rational.small(Math.multiplyExact(n1, d2), Math.multiplyExact(d1, n2))
-        catch case _: ArithmeticException => Rational(num * that.den, den * that.num)
+        catch case _: ArithmeticException => Rational.overflowed(Rational(num * that.den, den * that.num))
       case _ => Rational(num * that.den, den * that.num)
 
   def unary_- : Rational
@@ -41,7 +42,7 @@ sealed abstract class Rational extends Ordered[Rational]:
   def compare(that: Rational): Int = (this, that) match
     case (Rational.Small(n1, d1), Rational.Small(n2, d2)) =>
       try java.lang.Long.compare(Math.multiplyExact(n1, d2), Math.multiplyExact(n2, d1))
-      catch case _: ArithmeticException => (num * that.den).compare(that.num * den)
+      catch case _: ArithmeticException => Rational.overflowed((num * that.den).compare(that.num * den))
     case _ => (num * that.den).compare(that.num * den)
 
   def signum: Int
@@ -97,8 +98,25 @@ object Rational:
   val zero: Rational = Small(0, 1)
   val one: Rational = Small(1, 1)
 
+  /** The arithmetic past `Long`, for a budget: the 64-bit words of the numbers
+   *  normalized, and the operations that overflowed `Long` (each pays for an
+   *  exception, the costliest single step of the arithmetic). Counted per
+   *  thread, as the numbers belong to no solver: a solve reads the difference
+   *  over its own course.
+   */
+  def bigWords: Long = counts.get()(0)
+  def overflows: Long = counts.get()(1)
+  private val counts = new ThreadLocal[Array[Long]]:
+    override def initialValue(): Array[Long] = new Array[Long](2)
+
+  /** `result`, counted as an operation that overflowed `Long`. */
+  private def overflowed[T](result: T): T =
+    counts.get()(1) += 1
+    result
+
   def apply(num: BigInt, den: BigInt): Rational =
     require(den.signum != 0, "zero denominator")
+    counts.get()(0) += (num.bitLength + den.bitLength + 63) >> 6
     val g = num.gcd(den) * den.signum
     val (n, d) = if g == 1 then (num, den) else (num / g, den / g)
     if n.isValidLong && d.isValidLong then Small(n.toLong, d.toLong) else Big(n, d)

@@ -17,10 +17,12 @@ import io.bovel.vik.Session
  *  for files outside the corpus — the sessions `bench/import-stainless.py` is
  *  about to import. The tsv has a line per file of the last pass, the earlier
  *  ones being the warm-up: its path, the wall-clock milliseconds, the CPU
- *  milliseconds of the file's thread, the solver steps (as the fuel counts
- *  them, the same on every machine for a file that finishes), the kilobytes the
+ *  milliseconds of the file's thread, the work (as the fuel counts it,
+ *  `Session.spent`: the same on every machine for a file that finishes), the kilobytes the
  *  thread allocated (nearly the same on every machine), then `ok`, `timeout` or
- *  the error, then the answers as `s`, `u` and `?`.
+ *  the error, then the answers as `s`, `u` and `?`, then the work by kind
+ *  (`Session.statistics`, `kind=count` separated by spaces: what the costs of
+ *  `Solver.kinds` are fitted to).
  *
  *  The times are for comparing two builds file by file, not for a table: the
  *  files share the JVM, its compiler and its collector, `threads` at a time.
@@ -102,4 +104,5 @@ object CorpusRun:
       cpu = threads.getThreadCpuTime(worker.threadId) / 1000000
       kb = threads.getThreadAllocatedBytes(worker.threadId) / 1024
     val s = session
-    s"$ms\t$cpu\t${if s == null then 0L else s.steps}\t$kb\t$outcome\t$answers"
+    val statistics = if s == null then "" else s.statistics.map((k, v) => s"$k=$v").mkString(" ")
+    s"$ms\t$cpu\t${if s == null then 0L else s.spent}\t$kb\t$outcome\t$answers\t$statistics"

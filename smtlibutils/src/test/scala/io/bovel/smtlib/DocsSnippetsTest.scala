@@ -12,7 +12,7 @@ import io.bovel.vik.{Model, Session, Solver}
  *  answer that does not come — fails the build instead of the page.
  */
 class DocsSnippetsTest extends munit.FunSuite:
-  private val fuel = 20000000L
+  private val fuel = 20_000_000_000L // as snippets.js
   private val pages = Path.of(Corpus.root.getParent.toString, "docs", "_docs")
 
   private def markdown: List[Path] =

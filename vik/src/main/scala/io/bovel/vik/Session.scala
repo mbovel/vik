@@ -45,12 +45,20 @@ final class Session(
   private var rlimit = fuel
   private var timeout = timeoutMs // milliseconds per check-sat, as `(set-option :timeout ...)` sets it
   private var reason = Option.empty[String]
-  private var spent = 0L
+  private var replaced = -initial.spent // the work of the solvers `reset` replaced, less the initial one's before
 
-  /** The steps the check-sats took so far, as the fuel counts them: the same on
-   *  every machine.
+  /** The work the session did so far, in the units of the fuel (see
+   *  [[Solver.spent]]), the same on every machine: its solvers', and the
+   *  lowering's, which no `check-sat` budget covers.
    */
-  def steps: Long = spent
+  def spent: Long = replaced + current.spent + lowerer.visits * Solver.loweredCost
+
+  /** How much of each kind of work the session's solvers did (see
+   *  [[Solver.statistics]]), and the terms and formulas it lowered.
+   */
+  def statistics: List[(String, Long)] =
+    current.statistics.lazyZip(replacedCounts).map((kv, r) => (kv._1, kv._2 + r)) :+ ("lowered" -> lowerer.visits)
+  private val replacedCounts = new Array[Long](Solver.kinds.length)
 
   /** Runs SMT-LIB text, any commands, and answers it. */
   def run(text: String): List[String] = run(parser.parse(text))
@@ -123,16 +131,23 @@ final class Session(
     val s = current
     // The check-sat's own timeout, and the session's deadline: whichever comes first.
     val stop = (timeout.map(ms => System.nanoTime() + ms * 1000000).toList ++ deadline).minOption
-    var left = rlimit
+    val start = s.spent
+    val limit = rlimit
+    var calls = 0
     var late = false
+    var out = false
     reason = None
     s.solve(() =>
-      left -= 1; spent += 1; late = stop.exists(_ < System.nanoTime()); left >= 0 && !late
+      calls += 1
+      if (calls & 15) == 1 then // the first step and every 16th: the sum is a dozen products, the clock a system call
+        late = stop.exists(_ < System.nanoTime())
+        out = s.spent - start > limit
+      !out && !late
     ) match
       case s.Result.Sat => "sat"
       case s.Result.Unsat => "unsat"
       case s.Result.Unknown(_) =>
-        reason = Some(if late then "timeout" else if left < 0 then "resourceout" else "canceled")
+        reason = Some(if late then "timeout" else if out then "resourceout" else "canceled")
         "unknown"
 
   private def declare(command: Command): Unit = command match
@@ -187,6 +202,8 @@ final class Session(
     asserted.clear(); asserted += ArrayBuffer.empty
     declaredAt.clear(); declaredAt += ArrayBuffer.empty
     val produceModels = current.produceModels
+    replaced += current.spent
+    for ((_, n), i) <- current.statistics.zipWithIndex do replacedCounts(i) += n
     current = Solver(simplify = current.simplify)
     current.produceModels = produceModels
 

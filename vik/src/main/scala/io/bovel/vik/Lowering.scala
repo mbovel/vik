@@ -638,7 +638,11 @@ private final class Lowerer:
     case single :: Nil => single
     case _ => And(conditions)
 
-  private def formula(f: s2.Formula, env: Env): Formula = f match
+  private def formula(f: s2.Formula, env: Env): Formula =
+    visits += 1
+    lowerFormula(f, env)
+
+  private def lowerFormula(f: s2.Formula, env: Env): Formula = f match
     case s2.Formula.True => True
     case s2.Formula.False => False
     case s2.Formula.Not(arg) => Not(formula(arg, env))
@@ -696,7 +700,14 @@ private final class Lowerer:
           case f: s2.Formula => Value.F(formula(f, env)))
     )
 
-  private def term(t: s2.Term, env: Env): Term = t match
+  /** The terms and formulas lowered so far, for a budget. */
+  var visits = 0L
+
+  private def term(t: s2.Term, env: Env): Term =
+    visits += 1
+    lowerTerm(t, env)
+
+  private def lowerTerm(t: s2.Term, env: Env): Term = t match
     case s2.Term.Const(name) =>
       env.get(name) match
         case Some(Value.T(t, _)) => t

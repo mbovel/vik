@@ -8,7 +8,7 @@ tsv is from CorpusRun on the sessions' directory, with the outcome before the an
 it is at most 100 KB, or at most 1 MB and takes a second or more: a larger file costs the repository more than
 it adds. Exact duplicates keep one copy. A file is named `<valid or invalid>-<benchmark>__<session>`, so that
 `prune trivial` takes a benchmark's sessions for a family. Then run `prune alike order --delete`,
-`prune trivial 10 5 --delete` and `prune logic --move` on the `stainless` directories, as for the corpus as it
+`prune trivial 10000 5 --delete` and `prune logic --move` on the `stainless` directories, as for the corpus as it
 is (see corpus/README.md).
 """
 import hashlib
