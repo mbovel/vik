@@ -169,6 +169,9 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve(), s.Result.Sat)
 
   test("a solve stopped inside the encoding answers unknown, and the next one answers"):
+    // Not on Scala Native: its debug-mode test binary takes about 50 s here, against 5 s on the JVM and munit's
+    // 30 s limit. Nothing in it is specific to a platform, and the JVM and Scala.js run it.
+    assume(System.getProperty("java.vm.name") != "Scala Native", "slow on Scala Native's debug-mode test binary")
     // Forty-eight integers a cycle of bounds makes equal, and two of their images apart: unsat only with
     // the sharing atom of every pair of them, which a pass stopped part-way has noted and not yet encoded.
     // `keepGoing` says no at its n-th asking, for every n the encoding has: in the first encoding, between
