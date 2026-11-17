@@ -196,6 +196,13 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   def checkProof(): Option[String] = proof.flatMap(_ => encoder.nn.checkProof(proved._1, proved._2))
 
+  /** The [[proof]] of the last `Unsat` as Lean terms that `proofs/lean` checks
+   *  (see [[LeanExport]]), or why it cannot be written.
+   */
+  def leanProof(): Either[String, String] = proof match
+    case None => Left("no proof")
+    case Some(_) => encoder.nn.lean(levels.head.toList, proved._2.toList.sorted)
+
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
    *  (the selectors of the other levels, the activations of the named
@@ -1126,6 +1133,9 @@ private final class Encoder(
    */
   def assert(formula: Formula, under: Lit | Null): Unit = assert(formula, under, Encoder.Origin.Assertion(formula))
 
+  /** With proofs, the formulas each selector or activation literal guards. */
+  private val guards = scala.collection.mutable.LinkedHashMap.empty[cdclt.Var, ArrayBuffer[Formula]]
+
   private def assert(formula: Formula, under: Lit | Null, origin: Encoder.Origin): Unit =
     formula match
       // An equality asserted for good needs no witness; one under a level's selector is gone with
@@ -1133,6 +1143,7 @@ private final class Encoder(
       case Formula.Eq(_, _) if under == null => assertedEqualities += formula
       case _ => ()
     val l = lit(formula)
+    if proofs && under != null then guards.getOrElseUpdate(under.nn.variable, ArrayBuffer.empty) += formula
     emit(if under == null then Array(l) else Array(under.nn.neg, l), origin)
 
   /** A fresh selector literal for a script level. */
@@ -1148,6 +1159,7 @@ private final class Encoder(
     activations.getOrElseUpdate(
       formula, {
         val a = freshVar()
+        if proofs then guards(a.variable) = ArrayBuffer(formula)
         emit(Array(a.neg, lit(formula)), Encoder.Origin.Assertion(formula))
         a
       }
@@ -1212,6 +1224,32 @@ private final class Encoder(
    *  the atoms these mention against the formulas their variables stand for.
    *  `None` when it holds, what is wrong otherwise.
    */
+  def lean(inputs: List[Formula], assumed: List[cdclt.Var]): Either[String, String] =
+    val p = sat.proof
+    if p == null then Left("no proof")
+    else
+      LeanExport(
+        LeanExport.Input(
+          declarations,
+          introduced,
+          sortOf,
+          classes.iterator.map((t, x) => (x, t)).toMap,
+          trueTerm,
+          falseTerm,
+          atoms,
+          liaAtoms,
+          meanings,
+          trueLit,
+          intVars.iterator.map((t, x) => (x, t)).toMap,
+          liaSolver.numVars,
+          liaSolver.form,
+          p.nn,
+          inputs,
+          guards.iterator.map((v, fs) => (v, fs.toList)).toList,
+          assumed
+        )
+      )
+
   def checkProof(inputs: Set[Formula], assumed: Set[cdclt.Var]): Option[String] =
     val constructors = datatypes.flatMap(_.constructors).map(c =>
       classOf(Term.Const(c.name)) -> c.selectors.map((s, _) => classOf(Term.Const(s)))
