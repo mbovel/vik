@@ -336,14 +336,14 @@ final class Solver(val simplify: Boolean = true):
 object Solver:
   /** The kinds of work the fuel counts, with the cost of each in the units of
    *  [[Solver.spent]], about 4 ns: fitted to the thread CPU time of the corpus
-   *  files on the JVM against the counts of each kind (`bench/README.md`).
-   *  The steps are those of [[Solver.solve(keepGoing)]]; a decision and a
-   *  conflict cost their step and more (the levels the theories open; the
-   *  analysis, learning and backjump); the propagations are the literals
-   *  assigned, the clause visits those of the watch lists; the encoder steps
-   *  are `Encoder.step`'s; the merge, explanation and disequality work is
-   *  `EGraph`'s, the atom scans `UfTheory`'s, the reason and row work the
-   *  LIA solver's; the big words and overflows are `lia.Rational`'s.
+   *  files on the JVM against the counts of each kind (`bench/README.md`). The
+   *  steps are those of [[Solver.solve(keepGoing)]]; a decision and a conflict
+   *  cost their step and more (the levels the theories open; the analysis,
+   *  learning and backjump); the propagations are the literals assigned, the
+   *  clause visits those of the watch lists; the encoder steps are
+   *  `Encoder.step`'s; the merge, explanation and disequality work is
+   *  `EGraph`'s, the atom scans `UfTheory`'s, the reason and row work the LIA
+   *  solver's; the big words and overflows are `lia.Rational`'s.
    */
   val kinds: List[(String, Long)] = List(
     "steps" -> 64,
@@ -984,8 +984,9 @@ private final class Encoder(
   private val ufTheory = UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses)
   private val theories = List(ufTheory, LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false)))
 
-  /** Adds the work of the encoding and of the engines to `counts`, in the order of `Solver.kinds`; the
-   *  steps of the search and the arithmetic are the solver's to count.
+  /** Adds the work of the encoding and of the engines to `counts`, in the order
+   *  of `Solver.kinds`; the steps of the search and the arithmetic are the
+   *  solver's to count.
    */
   def addCounts(counts: Array[Long]): Unit =
     counts(1) += sat.numDecisions

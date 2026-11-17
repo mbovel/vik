@@ -203,7 +203,7 @@ final class Session(
     declaredAt.clear(); declaredAt += ArrayBuffer.empty
     val produceModels = current.produceModels
     replaced += current.spent
-    for (((_, n), i) <- current.statistics.zipWithIndex) replacedCounts(i) += n
+    for ((_, n), i) <- current.statistics.zipWithIndex do replacedCounts(i) += n
     current = Solver(simplify = current.simplify)
     current.produceModels = produceModels
 

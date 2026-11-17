@@ -17,7 +17,8 @@ sealed abstract class Rational extends Ordered[Rational]:
           Math.addExact(Math.multiplyExact(n1, d2), Math.multiplyExact(n2, d1)),
           Math.multiplyExact(d1, d2)
         )
-      catch case _: ArithmeticException => Rational.overflowed(Rational(num * that.den + that.num * den, den * that.den))
+      catch
+        case _: ArithmeticException => Rational.overflowed(Rational(num * that.den + that.num * den, den * that.den))
     case _ => Rational(num * that.den + that.num * den, den * that.den)
 
   def -(that: Rational): Rational = this + -that
@@ -97,16 +98,17 @@ object Rational:
   val zero: Rational = Small(0, 1)
   val one: Rational = Small(1, 1)
 
-  /** The arithmetic past `Long`, for a budget: the 64-bit words of the
-   *  numbers normalized, and the operations that overflowed `Long` (each pays
-   *  for an exception, the costliest single step of the arithmetic). Counted
-   *  per thread, as the numbers belong to no solver: a solve reads the
-   *  difference over its own course.
+  /** The arithmetic past `Long`, for a budget: the 64-bit words of the numbers
+   *  normalized, and the operations that overflowed `Long` (each pays for an
+   *  exception, the costliest single step of the arithmetic). Counted per
+   *  thread, as the numbers belong to no solver: a solve reads the difference
+   *  over its own course.
    */
   def bigWords: Long = counts.get()(0)
   def overflows: Long = counts.get()(1)
   private val counts = new ThreadLocal[Array[Long]]:
     override def initialValue(): Array[Long] = new Array[Long](2)
+
   /** `result`, counted as an operation that overflowed `Long`. */
   private def overflowed[T](result: T): T =
     counts.get()(1) += 1

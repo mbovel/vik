@@ -700,9 +700,9 @@ final class Solver:
    */
   def forgetFailedSplits(): Unit = failedSplits.clear()
 
-  /** The bounds visited, with their premises, collecting the reasons of
-   *  derived bounds: the work of explaining, which a budget counts besides the
-   *  steps (see [[keepGoing]]).
+  /** The bounds visited, with their premises, collecting the reasons of derived
+   *  bounds: the work of explaining, which a budget counts besides the steps
+   *  (see [[keepGoing]]).
    */
   def reasonWork: Long = reasons.n
   private val reasons = Solver.Counter()
