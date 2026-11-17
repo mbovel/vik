@@ -240,7 +240,7 @@ end
 
 /-- Shapes whose values are Booleans. -/
 def boolShape : Shape → Bool
-  | .le .. | .and _ | .or _ | .implies .. => true
+  | .le .. | .lt .. | .and _ | .or _ | .implies .. => true
   | _ => false
 
 theorem ev_of_boolShape {V : Type} (I : Low.Interp R V) (ρ' : Nat → Val R V) {s : Shape} (h : boolShape s = true)
@@ -991,6 +991,86 @@ theorem ruleFacts_hold (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs :
   obtain ⟨ks, _, rfl⟩ := Option.map_eq_some_iff.mp hf'
   exact ev_of_boolShape MI ρ (facts_bool P r ks aux s hs)
     (ruleFacts_truth hM hw ht hwP htP hG hML hrng hco hex hok hf s hs)
+
+include hwP hG in
+/-- The symbol of a real rule takes its value. -/
+theorem real_val {x : Nat} {r : RRule} (h : tr.realAt SP P x = some r) :
+    ρ x = .num (r.val fun y => (ρ y).toR) := by
+  unfold Trace.realAt at h
+  split at h
+  · rename_i k hk
+    split at h
+    · rename_i hle
+      split at h
+      · rename_i r' hm
+        simp only [Option.some.injEq] at h; subst h
+        obtain ⟨m, rfl⟩ : ∃ m, k = SP.sig.decls.length + m := ⟨k - SP.sig.decls.length, by omega⟩
+        rw [Nat.add_sub_cancel_left] at hm
+        rw [Low.val_const hwP hk]
+        exact const_real SP P tr Ms hwP hm (fun y hy => ((hG.real m _ hm).2 y hy).2)
+      · cases h
+    · cases h
+  · cases h
+
+theorem realNode_real {r : RRule} {x : Nat} (h : tr.realNode SP P r = some x) :
+    x < P.nodes.length ∧ tr.realAt SP P x = some r := by
+  unfold Trace.realNode at h
+  simp only at h
+  split at h
+  · rename_i hm
+    split at h
+    · rename_i hx
+      simp only [Option.some.injEq] at h; subst h
+      refine ⟨hx, ?_⟩
+      have e1 := getElem?_idxOf P.nodes _ hx
+      have e2 := getElem?_idxOf tr.mints _ hm
+      unfold Trace.realAt
+      rw [e1]
+      simp only [Nat.le_add_right, if_true, Nat.add_sub_cancel_left, e2]
+    · cases h
+  · cases h
+
+theorem eqR_holds {V : Type} (I : Low.Interp R V) (ρ' : Nat → Val R V) {a b : Shape} {A : R}
+    (ha : (a.ev I ρ').toR = A) (hb : (b.ev I ρ').toR = A) : ((eqI a b).ev I ρ').truth = true := by
+  simp only [eqI, Shape.ev, Shape.allTrue, truth_bool, ha, hb, Bool.and_true, Bool.and_eq_true,
+    decide_eq_true_eq]
+  exact ⟨Std.le_refl A, Std.le_refl A⟩
+
+include hwP hG in
+/-- The facts of a real rule hold, `floor` when reals have floors. -/
+theorem realFacts_hold (hfl : ∀ r : R, ∃ k : Int, IsFloor r k) {r : RRule} {k : Nat} (hok : r.ok = true)
+    (hk : tr.realNode SP P r = some k) : ∀ s ∈ r.facts k, s.ev MI ρ = .bool true := by
+  have ek := real_val (Ms := Ms) hwP hG (realNode_real hk).2
+  intro s hs
+  have hb : ∀ {s : Shape}, (s.ev MI ρ).truth = true → boolShape s = true → s.ev MI ρ = .bool true :=
+    fun h hbs => ev_of_boolShape MI ρ hbs h
+  cases r with
+  | rat p q =>
+    simp only [RRule.facts, List.mem_singleton] at hs; subst hs
+    simp only [RRule.ok, decide_eq_true_eq] at hok
+    have hq : ((q : Int) : R) ≠ 0 := cast_ne_zero (by omega)
+    refine hb (eqR_holds MI ρ (A := (p : R)) ?_ ?_) rfl
+    · simp only [Shape.ev, Lia.eval, ek, toR_num, RRule.val, Lia.rat_intCast]
+      grind
+    · simp only [Shape.ev, Lia.eval, toR_num]; grind
+  | ratmul p q t =>
+    simp only [RRule.facts, List.mem_singleton] at hs; subst hs
+    simp only [RRule.ok, decide_eq_true_eq] at hok
+    have hq : ((q : Int) : R) ≠ 0 := cast_ne_zero (by omega)
+    refine hb (eqR_holds MI ρ (A := (p : R) * (ρ t).toR) ?_ ?_) rfl
+    · simp only [Shape.ev, Lia.eval, ek, toR_num, RRule.val, Lia.rat_intCast]
+      grind
+    · simp only [Shape.ev, Lia.eval, Lia.rat_intCast, toR_num]; grind
+  | floor t =>
+    have ⟨f0, f1⟩ := floorOf_spec (hfl (ρ t).toR)
+    simp only [RRule.facts, List.mem_cons, List.mem_nil_iff, or_false] at hs
+    rcases hs with rfl | rfl
+    · refine hb ?_ rfl
+      simp only [Shape.ev, truth_bool, ek, toR_num, RRule.val, decide_eq_true_eq]
+      exact f0
+    · refine hb ?_ (by rfl)
+      simp only [Shape.ev, Lia.eval, truth_bool, ek, toR_num, RRule.val, decide_eq_true_eq, rat_one]
+      grind
 
 end
 

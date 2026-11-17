@@ -351,6 +351,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
   | bvcmp op w a b => exact bvcmp_sound hM hw ht hwP hn h ih
   | bvbin op w a b => simp only [expect, hn] at h; cases h
   | int2bv w a => simp only [expect, hn] at h; cases h
+  | rat _ _ | div _ | toReal _ | toInt _ | isInt _ => simp only [expect, hn] at h; cases h
   | le as =>
     simp only [expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .le (.same (tr.at x)) (.same (tr.at y)))
@@ -517,6 +518,10 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.rule m r j' hx
         rw [hd] at hd1; cases hd1
         rw [hsw] at hs1; cases hs1
+      | real r =>
+        obtain ⟨⟨s1, hd1, hs1⟩, _⟩ := hG.real m r hx
+        rw [hd] at hd1; cases hd1
+        rw [hsw] at hs1; split at hs1 <;> cases hs1
   · have hd := hty hfx
     simp only [Low.nodeTyped] at hd
     split at hd
@@ -586,7 +591,8 @@ theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.n
     cases h
 
 /-- The lowered inputs hold when the surface assertions do. -/
-theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
+theorem inputs_hold (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
+    (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
     ∀ f ∈ P.inputs, Low.holds MI P.nodes f := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hrngP := low_rng hc hA hL
@@ -613,6 +619,17 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
         exact ruleFacts_hold hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hco
           (exactOk_spec hA.wf hA.typed hc.sig hM hrngP) hok hf s
           (List.mem_of_getElem? hs)
+      · cases hfs
+    · cases hfs
+  | real r j =>
+    simp only [Trace.inputOk, Bool.and_eq_true] at hw
+    obtain ⟨hok, hfs⟩ := hw
+    split at hfs
+    · rename_i k hk
+      split at hfs
+      · rename_i s hs
+        rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hfs]
+        exact realFacts_hold hA.wf hc.sig hfloor hok hk s (List.mem_of_getElem? hs)
       · cases hfs
     · cases hfs
   | range i =>
@@ -688,14 +705,16 @@ end
 
 /-- A lowering checked by `Trace.check`, whose lowered problem has an answer
     that `Problem.accepts` accepts, has no model: no model of the surface
-    script satisfies its assertions. -/
+    script satisfies its assertions, over any ordered field whose elements
+    have floors (the reals). -/
 theorem Trace.unsat {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer}
     (hc : tr.check SP P A = true) (hA : P.accepts A = true) (Ms : Surf.Model R U) (size : Val R U → Nat)
-    (hL : SP.Laws Ms size) (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) : False := by
+    (hL : SP.Laws Ms size) (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
+    (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) : False := by
   have hcs := check_spec hc
   have hAc := accepted hA
   apply Problem.accepts_sound hA (lowModel SP P tr Ms) (fun v => size (dec v))
-    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed hAc.wf) (inputs_hold hcs hAc hL hin)
+    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed hAc.wf) (inputs_hold hcs hAc hL hfloor hin)
   · intro s hs; rw [hcs.assumed] at hs; cases hs
   · exact low_rng hcs hAc hL
 

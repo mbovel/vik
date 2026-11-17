@@ -1,5 +1,6 @@
 import Vik.Lower.BitOps
 import Vik.Lower.SDiv
+import Vik.Lower.Reals
 import Vik.Shifts
 import Vik.Signed
 
@@ -650,7 +651,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
   | bvbin op w a b => exact bvbin_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih hat
   | bv2int sg w a =>
     cases sg with
-    | false => simp [Trace.bvOk, hn] at hb
+    | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | true =>
     have hai := children_lt hw hn a (by simp [SNode.children])
     simp only [Surf.nodeTyped, Bool.and_eq_true] at hty
@@ -691,7 +692,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
       simp only [Rule.ival, ea, intOf_num]
   | eq as =>
     cases as with
-    | nil => simp [Trace.bvOk, hn] at hb
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | cons a rest =>
       simp only [Trace.bvOk, hn] at hb
       split at hb
@@ -721,7 +722,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
       · cases hb
   | distinct as =>
     cases as with
-    | nil => simp [Trace.bvOk, hn] at hb
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
     | cons a rest =>
       simp only [Trace.bvOk, hn] at hb
       split at hb
@@ -749,7 +750,7 @@ theorem bvOk_sound {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) (hl : tr.a
         rw [List.all_eq_true, decide_eq_true_iff, pairwiseP_map, pairwiseP_allPairs]
         simp
       · cases hb
-  | _ => simp [Trace.bvOk, hn] at hb
+  | _ => exact realOk_sound hM hw ht hwP htP hG hML hrng hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
 
 end
 

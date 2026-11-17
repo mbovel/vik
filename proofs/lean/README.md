@@ -70,8 +70,11 @@ installs it on first use.
   bitwise equalities, products of unknowns, and barrel shifters.
 - `Vik/Lower/SDiv.lean`: signed division by an unknown, through the `udiv` of
   the magnitudes.
-- `Vik/Lower/Ops.lean`: each bit-vector operation of a trace takes the value
-  of the operation (`bvOk_sound`).
+- `Vik/Lower/Reals.lean`: rational literals, division by a literal,
+  `to_real`, `to_int` and `is_int`, lowered to `rat`, `ratmul` and `floor`
+  symbols (`realOk_sound`).
+- `Vik/Lower/Ops.lean`: each bit-vector or real operation of a trace takes the
+  value of the operation (`bvOk_sound`).
 - `Vik/Lower/Example.lean`: a two-line SMT-LIB script, its trace and answer,
   checked by the kernel.
 

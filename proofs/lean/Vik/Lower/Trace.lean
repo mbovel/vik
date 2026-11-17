@@ -114,6 +114,26 @@ def Rule.ival (ι : Nat → Int) (τ : Nat → Bool) : Rule → Nat → Int
   | .udiv a b w, 0 => (if ι b = 0 then 2 ^ w - 1 else ι a / ι b) % 2 ^ w
   | .udiv a b w, _ => (if ι b = 0 then ι a else ι a % ι b) % 2 ^ w
 
+/-- A real-valued symbol the lowering mints. -/
+inductive RRule where
+  /-- `rat(p, q)`: the rational `p / q`. -/
+  | rat (p : Int) (q : Nat)
+  /-- `ratmul(p, q, t)`: `p / q · t`. -/
+  | ratmul (p : Int) (q t : Nat)
+  /-- `floor(t)`: the floor of `t`, an integer. -/
+  | floor (t : Nat)
+  deriving DecidableEq, Repr
+
+/-- The lowered nodes a real rule applies to. -/
+def RRule.args : RRule → List Nat
+  | .rat .. => []
+  | .ratmul _ _ t | .floor t => [t]
+
+/-- Whether the symbol of a real rule is an integer. -/
+def RRule.isInt : RRule → Bool
+  | .floor _ => true
+  | _ => false
+
 /-- Why the lowering mints a symbol. -/
 inductive Mint where
   /-- The value of the `ite` at surface node `i`. -/
@@ -122,6 +142,8 @@ inductive Mint where
   | store (s : Nat)
   /-- Symbol `j` of a rule. -/
   | rule (r : Rule) (j : Nat)
+  /-- The symbol of a real rule. -/
+  | real (r : RRule)
   deriving DecidableEq, Repr
 
 /-- Why a lowered input holds. -/
@@ -138,6 +160,8 @@ inductive InputWhy where
   /-- Fact `f` of rule `r`, `aux` the node of the signed value of `sdivide`,
       or of the remainder for `smodz`. -/
   | rule (r : Rule) (f aux : Nat)
+  /-- Fact `f` of the real rule `r`. -/
+  | real (r : RRule) (f : Nat)
   deriving DecidableEq, Repr
 
 structure Trace where
@@ -255,7 +279,7 @@ def negS (t w : Nat) : Shape :=
 def Trace.rank (k : Nat) : Nat :=
   if SP.sig.decls.length ≤ k then
     match tr.mints[k - SP.sig.decls.length]? with
-    | some (.rule _ _) => k - SP.sig.decls.length + 1
+    | some (.rule _ _) | some (.real _) => k - SP.sig.decls.length + 1
     | _ => 0
   else 0
 
@@ -273,6 +297,25 @@ def Trace.symAt (x : Nat) : Option (Rule × Nat) :=
 /-- The lowered node of symbol `j` of rule `r`. -/
 def Trace.symNode (r : Rule) (j : Nat) : Option Nat :=
   let m := tr.mints.idxOf (.rule r j)
+  if m < tr.mints.length then
+    let x := P.nodes.idxOf (.const (SP.sig.decls.length + m))
+    if x < P.nodes.length then some x else none
+  else none
+
+/-- The real rule of the symbol of lowered node `x`, if one mints it. -/
+def Trace.realAt (x : Nat) : Option RRule :=
+  match P.nodes[x]? with
+  | some (.const k) =>
+    if SP.sig.decls.length ≤ k then
+      match tr.mints[k - SP.sig.decls.length]? with
+      | some (.real r) => some r
+      | _ => none
+    else none
+  | _ => none
+
+/-- The lowered node of the symbol of the real rule `r`. -/
+def Trace.realNode (r : RRule) : Option Nat :=
+  let m := tr.mints.idxOf (.real r)
   if m < tr.mints.length then
     let x := P.nodes.idxOf (.const (SP.sig.decls.length + m))
     if x < P.nodes.length then some x else none
@@ -580,6 +623,7 @@ def expect (i : Nat) : Option Shape :=
   | .bvcmp op w a b => if w = 0 then none else some (cmpS P tr op w a b)
   | .bvbin _ _ _ _ => none
   | .int2bv _ _ => none
+  | .rat .. | .div _ | .toReal _ | .toInt _ | .isInt _ => none
 
 /-! ## Operations through rules -/
 
@@ -1183,6 +1227,63 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
       | .sdiv | .srem | .smod => tr.sdivUnknownOk SP P op w l (tr.at a) (tr.at b)
       | _ => false
 
+/-- The rational `p / q` (`q > 0`) that surface node `a` stands for when it is
+    a literal: a `rat`, or a node whose lowering is a constant. -/
+def Trace.litOf (a : Nat) : Option (Int × Nat) :=
+  match SP.nodes[a]? with
+  | some (.rat p q) => if 0 < q then some (p, q) else none
+  | _ => if SP.isNum a then (constOf (linOf P tr a)).map fun c => (c, 1) else none
+
+/-- Whether lowered node `l` is the rational `p / q`, `q > 0`: a number, or the
+    symbol of `rat`. -/
+def Trace.ratOk (l : Nat) (p : Int) (q : Nat) : Bool :=
+  0 < q &&
+    match P.nodes[l]? with
+    | some (.num c) => c * q == p
+    | _ =>
+      match tr.realAt SP P l with
+      | some (.rat p' q') => 0 < q' && p' * q == p * q'
+      | _ => false
+
+/-- Whether lowered node `l` is `p / q · t`, `q > 0`: an integer multiple of
+    `t`, or the symbol of `ratmul`. -/
+def Trace.ratmulOk (l : Nat) (p : Int) (q : Nat) (t : Nat) : Bool :=
+  0 < q &&
+    ((p % q == 0 &&
+        fits P.sig P.nodes P.sortOf l
+          (.num (Lia.scale ((p / q : Int) : Rat) (lin P.nodes t).1) (p / q * (lin P.nodes t).2))) ||
+      match tr.realAt SP P l with
+      | some (.ratmul p' q' t') => t' == t && 0 < q' && p' * q == p * q'
+      | _ => false)
+
+/-- Whether the lowering of surface node `i`, an operation on reals, is the
+    one the lowering gives it. -/
+def Trace.realOk (i : Nat) : Bool :=
+  let l := tr.at i
+  match SP.nodes[i]? with
+  | some (.rat p q) => tr.ratOk SP P l p q
+  | some (.toReal a) => l == tr.at a
+  | some (.toInt a) =>
+    match tr.litOf SP P a with
+    | some (p, q) => P.nodes[l]? == some (.num (p / q))
+    | none => tr.realAt SP P l == some (.floor (tr.at a))
+  | some (.isInt a) =>
+    match tr.litOf SP P a with
+    | some (p, q) => P.nodes[l]? == some (if p % q == 0 then .tt else .ff)
+    | none =>
+      match tr.realNode SP P (.floor (tr.at a)) with
+      | some k => fits P.sig P.nodes P.sortOf l (eqI (.same (tr.at a)) (.same k))
+      | none => false
+  | some (.div [a, b]) =>
+    match tr.litOf SP P b with
+    | some (pb, qb) =>
+      pb != 0 &&
+        match tr.litOf SP P a with
+        | some (pa, qa) => tr.ratOk SP P l (pa * qb * pb.sign) (qa * pb.natAbs)
+        | none => tr.ratmulOk SP P l (qb * pb.sign) pb.natAbs (tr.at a)
+    | none => false
+  | _ => false
+
 /-- Whether the lowering of surface node `i`, a bit-vector operation, is the
     combination of rule symbols the lowering gives it. -/
 def Trace.bvOk (i : Nat) : Bool :=
@@ -1230,7 +1331,7 @@ def Trace.bvOk (i : Nat) : Bool :=
     match SP.width a with
     | some w => tr.chainOk SP P w l (allPairs (a :: rest)) true
     | none => false
-  | _ => false
+  | _ => tr.realOk SP P i
 
 /-- The facts of the `ite` symbol `k`: `c → k = t`, or `¬c → k = e`. -/
 def iteFact (k : Nat) (thn : Bool) : Option Shape :=
@@ -1295,6 +1396,11 @@ def Trace.sigOk : Bool :=
         | some s => SP.sig.sorts[s]? == some .int
         | none => false) &&
         r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
+    | some (.real r) =>
+      (match P.sig.decls[k]? with
+        | some s => SP.sig.sorts[s]? == some (if r.isInt then .int else .real)
+        | none => false) &&
+        r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
     | none => false) &&
   P.stores.all (fun n => n ≥ SP.sig.decls.length &&
     match tr.mints[n - SP.sig.decls.length]? with
@@ -1307,6 +1413,17 @@ def Trace.sigOk : Bool :=
       match P.nodes[j]? with
       | some (.const _) | some (.app _ _) => true
       | _ => false
+
+/-- The facts of the real rule `r`, its symbol at node `k`. -/
+def RRule.facts (k : Nat) : RRule → List Shape
+  | .rat p q => [eqI (.num [(k, ((q : Int) : Rat))] 0) (.num [] p)]
+  | .ratmul p q t => [eqI (.num [(k, ((q : Int) : Rat))] 0) (.num [(t, (p : Rat))] 0)]
+  | .floor t => [.le (.same k) (.same t), .lt (.same t) (.num [(k, 1)] 1)]
+
+/-- Whether the arguments of a real rule are those its facts need. -/
+def RRule.ok : RRule → Bool
+  | .rat _ q | .ratmul _ q _ => 0 < q
+  | .floor _ => true
 
 /-- Whether a lowered input holds by its reason. -/
 def Trace.inputOk (f : Nat) : InputWhy → Bool
@@ -1322,6 +1439,14 @@ def Trace.inputOk (f : Nat) : InputWhy → Bool
       match tr.ruleFacts SP P r aux with
       | some fs =>
         match fs[j]? with
+        | some s => fits P.sig P.nodes P.sortOf f s
+        | none => false
+      | none => false
+  | .real r j =>
+    r.ok &&
+      match tr.realNode SP P r with
+      | some k =>
+        match (r.facts k)[j]? with
         | some s => fits P.sig P.nodes P.sortOf f s
         | none => false
       | none => false
