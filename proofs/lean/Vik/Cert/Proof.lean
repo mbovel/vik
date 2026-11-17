@@ -364,7 +364,7 @@ structure Problem.Laws (P : Problem) (M : Model R U) (size : Val R U → Nat) : 
   store : ∀ n ∈ P.stores, ∀ s arr idx el, P.sig.decls[n]? = some s →
     P.sig.sorts[s]? = some (.fn [arr, idx, el] arr) → P.sig.sorts[arr]? = some (.fn [idx] el) →
     ∀ a i v j, M.dom arr a → M.dom idx i → M.dom el v → M.dom idx j →
-      inRange P.bvIndex idx i → inRange P.bvIndex idx j →
+      inRange P.bvIndex idx i → inRange P.bvIndex idx j → inRange P.bvIndex el v →
       (j = i → M.app (M.app (M.const n) [a, i, v]) [j] = v) ∧
       (j ≠ i → M.app (M.app (M.const n) [a, i, v]) [j] = M.app a [j])
   ext : ∀ s as r f g, P.sig.sorts[s]? = some (.fn as r) → M.dom s f → M.dom s g →
@@ -764,9 +764,10 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         rw [ha] at da; rw [hi] at di; rw [hv] at dv; rw [hj] at dj
         have ri := hrng i (by omega)
         have rj := hrng j (by omega)
-        unfold Problem.sort at ri rj
-        rw [hi] at ri; rw [hj] at rj
-        have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj ri rj
+        have rv := hrng v (by omega)
+        unfold Problem.sort at ri rj rv
+        rw [hi] at ri; rw [hj] at rj; rw [hv] at rv
+        have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj ri rj rv
         rw [val_app hA.wf hr, val_app hA.wf hs, val_const hA.wf hk]
         simp only [List.map_cons, List.map_nil]
         exact law

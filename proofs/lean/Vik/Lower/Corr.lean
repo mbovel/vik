@@ -281,4 +281,94 @@ theorem prodR_eq {U : Type} (vs : List (Val R U)) : prodR vs = (vs.map Val.toR).
   | nil => rfl
   | cons v vs ih => simp only [prodR, ih, List.map_cons, List.foldr_cons]
 
+/-! ## Leaves of the lowered model -/
+
+variable {U : Type}
+
+@[simp] theorem surf_get_values (I : Surf.Interp R U) (nodes : List SNode) (a : Nat) :
+    Low.get (Surf.values I nodes) a = Surf.val I nodes a := rfl
+
+section
+variable {SP : SProblem} {P : Problem} {tr : Trace} {Ms : Surf.Model R U}
+  (hM : Ms.Sound SP.sig) (hw : Surf.wellFormed SP.nodes = true) (ht : Surf.typed SP.sig SP.nodes SP.sortOf = true)
+
+set_option quotPrecheck false in
+local notation "ρ" => Low.val (lowModel SP P tr Ms).toInterp P.nodes
+local notation "vs" => Surf.val Ms.toInterp SP.nodes
+set_option quotPrecheck false in
+local notation "MI" => (lowModel SP P tr Ms).toInterp
+
+include hM hw ht
+
+theorem dom_at {a : Nat} (ha : a < SP.nodes.length) : Ms.dom (SP.sort a) (vs a) :=
+  Surf.val_dom hM hw ht a ha
+
+theorem v_bool {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isBool a = true) : ∃ b, vs a = .bool b := by
+  simp only [SProblem.isBool, SSig.is, beq_iff_eq] at hb
+  exact (hM.bool _ _ hb).mp (dom_at hM hw ht ha)
+
+theorem v_num {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isNum a = true) : ∃ r, vs a = .num r :=
+  Surf.dom_num_of_numeric hM hb (dom_at hM hw ht ha)
+
+theorem v_int {a : Nat} (ha : a < SP.nodes.length) (hb : SP.isInt a = true) : ∃ k : Int, vs a = .num (k : R) := by
+  simp only [SProblem.isInt, SSig.is, beq_iff_eq] at hb
+  exact (hM.int _ _ hb).mp (dom_at hM hw ht ha)
+
+theorem leaf_ev {a : Nat} (ha : a < SP.nodes.length) (e : ρ (tr.at a) = enc (vs a)) :
+    (leaf SP tr a).ev MI ρ = enc (vs a) := by
+  unfold leaf
+  split
+  · rename_i hb
+    obtain ⟨b, hb'⟩ := v_bool hM hw ht ha hb
+    simp only [Shape.ev, e, hb', enc_bool, truth_bool]
+  · exact e
+
+omit hM hw ht in
+theorem form_ev {a : Nat} (e : ρ (tr.at a) = enc (vs a)) : (form tr a).ev MI ρ = .bool (vs a).truth := by
+  simp only [form, Shape.ev, e, truth_enc]
+
+omit hM hw ht in
+theorem lin_ev (hwP : Low.wellFormed P.nodes = true) {a : Nat} (e : ρ (tr.at a) = enc (vs a)) :
+    Lia.eval (fun u => (ρ u).toR) (linOf P tr a).1 + ((linOf P tr a).2 : R) = (vs a).toR := by
+  have := lin_sound (I := MI) hwP (tr.at a)
+  rw [e, toR_enc] at this
+  rw [this]; rfl
+
+theorem typed_at {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) :
+    Surf.nodeTyped SP.sig SP.sortOf n (SP.sort i) = true := by
+  have hi := lt_of_get hn
+  simp only [Surf.typed, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+  have := ht.2 i hi
+  rw [hn] at this
+  exact this
+
+omit hM ht in
+theorem children_lt {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) : ∀ c ∈ n.children, c < i := by
+  have := List.all_eq_true.mp hw i (List.mem_range.mpr (lt_of_get hn))
+  rw [hn] at this
+  simpa using this
+
+open Classical in
+omit hM hw ht in
+theorem ltInt_ev (hwP : Low.wellFormed P.nodes = true) {x y : Nat} (ex : ρ (tr.at x) = enc (vs x))
+    (ey : ρ (tr.at y) = enc (vs y)) :
+    (ltInt P tr x y).ev MI ρ = .bool (decide ((vs x).toR + 1 ≤ (vs y).toR)) := by
+  have e : Lia.eval (fun u => (ρ u).toR) (linOf P tr x).1 + (((linOf P tr x).2 + 1 : Int) : R) = (vs x).toR + 1 := by
+    rw [Ring.intCast_add, Ring.intCast_one, ← lin_ev hwP ex]; grind
+  simp only [ltInt, Shape.ev, toR_num, e, ey, toR_enc]
+
+open Classical in
+omit hM hw ht in
+theorem le_ev {x y : Nat} (ex : ρ (tr.at x) = enc (vs x)) (ey : ρ (tr.at y) = enc (vs y)) :
+    (Shape.le (.same (tr.at x)) (.same (tr.at y))).ev MI ρ = .bool (decide ((vs x).toR ≤ (vs y).toR)) := by
+  simp only [Shape.ev, ex, ey, toR_enc]
+
+open Classical in
+omit hM hw ht in
+theorem lt_ev {x y : Nat} (ex : ρ (tr.at x) = enc (vs x)) (ey : ρ (tr.at y) = enc (vs y)) :
+    (Shape.lt (.same (tr.at x)) (.same (tr.at y))).ev MI ρ = .bool (decide ((vs x).toR < (vs y).toR)) := by
+  simp only [Shape.ev, ex, ey, toR_enc]
+
+end
+
 end Vik.Lower

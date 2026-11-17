@@ -20,12 +20,11 @@ section
 variable {SP : SProblem} {P : Problem} {tr : Trace}
 
 structure SortsSpec (SP : SProblem) : Prop where
-  noBv : ∀ (s w : Nat), SP.sig.sorts[s]? ≠ some (SSort.bv w)
   fn : ∀ (s : Nat) (as : List Nat) (r : Nat), SP.sig.sorts[s]? = some (SSort.fn as r) → (∀ a ∈ as, a < SP.sig.sorts.length) ∧ r < SP.sig.sorts.length
   array : ∀ (s i e : Nat), SP.sig.sorts[s]? = some (SSort.array i e) → i < SP.sig.sorts.length ∧ e < SP.sig.sorts.length
   decls : ∀ (k s : Nat), SP.sig.decls[k]? = some s → s < SP.sig.sorts.length
   sortOf : ∀ (i s : Nat), SP.sortOf[i]? = some s → s < SP.sig.sorts.length
-  dt : ∀ d cs, (d, cs) ∈ SP.datatypes → d < SP.sig.sorts.length ∧
+  dt : ∀ d cs, (d, cs) ∈ SP.datatypes → d < SP.sig.sorts.length ∧ SP.sig.sorts[d]? = some .user ∧
     ∀ C T Ss, (C, T, Ss) ∈ cs → C < SP.sig.decls.length ∧ T < SP.sig.decls.length ∧
       ∀ S ∈ Ss, S < SP.sig.decls.length
 
@@ -34,15 +33,14 @@ theorem sortsOk_spec (h : SP.sortsOk = true) : SortsSpec SP := by
   obtain ⟨⟨⟨hs, hd⟩, ho⟩, hdt⟩ := h
   have get_mem : ∀ {α : Type} (l : List α) (i : Nat) (x : α), l[i]? = some x → x ∈ l :=
     fun l i x h => List.mem_of_getElem? h
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro s w e; have := hs _ (get_mem _ _ _ e); simp at this
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro s as r e; have := hs _ (get_mem _ _ _ e); simpa using this
   · intro s i e' e; have := hs _ (get_mem _ _ _ e); simpa using this
   · intro k s e; exact hd _ (get_mem _ _ _ e)
   · intro i s e; exact ho _ (get_mem _ _ _ e)
   · intro d cs m
     have := hdt _ m
-    exact ⟨this.1, fun C T Ss mc => by
+    exact ⟨this.1.1, by simpa using this.1.2, fun C T Ss mc => by
       have := this.2 _ mc
       exact ⟨this.1.1, this.1.2, this.2⟩⟩
 
@@ -61,12 +59,14 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
       ∀ m' s', m' ≠ m → tr.mints[m']? = some (.store s') → P.sig.decls[SP.sig.decls.length + m']? ≠ some ds
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
-  bvIndex : P.bvIndex = []
+  bvIndex : P.bvIndex = SP.bvIndex
+  bvNodes : ∀ j < P.nodes.length, (SP.sortWidth (P.sortOf[j]?.getD 0)).isSome →
+    (∃ k, P.nodes[j]? = some (.const k)) ∨ ∃ f xs, P.nodes[j]? = some (.app f xs)
 
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩ := h
-  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, hdt, hbv⟩
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
+  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
     rw [← List.getElem?_map, ← hs, List.getElem?_take_of_lt hs']
   · intro k hk
@@ -130,6 +130,16 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     split at this
     · rename_i s he; exact ⟨s, he⟩
     · exact absurd this.2 (by simp)
+  · intro j hj hb
+    have := hbn j hj
+    rw [lookup_bvIndex] at this
+    simp only [Bool.or_eq_true, Option.isNone_iff_eq_none] at this
+    rcases this with h' | h'
+    · rw [h'] at hb; cases hb
+    · split at h'
+      · rename_i k e; exact .inl ⟨k, e⟩
+      · rename_i f xs e; exact .inr ⟨f, xs, e⟩
+      · cases h'
 
 end
 
@@ -213,11 +223,24 @@ theorem ctorVal_enc {C : Nat} (hC : C < SP.sig.decls.length) (xs : List (Val R U
 
 include hS hG in
 /-- The arguments of a surface symbol, as lowered values. -/
-theorem forall2_args {C : Nat} (hC : C < SP.sig.decls.length) (xs : List (Val R (U ⊕ Nat)))
-    (h : Forall2 (lowModel SP P tr Ms).dom (P.argSorts C) xs) :
+theorem forall2_args (hM : Ms.Sound SP.sig) {C : Nat} (hC : C < SP.sig.decls.length) (xs : List (Val R (U ⊕ Nat)))
+    (h : Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs) :
     ∃ ys, xs = ys.map enc ∧ Forall2 Ms.dom (SP.argSorts C) ys := by
-  rw [argSorts_eq hS hG hC] at h
-  exact (forall2_base SP P tr Ms _ xs (argSorts_lt hS C)).mp h
+  rw [argSorts_eq hS hG hC, hG.bvIndex] at h
+  exact (forall2_base SP P tr Ms hM _ xs (argSorts_lt hS C)).mp h
+
+/-- A sort that is not a bit-vector has no width. -/
+theorem sortWidth_none {SP : SProblem} {s : Nat} {x : SSort} (hx : SP.sig.sorts[s]? = some x)
+    (h : ∀ w, x ≠ .bv w) : SP.sortWidth s = none := by
+  unfold SProblem.sortWidth; rw [hx]
+  split
+  · rename_i w e; cases e; exact absurd rfl (h w)
+  · rfl
+
+/-- A surface value is a lowered one of its sort. -/
+theorem dom_of_surf (hM : Ms.Sound SP.sig) {s : Nat} (hs : s < SP.sig.sorts.length) {w : Val R U}
+    (h : Ms.dom s w) : (lowModel SP P tr Ms).dom s (enc w) :=
+  ((rdom SP P tr Ms hM hs (enc w)).mpr ⟨w, h, rfl⟩).1
 
 end
 
@@ -236,10 +259,17 @@ theorem mint_of {k : Nat} (hk : SP.sig.decls.length ≤ k) (s : Nat) (h : P.sig.
   refine ⟨k - SP.sig.decls.length, by omega, ?_⟩
   exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
 
-/-- A lowered value of a sort of the script is a surface one. -/
-theorem dom_enc {s : Nat} (hs : s < SP.sig.sorts.length) {v : Val R (U ⊕ Nat)}
+/-- A lowered value of a sort of the script, not a bit-vector, is a surface one. -/
+theorem dom_enc {s : Nat} (hs : s < SP.sig.sorts.length) {x : SSort} (hx : SP.sig.sorts[s]? = some x)
+    (hb : ∀ w, x ≠ .bv w) {v : Val R (U ⊕ Nat)}
     (h : (lowModel SP P tr Ms).dom s v) : ∃ w, Ms.dom s w ∧ v = enc w :=
-  (dom_base SP P tr Ms hs v).mp h
+  (dom_base SP P tr Ms hs (sortWidth_none hx hb) v).mp h
+
+/-- A lowered value of a sort of the script, in range, is a surface one. -/
+theorem dom_enc_rng {s : Nat} (hs : s < SP.sig.sorts.length) {v : Val R (U ⊕ Nat)}
+    (h : (lowModel SP P tr Ms).dom s v) (hr : inRange P.bvIndex s v) : ∃ w, Ms.dom s w ∧ v = enc w := by
+  rw [hG.bvIndex] at hr
+  exact (rdom SP P tr Ms hL.sound hs v).mp ⟨h, hr⟩
 
 include hw ht in
 theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
@@ -249,7 +279,7 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
     have hs := base_of_not_fn hG h (by intro _ _ e; cases e)
     obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
     cases x <;> simp [lowerSort] at ex
-    rw [dom_base SP P tr Ms hs]
+    rw [dom_base SP P tr Ms hs (sortWidth_none hx (by intro _ e; cases e))]
     constructor
     · rintro ⟨w, hw', rfl⟩
       obtain ⟨b, rfl⟩ := (hM.bool s w hx).mp hw'
@@ -260,9 +290,9 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
     have hs := base_of_not_fn hG h (by intro _ _ e; cases e)
     obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
     cases x with
-    | bv w => exact absurd hx (hS.noBv s w)
+    | bv w => exact dom_bv SP P tr Ms hs (sortWidth_eq.mpr hx) v
     | int =>
-      rw [dom_base SP P tr Ms hs]
+      rw [dom_base SP P tr Ms hs (sortWidth_none hx (by intro _ e; cases e))]
       constructor
       · rintro ⟨w, hw', rfl⟩
         obtain ⟨k, rfl⟩ := (hM.int s w hx).mp hw'
@@ -274,40 +304,41 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
     have hs := base_of_not_fn hG h (by intro _ _ e; cases e)
     obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
     cases x <;> simp [lowerSort] at ex
-    rw [dom_base SP P tr Ms hs]
+    rw [dom_base SP P tr Ms hs (sortWidth_none hx (by intro _ e; cases e))]
     constructor
     · rintro ⟨w, hw', rfl⟩
       obtain ⟨r, rfl⟩ := (hM.real s w hx).mp hw'
       exact ⟨r, rfl⟩
     · rintro ⟨r, rfl⟩
       exact ⟨.num r, (hM.real s _ hx).mpr ⟨r, rfl⟩, rfl⟩
-  · intro s as r f xs h hf hxs'
-    have hxs := forall2_imp (fun _ _ h => h.1) _ _ hxs'
+  · intro s as r f xs h hf hxs
+    rw [hG.bvIndex] at hxs
     rcases Nat.lt_or_ge s SP.sig.sorts.length with hs | hs
     · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
-      obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hs hf
       cases x with
       | fn as' r' =>
+        obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hs hx (by intro _ e; cases e) hf
         simp only [lowerSort, SortDef.fn.injEq] at ex
         obtain ⟨h1, h2⟩ := ex
         subst h1; subst h2
         obtain ⟨has, hr⟩ := hS.fn s as' r' hx
-        obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms as' xs has).mp hxs
-        rw [app_enc_enc, dom_base SP P tr Ms hr]
-        exact ⟨_, hM.fn s as' r' f0 ys hx hf0 hys, rfl⟩
+        obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms hM as' xs has).mp hxs
+        rw [app_enc_enc]
+        exact dom_of_surf hM hr (hM.fn s as' r' f0 ys hx hf0 hys)
       | array i e =>
+        obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hs hx (by intro _ e; cases e) hf
         simp only [lowerSort, SortDef.fn.injEq] at ex
         obtain ⟨rfl, rfl⟩ := ex
         obtain ⟨hi, he⟩ := hS.array s i e hx
-        obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms [i] xs (by simpa using hi)).mp hxs
+        obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms hM [i] xs (by simpa using hi)).mp hxs
         cases ys with
         | nil => exact hys.elim
         | cons y ys =>
           cases ys with
           | cons _ _ => exact hys.2.elim
           | nil =>
-            rw [app_enc_enc, dom_base SP P tr Ms he]
-            exact ⟨_, hM.select s i e f0 y hx hf0 hys.1, rfl⟩
+            rw [app_enc_enc]
+            exact dom_of_surf hM he (hM.select s i e f0 y hx hf0 hys.1)
       | _ => simp [lowerSort] at ex
     · obtain ⟨arr, idx, el, hd, harr⟩ := hG.extra s _ hs h
       simp only [SortDef.fn.injEq] at hd
@@ -318,17 +349,17 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
       obtain ⟨k, rfl, _, _⟩ := hf'
       obtain ⟨hi, he⟩ := hS.array r idx el harr
       have ha := lt_of_get harr
-      obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms [r, idx, el] xs (by simp; omega)).mp hxs
+      obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms hM [r, idx, el] xs (by simp; omega)).mp hxs
       match ys, hys with
       | [a, i, v], hys =>
-        rw [List.map_cons, List.map_cons, List.map_cons, List.map_nil, app_store, dom_base SP P tr Ms ha]
-        exact ⟨_, (hM.store r idx el a i v harr hys.1 hys.2.1 hys.2.2.1).1, rfl⟩
+        rw [List.map_cons, List.map_cons, List.map_cons, List.map_nil, app_store]
+        exact dom_of_surf hM ha (hM.store r idx el a i v harr hys.1 hys.2.1 hys.2.2.1).1
   · intro k s h
     rcases Nat.lt_or_ge k SP.sig.decls.length with hk | hk
     · rw [hG.decls k hk] at h
       have hs := hS.decls k s h
-      rw [const_base SP P tr Ms hk, dom_base SP P tr Ms hs]
-      exact ⟨_, hM.const k s h, rfl⟩
+      rw [const_base SP P tr Ms hk]
+      exact dom_of_surf hM hs (hM.const k s h)
     · obtain ⟨m, rfl, x, hx⟩ := mint_of hS hG hL hk s h
       have hm : SP.sig.decls.length + m - SP.sig.decls.length = m := by omega
       cases x with
@@ -343,8 +374,7 @@ theorem lowModel_sound : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
           unfold SProblem.sort
           rw [List.getElem?_eq_getElem (by omega)]
           exact hS.sortOf i _ (List.getElem?_eq_getElem (by omega))
-        rw [dom_base SP P tr Ms hsl]
-        exact ⟨_, Surf.val_dom hM hw ht i hil, rfl⟩
+        exact dom_of_surf hM hsl (Surf.val_dom hM hw ht i hil)
       | store s0 =>
         obtain ⟨idx, el, ds, _, hd, hle, _, _⟩ := hG.store m s0 hx
         rw [h] at hd; cases hd
@@ -362,11 +392,14 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
     intro d cs C T Ss hd hc
     rw [hG.datatypes] at hd
     have := hS.dt d cs hd
-    exact ⟨hd, this.1, this.2 C T Ss hc⟩
+    exact ⟨hd, this.1, this.2.2 C T Ss hc⟩
   have args : ∀ {C : Nat}, C < SP.sig.decls.length → ∀ xs,
       Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange P.bvIndex a x) (P.argSorts C) xs →
       ∃ ys, xs = ys.map enc ∧ Forall2 Ms.dom (SP.argSorts C) ys :=
-    fun hC xs h => forall2_args hS hG hC xs (forall2_imp (fun _ _ h => h.1) _ _ h)
+    fun hC xs h => forall2_args hS hG hM hC xs h
+  have dtd : ∀ d cs, (d, cs) ∈ SP.datatypes → ∀ {v : Val R (U ⊕ Nat)}, (lowModel SP P tr Ms).dom d v →
+      ∃ w, Ms.dom d w ∧ v = enc w := fun d cs hd v hv =>
+    dom_enc hS hG hL (hS.dt d cs hd).1 (hS.dt d cs hd).2.1 (by intro _ e; cases e) hv
   refine ⟨lowModel_sound hS hG hL hw ht, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- sel
     intro d cs C T Ss hd hc xs i S x hxs hS' hx
@@ -412,7 +445,7 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
   · -- expand
     intro d cs C T Ss hd hc v hv ht'
     obtain ⟨hd', hdl, hC, hT, hSs⟩ := dtC d cs C T Ss hd hc
-    obtain ⟨v0, hv0, rfl⟩ := dom_enc hS hG hL hdl hv
+    obtain ⟨v0, hv0, rfl⟩ := dtd d cs hd' hv
     rw [const_base SP P tr Ms hT, ← List.map_singleton (f := enc), app_enc_enc] at ht'
     have e := hL.expand d cs C T Ss hd' hc v0 hv0 (enc_inj ht')
     have hmap : (Ss.map fun S => (lowModel SP P tr Ms).app ((lowModel SP P tr Ms).const S) [enc v0]) =
@@ -434,15 +467,14 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
   · -- exhaust
     intro d cs hd v hv
     rw [hG.datatypes] at hd
-    have hdl := (hS.dt d cs hd).1
-    obtain ⟨v0, hv0, rfl⟩ := dom_enc hS hG hL hdl hv
+    obtain ⟨v0, hv0, rfl⟩ := dtd d cs hd hv
     obtain ⟨ct, hct, e⟩ := hL.exhaust d cs hd v0 hv0
     refine ⟨ct, hct, ?_⟩
     obtain ⟨C, T, Ss⟩ := ct
-    have hT := ((hS.dt d cs hd).2 C T Ss hct).2.1
+    have hT := ((hS.dt d cs hd).2.2 C T Ss hct).2.1
     rw [const_base SP P tr Ms hT, ← List.map_singleton (f := enc), app_enc_enc, e]; rfl
   · -- store
-    intro n hn s arr idx el hs hsort harr a i v j ha hi hv hj _ _
+    intro n hn s arr idx el hs hsort harr a i v j ha hi hv hj ri rj rv
     obtain ⟨hle, s0, hm⟩ := hG.stores n hn
     obtain ⟨idx0, el0, ds, hs0, hd, hdl, hds, _⟩ := hG.store _ s0 hm
     have hk : SP.sig.decls.length + (n - SP.sig.decls.length) = n := by omega
@@ -452,10 +484,10 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
     obtain ⟨⟨rfl, rfl, rfl⟩, -⟩ := hds
     have hal := lt_of_get hs0
     obtain ⟨hil, hel⟩ := hS.array _ _ _ hs0
-    obtain ⟨a0, ha0, rfl⟩ := dom_enc hS hG hL hal ha
-    obtain ⟨i0, hi0, rfl⟩ := dom_enc hS hG hL hil hi
-    obtain ⟨v0, hv0, rfl⟩ := dom_enc hS hG hL hel hv
-    obtain ⟨j0, hj0, rfl⟩ := dom_enc hS hG hL hil hj
+    obtain ⟨a0, ha0, rfl⟩ := dom_enc hS hG hL hal hs0 (by intro _ e; cases e) ha
+    obtain ⟨i0, hi0, rfl⟩ := dom_enc_rng hS hG hL hil hi ri
+    obtain ⟨v0, hv0, rfl⟩ := dom_enc_rng hS hG hL hel hv rv
+    obtain ⟨j0, hj0, rfl⟩ := dom_enc_rng hS hG hL hil hj rj
     rw [const_store SP P tr Ms hle hm, app_store, ← List.map_singleton (f := enc), app_enc_enc, app_enc_enc]
     have := (hM.store _ _ _ a0 i0 v0 hs0 ha0 hi0 hv0).2 j0 hj0
     refine ⟨fun e => ?_, fun e => ?_⟩
@@ -465,8 +497,9 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
     intro s as r f g hs hf hg hfg
     rcases Nat.lt_or_ge s SP.sig.sorts.length with hsl | hsl
     · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hsl hs
-      obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hsl hf
-      obtain ⟨g0, hg0, rfl⟩ := dom_enc hS hG hL hsl hg
+      have hnb : ∀ w, x ≠ .bv w := by intro w e; subst e; simp [lowerSort] at ex
+      obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hsl hx hnb hf
+      obtain ⟨g0, hg0, rfl⟩ := dom_enc hS hG hL hsl hx hnb hg
       have has : (∀ a ∈ as, a < SP.sig.sorts.length) ∧
           (SP.sig.sorts[s]? = some (.fn as r) ∨ ∃ i, as = [i] ∧ SP.sig.sorts[s]? = some (.array i r)) := by
         cases x with
@@ -485,10 +518,8 @@ theorem lowModel_laws : P.Laws (lowModel SP P tr Ms) (fun v => size (dec v)) := 
       apply enc_inj
       rw [← app_enc_enc SP P tr Ms, ← app_enc_enc SP P tr Ms]
       apply hfg
-      have h2 := (forall2_base SP P tr Ms as (ys.map enc) has.1).mpr ⟨ys, rfl, hys⟩
-      refine forall2_imp (fun a x hx => ⟨hx, ?_⟩) _ _ h2
-      intro w hw'
-      rw [hG.bvIndex] at hw'; cases hw'
+      have h2 := (forall2_base SP P tr Ms hM as (ys.map enc) has.1).mpr ⟨ys, rfl, hys⟩
+      rw [hG.bvIndex]; exact h2
     · have hf' := hf
       have hg' := hg
       simp only [lowModel, Nat.not_lt.mpr hsl, if_false] at hf' hg'
