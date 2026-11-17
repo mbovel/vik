@@ -359,6 +359,16 @@ include hwP in
 theorem lin_val (x : Nat) : (ρ x).toR = Lia.eval (fun u => (ρ u).toR) (lin P.nodes x).1 + ((lin P.nodes x).2 : R) :=
   lin_sound (I := MI) hwP x
 
+include hwP in
+/-- `x + y`, `x` by its linear combination: the lowering flattens sums. -/
+theorem ev_lin_add {x y : Nat} {X Y : Int} (hx : ρ x = .num (X : R)) (hy : ρ y = .num (Y : R)) :
+    ((Shape.num ((lin P.nodes x).1 ++ [(y, 1)]) (lin P.nodes x).2).ev MI ρ).toR = ((1 * X + 1 * Y + 0 : Int) : R) := by
+  have h := lin_val (SP := SP) (tr := tr) (Ms := Ms) hwP x
+  rw [hx, toR_num] at h
+  simp only [Shape.ev, toR_num, eval_append, Lia.eval, hy, rat_one, Ring.intCast_add, Ring.intCast_mul,
+    Ring.intCast_one, Ring.intCast_zero]
+  grind
+
 theorem leaf_of_linIv {leaf : Nat → Option (Int × Int)} {x : Nat} {q : Int × Int}
     (h : linIv leaf [(x, 1)] = some q) : ∃ p, leaf x = some p := by
   unfold linIv at h
@@ -975,7 +985,7 @@ theorem ruleFacts_truth (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs 
           have eaux := hex hq hauxl (symNode_sym hq').1 Q0 (by omega) eB eq'
           simp only [hB, if_false] at eaux er
           refine implies_of_right MI ρ (and2_holds MI ρ ?_ ?_)
-          · refine eqI_holds MI ρ (ev_same_num MI ρ eA) (ev_num2' MI ρ eaux er 1 1 0 rfl rfl) ?_
+          · refine eqI_holds MI ρ (ev_same_num MI ρ eA) (ev_lin_add hwP eaux er) ?_
             have := Int.mul_ediv_add_emod A B; omega
           · refine le_holds MI ρ (ev_num1 MI ρ er 1) (ev_same_num MI ρ eB) ?_
             have := Int.emod_lt_of_pos A (show 0 < B by omega); omega
