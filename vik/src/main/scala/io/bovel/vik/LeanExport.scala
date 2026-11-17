@@ -126,8 +126,11 @@ private[vik] object LeanExport:
   private def lit(l: Lit): String = s"⟨${l.variable}, ${l.positive}⟩"
   private def litOfIndex(i: Int): String = lit(Lit.fromIndex(i))
   private def int(v: BigInt): String = if v < 0 then s"($v)" else v.toString
-  private def rat(r: Rational): String =
-    if r.isInteger then int(r.num) else s"((${r.num} : Rat) / ${r.den})"
+  // In a pair, a numeral gets its type: Lean elaborates the components of an
+  // anonymous pair without it and would resolve each literal's type late, slowly.
+  private def intT(v: BigInt): String = s"($v : Int)"
+  private def ratT(r: Rational): String =
+    if r.isInteger then s"(${r.num} : Rat)" else s"((${r.num} : Rat) / ${r.den})"
   private def list(xs: Iterable[String]): String = xs.mkString("[", ", ", "]")
 
   private final class Writer(in: Input, surface: Option[Surface]):
@@ -249,7 +252,7 @@ private[vik] object LeanExport:
           node(s".app $f ${list(as.map(_.toString))}", result.getOrElse(sortId(sortOf(t))))
         case Term.Num(v) => node(s".num ${int(v)}", 1)
         case Term.Linear(ts, c) =>
-          val parts = ts.map((a, u) => s"(${int(a)}, ${term(u)})")
+          val parts = ts.map((a, u) => s"(${intT(a)}, ${term(u)})")
           node(s".linear ${list(parts)} ${int(c)}", sortId(sortOf(t)))
         case Term.Bool(f) => node(s".bterm ${formula(f)}", 0)
     )
@@ -362,7 +365,7 @@ private[vik] object LeanExport:
             case h: Hyp => s".hyp ${hyp(h)}"
             case Comb(factors, parts) =>
               val ps = parts.map(go)
-              s".comb ${list(factors.indices.map(i => s"(${rat(factors(i))}, ${ps(i)})"))}"
+              s".comb ${list(factors.indices.map(i => s"(${ratT(factors(i))}, ${ps(i)})"))}"
             case Round(of) => s".round ${go(of)}"
             case Split(reason, x, floor, ceil, low, high, except, at, strict) =>
               val l = go(low)
@@ -563,7 +566,7 @@ private[vik] object LeanExport:
           .toList
           .filter(_._2 != lia.Rational.zero)
           .sortBy(_._1)
-        list(f.map((n, a) => s"($n, ${rat(a)})"))
+        list(f.map((n, a) => s"($n, ${ratT(a)})"))
       }
       val inputIds = inputs.map(formula)
       val levelsText = levels.map((v, fs) => s"($v, ${list(fs.map(formula(_).toString))})")
