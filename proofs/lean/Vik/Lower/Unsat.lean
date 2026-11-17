@@ -432,12 +432,24 @@ structure CheckSpec (SP : SProblem) (P : Problem) (tr : Trace) (A : Answer) : Pr
   nodes : ∀ i < SP.nodes.length, tr.at i < P.nodes.length ∧
     ((∃ s, expect SP P tr i = some s ∧ fits P.sig P.nodes P.sortOf (tr.at i) s = true) ∨ tr.bvOk SP P i = true)
   inputs : ∀ f ∈ P.inputs, f < P.nodes.length ∧ ∃ w, tr.inputOk SP P f w = true
-  assumed : A.assumed = []
+  assumed : ∀ s ∈ A.assumed, ∀ fs, A.levels.lookup s = some fs →
+    ∀ f ∈ fs, f < P.nodes.length ∧ ∃ w, tr.inputOk SP P f w = true
+
+/-- A check over two lists of the same length covers each element of the first. -/
+theorem zip_all_left {α β : Type} {xs : List α} {ys : List β} {g : α × β → Bool}
+    (hl : xs.length = ys.length) (h : ∀ p ∈ xs.zip ys, g p = true) : ∀ x ∈ xs, ∃ y, g (x, y) = true := by
+  intro x hx
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hx
+  have hj' : j < ys.length := by omega
+  refine ⟨ys[j], h _ ?_⟩
+  have e : (xs.zip ys)[j]'(by simp; omega) = (xs[j], ys[j]) := List.getElem_zip
+  rw [← e]
+  exact List.getElem_mem _
 
 theorem check_spec {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} (h : tr.check SP P A = true) :
     CheckSpec SP P tr A := by
   simp only [Trace.check, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨⟨⟨⟨⟨⟨⟨hw, ht⟩, hs⟩, hg⟩, _⟩, hn⟩, hlen⟩, hi⟩, ha⟩ := h
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨hw, ht⟩, hs⟩, hg⟩, _⟩, hn⟩, hlen⟩, hi⟩, hal⟩, hlv⟩ := h
   refine ⟨hw, ht, sortsOk_spec hs, sigOk_spec hg, ?_, ?_, ?_⟩
   · intro i hi'
     have := hn i hi'
@@ -460,7 +472,13 @@ theorem check_spec {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} (h : 
     have := hi _ hm
     simp only [decide_eq_true_eq] at this
     exact ⟨this.1, _, this.2⟩
-  · exact ha
+  · intro s hs fs hfs f hf
+    obtain ⟨ws, hw⟩ := zip_all_left hal hlv s hs
+    simp only [hfs, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hw
+    obtain ⟨w, hw⟩ := zip_all_left (g := fun q => decide (q.1 < P.nodes.length) && tr.inputOk SP P q.1 q.2)
+      hw.1 (fun q hq => by simpa only [Bool.and_eq_true] using hw.2 q hq) f hf
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact ⟨hw.1, _, hw.2⟩
 
 section
 variable {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} {Ms : Surf.Model R U} {size : Val R U → Nat}
@@ -590,15 +608,14 @@ theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.n
     rw [List.getElem?_eq_none (by rw [Surf.values_length]; exact h')] at h
     cases h
 
-/-- The lowered inputs hold when the surface assertions do. -/
-theorem inputs_hold (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
-    (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) :
-    ∀ f ∈ P.inputs, Low.holds MI P.nodes f := by
+/-- A lowered formula with a reason that `Trace.inputOk` accepts holds when the
+    surface assertions do. -/
+theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
+    (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes a) {f : Nat} (hfl : f < P.nodes.length)
+    {w : InputWhy} (hw : tr.inputOk SP P f w = true) : Low.holds MI P.nodes f := by
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hrngP := low_rng hc hA hL
   have hco := corr hc hA hL
-  intro f hf
-  obtain ⟨hfl, w, hw⟩ := hc.inputs f hf
   unfold Low.holds
   cases w with
   | assert a =>
@@ -714,8 +731,13 @@ theorem Trace.unsat {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer}
   have hcs := check_spec hc
   have hAc := accepted hA
   apply Problem.accepts_sound hA (lowModel SP P tr Ms) (fun v => size (dec v))
-    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed hAc.wf) (inputs_hold hcs hAc hL hfloor hin)
-  · intro s hs; rw [hcs.assumed] at hs; cases hs
+    (lowModel_laws hcs.sorts hcs.sig hL hcs.wf hcs.typed hAc.wf) 
+    (fun f hf => by
+      obtain ⟨hfl, _, hw⟩ := hcs.inputs f hf
+      exact input_holds hcs hAc hL hfloor hin hfl hw)
+  · intro s hs fs hfs f hf
+    obtain ⟨hfl, _, hw⟩ := hcs.assumed s hs fs hfs f hf
+    exact input_holds hcs hAc hL hfloor hin hfl hw
   · exact low_rng hcs hAc hL
 
 end Vik.Lower
