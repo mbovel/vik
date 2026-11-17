@@ -18,7 +18,7 @@ jobs:
           java-version: 17
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
+      - run: sbt --server formatCheckAll # every project, the ones outside the root aggregate too (build.sbt)
   test:
     # The JVM suites and the corpus, on the JDK the evaluation runs on (26) and the oldest one supported
     # (17); 25, between them, is left to the bench job.
