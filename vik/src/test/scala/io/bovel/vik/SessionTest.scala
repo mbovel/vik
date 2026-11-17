@@ -49,7 +49,7 @@ class SessionTest extends munit.FunSuite:
     )
   }
 
-  // Twelve applications: a group that large has its pairs left to the model (`Encoder.pairsTheModelBreaks`).
+  // Twelve applications of one function: their pairs are left to the model (`Encoder.unsettledPair`).
   private val manyApplications =
     "(declare-fun f (Int) Int)(declare-const a Int)(declare-const b Int)" +
       (1 to 10).map(i => s"(declare-const x$i Int)(assert (= (f x$i) $i))").mkString +
@@ -68,7 +68,7 @@ class SessionTest extends munit.FunSuite:
     assertEquals(more, List("unsat"))
   }
 
-  test("a large function group still meets the arithmetic") {
+  test("many applications of a function still meet the arithmetic") {
     assertModelHolds(manyApplications + "(assert (<= a b))(assert (<= b a))", expected = false)
     assertModelHolds(manyApplications + "(assert (= x1 x2))", expected = false)
     assertModelHolds(manyApplications + "(assert (<= 0 a))(assert (<= a 1))(assert (<= 0 b))(assert (<= b 1))")
