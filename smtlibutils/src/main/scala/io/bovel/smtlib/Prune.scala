@@ -43,14 +43,14 @@ import io.bovel.smtlib.sexpr.{SExpr, SExprParser}
  *  the statuses is wrong, or the canonical form is.
  *
  *  `trivial`: in each family, the trivial files beyond `keep`. A file is
- *  trivial when VIK gives its statuses within `fuel` (`Session.spent`) and z3 gives them
- *  without a conflict (in any of its statistics), so that what is easy for
- *  VIK's preprocessing alone stays; a wrong answer, however quick, is no reason
- *  to go. The family is the file's directory and its name up to `__` (the
- *  importer's families) or up to its hash (a Scala 3 dump's test). The prefixes
- *  are required: the regression tests are small and easy on purpose, and the
- *  release samples were chosen for their spread. See [[spread]] for the files
- *  kept.
+ *  trivial when VIK gives its statuses within `fuel` (`Session.spent`) and z3
+ *  gives them without a conflict (in any of its statistics), so that what is
+ *  easy for VIK's preprocessing alone stays; a wrong answer, however quick, is
+ *  no reason to go. The family is the file's directory and its name up to `__`
+ *  (the importer's families) or up to its hash (a Scala 3 dump's test). The
+ *  prefixes are required: the regression tests are small and easy on purpose,
+ *  and the release samples were chosen for their spread. See [[spread]] for the
+ *  files kept.
  *
  *  `unused`: the files that apply no operation of the theory (`bv`, `arith`,
  *  `array`; see [[Alike.operations]]), such as the bit-vector Scala 3 dumps
