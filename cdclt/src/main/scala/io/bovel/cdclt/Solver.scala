@@ -196,8 +196,8 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def addClause(lits: Array[Lit]): Unit =
     backtrack(0) // a clause added between two solves leaves the previous model
-    val c = lits.distinct
-    if c.exists(l => c.contains(l.neg)) then return // a tautology
+    val c = distinct(lits)
+    if tautology(c) then return
     // Literals false at level 0 are false for good: move the others first, and treat the clause accordingly.
     val alive = c.count(l => value(l.index) >= 0)
     if alive == 0 then
@@ -218,6 +218,46 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     if c.length >= 2 then
       watches(c(0).index) += index
       watches(c(1).index) += index
+
+  /** The literals of a clause without the repeated ones, in the order of their
+   *  first occurrences, in an array of its own. Clauses are short, and every
+   *  one the encoder makes comes through here: compared as the integers they
+   *  are, where a set would box each of them.
+   */
+  private def distinct(lits: Array[Lit]): Array[Lit] =
+    if lits.length > 32 then lits.distinct
+    else
+      val out = new Array[Int](lits.length)
+      var n = 0
+      var i = 0
+      while i < lits.length do
+        val l = lits(i).index
+        var j = 0
+        while j < n && out(j) != l do j += 1
+        if j == n then
+          out(n) = l
+          n += 1
+        i += 1
+      val kept = new Array[Lit](n)
+      i = 0
+      while i < n do
+        kept(i) = Lit.fromIndex(out(i))
+        i += 1
+      kept
+
+  /** Whether a clause holds a literal and its negation. */
+  private def tautology(c: Array[Lit]): Boolean =
+    if c.length > 32 then c.exists(l => c.contains(l.neg))
+    else
+      var i = 0
+      while i < c.length do
+        val n = c(i).neg.index
+        var j = i + 1
+        while j < c.length do
+          if c(j).index == n then return true
+          j += 1
+        i += 1
+      false
 
   private def enqueue(lit: Lit, why: Int): Unit =
     propagations += 1
