@@ -384,7 +384,7 @@ lazy val root = (project in file("."))
       IO.copyDirectory(directory, destination / "vik")
       IO.copyDirectory(javascript, destination / "vik-js")
       streams.value.log.info(
-        s"the solver (${linked.jsFileName}) is linked into $destination as WebAssembly and as JavaScript"
+        s"the solver (${linked.moduleFileName}) is linked into $destination as WebAssembly and as JavaScript"
       )
     },
     ScalaUnidoc / unidoc / scalacOptions ++= Seq(
