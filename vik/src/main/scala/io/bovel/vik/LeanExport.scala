@@ -232,6 +232,58 @@ private[vik] object LeanExport:
       }
     )
 
+    // Applications and equalities, by their nodes: `fixSorts` gives a number
+    // or a witness the bit-vector sort they are used at.
+    private val appNodes = ArrayBuffer.empty[(Int, List[Int])]
+    private val eqNodes = ArrayBuffer.empty[(Int, Int)]
+
+    /** Vik lowers bit-vectors to integers, so a numeral or an answer's witness
+     *  has the sort `Int` where it stands for a bit-vector: an argument of a
+     *  function of bit-vectors, or a side of an equality with one. Such a node
+     *  gets the bit-vector sort, if it is used at no other: a number in its
+     *  range, a witness valued in range.
+     */
+    private def fixSorts(): Unit =
+      val widths = bvIndex.toMap
+      val fnParams = """\.fn \[([0-9, ]*)\] \d+""".r
+      def params(f: Int): List[Int] = sorts(nodeSorts(f)) match
+        case fnParams(ps) => if ps.nn.isEmpty then Nil else ps.nn.split(", ").nn.toList.map(_.nn.toInt)
+        case _ => Nil
+      val firstWitness = surface.fold(Int.MaxValue)(sf => sf.decls.length + sf.mints.length)
+      val names = decls.iterator.map((n, d) => (d, n)).toMap
+      val mintsByName = surface.fold(Map.empty[String, Mint])(_.mints.toMap)
+      // a rule's symbol in the range of `w` whatever its arguments (`Rule.bvOut`)
+      def bvOut(m: Mint, w: Int): Boolean = m match
+        case Mint.Rule(Rule.Modulo(_, w1, _, _), 0) => w1 == w
+        case Mint.Rule(Rule.Int2Bv(_, w1), 0) => w1 == w
+        case Mint.Rule(Rule.UDiv(_, _, w1), _) => w1 == w
+        case Mint.Rule(Rule.Bits(_, _) | Rule.SModZ(_, _, _), _) => w > 0
+        case _ => false
+      def retarget(x: Int, p: Int): Boolean =
+        if nodeSorts(x) != 1 || !widths.contains(p) then false
+        else
+          val text = nodes(x)
+          val ok =
+            if text.startsWith(".num ") then
+              val c = BigInt(text.stripPrefix(".num ").stripPrefix("(").stripSuffix(")"))
+              c >= 0 && c < BigInt(2).pow(widths(p))
+            else if text.startsWith(".const ") then
+              val n = names(text.stripPrefix(".const ").toInt)
+              declSorts(n) == 1 && (decls(n) >= firstWitness || mintsByName.get(n).exists(bvOut(_, widths(p)))) && {
+                declSorts(n) = p
+                true
+              }
+            else false
+          if ok then nodeSorts(x) = p
+          ok
+      var changed = true
+      while changed do
+        changed = false
+        for (f, as) <- appNodes; (x, p) <- as.zip(params(f)) do changed |= retarget(x, p)
+        for (a, b) <- eqNodes do
+          changed |= retarget(a, nodeSorts(b))
+          changed |= retarget(b, nodeSorts(a))
+
     private val termIds = HashMap.empty[Term, Int]
     def term(t: Term): Int = termIds.getOrElseUpdate(
       t,
@@ -248,8 +300,10 @@ private[vik] object LeanExport:
           val as = args.map(term)
           val result = fun match
             case Term.Const(n) => results.get(declSorts(n))
-            case _ => None
-          node(s".app $f ${list(as.map(_.toString))}", result.getOrElse(sortId(sortOf(t))))
+            case _ => results.get(nodeSorts(f))
+          val i = node(s".app $f ${list(as.map(_.toString))}", result.getOrElse(sortId(sortOf(t))))
+          appNodes += ((f, as))
+          i
         case Term.Num(v) => node(s".num ${int(v)}", 1)
         case Term.Linear(ts, c) =>
           val parts = ts.map((a, u) => s"(${intT(a)}, ${term(u)})")
@@ -270,7 +324,10 @@ private[vik] object LeanExport:
           case Implies(a, b) => s".implies ${formula(a)} ${formula(b)}"
           case Iff(a, b) => s".iff ${formula(a)} ${formula(b)}"
           case Ite(c, a, b) => s".ite ${formula(c)} ${formula(a)} ${formula(b)}"
-          case Eq(a, b) => s".eq ${term(a)} ${term(b)}"
+          case Eq(a, b) =>
+            val (x, y) = (term(a), term(b))
+            eqNodes += ((x, y))
+            s".eq $x $y"
           case Pred(t) => s".pred ${term(t)}"
           case Le(a, b) => s".le ${term(a)} ${term(b)}"
           case Less(a, b) => s".lt ${term(a)} ${term(b)}"
@@ -460,6 +517,7 @@ private[vik] object LeanExport:
         case t: Term => term(t)
         case f: Formula => formula(f)
       }
+      fixSorts()
       val mints = sf.mints.map((_, m) =>
         m match
           case Mint.Ite(i, _) => s".ite $i"
@@ -599,6 +657,7 @@ private[vik] object LeanExport:
       val trueNode = classNode(trueClass)
       val falseNode = classNode(falseClass)
       formula(Formula.True)
+      fixSorts()
       val declList = decls.keysIterator.map(declSorts(_).toString).toList
       val stores = decls.keysIterator.filter(_.startsWith("store!")).map(decls(_).toString).toList
       val b = StringBuilder(options)
