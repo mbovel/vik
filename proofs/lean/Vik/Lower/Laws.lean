@@ -64,6 +64,10 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
     (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
       SP.sig.sorts[s]? = some (if r.isInt then .int else .real)) ∧
       ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
+  witness : ∀ m s, tr.mints[m]? = some (.witness s) →
+    P.sig.decls[SP.sig.decls.length + m]? = some s ∧
+      (SP.sig.sorts[s]? = some .bool ∨ SP.sig.sorts[s]? = some .int ∨ SP.sig.sorts[s]? = some .real ∨
+        ∃ w, SP.sig.sorts[s]? = some (.bv w))
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
   bvIndex : P.bvIndex = SP.bvIndex
@@ -73,7 +77,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
-  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
+  refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
     rw [← List.getElem?_map, ← hs, List.getElem?_take_of_lt hs']
   · intro k hk
@@ -150,6 +154,19 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     split at hd1
     · rename_i s e; exact ⟨s, e, by simpa using hd1⟩
     · cases hd1
+  · intro m s hms
+    have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hms).1
+    have := hm m hlt
+    rw [hms] at this
+    simp only [Bool.and_eq_true, beq_iff_eq] at this
+    obtain ⟨hd1, hs1⟩ := this
+    refine ⟨hd1, ?_⟩
+    split at hs1
+    · exact .inl (by assumption)
+    · exact .inr (.inl (by assumption))
+    · exact .inr (.inr (.inl (by assumption)))
+    · rename_i w e; exact .inr (.inr (.inr ⟨w, e⟩))
+    · cases hs1
   · intro n hn
     have := hst n hn
     simp only [decide_eq_true_eq] at this
@@ -416,6 +433,27 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
         simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
         exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+      | witness s0 =>
+        obtain ⟨hd1, hs1⟩ := hG.witness m s0 hx
+        rw [h] at hd1; cases hd1
+        rw [const_witness SP P tr Ms hk (by rw [hm]; exact hx)]
+        rcases hs1 with hs1 | hs1 | hs1 | ⟨w, hs1⟩
+        · have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false, hs1]
+          exact ⟨.bool false, (hM.bool s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+        · have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false, hs1]
+          exact ⟨.num ((0 : Int) : R), (hM.int s _ hs1).mpr ⟨_, rfl⟩, by simp [enc, Ring.intCast_zero]⟩
+        · have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false, hs1]
+          exact ⟨.num 0, (hM.real s _ hs1).mpr ⟨_, rfl⟩, by simp [enc]⟩
+        · have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = some w := by simp [SProblem.sortWidth, hs1]
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_some, if_true, hs1]
+          exact ⟨0, by simp [Ring.intCast_zero]⟩
       | real r =>
         obtain ⟨⟨s1, hd1, hs1⟩, hargs⟩ := hG.real m r hx
         rw [h] at hd1; cases hd1
