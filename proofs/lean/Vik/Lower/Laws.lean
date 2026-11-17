@@ -58,7 +58,8 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
       SP.sig.sorts.length ≤ ds ∧ P.sig.sorts[ds]? = some (.fn [s, idx, el] s) ∧
       ∀ m' s', m' ≠ m → tr.mints[m']? = some (.store s') → P.sig.decls[SP.sig.decls.length + m']? ≠ some ds
   rule : ∀ m r j, tr.mints[m]? = some (.rule r j) →
-    (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧ SP.sig.sorts[s]? = some .int) ∧
+    (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
+      (SP.sig.sorts[s]? = some .int ∨ ∃ w, SP.sig.sorts[s]? = some (.bv w) ∧ r.bvOut j w = true)) ∧
       ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
   real : ∀ m r, tr.mints[m]? = some (.real r) →
     (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
@@ -73,8 +74,9 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
   stores : ∀ n ∈ P.stores, SP.sig.decls.length ≤ n ∧ ∃ s, tr.mints[n - SP.sig.decls.length]? = some (.store s)
   datatypes : P.datatypes = SP.datatypes
   bvIndex : P.bvIndex = SP.bvIndex
-  bvNodes : ∀ j < P.nodes.length, (SP.sortWidth (P.sortOf[j]?.getD 0)).isSome →
-    (∃ k, P.nodes[j]? = some (.const k)) ∨ ∃ f xs, P.nodes[j]? = some (.app f xs)
+  bvNodes : ∀ j < P.nodes.length, ∀ w, SP.sortWidth (P.sortOf[j]?.getD 0) = some w →
+    (∃ k, P.nodes[j]? = some (.const k)) ∨ (∃ f xs, P.nodes[j]? = some (.app f xs)) ∨
+      ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
 
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
@@ -144,7 +146,11 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     obtain ⟨hd1, hargs⟩ := this
     refine ⟨?_, hargs⟩
     split at hd1
-    · rename_i s e; exact ⟨s, e, by simpa using hd1⟩
+    · rename_i s e
+      split at hd1
+      · rename_i hs; exact ⟨s, e, .inl hs⟩
+      · rename_i w hs; exact ⟨s, e, .inr ⟨w, hs, hd1⟩⟩
+      · cases hd1
     · cases hd1
   · intro m r hmr
     have hlt : m < tr.mints.length := (List.getElem?_eq_some_iff.mp hmr).1
@@ -182,16 +188,17 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     split at this
     · rename_i s he; exact ⟨s, he⟩
     · exact absurd this.2 (by simp)
-  · intro j hj hb
+  · intro j hj w hb
     have := hbn j hj
-    rw [lookup_bvIndex] at this
-    simp only [Bool.or_eq_true, Option.isNone_iff_eq_none] at this
-    rcases this with h' | h'
-    · rw [h'] at hb; cases hb
-    · split at h'
-      · rename_i k e; exact .inl ⟨k, e⟩
-      · rename_i f xs e; exact .inr ⟨f, xs, e⟩
-      · cases h'
+    rw [lookup_bvIndex, hb] at this
+    simp only at this
+    split at this
+    · rename_i k e; exact .inl ⟨k, e⟩
+    · rename_i f xs e; exact .inr (.inl ⟨f, xs, e⟩)
+    · rename_i c e
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at this
+      exact .inr (.inr ⟨c, e, this.1, this.2⟩)
+    · cases this
 
 end
 
@@ -434,13 +441,19 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         simp only [lowModel, Nat.not_lt.mpr hle, if_false]
         exact ⟨_, rfl, ⟨hk, s0, by rw [hm]; exact hx⟩, h⟩
       | rule r j =>
-        obtain ⟨⟨s1, hd1, hs1⟩, hargs⟩ := hG.rule m r j hx
-        rw [h] at hd1; cases hd1
-        rw [const_rule SP P tr Ms hwl hx (fun x hx' => (hargs x hx').2)]
-        have hsl := lt_of_get hs1
-        have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
-        simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
-        exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+        obtain ⟨⟨s1, hd1, hs1 | ⟨w, hs1, _⟩⟩, hargs⟩ := hG.rule m r j hx
+        · rw [h] at hd1; cases hd1
+          rw [const_rule SP P tr Ms hwl hx (fun x hx' => (hargs x hx').2)]
+          have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = none := sortWidth_none hs1 (by intro _ e; cases e)
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_none, Bool.false_eq_true, if_false]
+          exact ⟨.num _, (hM.int s _ hs1).mpr ⟨_, rfl⟩, rfl⟩
+        · rw [h] at hd1; cases hd1
+          rw [const_rule SP P tr Ms hwl hx (fun x hx' => (hargs x hx').2)]
+          have hsl := lt_of_get hs1
+          have hb : SP.sortWidth s = some w := by simp [SProblem.sortWidth, hs1]
+          simp only [lowModel, hsl, if_true, hb, Option.isSome_some, if_true, hs1]
+          exact ⟨_, rfl⟩
       | pick i =>
         obtain ⟨hil, hd'⟩ := hG.pick m i hx
         rw [h] at hd'; cases hd'
