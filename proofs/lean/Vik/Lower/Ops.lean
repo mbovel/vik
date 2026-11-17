@@ -444,7 +444,9 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
           rw [if_pos (by omega), Low.val_num hwP (by simpa using hb)]
         · rename_i h0
           rw [if_neg (by omega), divOk_sound hwP htP hG hML hrng hb la, hyc]; simp
-      · cases hb
+      · rw [sym_val hwP hG (beq_iff_eq.mp hb)]
+        simp only [Rule.ival, ea, eb, intOf_num, BvBin.apply, BvBin.width]
+        rw [← Vik.udiv_val, Int.emod_eq_of_lt (Vik.val_nonneg _) (Vik.val_lt _)]
     case urem =>
       split at hb
       · rename_i c hc
@@ -456,7 +458,9 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
           rw [if_pos (by omega), beq_iff_eq.mp hb, ea]
         · rename_i h0
           rw [if_neg (by omega), divOk_sound hwP htP hG hML hrng hb la, hyc]; simp
-      · cases hb
+      · rw [sym_val hwP hG (beq_iff_eq.mp hb)]
+        simp only [Rule.ival, ea, eb, intOf_num, BvBin.apply, BvBin.width]
+        rw [show x.umod y = x % y from rfl, ← Vik.urem_val, Int.emod_eq_of_lt (Vik.val_nonneg _) (Vik.val_lt _)]
     case ashr =>
       split at hb
       · rename_i c hc

@@ -610,7 +610,8 @@ theorem inputs_hold (hin : ∀ a ∈ SP.asserts, Surf.holds Ms.toInterp SP.nodes
       split at hfs
       · rename_i s hs
         rw [fits_sound hM hA.wf hA.typed hrngP f hfl _ hfs]
-        exact ruleFacts_hold hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hco hok hf s
+        exact ruleFacts_hold hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hco
+          (exactOk_spec hA.wf hA.typed hc.sig hM hrngP) hok hf s
           (List.mem_of_getElem? hs)
       · cases hfs
     · cases hfs
