@@ -20,12 +20,12 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - run: sbt --server formatCheckAll # every project, the ones outside the root aggregate too (build.sbt)
   test:
-    # The JVM suites and the corpus, on the JDK the evaluation runs on (26) and the oldest one supported
-    # (17); 25, between them, is left to the bench job.
+    # The JVM suites and the corpus, on the newest JDK (27) and the oldest one supported (17); 25, between
+    # them, the one the dev container and the evaluation run on, is left to the bench job.
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 26]
+        java: [17, 27]
     name: test (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
     # The corpus test's five seconds are for one's own machine, where a file at the edge is caught; on a
@@ -118,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [25] # one JDK: the benchmarks are dry runs, and the tests cover 17 and 26
+        java: [25] # one JDK: the benchmarks are dry runs, and the tests cover 17 and 27
     name: bench (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
     env:
