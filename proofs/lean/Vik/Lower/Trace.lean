@@ -2,6 +2,7 @@ import Vik.Surface
 import Vik.Lower.Shape
 import Vik.Cert.Extend
 import Vik.Rules
+import Vik.Values
 
 /-!
 # Lowering traces
@@ -577,6 +578,164 @@ def expect (i : Nat) : Option Shape :=
   | .bvbin _ _ _ _ => none
   | .int2bv _ _ => none
 
+/-! ## Operations through rules -/
+
+/-- The constant a linear combination stands for, if it has no unknowns. -/
+def constOf (f : Lia.Form × Int) : Option Int := if (canon f.1).isEmpty then some f.2 else none
+
+/-- A unary operation on a constant bit-vector. -/
+def bvunConst (op : BvUn) (w : Nat) (a : Int) : Int := Vik.val (op.apply (BitVec.ofInt w a))
+
+/-- A binary operation on constant bit-vectors. -/
+def bvbinConst (op : BvBin) (w : Nat) (a b : Int) : Int :=
+  Vik.val (op.apply (BitVec.ofInt w a) (BitVec.ofInt w b))
+
+/-- Whether node `l` is `v mod 2^w`, `f` the linear combination of `v`: the
+    constant, or the remainder of a `modulo` of a node of shape `f`. -/
+def Trace.modOk (l : Nat) (f : Lia.Form × Int) (w : Nat) : Bool :=
+  match constOf f with
+  | some c => P.nodes[l]? == some (.num (c % 2 ^ w))
+  | none =>
+    match tr.symAt SP P l with
+    | some (.modulo v w' _ _, 0) => w' == w && fits P.sig P.nodes P.sortOf v (.num f.1 f.2)
+    | _ => false
+
+/-- Whether node `l` is the quotient (`j = 0`) or the remainder (`j = 1`) of
+    `v` by `d`, `f` the linear combination of `v`. -/
+def Trace.divOk (l : Nat) (f : Lia.Form × Int) (d : Int) (j : Nat) : Bool :=
+  match constOf f with
+  | some c => P.nodes[l]? == some (.num (if j = 0 then c / d else c % d))
+  | none =>
+    match tr.symAt SP P l with
+    | some (.divide v d' _, j') => d' == d && j' == j && fits P.sig P.nodes P.sortOf v (.num f.1 f.2)
+    | _ => false
+
+/-- Whether node `l` is the symbol of a `cases` on the formula `c`, between
+    the linear combinations `thn` and `els`. -/
+def Trace.casesOk (l : Nat) (c : Shape) (thn els : Lia.Form × Int) : Bool :=
+  match tr.symAt SP P l with
+  | some (.cases c' t e _ _, 0) =>
+    fits P.sig P.nodes P.sortOf c' c && fits P.sig P.nodes P.sortOf t (.num thn.1 thn.2) &&
+      fits P.sig P.nodes P.sortOf e (.num els.1 els.2)
+  | _ => false
+
+/-- A symbol as a linear combination. -/
+def symForm (x : Option Nat) (a : Rat) : Lia.Form := match x with
+  | some x => [(x, a)]
+  | none => []
+
+/-- `bvsdiv`, `bvsrem` and `bvsmod` of the lowered node `t` by the constant
+    `c`, at node `l`. -/
+def Trace.sdivOk (op : BvBin) (w l t : Nat) (c : Int) : Bool :=
+  let T := smodT c w
+  if T = 0 then
+    match op with
+    | .sdiv => tr.casesOk SP P l (negS P t w) ([], 1) ([], 2 ^ w - 1)
+    | _ => l == t
+  else
+    let r := Rule.sdivide t w T.natAbs false
+    match tr.symNode SP P r 0, tr.symNode SP P r 1 with
+    | some q, some rm =>
+      match op with
+      | .sdiv => tr.modOk SP P l ([(q, if 0 < T then 1 else -1)], 0) w
+      | .srem => tr.modOk SP P l ([(rm, 1)], 0) w
+      | _ =>
+        match tr.symNode SP P (.smodz t c w) 0 with
+        | some z => tr.modOk SP P l ([(rm, 1), (z, (T : Rat))], 0) w
+        | none => false
+    | _, _ => false
+
+/-- `bvashr` of the lowered node `t` by the constant `c`, at node `l`. -/
+def Trace.ashrOk (w l t : Nat) (c : Int) : Bool :=
+  match tr.symAt SP P l with
+  | some (.modulo v w' _ _, 0) =>
+    w' == w &&
+      if w ≤ c then tr.casesOk SP P v (negS P t w) ([], -1) ([], 0)
+      else tr.symAt SP P v == some (.sdivide t w (2 ^ c.toNat) true, 0)
+  | _ => false
+
+/-- The quotient of `extract`, `t` divided by `2^j`, at node `x`. -/
+def Trace.extractQ (t : Nat) (f : Lia.Form × Int) (j x : Nat) : Bool :=
+  if j = 0 then x == t else tr.divOk SP P x f (2 ^ j) 0
+
+/-- A rotation of the lowered node `t` to the left by `0 < s < w`, at node
+    `l`: `2^s·r + q` for `t = 2^(w-s)·q + r`. -/
+def Trace.rotOk (l t w s : Nat) : Bool :=
+  0 < s && s < w &&
+    let r := Rule.divide t (2 ^ (w - s)) (2 ^ s - 1)
+    match tr.symNode SP P r 0, tr.symNode SP P r 1 with
+    | some q, some rm => fits P.sig P.nodes P.sortOf l (.num [(rm, ((2 ^ s : Int) : Rat)), (q, ((1 : Int) : Rat))] 0)
+    | _, _ => false
+
+/-- A binary bit-vector operation, not on two constants, at node `l`. -/
+def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
+  let fa := linOf P tr a
+  let fb := linOf P tr b
+  let isNum (c : Int) := P.nodes[l]? == some (.num c)
+  match op with
+  | .add => tr.modOk SP P l (fa.1 ++ fb.1, fa.2 + fb.2) w
+  | .sub => tr.modOk SP P l (fa.1 ++ Lia.neg fb.1, fa.2 - fb.2) w
+  | .mul =>
+    match mul2 fa fb with
+    | some p => tr.modOk SP P l p w
+    | none => false
+  | .comp => tr.casesOk SP P l (eqI (.same (tr.at a)) (.same (tr.at b))) ([], 1) ([], 0)
+  | _ =>
+    match constOf fb with
+    | some c =>
+      match op with
+      | .shl =>
+        if w ≤ c then isNum 0
+        else tr.modOk SP P l (Lia.scale ((2 ^ c.toNat : Int) : Rat) fa.1, 2 ^ c.toNat * fa.2) w
+      | .lshr => if w ≤ c then isNum 0 else tr.divOk SP P l fa (2 ^ c.toNat) 0
+      | .udiv => if c = 0 then isNum (2 ^ w - 1) else tr.divOk SP P l fa c 0
+      | .urem => if c = 0 then l == tr.at a else tr.divOk SP P l fa c 1
+      | .sdiv | .srem | .smod => 0 < w && tr.sdivOk SP P op w l (tr.at a) c
+      | .ashr => 0 < w && tr.ashrOk SP P w l (tr.at a) c
+      | _ => false
+    | none => false
+
+/-- Whether the lowering of surface node `i`, a bit-vector operation, is the
+    combination of rule symbols the lowering gives it. -/
+def Trace.bvOk (i : Nat) : Bool :=
+  let l := tr.at i
+  let isNum (c : Int) := P.nodes[l]? == some (.num c)
+  match SP.nodes[i]? with
+  | some (.bvun op w a) =>
+    let fa := linOf P tr a
+    match constOf fa with
+    | some ca => isNum (bvunConst op w ca)
+    | none =>
+      match op with
+      | .neg => tr.modOk SP P l (Lia.neg fa.1, -fa.2) w
+      | .extract hi lo =>
+        lo ≤ hi && hi < w &&
+          if hi + 1 = w then tr.extractQ SP P (tr.at a) fa lo l
+          else
+            match tr.symAt SP P l with
+            | some (.divide v d _, 1) => d == 2 ^ (hi - lo + 1) && tr.extractQ SP P (tr.at a) fa lo v
+            | _ => false
+      | .rotateLeft k => tr.rotOk SP P l (tr.at a) w (k % w)
+      | .rotateRight k => tr.rotOk SP P l (tr.at a) w ((w - k % w) % w)
+      | .signExtend k =>
+        0 < k && tr.casesOk SP P l (negS P (tr.at a) w) (fa.1, fa.2 + (2 ^ (w + k) - 2 ^ w)) fa
+      | _ => false
+  | some (.bvbin op w a b) =>
+    let fa := linOf P tr a
+    let fb := linOf P tr b
+    match constOf fa, constOf fb with
+    | some ca, some cb => isNum (bvbinConst op w ca cb)
+    | _, _ => tr.binOk SP P op w l a b
+  | some (.bv2int true w a) =>
+    match constOf (linOf P tr a) with
+    | some ca => 0 < w && isNum (signedI w ca)
+    | none => 0 < w && tr.signedOk SP P (tr.at a) w l
+  | some (.int2bv w a) =>
+    match constOf (linOf P tr a) with
+    | some ca => isNum (ca % 2 ^ w)
+    | none => tr.symAt SP P l == some (.int2bv (tr.at a) w, 0)
+  | _ => false
+
 /-- The facts of the `ite` symbol `k`: `c → k = t`, or `¬c → k = e`. -/
 def iteFact (k : Nat) (thn : Bool) : Option Shape :=
   if k < SP.sig.decls.length then none
@@ -684,9 +843,9 @@ def Trace.check (A : Answer) : Bool :=
   tr.node.length == SP.nodes.length &&
   (List.range SP.nodes.length).all (fun i =>
     tr.at i < P.nodes.length &&
-      match expect SP P tr i with
-      | some s => fits P.sig P.nodes P.sortOf (tr.at i) s
-      | none => false) &&
+      ((match expect SP P tr i with
+        | some s => fits P.sig P.nodes P.sortOf (tr.at i) s
+        | none => false) || tr.bvOk SP P i)) &&
   P.inputs.length == tr.inputs.length &&
   (P.inputs.zip tr.inputs).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2) &&
   A.assumed == []

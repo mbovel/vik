@@ -1,4 +1,4 @@
-import Vik.Lower.Facts
+import Vik.Lower.Ops
 
 /-!
 # Lowered nodes take the values of their surface nodes
@@ -429,7 +429,7 @@ structure CheckSpec (SP : SProblem) (P : Problem) (tr : Trace) (A : Answer) : Pr
   sorts : SortsSpec SP
   sig : SigSpec SP P tr
   nodes : ∀ i < SP.nodes.length, tr.at i < P.nodes.length ∧
-    ∃ s, expect SP P tr i = some s ∧ fits P.sig P.nodes P.sortOf (tr.at i) s = true
+    ((∃ s, expect SP P tr i = some s ∧ fits P.sig P.nodes P.sortOf (tr.at i) s = true) ∨ tr.bvOk SP P i = true)
   inputs : ∀ f ∈ P.inputs, f < P.nodes.length ∧ ∃ w, tr.inputOk SP P f w = true
   assumed : A.assumed = []
 
@@ -443,9 +443,12 @@ theorem check_spec {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} (h : 
     simp only [decide_eq_true_eq] at this
     refine ⟨this.1, ?_⟩
     have h2 := this.2
-    split at h2
-    · rename_i s hs'; exact ⟨s, hs', h2⟩
-    · cases h2
+    simp only [Bool.or_eq_true] at h2
+    rcases h2 with h2 | h2
+    · split at h2
+      · rename_i s hs'; exact .inl ⟨s, hs', h2⟩
+      · cases h2
+    · exact .inr h2
   · intro f hf
     obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hf
     have hj' : j < tr.inputs.length := by omega
@@ -567,10 +570,12 @@ theorem corr : ∀ i < SP.nodes.length, ρ (tr.at i) = enc (vs i) := by
   induction i using Nat.strongRecOn with
   | ind i ih =>
   intro hi
-  obtain ⟨hlt, s, hs, hf⟩ := hc.nodes i hi
-  rw [fits_sound hM hA.wf hA.typed hrngP _ hlt s hf]
   obtain ⟨n, hn⟩ : ∃ n, SP.nodes[i]? = some n := ⟨_, List.getElem?_eq_getElem hi⟩
-  exact expect_sound hL.sound hc.wf hc.typed hA.wf hn hs (fun c hci => ih c hci (by omega))
+  obtain ⟨hlt, ⟨s, hs, hf⟩ | hb⟩ := hc.nodes i hi
+  · rw [fits_sound hM hA.wf hA.typed hrngP _ hlt s hf]
+    exact expect_sound hL.sound hc.wf hc.typed hA.wf hn hs (fun c hci => ih c hci (by omega))
+  · exact bvOk_sound hL.sound hc.wf hc.typed hA.wf hA.typed hc.sig hM hrngP hn hlt hb
+      (fun c hci => ih c hci (by omega))
 
 theorem lt_of_holds {a : Nat} (h : Surf.holds Ms.toInterp SP.nodes a) : a < SP.nodes.length := by
   rcases Nat.lt_or_ge a SP.nodes.length with h' | h'
