@@ -30,6 +30,11 @@ final class Session(
   private val parser = s2.Parser()
   private val lowerer = Lowerer()
   private var current = initial
+  // With proofs, each command's lowering is checked against a replay of it: a proof refutes the surface
+  // script only if every lowered assertion is the lowering of one, or a definition of a minted symbol.
+  private val loweringCheck = if initial.proofs then LoweringCheck() else null
+  private val loweringErrors = ArrayBuffer.empty[String]
+  lowerer.tracing = initial.proofs
   current.produceModels = false // a walk per sat: paid only once the commands ask (see play)
 
   /** The solver underneath (`reset` replaces it). */
@@ -72,13 +77,26 @@ final class Session(
    */
   private def command(c: s2.Command): List[String] = c match
     case s2.Command.GetValue(items) =>
-      val lowered = lowerer.commands(List(c))
+      val lowered = lowering(c)
       play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
       current.model() match
         case Some(m) =>
           List(items.map((source, item) => s"($source ${lowerer.evaluate(item, m)})").mkString("(", " ", ")"))
         case None => play(List(lowered.last))
-    case _ => play(lowerer.commands(List(c)))
+    case _ => play(lowering(c))
+
+  private def lowering(c: s2.Command): List[Command] =
+    val lowered = lowerer.commands(List(c))
+    if loweringCheck != null then
+      val made = lowerer.intros.toList
+      lowerer.intros.clear()
+      for error <- loweringCheck.command(c, lowered, made) do loweringErrors += s"lowering: $error"
+    lowered
+
+  /** With proofs: the errors of the checks of the lowering so far, then those
+   *  of the solver's proof of its last unsat ([[Solver.checkProof]]).
+   */
+  def checkProof(): List[String] = loweringErrors.toList ++ current.checkProof()
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
