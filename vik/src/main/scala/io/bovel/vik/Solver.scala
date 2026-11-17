@@ -313,6 +313,10 @@ final class Solver(val simplify: Boolean = true):
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
     e.solve(assumed, keepGoing) match
+      case cdclt.Solver.Result.Sat(_) if e.boundFields() =>
+        // A sat found without the bounds on the finite-sort fields of the datatype terms: searched again
+        // with them (see `Encoder.boundFields`).
+        decide(keepGoing)
       case cdclt.Solver.Result.Sat(_) =>
         lastCore = Nil
         Result.Sat
@@ -329,9 +333,10 @@ final class Solver(val simplify: Boolean = true):
  *  variables of a LIA solver and `Le` atoms into bounds on them. Datatypes are
  *  rules of the e-graph ([[AdtRules]]): the encoder registers their symbols'
  *  classes and asserts, for every term of a datatype sort, that one of its
- *  testers holds (and, for a term of a finite datatype sort, does the same for
- *  its selector terms, recursively, so that the search is complete on finite
- *  sorts).
+ *  testers holds (and, for its selector terms of a finite sort, Boolean or a
+ *  finite datatype, that they have a value of that sort, recursively, so that
+ *  the search is complete on finite sorts; only after a first `sat`, which they
+ *  then check).
  */
 object Solver:
   /** The kinds of work the fuel counts, with the cost of each in the units of
@@ -675,26 +680,54 @@ private final class Encoder(
             case _ => ()
 
   /** Asserts, for every term of a datatype sort seen so far, that one of its
-   *  testers holds; for a term of a finite sort, also for its selector terms,
-   *  recursively (see the class documentation).
+   *  testers holds; and, once [[boundFields]] says so, for its fields of a
+   *  finite sort, those of every constructor of its sort, that their values are
+   *  among their sort's: one of their testers, recursively, for a datatype,
+   *  true or false for a Boolean (see the class documentation). A tester that
+   *  holds expands the term into its constructor over these fields, whatever
+   *  the term's own sort, and nothing else bounds them: two terms built by one
+   *  constructor over a field of sort `Unit` stayed apart, against the one
+   *  value of `Unit` (issue 125).
    */
   private val exhaustivenessSeen = scala.collection.mutable.HashSet.empty[Term]
+  private val fieldsSeen = scala.collection.mutable.HashSet.empty[Term]
+
+  /** Whether [[assertExhaustiveness]] bounds the finite-sort fields: from the
+   *  first `sat` on (see [[boundFields]]).
+   */
+  private var fieldsBounded = false
+
+  /** Has [[assertExhaustiveness]] bound the finite-sort fields from now on, and
+   *  tells whether that is new and some datatype has such a field. The bounds
+   *  only take models away: an `unsat` found without them stands, and a `sat`
+   *  is searched again with them. Asserted from the start, they made a bounded
+   *  model checking file of the corpus take fifteen times its steps, with a
+   *  choice among thirteen blocks for the top of every tower it names
+   *  (`blocksworld__from_0_9_4_to_3_3_7_bmc_5`).
+   */
+  def boundFields(): Boolean =
+    val more = !fieldsBounded && datatypes.exists(_.constructors.exists(_.selectors.exists((_, s) => finite(s.text))))
+    fieldsBounded = true
+    more
 
   def assertExhaustiveness(): Unit =
     if datatypes.nonEmpty then
-      val seen = exhaustivenessSeen // across solves: one tester disjunction per term
       val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t))))
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
-        if seen.add(t) then
+        val testers = exhaustivenessSeen.add(t) // across solves: one tester disjunction per term
+        val fields = fieldsBounded && fieldsSeen.add(t)
+        if testers || fields then
           val datatype = datatypes.find(_.name == sortOf(t)).get
-          assert(
-            Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
-            null
-          )
-          if finite(datatype.name) then
-            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort.text) do
-              todo += Term.App(Term.Const(selector), List(t))
+          if testers then
+            assert(
+              Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
+              null
+            )
+          if fields then
+            for c <- datatype.constructors; (selector, sort) <- c.selectors if finite(sort.text) do
+              val field = Term.App(Term.Const(selector), List(t))
+              if sort.text == "Bool" then boolean(field) else todo += field
 
   private val liaSolver = lia.Solver()
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
