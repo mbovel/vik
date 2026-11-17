@@ -96,3 +96,17 @@ class LoweringCheckTest extends munit.FunSuite:
     session.run(Parser.parse("(declare-const x (_ BitVec 4)) (assert (bvult (bvadd x #x1) x)) (assert (= x #x0))"))
     assertEquals(session.run(Parser.parse("(check-sat)")), List("unsat"))
     assertEquals(session.checkProof(), Nil)
+
+  test("the witnesses of extensionality over bit-vector indices check"):
+    // Three arrays over a 1-bit index, pairwise different, each 0 or 1 everywhere: the witnesses must be
+    // indices of the range, or the pigeonhole on 2 × 2 values would not close.
+    val session = Session(Solver(proofs = true))
+    val answers = session.run(Parser.parse("""
+      (declare-const a (Array (_ BitVec 1) Bool)) (declare-const b (Array (_ BitVec 1) Bool))
+      (declare-const c (Array (_ BitVec 1) Bool)) (declare-const d (Array (_ BitVec 1) Bool))
+      (declare-const e (Array (_ BitVec 1) Bool))
+      (assert (distinct a b c d e))
+      (check-sat)
+    """))
+    assertEquals(answers, List("unsat"))
+    assertEquals(session.checkProof(), Nil)

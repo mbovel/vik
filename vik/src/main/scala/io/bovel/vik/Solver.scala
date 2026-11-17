@@ -1536,7 +1536,8 @@ private final class Encoder(
       inputs,
       v => v < atoms.length && (v >= meanings.length || meanings(v) == null) && v != trueLit.variable,
       sort => datatypes.find(_.name == sort).map(_.constructors.map(_.tester)),
-      sortOf
+      sortOf,
+      declarations.contains
     )
     // The classes of the certificates are those of terms: a leaf is a class the encoder made for a term
     // (constant, number, combination or formula), at the first level, never undone; an application is its
@@ -1556,7 +1557,7 @@ private final class Encoder(
           input.origin match
             case o: Encoder.Origin => clauses.check(input.clause, o)
             case _ => Some("no origin")
-      )
+      ).orElse(clauses.finish())
     )
 
   /** Whether every atom of the theories is that of the formula its variable
