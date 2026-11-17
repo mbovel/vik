@@ -192,6 +192,46 @@ theorem litOf_sound {a : Nat} {p : Int} {q : Nat} (h : tr.litOf SP P a = some (p
       rw [this, Ring.intCast_one]; grind
     · cases h
 
+include hM hw ht hwP in
+/-- The literal factors of a product. -/
+theorem mulLits_sound {as : List Nat} {p : Int} {q : Nat} {o : Option Nat}
+    (h : tr.mulLits SP P as = some ((p, q), o))
+    (has : ∀ a ∈ as, a < SP.nodes.length ∧ ρ (tr.at a) = enc (vs a)) :
+    0 < q ∧ (∀ t, o = some t → t ∈ as) ∧
+      prodR (as.map vs) = (p : R) / ((q : Int) : R) * (match o with | none => 1 | some t => (vs t).toR) := by
+  induction as generalizing p q o with
+  | nil =>
+    simp only [Trace.mulLits, List.foldr_nil, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h
+    refine ⟨by decide, by simp, ?_⟩
+    simp only [List.map_nil, prodR]
+    have : ((1 : Nat) : Int) = 1 := rfl
+    rw [this, Ring.intCast_one]; grind
+  | cons a as ih =>
+    have hr : ∃ r, tr.mulLits SP P as = some r ∧ _ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨⟨p', q'⟩, o'⟩, hr, hf⟩ := hr
+    obtain ⟨hq', ho', he⟩ := ih hr (fun b hb => has b (List.mem_cons_of_mem a hb))
+    obtain ⟨hal, ea⟩ := has a List.mem_cons_self
+    simp only [List.map_cons, prodR]
+    rcases hl : tr.litOf SP P a with _ | ⟨pa, qa⟩
+    · cases o' with
+      | none =>
+        simp only [hl, Option.some.injEq, Prod.mk.injEq] at hf
+        obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hf
+        refine ⟨hq', fun t ht => by simp only [Option.some.injEq] at ht; subst ht; exact List.mem_cons_self, ?_⟩
+        rw [he]
+        grind
+      | some _ => simp only [hl, reduceCtorEq] at hf
+    · simp only [hl, Option.some.injEq, Prod.mk.injEq] at hf
+      obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hf
+      obtain ⟨hqa, hva⟩ := litOf_sound hM hw ht hwP hl hal ea
+      refine ⟨Nat.mul_pos hqa hq', fun t ht => List.mem_cons_of_mem a (ho' t ht), ?_⟩
+      rw [he, hva, toR_num]
+      have h1 := cast_ne_zero (R := R) (show (qa : Int) ≠ 0 by omega)
+      have h2 := cast_ne_zero (R := R) (show (q' : Int) ≠ 0 by omega)
+      simp only [Int.natCast_mul, Ring.intCast_mul]
+      grind
+
 include hM hw ht hwP htP hG hML hrng in
 open Classical in
 /-- The operations on reals. -/
@@ -307,6 +347,25 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     | [], hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
     | [_], hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
     | _ :: _ :: _ :: _, hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
+  | mul as =>
+    simp only [Trace.realOk, hn] at hb
+    have has : ∀ a ∈ as, a < SP.nodes.length ∧ ρ (tr.at a) = enc (vs a) := fun a m =>
+      have := hch a (by simp [SNode.children, m]); ⟨by omega, ih a this⟩
+    simp only [Surf.evalNode, surf_get_values] at hv
+    rw [hv]
+    split at hb
+    · rename_i p q hm
+      obtain ⟨_, _, e⟩ := mulLits_sound hM hw ht hwP hm has
+      obtain ⟨_, e'⟩ := ratOk_sound (Ms := Ms) hwP hG hb
+      rw [e', show as.map (Low.get (Surf.values Ms.toInterp SP.nodes)) = as.map vs from rfl, e]
+      simp only [enc_num]
+      congr 1; grind
+    · rename_i p q t hm
+      obtain ⟨_, ht', e⟩ := mulLits_sound hM hw ht hwP hm has
+      rw [ratmulOk_sound hwP htP hG hML hrng hb hl, (has t (ht' t rfl)).2, toR_enc,
+        show as.map (Low.get (Surf.values Ms.toInterp SP.nodes)) = as.map vs from rfl, e]
+      rfl
+    · cases hb
   | _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
 
 end

@@ -1278,6 +1278,18 @@ def Trace.ratmulOk (l : Nat) (p : Int) (q : Nat) (t : Nat) : Bool :=
       | some (.ratmul p' q' t') => t' == t && 0 < q' && p' * q == p * q'
       | _ => false)
 
+/-- The product `p / q` of the literal factors of a product, and its one
+    factor that is not a literal, if any. -/
+def Trace.mulLits (as : List Nat) : Option ((Int × Nat) × Option Nat) :=
+  as.foldr
+    (fun a r =>
+      r.bind fun r =>
+        match tr.litOf SP P a, r.2 with
+        | some (pa, qa), o => some ((pa * r.1.1, qa * r.1.2), o)
+        | none, none => some (r.1, some a)
+        | none, some _ => none)
+    (some ((1, 1), none))
+
 /-- The defined symbol, the arguments, and whether it is an application, of a
     node that may use a definition. -/
 def SProblem.callOf (n : SNode) : Option (Nat × List Nat × Bool) :=
@@ -1334,6 +1346,11 @@ def Trace.realOk (i : Nat) : Bool :=
         match tr.litOf SP P a with
         | some (pa, qa) => tr.ratOk SP P l (pa * qb * pb.sign) (qa * pb.natAbs)
         | none => tr.ratmulOk SP P l (qb * pb.sign) pb.natAbs (tr.at a)
+    | none => false
+  | some (.mul as) =>
+    match tr.mulLits SP P as with
+    | some ((p, q), none) => tr.ratOk SP P l p q
+    | some ((p, q), some t) => tr.ratmulOk SP P l p q (tr.at t)
     | none => false
   | _ => tr.defOk SP i
 
