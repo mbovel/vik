@@ -18,11 +18,11 @@ import io.bovel.vik.Session
  *  about to import. The tsv has a line per file of the last pass, the earlier
  *  ones being the warm-up: its path, the wall-clock milliseconds, the CPU
  *  milliseconds of the file's thread, the work (as the fuel counts it,
- *  `Session.spent`: the same on every machine for a file that finishes), the kilobytes the
- *  thread allocated (nearly the same on every machine), then `ok`, `timeout` or
- *  the error, then the answers as `s`, `u` and `?`, then the work by kind
- *  (`Session.statistics`, `kind=count` separated by spaces: what the costs of
- *  `Solver.kinds` are fitted to).
+ *  `Session.spent`: the same on every machine for a file that finishes), the
+ *  kilobytes the thread allocated (nearly the same on every machine), then
+ *  `ok`, `timeout` or the error, then the answers as `s`, `u` and `?`, then the
+ *  work by kind (`Session.statistics`, `kind=count` separated by spaces: what
+ *  the costs of `Solver.kinds` are fitted to).
  *
  *  The times are for comparing two builds file by file, not for a table: the
  *  files share the JVM, its compiler and its collector, `threads` at a time.
