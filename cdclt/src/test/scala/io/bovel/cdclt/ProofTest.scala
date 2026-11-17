@@ -16,7 +16,7 @@ class ProofTest extends munit.FunSuite:
     val result = solver.solve(assumptions, () => true)
     if result == Solver.Result.Unsat then
       val proof = solver.proof.nn
-      assertEquals(proof.check(l => lemma(l.clause)), None)
+      assertEquals(proof.check(l => if lemma(l.clause) then None else Some("does not hold")), None)
       val conclusion = proof.steps(proof.conclusion).clause.toSet
       assert(conclusion.forall(l => assumptions.contains(l.neg)), s"conclusion $conclusion")
     result
