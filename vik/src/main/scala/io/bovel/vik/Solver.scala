@@ -1162,6 +1162,22 @@ private final class Encoder(
     // from the selectors' classes when the problem has them and fresh values otherwise — one that
     // differs from every other such class's, since the e-graph may keep them apart (issue 26).
     val builtValues = HashMap.empty[EClassId, Term]
+    val nodeValues = HashMap.empty[EClassId, Term] // the values of the classes with a constructor
+    // The values given to the datatype classes so far, and the values inside them.
+    val datatypeValues = HashSet.empty[Term]
+    def record(value: Term): Unit =
+      if datatypeValues.add(value) then
+        value match
+          case Term.App(_, args) => args.foreach(record)
+          case _ =>
+    // The constructor of a class, where it has one, and the classes of its fields.
+    def nodeOf(datatype: Datatype, cls: EClassId): Option[(io.bovel.smtlib.Constructor, List[EClassId])] =
+      adt.flatMap(a => Option(a.node(eg, cls))).flatMap(node =>
+        datatype.constructors
+          .find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
+          .map((_, node.args.toList))
+      )
+    val lastFresh = HashMap.empty[String, Term] // per datatype, the last value of `freshOf`
     def testerOf(root: EClassId, tester: String): Option[Boolean] =
       classes.collectFirst {
         case (Term.App(Term.Const(t), List(u)), c) if t == tester && classes.get(u).exists(x => eg.find(x) == root) =>
@@ -1179,6 +1195,33 @@ private final class Encoder(
         if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
       case Some(_) => elementOf(sort, eg.newClass())
       case None => valueOfTerm(Term.Const("@default"), sort)
+    def construct(c: io.bovel.smtlib.Constructor, args: List[Term]): Term =
+      if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
+    // A value of the sort that differs from the ones made before, where the sort has values to
+    // spare: a new number, or a datatype value around a new value of one of its fields. A sort met
+    // again inside its own value takes the last value made for it, so each value is deeper than the
+    // one before.
+    def freshOf(sort: String, seen: Set[String]): Option[Term] = sort match
+      case "Int" => Some(Term.Num(freshInt(eg.newClass())))
+      case "Real" => Some(Model.rationalTerm(freshReal(eg.newClass())))
+      case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort, Set.empty)))
+      case _ =>
+        val fields =
+          for
+            d <- datatypes.iterator if d.name == sort
+            c <- d.constructors.iterator
+            ((_, s), i) <- c.selectors.iterator.zipWithIndex
+            inner <- freshOf(s.text, seen + sort)
+          yield
+            construct(
+              c,
+              c.selectors.zipWithIndex.map { case ((_, s), j) =>
+                if i == j then inner else defaultOf(s.text, Set.empty)
+              }
+            )
+        val value = fields.nextOption()
+        value.foreach(lastFresh(sort) = _)
+        value
     def builtValue(datatype: Datatype, root: EClassId, seen: Set[EClassId]): Term =
       builtValues.getOrElseUpdate(
         root, {
@@ -1191,31 +1234,59 @@ private final class Encoder(
             if nullary.nonEmpty then nullary(builtValues.size % nullary.length)
             else candidates.headOption.getOrElse(datatype.constructors.head)
           }
-          val args = c.selectors.map { (selector, s) =>
-            selectorOf(root, selector) match
-              case Some(field) => valueOfClass(field, s.text, seen + root)
-              case None if s.text == "Int" => Term.Num(freshInt(eg.newClass()))
-              case None if s.text == "Real" => Model.rationalTerm(freshReal(eg.newClass()))
-              case None => defaultOf(s.text, Set.empty)
-          }
-          if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
+          // The fields from the selectors' classes; a field with none is free, and takes `free` at
+          // its position and its default elsewhere.
+          def valueWith(c: io.bovel.smtlib.Constructor, free: Option[(Int, Term)]): Term =
+            construct(
+              c,
+              c.selectors.zipWithIndex.map { case ((selector, s), i) =>
+                selectorOf(root, selector) match
+                  case Some(field) => valueOfClass(field, s.text, seen + root)
+                  case None if free.exists(_._1 == i) => free.get._2
+                  case None if s.text == "Int" => Term.Num(freshInt(eg.newClass()))
+                  case None if s.text == "Real" => Model.rationalTerm(freshReal(eg.newClass()))
+                  case None => defaultOf(s.text, Set.empty)
+              }
+            )
+          val value = valueWith(c, None)
+          // Another class may have this value already: two fields a tester's expansion invented, both
+          // at their default. The e-graph keeps the classes apart, so a function may differ on them,
+          // and one value for both gives it two results there. A free field of a sort with values to
+          // spare tells them apart (issue 127).
+          def freed =
+            for
+              c <- candidates.iterator
+              ((selector, s), i) <- c.selectors.iterator.zipWithIndex
+              if selectorOf(root, selector).isEmpty
+              fresh <- freshOf(s.text, Set.empty)
+            yield valueWith(c, Some((i, fresh)))
+          var distinct = value
+          var more = true
+          while more && datatypeValues(distinct) do
+            freed.nextOption() match
+              case Some(other) => distinct = other
+              case None => more = false
+          record(distinct)
+          distinct
         }
       )
     def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
       datatypes.find(_.name == sort) match
         case Some(datatype) =>
-          val node = adt.map(_.node(eg, cls)).orNull
-          if seen(eg.find(cls)) then elementOf(sort, cls) // a cycle, which the rules never let through
-          else if node == null then builtValue(datatype, eg.find(cls), seen)
+          val root = eg.find(cls)
+          if seen(root) then elementOf(sort, cls) // a cycle, which the rules never let through
           else
-            val constructor = datatype.constructors.find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
-            constructor match
-              case Some(c) =>
-                val args = node.args.toList.zip(c.selectors).map((a, s) =>
-                  valueOfClass(a, s._2.text, seen + eg.find(cls))
+            nodeOf(datatype, cls) match
+              case None => builtValue(datatype, root, seen)
+              case Some((c, args)) =>
+                nodeValues.getOrElseUpdate(
+                  root, {
+                    val value =
+                      construct(c, args.zip(c.selectors).map((a, s) => valueOfClass(a, s._2.text, seen + root)))
+                    record(value)
+                    value
+                  }
                 )
-                if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
-              case None => builtValue(datatype, eg.find(cls), seen)
         case None =>
           sort match
             case "Int" => Term.Num(freshInt(eg.find(cls)))
@@ -1289,6 +1360,36 @@ private final class Encoder(
           rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
         }
       )
+    // The datatype classes in an order that keeps their values apart. A class with no constructor
+    // takes a value no class has yet, so a class with one is valued as soon as its fields are: before
+    // the next built value, which then goes around it. A later one holds a later built value, which
+    // is inside none of the values before it.
+    val built = ArrayBuffer.empty[(EClassId, String)]
+    val constructed = ArrayBuffer.empty[(EClassId, String, List[EClassId])] // the fields' classes first
+    val met = HashSet.empty[EClassId]
+    def visit(cls: EClassId, sort: String): Unit =
+      for datatype <- datatypes.find(_.name == sort) if met.add(eg.find(cls)) do
+        nodeOf(datatype, cls) match
+          case None => built += ((eg.find(cls), sort))
+          case Some((c, args)) =>
+            for (a, (_, s)) <- args.zip(c.selectors) do visit(a, s.text)
+            constructed +=
+              ((
+                eg.find(cls),
+                sort,
+                args.zip(c.selectors).collect {
+                  case (a, (_, s)) if datatypeNames(s.text) => eg.find(a)
+                }
+              ))
+    for (t, c) <- classes do visit(c, sortOf(t))
+    def valueConstructed(): Unit =
+      for (root, sort, fields) <- constructed do
+        if !nodeValues.contains(root) && fields.forall(f => nodeValues.contains(f) || builtValues.contains(f)) then
+          valueOfClass(root, sort, Set.empty)
+    valueConstructed()
+    for (root, sort) <- built do
+      valueOfClass(root, sort, Set.empty)
+      valueConstructed()
     val constants = Map.newBuilder[String, Term]
     val functions = Map.newBuilder[String, Model.Function]
     for
