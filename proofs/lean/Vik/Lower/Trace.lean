@@ -1452,28 +1452,28 @@ def Trace.sigOk : Bool :=
   -- the sorts after those of the script are those of stores
   (List.range P.sig.sorts.length).all (fun s =>
     s < ns ||
-      match P.sig.sorts[s]? with
+      match Tab.at P.sig.sorts (s) with
       | some (.fn [arr, idx, el] arr') => arr' == arr && SP.sig.sorts[arr]? == some (.array idx el)
       | _ => false) &&
   -- each minted symbol, of the sort of its reason
   (List.range tr.mints.length).all (fun m =>
     let k := SP.sig.decls.length + m
-    match tr.mints[m]? with
+    match Tab.at tr.mints (m) with
     | some (.ite i) =>
-      (match SP.nodes[i]? with | some (.ite _ _ _) => true | _ => false) &&
-        !SP.isBool i && P.sig.decls[k]? == some (SP.sort i)
+      (match Tab.at SP.nodes i with | some (.ite _ _ _) => true | _ => false) &&
+        !SP.isBool i && Tab.at P.sig.decls (k) == some (SP.sort i)
     | some (.store s) =>
-      match SP.sig.sorts[s]?, P.sig.decls[k]? with
+      match SP.sig.sorts[s]?, Tab.at P.sig.decls (k) with
       | some (.array idx el), some ds =>
-        ns ≤ ds && P.sig.sorts[ds]? == some (.fn [s, idx, el] s) &&
+        ns ≤ ds && Tab.at P.sig.sorts (ds) == some (.fn [s, idx, el] s) &&
           -- the only store of its sort
           (List.range tr.mints.length).all fun m' =>
-            m' == m || match tr.mints[m']? with
-              | some (.store _) => P.sig.decls[SP.sig.decls.length + m']? != some ds
+            m' == m || match Tab.at tr.mints (m') with
+              | some (.store _) => Tab.at P.sig.decls (SP.sig.decls.length + m') != some ds
               | _ => true
       | _, _ => false
     | some (.rule r j) =>
-      (match P.sig.decls[k]? with
+      (match Tab.at P.sig.decls (k) with
         | some s =>
           match SP.sig.sorts[s]? with
           | some .int => true
@@ -1482,28 +1482,28 @@ def Trace.sigOk : Bool :=
         | none => false) &&
         r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
     | some (.real r) =>
-      (match P.sig.decls[k]? with
+      (match Tab.at P.sig.decls (k) with
         | some s => SP.sig.sorts[s]? == some (if r.isInt then .int else .real)
         | none => false) &&
         r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
     | some (.witness s) =>
-      P.sig.decls[k]? == some s &&
+      Tab.at P.sig.decls (k) == some s &&
         match SP.sig.sorts[s]? with
         | some .bool | some .int | some .real | some (.bv _) => true
         | _ => false
-    | some (.pick i) => i < SP.nodes.length && P.sig.decls[k]? == some (SP.sort i)
+    | some (.pick i) => i < SP.nodes.length && Tab.at P.sig.decls (k) == some (SP.sort i)
     | none => false) &&
   P.stores.all (fun n => n ≥ SP.sig.decls.length &&
-    match tr.mints[n - SP.sig.decls.length]? with
+    match Tab.at tr.mints (n - SP.sig.decls.length) with
     | some (.store _) => true
     | _ => false) &&
   P.datatypes == SP.datatypes && P.bvIndex == SP.bvIndex &&
   -- the nodes of bit-vector sorts are symbols, applications and numbers in range
   (List.range P.nodes.length).all fun j =>
-    match SP.bvIndex.lookup (P.sortOf[j]?.getD 0) with
+    match SP.bvIndex.lookup ((Tab.at P.sortOf j).getD 0) with
     | none => true
     | some w =>
-      match P.nodes[j]? with
+      match Tab.at P.nodes j with
       | some (.const _) | some (.app _ _) => true
       | some (.num c) => 0 ≤ c && c < 2 ^ w
       | _ => false
@@ -1552,15 +1552,18 @@ def Trace.inputOk (f : Nat) : InputWhy → Bool
           (.and [.le (.num [] 0) (.same (tr.at i)), .le (.same (tr.at i)) (.num [] (2 ^ w - 1))])
     | none => false
 
+/-- Whether node `i` of the script lowers to a node of the expected shape. -/
+def Trace.nodeOk (i : Nat) : Bool :=
+  tr.at i < P.nodes.length &&
+    ((match expect SP P tr i with
+      | some s => fits P.sig P.nodes P.sortOf (tr.at i) s
+      | none => false) || tr.bvOk SP P i)
+
 /-- Whether the trace lowers the script to the problem. -/
 def Trace.check (A : Answer) : Bool :=
   Surf.wellFormed SP.nodes && Surf.typed SP.sig SP.nodes SP.sortOf && SP.sortsOk && tr.sigOk SP P &&
   tr.node.length == SP.nodes.length &&
-  (List.range SP.nodes.length).all (fun i =>
-    tr.at i < P.nodes.length &&
-      ((match expect SP P tr i with
-        | some s => fits P.sig P.nodes P.sortOf (tr.at i) s
-        | none => false) || tr.bvOk SP P i)) &&
+  (List.range SP.nodes.length).all (tr.nodeOk SP P) &&
   P.inputs.length == tr.inputs.length &&
   (P.inputs.zip tr.inputs).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2) &&
   A.assumed.length == tr.levels.length &&
@@ -1570,6 +1573,52 @@ def Trace.check (A : Answer) : Bool :=
       fs.length == p.2.length && (fs.zip p.2).all (fun q => q.1 < P.nodes.length && tr.inputOk SP P q.1 q.2)
     | none => true)
 
+
+/-! ### The check in slices
+
+As `Problem.accepts`, the check of a large trace runs faster in slices that
+Lean checks in parallel: the nodes from `a` to `a + n`, and the rest once. -/
+
+/-- `check` but the nodes. -/
+def Trace.checkBase (A : Answer) : Bool :=
+  Surf.wellFormed SP.nodes && Surf.typed SP.sig SP.nodes SP.sortOf && SP.sortsOk && tr.sigOk SP P &&
+  tr.node.length == SP.nodes.length &&
+  P.inputs.length == tr.inputs.length &&
+  (P.inputs.zip tr.inputs).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2) &&
+  A.assumed.length == tr.levels.length &&
+  (A.assumed.zip tr.levels).all (fun p =>
+    match A.levels.lookup p.1 with
+    | some fs =>
+      fs.length == p.2.length && (fs.zip p.2).all (fun q => q.1 < P.nodes.length && tr.inputOk SP P q.1 q.2)
+    | none => true)
+
+/-- The nodes from the `a`-th on. -/
+def Trace.nodesFrom (a : Nat) : Bool := (List.range' a (SP.nodes.length - a)).all (tr.nodeOk SP P)
+
+/-- The nodes from the `a`-th to the `a + n`-th. -/
+def Trace.nodesSlice (a n : Nat) : Bool := a + n ≤ SP.nodes.length && (List.range' a n).all (tr.nodeOk SP P)
+
+theorem Trace.nodesFrom_slice {a n : Nat} (h₁ : tr.nodesSlice SP P a n = true) (h₂ : tr.nodesFrom SP P (a + n) = true) :
+    tr.nodesFrom SP P a = true := by
+  unfold Trace.nodesSlice at h₁
+  unfold Trace.nodesFrom at h₂ ⊢
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h₁
+  rw [show SP.nodes.length - a = n + (SP.nodes.length - (a + n)) by omega, ← List.range'_append_1, List.all_append, h₁.2, h₂]
+  rfl
+
+theorem Trace.nodesFrom_end {a : Nat} (h : SP.nodes.length ≤ a) : tr.nodesFrom SP P a = true := by
+  unfold Trace.nodesFrom
+  rw [show SP.nodes.length - a = 0 by omega]
+  rfl
+
+theorem Trace.check_of_slices {A : Answer} (hb : tr.checkBase SP P A = true) (hn : tr.nodesFrom SP P 0 = true) :
+    tr.check SP P A = true := by
+  unfold Trace.checkBase at hb
+  unfold Trace.nodesFrom at hn
+  unfold Trace.check
+  rw [List.range_eq_range', ← Nat.sub_zero SP.nodes.length, hn]
+  simp only [Nat.sub_zero, Bool.and_true] at hb ⊢
+  simpa only [Bool.and_assoc] using hb
 end
 
 end Vik.Lower

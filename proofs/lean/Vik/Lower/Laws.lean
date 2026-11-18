@@ -79,7 +79,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
       ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
 
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
-  simp only [Trace.sigOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+  simp only [Trace.sigOk, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
   refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'

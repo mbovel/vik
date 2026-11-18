@@ -103,4 +103,119 @@ theorem Tab.get_ofF {α : Type} : ∀ (f : Nat) (l : List α), l.length ≤ f �
 @[simp] theorem Tab.at_eq {α : Type} (l : List α) (i : Nat) : Tab.at l i = l[i]? :=
   Tab.get_ofF _ l (Nat.le_refl _) i
 
+/-- The tree with element `i` set to `x`, for `i` at most the number of
+    elements: a table grows by setting its next element. -/
+def Tab.set {α : Type} : Tab α → Nat → α → Tab α
+  | .leaf, _, x => .node x .leaf .leaf
+  | .node _ l r, 0, x => .node x l r
+  | .node y l r, n + 1, x => if n % 2 == 0 then .node y (l.set (n / 2) x) r else .node y l (r.set (n / 2) x)
+
+/-- `t` holds `f 0`, …, `f (n - 1)`. -/
+def Tab.Holds {α : Type} (t : Tab α) (f : Nat → α) (n : Nat) : Prop :=
+  ∀ j, t.get j = if j < n then some (f j) else none
+
+theorem Tab.holds_leaf {α : Type} (f : Nat → α) : Tab.leaf.Holds f 0 := fun _ => rfl
+
+theorem Tab.holds_set {α : Type} : ∀ (t : Tab α) (f : Nat → α) (n : Nat) (x : α), t.Holds f n →
+    (t.set n x).Holds (fun j => if j = n then x else f j) (n + 1)
+  | .leaf, f, n, x, h => by
+    have h0 := h 0
+    simp only [Tab.get] at h0
+    have hn : n = 0 := by
+      cases n with
+      | zero => rfl
+      | succ n => simp at h0
+    subst hn
+    intro j
+    cases j with
+    | zero => rfl
+    | succ j => simp [Tab.set, Tab.get]
+  | .node y l r, f, n, x, h => by
+    have h0 := h 0
+    simp only [Tab.get] at h0
+    have hn : 0 < n := by
+      rcases Nat.eq_zero_or_pos n with e | e
+      · subst e; simp at h0
+      · exact e
+    have hy : y = f 0 := by simp [hn] at h0; exact h0
+    have hl : l.Holds (fun k => f (2 * k + 1)) (n / 2) := by
+      intro k
+      have := h (2 * k + 1)
+      simp only [Tab.get, show (2 * k) % 2 = 0 by omega, show 2 * k / 2 = k by omega, beq_self_eq_true, ↓reduceIte] at this
+      rw [this]
+      by_cases hk : k < n / 2
+      · simp [hk, show 2 * k + 1 < n by omega]
+      · simp [hk, show ¬ 2 * k + 1 < n by omega]
+    have hr : r.Holds (fun k => f (2 * k + 2)) ((n - 1) / 2) := by
+      intro k
+      have := h (2 * k + 1 + 1)
+      simp only [Tab.get, show (2 * k + 1) % 2 = 1 by omega, show (2 * k + 1) / 2 = k by omega] at this
+      simp only [show ((1 : Nat) == 0) = false by rfl, Bool.false_eq_true, ↓reduceIte] at this
+      rw [this]
+      by_cases hk : k < (n - 1) / 2
+      · simp [hk, show 2 * k + 1 + 1 < n by omega]
+      · simp [hk, show ¬ 2 * k + 1 + 1 < n by omega]
+    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+    intro j
+    simp only [Tab.set]
+    split
+    · rename_i hm
+      have hm' : m % 2 = 0 := by simpa using hm
+      have ih := Tab.holds_set l _ _ x (show l.Holds (fun k => f (2 * k + 1)) (m / 2) by
+        rw [show m / 2 = (m + 1) / 2 by omega]; exact hl)
+      cases j with
+      | zero => simp [Tab.get, hy]
+      | succ j =>
+        simp only [Tab.get]
+        split
+        · rename_i hj
+          have hj' : j % 2 = 0 := by simpa using hj
+          rw [ih (j / 2)]
+          by_cases e : j = m
+          · subst e; simp
+          · have : j / 2 ≠ m / 2 := by omega
+            by_cases hk : j / 2 < m / 2 + 1
+            · simp [this, hk, e, show j + 1 < m + 1 + 1 by omega, show 2 * (j / 2) + 1 = j + 1 by omega]
+            · simp [this, hk, e, show ¬ j + 1 < m + 1 + 1 by omega]
+        · rename_i hj
+          have hj' : j % 2 = 1 := by have := Nat.mod_two_eq_zero_or_one j; simp at hj; omega
+          rw [hr (j / 2)]
+          have e : j ≠ m := by omega
+          by_cases hk : j / 2 < (m + 1 - 1) / 2
+          · simp [hk, e, show j + 1 < m + 1 + 1 by omega, show 2 * (j / 2) + 2 = j + 1 by omega] <;> omega
+          · simp [hk, e, show ¬ j + 1 < m + 1 + 1 by omega] <;> omega
+    · rename_i hm
+      have hm' : m % 2 = 1 := by have := Nat.mod_two_eq_zero_or_one m; simp at hm; omega
+      have ih := Tab.holds_set r _ _ x (show r.Holds (fun k => f (2 * k + 2)) (m / 2) by
+        rw [show m / 2 = (m + 1 - 1) / 2 by omega]; exact hr)
+      cases j with
+      | zero => simp [Tab.get, hy]
+      | succ j =>
+        simp only [Tab.get]
+        split
+        · rename_i hj
+          have hj' : j % 2 = 0 := by simpa using hj
+          rw [hl (j / 2)]
+          have e : j ≠ m := by omega
+          by_cases hk : j / 2 < (m + 1) / 2
+          · simp [hk, e, show j + 1 < m + 1 + 1 by omega, show 2 * (j / 2) + 1 = j + 1 by omega]
+          · simp [hk, e, show ¬ j + 1 < m + 1 + 1 by omega]
+        · rename_i hj
+          have hj' : j % 2 = 1 := by have := Nat.mod_two_eq_zero_or_one j; simp at hj; omega
+          rw [ih (j / 2)]
+          by_cases e : j = m
+          · subst e; simp
+          · have : j / 2 ≠ m / 2 := by omega
+            by_cases hk : j / 2 < m / 2 + 1
+            · simp [this, hk, e, show j + 1 < m + 1 + 1 by omega, show 2 * (j / 2) + 2 = j + 1 by omega]
+            · simp [this, hk, e, show ¬ j + 1 < m + 1 + 1 by omega]
+
+theorem Tab.Holds.congr {α : Type} {t : Tab α} {f g : Nat → α} {n : Nat} (h : t.Holds f n)
+    (e : ∀ j < n, f j = g j) : t.Holds g n := by
+  intro j
+  rw [h j]
+  split
+  · rename_i hj; rw [e j hj]
+  · rfl
+
 end Vik
