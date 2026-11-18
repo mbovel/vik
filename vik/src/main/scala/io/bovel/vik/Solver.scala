@@ -458,6 +458,9 @@ private final class Encoder(
     if (steps & 1023) == 0 && !keepGoing() then throw Encoder.Stopped
 
   private val classes = HashMap.empty[Term, EClassId]
+  private val terms = ArrayBuffer.empty[Term] // the terms of `classes`, in the order they arrived: for the passes
+  private val equalities = ArrayBuffer.empty[Formula] // the equality atoms, as they are encoded (see shareIntegers)
+  private var anyArrayApplication = false // an application of a store
   private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
 
@@ -530,9 +533,19 @@ private final class Encoder(
   private val intTerms = scala.collection.mutable.HashSet.empty[Term]
 
   private def noteInts(t: Term): Unit = t match
-    case Term.Linear(terms, _) => terms.foreach((_, u) => intTerms += u)
+    case Term.Linear(terms, _) => terms.foreach((_, u) => noteInt(u))
     case Term.Num(_) => ()
-    case _ => intTerms += t
+    case _ => noteInt(t)
+
+  /** Only a term its sort does not already say is one is kept: the set is then
+   *  empty on a script that declares its constants, and its growth, which makes
+   *  [[shareIntegers]] start over, is rare.
+   */
+  private var anyNoted = false
+  private def noteInt(t: Term): Unit =
+    anyNoted = true
+    val sort = sortOf(t)
+    if sort != "Int" && sort != "Real" then intTerms += t
 
   private def isInt(t: Term): Boolean = t match
     case Term.Num(_) | Term.Linear(_, _) => true
@@ -555,9 +568,24 @@ private final class Encoder(
    */
   private val sharedPairs = scala.collection.mutable.HashSet.empty[(Term, Term)]
 
-  def shareIntegers(): Unit = if anyInt || anyArray || intTerms.nonEmpty || anyStore() then
+  /** What [[shareIntegers]] has seen: a session asks check after check of a
+   *  problem that grows (two per round of unfolding, on Stainless's), and
+   *  meeting every term with every other at each is quadratic in the session.
+   *  So the pass makes only the pairs with a term or an equality that arrived
+   *  since the last one. It makes them in the order it always did, the one the
+   *  map of the classes gives its terms: the atoms, their variables and their
+   *  rows are numbered in it, and the search follows the numbers. A term newly
+   *  known as an integer changes what the earlier ones share: the pass then
+   *  starts over (the pairs already made are not made again).
+   */
+  private var sharedTerms = 0 // the terms of `terms` seen
+  private var sharedEqualities = 0 // the equalities of `equalities` seen
+  private var sharedNoted = 0 // the size of `intTerms` then
+
+  def shareIntegers(): Unit = if anyInt || anyArray || anyNoted || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
+    val selectorPairs = ArrayBuffer.empty[(Term, Term)] // a selector's application and a field: paired last
     def pair(a: Term, b: Term): Unit =
       step()
       if a != b && isInt(a) && isInt(b) && Sorts.arrow(sortOf(a)).isEmpty && Sorts.arrow(sortOf(b)).isEmpty
@@ -566,50 +594,78 @@ private final class Encoder(
       else if a != b && Sorts.arrow(sortOf(a)).isDefined && Sorts.arrow(sortOf(b)).isDefined
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then arrayPairs += ((a, b))
-    val applications = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
+    if sharedNoted != intTerms.size then
+      sharedNoted = intTerms.size
+      sharedTerms = 0
+      sharedEqualities = 0
+    val fresh = scala.collection.mutable.HashSet.empty[Term] // the terms that arrived since the last pass
+    val freshFuns = scala.collection.mutable.HashSet.empty[Term] // and the functions of the applications among them
+    while sharedTerms < terms.length do
+      val t = terms(sharedTerms)
+      fresh += t
+      t match
+        case a: Term.App => freshFuns += a.fun
+        case _ => ()
+      sharedTerms += 1
     // An application with an integer or an array, as its value or among its arguments, can share; the
     // others have nothing to. Two arrays under the same function meet here too, whatever the function
     // gives: equal by extensionality, their applications are equal by congruence (issue 39).
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
-    for (_, group) <- applications do
-      val relevant = group.filter(shares)
-      for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) do
-        pair(a, b)
-        for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    if fresh.nonEmpty then
+      val byFunction = classes.keys.collect { case a: Term.App => a }.toList.groupBy(_.fun)
+      for (fun, group) <- byFunction if freshFuns(fun) do
+        val relevant = group.filter(shares).toArray
+        val arrived = relevant.map(fresh)
+        for i <- relevant.indices; j <- i + 1 until relevant.length if arrived(i) || arrived(j) do
+          val (a, b) = (relevant(i), relevant(j))
+          pair(a, b)
+          for (x, y) <- a.args.zip(b.args) do pair(x, y)
+      // A selector's applications meet the arguments of its constructor at its position (the selector
+      // rule). An arithmetic field, integer or real: a real one shared only through the e-graph left
+      // the simplex without its equalities (issue 18). And an array field: the e-graph equates the
+      // selector's application with the array, but their reads are shared only once the two are a
+      // pair (issue 134).
+      for (selector, constructor, i) <- sharedFields if freshFuns(selector) || freshFuns(constructor) do
+        val constructions = byFunction.getOrElse(constructor, Nil)
+        val arrived = constructions.filter(fresh)
+        for s <- byFunction.getOrElse(selector, Nil); k <- (if fresh(s) then constructions else arrived) do
+          if k.args.length > i then selectorPairs += ((s, k.args(i)))
     // Applications of different function terms meet too when the functions themselves can be equated —
     // two arrays, or a store and the array it may equal: group by the function's sort instead of the
     // function.
     // Only functions the search may actually equate: the sides of a function equality (recorded or
     // shared), and store applications. Pairing every same-sorted application would be quadratic on
-    // ordinary uninterpreted functions.
-    val equatableFuns = scala.collection.mutable.HashSet.empty[Term]
-    for case Formula.Eq(f, g) <- functionEqualities do
-      equatableFuns += f
-      equatableFuns += g
-    val byFunctionSort = classes.keys.collect {
-      case a: Term.App
-          if Sorts.arrow(sortOf(a.fun)).isDefined
-            && (equatableFuns(a.fun) ||
-              (a.fun match
-                case Term.App(Term.Const(n), _) => n.startsWith("store!")
-                case _ => false)) =>
-        a
-    }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
-    for (_, group) <- byFunctionSort do
-      val relevant = group.filter(shares)
-      for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
-        pair(a, b)
-        for (x, y) <- a.args.zip(b.args) do pair(x, y)
-    // Not the equalities of the application lemmas: paired, they would be the problem's, each with a
-    // witness, the map and the arrays read there, and the integers there shared in turn.
-    for case eq @ Formula.Eq(a, b) <- lits.keys if !lemmaEqualities(eq) do pair(a, b)
-    // A selector's applications meet the arguments of its constructor at its position (the selector rule).
-    // An arithmetic field, integer or real: a real one shared only through the e-graph left the
-    // simplex without its equalities (issue 18). And an array field: the e-graph equates the selector's
-    // application with the array, but their reads are shared only once the two are a pair (issue 134).
-    for (selector, constructor, i) <- sharedFields do
-      for s <- applications.getOrElse(selector, Nil); k <- applications.getOrElse(constructor, Nil) do
-        if k.args.length > i then pair(s, k.args(i))
+    // ordinary uninterpreted functions. With no function equality and no application of a store,
+    // there is none, and nothing to look for.
+    if functionEqualities.nonEmpty || anyArrayApplication then
+      val equatableFuns = scala.collection.mutable.HashSet.empty[Term]
+      for case Formula.Eq(f, g) <- functionEqualities do
+        equatableFuns += f
+        equatableFuns += g
+      val byFunctionSort = classes.keys.collect {
+        case a: Term.App
+            if Sorts.arrow(sortOf(a.fun)).isDefined
+              && (equatableFuns(a.fun) ||
+                (a.fun match
+                  case Term.App(Term.Const(n), _) => n.startsWith("store!")
+                  case _ => false)) =>
+          a
+      }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
+      for (_, group) <- byFunctionSort do
+        val relevant = group.filter(shares)
+        for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
+          pair(a, b)
+          for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    if sharedEqualities < equalities.length then
+      val arrived = scala.collection.mutable.HashSet.empty[Formula]
+      while sharedEqualities < equalities.length do
+        arrived += equalities(sharedEqualities)
+        sharedEqualities += 1
+      // Not the equalities of the application lemmas: paired, they would be the problem's, each with
+      // a witness, the map and the arrays read there, and the integers there shared in turn. One the
+      // problem states later arrives again (see `lit`).
+      for case eq @ Formula.Eq(a, b) <- lits.keys if arrived(eq) && !lemmaEqualities(eq) do pair(a, b)
+    for (s, x) <- selectorPairs do pair(s, x)
     for (a, b) <- pairs do
       val e = lit(Formula.Eq(a, b))
       // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
@@ -756,15 +812,22 @@ private final class Encoder(
    *  recursively (see the class documentation).
    */
   private val exhaustivenessSeen = scala.collection.mutable.HashSet.empty[Term]
+  private var exhaustivenessTerms = 0 // the terms of `terms` the pass has looked at
+  private val datatypesByName = datatypes.map(d => d.name -> d).toMap
 
   def assertExhaustiveness(): Unit =
     if datatypes.nonEmpty then
       val seen = exhaustivenessSeen // across solves: one tester disjunction per term
-      val todo = ArrayBuffer.from(classes.keys.filter(t => datatypeNames(sortOf(t))))
+      // Only the terms that arrived since the last pass, the others are seen.
+      val todo = ArrayBuffer.empty[Term]
+      while exhaustivenessTerms < terms.length do
+        val t = terms(exhaustivenessTerms)
+        if datatypeNames(sortOf(t)) then todo += t
+        exhaustivenessTerms += 1
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
         if seen.add(t) then
-          val datatype = datatypes.find(_.name == sortOf(t)).get
+          val datatype = datatypesByName(sortOf(t))
           assert(
             Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
             null
@@ -815,6 +878,10 @@ private final class Encoder(
       sortOf(term) match
         case "Int" | "Real" => anyInt = true
         case _ => ()
+      term match
+        case Term.App(Term.App(Term.Const(n), _), _) if n.startsWith("store!") => anyArrayApplication = true
+        case _ => ()
+      terms += term
       classOfNew(term)
     }
   )
@@ -894,11 +961,12 @@ private final class Encoder(
 
   def booleanCount: Int = booleans.length
 
+  private var booleansDecided = 0
+
   def decideBooleans(): Unit =
-    var i = 0
-    while i < booleans.length do
-      lit(Formula.Pred(booleans(i)))
-      i += 1
+    while booleansDecided < booleans.length do
+      lit(Formula.Pred(booleans(booleansDecided)))
+      booleansDecided += 1
 
   private def atom(t: EClassId, u: EClassId): Lit =
     atoms += ((t, u))
@@ -941,9 +1009,11 @@ private final class Encoder(
   /** The literal standing for `formula`, defining it by clauses if needed. */
   private def lit(formula: Formula): Lit =
     // An equality first encoded for an application lemma, met again in a formula of the problem,
-    // is one of the problem's from then on: its negation needs a witness like any other.
+    // is one of the problem's from then on: its negation needs a witness like any other, and it
+    // arrives again for `shareIntegers`, which left it aside as the lemma's.
     if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(formula) then
       functionEqualities += formula
+      equalities += formula
     lits.getOrElseUpdate(formula, encode(formula))
 
   /** The function equalities encoded for the application lemmas alone, which
@@ -963,6 +1033,7 @@ private final class Encoder(
         else
           boolean(lhs)
           boolean(rhs)
+          equalities += formula
           if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
@@ -1178,16 +1249,18 @@ private final class Encoder(
           .map((_, node.args.toList))
       )
     val lastFresh = HashMap.empty[String, Term] // per datatype, the last value of `freshOf`
+    // The class of a tester's or a selector's application to a term of the class `root`, by symbol and
+    // class, the first the map of the classes gives: the terms are looked at once, not at every question.
+    lazy val unaryApplications =
+      val bySymbol = HashMap.empty[String, HashMap[EClassId, EClassId]]
+      for case (Term.App(Term.Const(symbol), List(u)), c) <- classes do
+        for x <- classes.get(u) do bySymbol.getOrElseUpdate(symbol, HashMap.empty).getOrElseUpdate(eg.find(x), c)
+      bySymbol
+    def applicationOf(symbol: String, root: EClassId): Option[EClassId] =
+      unaryApplications.get(symbol).flatMap(_.get(root))
     def testerOf(root: EClassId, tester: String): Option[Boolean] =
-      classes.collectFirst {
-        case (Term.App(Term.Const(t), List(u)), c) if t == tester && classes.get(u).exists(x => eg.find(x) == root) =>
-          eg.find(c)
-      }.map(c => c == eg.find(trueTerm))
-    def selectorOf(root: EClassId, selector: String): Option[EClassId] =
-      classes.collectFirst {
-        case (Term.App(Term.Const(s), List(u)), c) if s == selector && classes.get(u).exists(x => eg.find(x) == root) =>
-          c
-      }
+      applicationOf(tester, root).map(c => eg.find(c) == eg.find(trueTerm))
+    def selectorOf(root: EClassId, selector: String): Option[EClassId] = applicationOf(selector, root)
     def defaultOf(sort: String, seen: Set[String]): Term = datatypes.find(_.name == sort) match
       case Some(d) if !seen(sort) =>
         val c = d.constructors.find(_.selectors.isEmpty).getOrElse(d.constructors.head)
