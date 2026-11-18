@@ -144,7 +144,7 @@ inductive Origin where
   | witnessRange (f : Nat)
   deriving Repr
 
-def Enc.numeric (e : Enc) (i : Nat) : Bool := i < e.nodes.length && e.sig.numeric (e.sortOf[i]?.getD 0)
+def Enc.numeric (e : Enc) (i : Nat) : Bool := i < e.nodes.length && e.sig.numeric ((Tab.at e.sortOf i).getD 0)
 
 def defOk (e : Enc) (c : Clause) : Bool :=
   c.any fun d =>
@@ -218,7 +218,7 @@ def inputOk (e : Enc) (c : Clause) : Origin → Bool
   | .retired => c.any fun l => !l.pos && (e.guarded l.var).isSome && !e.assumed.contains l.var
   | .exhaustive t o =>
     t < e.nodes.length && has e c o &&
-      match e.datatypes.lookup (e.sortOf[t]?.getD 0), e.node o with
+      match e.datatypes.lookup ((Tab.at e.sortOf t).getD 0), e.node o with
       | some cs, some (.or ps) => testsOk e t ps cs
       | _, _ => false
   | .sharedSplit lt le =>
@@ -664,6 +664,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
   | exhaustive t o =>
     simp only [inputOk, Bool.and_eq_true, decide_eq_true_eq] at h
     obtain ⟨⟨ht, ho⟩, h⟩ := h
+    rw [Tab.at_eq] at h
     split at h
     · rename_i cs ps hcs hno
       obtain ⟨ct, hct, happ⟩ := hS.exhaustive t cs ht hcs

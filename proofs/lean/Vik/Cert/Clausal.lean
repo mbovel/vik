@@ -40,57 +40,168 @@ theorem Lit.holds_neg (ρ : Assignment) (l : Lit) : l.neg.holds ρ ↔ ¬l.holds
   cases l with
   | mk v p => cases h : ρ v <;> cases p <;> simp [Lit.holds, Lit.neg, h]
 
+/-! ## Truth tables
+
+The literals taken as true during unit propagation, as a binary trie from
+variables to their values: the kernel looks a variable up in about `log₂ v`
+steps, where a list of the literals takes as many steps as the list is long. -/
+
+/-- A partial assignment of the variables. -/
+inductive TT where
+  | leaf
+  | node (v : Option Bool) (l r : TT)
+
+def TT.get : TT → Nat → Option Bool
+  | .leaf, _ => none
+  | .node v l r, n =>
+    match n with
+    | 0 => v
+    | n + 1 => if n % 2 == 0 then l.get (n / 2) else r.get (n / 2)
+
+/-- The table of variable `n` alone, `n < f`. -/
+def TT.single : Nat → Nat → Bool → TT
+  | 0, _, _ => .leaf
+  | _ + 1, 0, b => .node (some b) .leaf .leaf
+  | f + 1, n + 1, b =>
+    if n % 2 == 0 then .node none (TT.single f (n / 2) b) .leaf else .node none .leaf (TT.single f (n / 2) b)
+
+def TT.set : TT → Nat → Bool → TT
+  | .leaf, n, b => TT.single (n + 1) n b
+  | .node _ l r, 0, b => .node (some b) l r
+  | .node v l r, n + 1, b => if n % 2 == 0 then .node v (l.set (n / 2) b) r else .node v l (r.set (n / 2) b)
+
+theorem TT.get_leaf (j : Nat) : TT.leaf.get j = none := by cases j <;> rfl
+
+theorem TT.half_iff {j n : Nat} (hp : j % 2 = n % 2) : j / 2 = n / 2 ↔ j = n := by
+  constructor <;> intro h <;> omega
+
+theorem TT.get_single : ∀ (f n : Nat) (b : Bool), n < f → ∀ j, (TT.single f n b).get j = if j = n then some b else none
+  | 0, _, _, h, _ => absurd h (Nat.not_lt_zero _)
+  | f + 1, 0, b, _, j => by
+    cases j with
+    | zero => rfl
+    | succ j => simp [TT.single, TT.get]
+  | f + 1, n + 1, b, h, j => by
+    cases j with
+    | zero => simp only [TT.single]; split <;> simp [TT.get]
+    | succ j =>
+      have ih := TT.get_single f (n / 2) b (by omega)
+      simp only [TT.single, Nat.add_right_cancel_iff]
+      by_cases hn : n % 2 = 0 <;> by_cases hj : j % 2 = 0 <;>
+        simp only [hn, hj, beq_iff_eq, if_true, if_false, TT.get, ih,
+          not_false_eq_true]
+      · simp only [TT.half_iff (show j % 2 = n % 2 by omega)]
+      · have : j ≠ n := by omega
+        simp [this]
+      · have : j ≠ n := by omega
+        simp [this]
+      · simp only [TT.half_iff (show j % 2 = n % 2 by omega)]
+
+theorem TT.get_set : ∀ (t : TT) (k : Nat) (b : Bool) (j : Nat), (t.set k b).get j = if j = k then some b else t.get j
+  | .leaf, k, b, j => by
+    simp only [TT.set, TT.get_leaf]
+    exact TT.get_single (k + 1) k b (Nat.lt_succ_self k) j
+  | .node v l r, 0, b, j => by
+    cases j with
+    | zero => rfl
+    | succ j => simp [TT.set, TT.get]
+  | .node v l r, k + 1, b, j => by
+    cases j with
+    | zero => simp only [TT.set]; split <;> simp [TT.get]
+    | succ j =>
+      simp only [TT.set, Nat.add_right_cancel_iff]
+      by_cases hk : k % 2 = 0 <;> by_cases hj : j % 2 = 0 <;>
+        simp only [hk, hj, beq_iff_eq, if_true, if_false, TT.get, TT.get_set,
+          not_false_eq_true]
+      · simp only [TT.half_iff (show j % 2 = k % 2 by omega)]
+      · have : j ≠ k := by omega
+        simp [this]
+      · have : j ≠ k := by omega
+        simp [this]
+      · simp only [TT.half_iff (show j % 2 = k % 2 by omega)]
+
+/-- `t` agrees with `ρ`. -/
+def TT.Agrees (ρ : Assignment) (t : TT) : Prop := ∀ v b, t.get v = some b → ρ v = b
+
+theorem TT.agrees_leaf (ρ : Assignment) : TT.leaf.Agrees ρ := fun v b h => by rw [TT.get_leaf] at h; cases h
+
+theorem TT.agrees_set {ρ : Assignment} {t : TT} (ht : t.Agrees ρ) {k : Nat} {b : Bool} (hk : ρ k = b) :
+    (t.set k b).Agrees ρ := by
+  intro v c h
+  rw [TT.get_set] at h
+  split at h
+  · rename_i e; subst e; cases h; exact hk
+  · exact ht v c h
+
+/-- Whether `l` is true in `t`. -/
+def TT.isTrue (t : TT) (l : Lit) : Bool := t.get l.var == some l.pos
+
+/-- Whether `l` is false in `t`. -/
+def TT.isFalse (t : TT) (l : Lit) : Bool := t.get l.var == some !l.pos
+
+theorem TT.isFalse_sound {ρ : Assignment} {t : TT} (ht : t.Agrees ρ) {l : Lit} (h : t.isFalse l = true) :
+    ¬l.holds ρ := by
+  unfold TT.isFalse at h
+  simp only [beq_iff_eq] at h
+  have := ht _ _ h
+  unfold Lit.holds; rw [this]; cases l.pos <;> simp
+
 /-! ## Reverse unit propagation -/
 
-/-- One hint under the literals `τ` taken as true: `none` if the hint is
+/-- One hint under the literals `t` takes as true: `none` if the hint is
     satisfied or has two open literals (the check fails), `some none` if all its
     literals are false, `some (some u)` if `u` is its one open literal. -/
-def unit (τ : List Lit) (h : Clause) : Option (Option Lit) :=
-  if h.any (fun l => τ.contains l) then none
+def unit (t : TT) (h : Clause) : Option (Option Lit) :=
+  if h.any t.isTrue then none
   else
-    match h.filter (fun l => !τ.contains l.neg) with
+    match h.filter (fun l => !t.isFalse l) with
     | [] => some none
     | u :: rest => if rest.all (· == u) then some (some u) else none
 
-/-- Follows the hints from the literals `τ`: whether they end in a hint whose
-    literals are all false. -/
-def propagate (db : List Clause) (τ : List Lit) : List Nat → Bool
+/-- Follows the hints from the literals `t` takes as true: whether they end in
+    a hint whose literals are all false. -/
+def propagate (db : List Clause) (t : TT) : List Nat → Bool
   | [] => false
   | i :: hints =>
     match db[i]? with
     | none => false
     | some h =>
-      match unit τ h with
+      match unit t h with
       | some none => true
-      | some (some u) => propagate db (u :: τ) hints
+      | some (some u) => propagate db (t.set u.var u.pos) hints
       | none => false
+
+/-- The negations of the literals of `c` taken as true, after `t`: `none` if
+    `c` is a tautology. -/
+def negs : TT → Clause → Option TT
+  | t, [] => some t
+  | t, l :: c =>
+    match t.get l.var with
+    | some b => if b == !l.pos then negs t c else none
+    | none => negs (t.set l.var !l.pos) c
 
 /-- Whether `c` follows from the clauses `db` by unit propagation over `hints`:
     a tautology does, and otherwise the negations of its literals must lead to a
     hint with all literals false. -/
 def rup (db : List Clause) (c : Clause) (hints : List Nat) : Bool :=
-  c.any (fun l => c.contains l.neg) || propagate db (c.map Lit.neg) hints
+  match negs .leaf c with
+  | none => true
+  | some t => propagate db t hints
 
-theorem unit_sound {ρ : Assignment} {τ : List Lit} {h : Clause} (hτ : ∀ l ∈ τ, l.holds ρ)
+theorem unit_sound {ρ : Assignment} {t : TT} {h : Clause} (ht : t.Agrees ρ)
     (hh : h.holds ρ) :
-    (unit τ h = some none → False) ∧ (∀ u, unit τ h = some (some u) → u.holds ρ) := by
+    (unit t h = some none → False) ∧ (∀ u, unit t h = some (some u) → u.holds ρ) := by
   obtain ⟨l, hl, hlρ⟩ := hh
   unfold unit
   split
   · simp
   · rename_i hsat
-    -- every literal of `h` outside the filter is false under ρ
-    have hfalse : ∀ m ∈ h, (!τ.contains m.neg) = false → ¬m.holds ρ := by
-      intro m _ hm hmρ
-      simp only [Bool.not_eq_false', List.contains_iff_mem] at hm
-      have := hτ _ hm
-      exact (Lit.holds_neg ρ m).mp this hmρ
-    have hl_in : l ∈ h.filter (fun l => !τ.contains l.neg) := by
+    have hl_in : l ∈ h.filter (fun l => !t.isFalse l) := by
       rw [List.mem_filter]
       refine ⟨hl, ?_⟩
-      cases e : (!τ.contains l.neg)
-      · exact absurd hlρ (hfalse l hl e)
+      cases e : t.isFalse l
       · rfl
+      · exact absurd hlρ (TT.isFalse_sound ht e)
     split
     · rename_i he; rw [he] at hl_in; simp at hl_in
     · rename_i u rest he
@@ -109,44 +220,53 @@ theorem unit_sound {ρ : Assignment} {τ : List Lit} {h : Clause} (hτ : ∀ l �
       · simp
 
 theorem propagate_sound {ρ : Assignment} {db : List Clause} (hdb : ∀ c ∈ db, c.holds ρ) :
-    ∀ (hints : List Nat) (τ : List Lit), (∀ l ∈ τ, l.holds ρ) → propagate db τ hints = true → False := by
+    ∀ (hints : List Nat) (t : TT), t.Agrees ρ → propagate db t hints = true → False := by
   intro hints
   induction hints with
-  | nil => intro τ _ h; simp [propagate] at h
+  | nil => intro t _ h; simp [propagate] at h
   | cons i hints ih =>
-    intro τ hτ h
+    intro t ht h
     unfold propagate at h
     split at h
     · simp at h
     · rename_i c hc
       have hcρ : c.holds ρ := hdb c (List.mem_of_getElem? hc)
-      have ⟨h1, h2⟩ := unit_sound hτ hcρ
+      have ⟨h1, h2⟩ := unit_sound ht hcρ
       split at h
       · rename_i he; exact h1 he
       · rename_i u he
-        apply ih (u :: τ) _ h
-        intro l hl
-        rcases List.mem_cons.mp hl with e | e
-        · rw [e]; exact h2 u he
-        · exact hτ l e
+        exact ih _ (TT.agrees_set ht (h2 u he)) h
       · simp at h
+
+/-- With every literal of `c` false, its negations agree with `ρ`. -/
+theorem negs_sound {ρ : Assignment} {c : Clause} (hc : ¬c.holds ρ) :
+    ∀ (d : Clause), (∀ l ∈ d, l ∈ c) → ∀ t, t.Agrees ρ → ∃ t', negs t d = some t' ∧ t'.Agrees ρ
+  | [], _, t, ht => ⟨t, rfl, ht⟩
+  | l :: d, hd, t, ht => by
+    have hl : ρ l.var = !l.pos := by
+      have : ¬l.holds ρ := fun h => hc ⟨l, hd l List.mem_cons_self, h⟩
+      unfold Lit.holds at this
+      cases e : ρ l.var <;> cases e' : l.pos <;> simp_all
+    have hd' : ∀ m ∈ d, m ∈ c := fun m hm => hd m (List.mem_cons_of_mem l hm)
+    simp only [negs]
+    split
+    · rename_i b hb
+      have := ht _ _ hb
+      rw [hl] at this
+      subst this
+      simp only [BEq.rfl, if_true]
+      exact negs_sound hc d hd' t ht
+    · exact negs_sound hc d hd' _ (TT.agrees_set ht hl)
 
 /-- A clause that passes `rup` holds wherever the clauses `db` hold. -/
 theorem rup_sound {ρ : Assignment} {db : List Clause} {c : Clause} {hints : List Nat}
     (hdb : ∀ c ∈ db, c.holds ρ) (h : rup db c hints = true) : c.holds ρ := by
+  apply Classical.byContradiction
+  intro hc
+  obtain ⟨t, ht, hta⟩ := negs_sound hc c (fun _ m => m) .leaf (TT.agrees_leaf ρ)
   unfold rup at h
-  rcases Bool.or_eq_true_iff.mp h with h | h
-  · obtain ⟨l, hl, hneg⟩ := List.any_eq_true.mp h
-    rw [List.contains_iff_mem] at hneg
-    by_cases hlρ : l.holds ρ
-    · exact ⟨l, hl, hlρ⟩
-    · exact ⟨l.neg, hneg, (Lit.holds_neg ρ l).mpr hlρ⟩
-  · apply Classical.byContradiction
-    intro hc
-    apply propagate_sound hdb hints (c.map Lit.neg) _ h
-    intro l hl
-    obtain ⟨m, hm, rfl⟩ := List.mem_map.mp hl
-    exact (Lit.holds_neg ρ m).mpr (fun hmρ => hc ⟨m, hm, hmρ⟩)
+  rw [ht] at h
+  exact propagate_sound hdb hints t hta h
 
 /-! ## Proofs -/
 
@@ -233,7 +353,7 @@ and gives the same answer.
 -/
 
 /-- `propagate` over the first `k` clauses of `tab`. -/
-def propagateT (tab : List Clause) (k : Nat) (τ : List Lit) : List Nat → Bool
+def propagateT (tab : List Clause) (k : Nat) (τ : TT) : List Nat → Bool
   | [] => false
   | i :: hints =>
     match (if i < k then Tab.at tab i else none) with
@@ -241,11 +361,11 @@ def propagateT (tab : List Clause) (k : Nat) (τ : List Lit) : List Nat → Bool
     | some h =>
       match unit τ h with
       | some none => true
-      | some (some u) => propagateT tab k (u :: τ) hints
+      | some (some u) => propagateT tab k (τ.set u.var u.pos) hints
       | none => false
 
 theorem propagateT_eq (tab : List Clause) (k : Nat) :
-    ∀ (hints : List Nat) (τ : List Lit), propagateT tab k τ hints = propagate (tab.take k) τ hints
+    ∀ (hints : List Nat) (τ : TT), propagateT tab k τ hints = propagate (tab.take k) τ hints
   | [], _ => rfl
   | i :: hints, τ => by
     have e : (if i < k then Tab.at tab i else none) = (tab.take k)[i]? := by
@@ -256,7 +376,9 @@ theorem propagateT_eq (tab : List Clause) (k : Nat) :
     exact propagateT_eq tab k hints _
 
 def rupT (tab : List Clause) (k : Nat) (c : Clause) (hints : List Nat) : Bool :=
-  c.any (fun l => c.contains l.neg) || propagateT tab k (c.map Lit.neg) hints
+  match negs .leaf c with
+  | none => true
+  | some t => propagateT tab k t hints
 
 /-- Whether the steps from the `k`-th on pass, `tab` the clauses of all steps. -/
 def checkT (tab : List Clause) : Nat → List Step → Bool
@@ -295,7 +417,11 @@ theorem checkT_sound (tab : List Clause) :
     | derived c hints =>
       simp only [checkT, Bool.and_eq_true] at h
       have hr : rup (tab.take k) c hints = true := by
-        unfold rup; rw [← propagateT_eq]; exact h.1
+        have h1 := h.1
+        unfold rupT at h1
+        unfold rup
+        split <;> rename_i e <;> rw [e] at h1
+        all_goals first | rfl | (rw [← propagateT_eq]; simpa using h1)
       simp only [check, hr, ↓reduceIte]
       simp only [Step.clause] at ht
       rw [← ht]; exact checkT_sound tab rest (k + 1) hd' h.2

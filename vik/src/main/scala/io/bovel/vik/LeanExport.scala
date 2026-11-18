@@ -146,6 +146,33 @@ private[vik] object LeanExport:
     (a, size min (total - a))
   ).toList
 
+  /** The steps of the certificates of a slice of justifications: the kernel
+   *  keeps about 5 MB per step until the end of a slice, so this bounds the
+   *  memory of one.
+   */
+  private val justBudget = 400
+
+  /** The literals a slice of derived steps visits, those of the steps and of
+   *  their hints: the kernel takes about 4 ms and 0.5 MB for each.
+   */
+  private val rupBudget = 5000
+
+  /** Consecutive slices of items of the costs `costs`, each of at most
+   *  `budget`, unless one item alone costs more, and of at most `size` items.
+   */
+  private def weightedSlices(costs: collection.IndexedSeq[Int], budget: Int, size: Int): List[(Int, Int)] =
+    val out = ArrayBuffer.empty[(Int, Int)]
+    var a = 0
+    while a < costs.length do
+      var n = 1
+      var w = costs(a)
+      while a + n < costs.length && n < size && w + costs(a + n) <= budget do
+        w += costs(a + n)
+        n += 1
+      out += ((a, n))
+      a += n
+    out.toList
+
   private final class Writer(in: Input, surface: Option[Surface]):
     import in.*
 
@@ -427,12 +454,53 @@ private[vik] object LeanExport:
           val (steps, Seq(i, j)) = ufSteps(Seq(p, q)): @unchecked
           s".uf ${list(steps)} (.apart $i $j ${litOfIndex(reason)})"
 
+    /** Form `x` over the nodes of its unknowns, sorted, as `Lia.add` merges
+     *  them.
+     */
+    private val leanForms = HashMap.empty[Int, List[(Int, Rational)]]
+    private def leanForm(x: Int): List[(Int, Rational)] = leanForms.getOrElseUpdate(
+      x,
+      liaForm(x).toList
+        .map((u, a) => (term(unknowns.getOrElse(u, throw Unsupported(s"the unknown $u"))), a))
+        .groupMapReduce(_._1)(_._2)(_ + _)
+        .toList
+        .filter(_._2 != lia.Rational.zero)
+        .sortBy(_._1)
+    )
+
+    /** The cost of checking each justification, in steps of its certificate. */
+    private val justCosts = ArrayBuffer.empty[Int]
+    private val rupCosts = ArrayBuffer.empty[Int]
+
     private def liaJust(c: lia.Certificate): String =
       import lia.Certificate.*
       val out = ArrayBuffer.empty[String]
       val seen = java.util.IdentityHashMap[lia.Certificate, Integer]()
       def hyp(h: Hyp): String = s"⟨${int(h.reason)}, ${h.x}, ${int(h.c)}, ${h.strict}, ${h.upper}⟩"
-      def go(c: lia.Certificate): Int =
+      // `1 ×` a single part proves what the part proves
+      def identity(c: lia.Certificate): lia.Certificate | Null = c match
+        case Comb(fs, ps) if fs.length == 1 && fs(0) == lia.Rational(1) => ps(0)
+        case _ => null
+      // what rounding leaves as it is: a rounded inequality, or a non-strict
+      // bound on a form of integer coefficients without a common factor
+      def rounded(c: lia.Certificate): Boolean = c match
+        case Round(_) => true
+        case h: Hyp =>
+          !h.strict && {
+            val f = leanForm(h.x)
+            f.isEmpty || f.forall(_._2.isInteger) && f.map(_._2.num).reduce(_ gcd _) == 1
+          }
+        case _ => identity(c) match
+            case null => false
+            case p => rounded(p)
+      // the kernel checks each step slowly: the steps that change nothing are left out
+      def go(c: lia.Certificate): Int = c match
+        case Round(of) if rounded(of) => go(of)
+        case _ =>
+          identity(c) match
+            case null => emit(c)
+            case p => go(p)
+      def emit(c: lia.Certificate): Int =
         val known = seen.get(c)
         if known != null then known
         else
@@ -450,6 +518,7 @@ private[vik] object LeanExport:
           seen.put(c, out.length - 1)
           out.length - 1
       go(c)
+      justCosts(justCosts.length - 1) = out.length
       s".lia ${list(out)}"
 
     private def meaningOf(l: Lit): Formula | Null =
@@ -609,13 +678,15 @@ private[vik] object LeanExport:
       b.toString
 
     private def acceptedTheorems(steps: Int): String =
-      val ss = slices(steps, stepSlice)
+      val ss = weightedSlices(rupCosts, rupBudget, stepSlice)
+      val js = weightedSlices(justCosts, justBudget, stepSlice)
       val b = StringBuilder()
       b ++= "theorem acceptedBase : problem.acceptsBase answer = true := by decide +kernel\n"
-      for (a, n) <- ss do
+      for (a, n) <- js do
         b ++= s"theorem acceptedJusts$a : problem.justsSlice answer $a $n = true := by decide +kernel\n"
+      for (a, n) <- ss do
         b ++= s"theorem acceptedSteps$a : answer.rupSlice $a $n = true := by decide +kernel\n"
-      val justs = ss.foldRight("(Problem.justsFrom_end problem answer (by decide +kernel))")((an, rest) =>
+      val justs = js.foldRight("(Problem.justsFrom_end problem answer (by decide +kernel))")((an, rest) =>
         s"(Problem.justsFrom_slice problem answer acceptedJusts${an._1}\n    $rest)"
       )
       val rup = ss.foldRight("(Answer.rupFrom_end answer (by decide +kernel))")((an, rest) =>
@@ -640,6 +711,7 @@ private[vik] object LeanExport:
       val used = scala.collection.mutable.HashSet(trueLit.variable)
       used ++= levels.map(_._1)
       val last = kept.length - 1
+      val width = kept.map(i => proof.steps(i).clause.length)
       for i <- kept do
         val step = proof.steps(i)
         step match
@@ -649,9 +721,13 @@ private[vik] object LeanExport:
         step match
           case cdclt.Proof.Step.Input(clause, o) =>
             steps += s".input ${list(clause.map(lit))}"
+            rupCosts += 0
+            justCosts += 1
             justs += s".input (${origin(clause, o)})"
           case cdclt.Proof.Step.Lemma(clause, c) =>
             steps += s".lemma ${list(clause.map(lit))}"
+            rupCosts += 0
+            justCosts += 1
             justs +=
               (c match
                 case c: UfTheory.Certified => ufJust(c)
@@ -659,6 +735,8 @@ private[vik] object LeanExport:
                 case _ => throw Unsupported("a lemma without a certificate"))
           case cdclt.Proof.Step.Derived(clause, hints) =>
             steps += s".derived ${list(clause.map(lit))} ${list(hints.map(index(_).toString))}"
+            rupCosts += clause.length + hints.map(h => width(index(h))).sum
+            justCosts += 0
             justs += ".derived"
       // the formulas and atoms of the variables
       val vars = math.max(meanings.length, atoms.length)
@@ -677,15 +755,7 @@ private[vik] object LeanExport:
           case null => "none"
       }
       // each form over the nodes of its unknowns, sorted, as `Lia.add` merges them
-      val liaForms = (0 until liaVars).map { x =>
-        val f = liaForm(x).toList
-          .map((u, a) => (term(unknowns.getOrElse(u, throw Unsupported(s"the unknown $u"))), a))
-          .groupMapReduce(_._1)(_._2)(_ + _)
-          .toList
-          .filter(_._2 != lia.Rational.zero)
-          .sortBy(_._1)
-        list(f.map((n, a) => s"($n, ${ratT(a)})"))
-      }
+      val liaForms = (0 until liaVars).map(x => list(leanForm(x).map((n, a) => s"($n, ${ratT(a)})")))
       val inputIds = inputs.map(formula)
       val levelsText = levels.map((v, fs) => s"($v, ${list(fs.map(formula(_).toString))})")
       // datatypes, with the classes of their constructors and testers

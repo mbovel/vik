@@ -14,6 +14,8 @@ mkdir -p "$olean/$name"
 LEAN_PATH="$(lake env printenv LEAN_PATH):$olean"
 export LEAN_PATH
 lean --root="$root" -o "$olean/$name/Data.olean" "$dir/Data.lean"
+# a slice that fails (or is killed) is reported, and the others still run
 ls "$dir" | grep '^S_.*\.lean$' | sed 's/\.lean$//' |
-  xargs -P "$jobs" -I{} lean --root="$root" -o "$olean/$name/{}.olean" "$dir/{}.lean"
+  xargs -P "$jobs" -I{} sh -c 'lean --root="$1" -o "$2/{}.olean" "$3/{}.lean" || { echo "failed: {}"; exit 1; }' \
+    sh "$root" "$olean/$name" "$dir" || exit 1
 lean --root="$root" "$dir/Main.lean"
