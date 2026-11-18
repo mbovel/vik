@@ -414,7 +414,6 @@ QF_UFDTLIA/smtinterpol/model__offset_datatype.smt2	model: a class holding a line
 QF_UFDTLIA/smtinterpol/proof__datatype__dt_project_int_2.smt2	wrong: sat for x = (cons (+ 1 (car x)) nil), a shared pair that differs by a numeral (issue 136)
 QF_UFDTLIA/stainless/valid-Acc__0.smt2	model: a class holding a linear term gets a fresh value (#137)
 QF_UFDTLIA/stainless/valid-BalancedParentheses__153.smt2	model: distinct free values of an infinite datatype get one value (#127)
-QF_UFDTLIA/stainless/valid-BalancedParentheses__155.smt2	model: distinct free values of an infinite datatype get one value (#127)
 QF_UFDTLIA/stainless/valid-BalancedParentheses__186.smt2	model: a class holding a linear term gets a fresh value (#137)
 QF_UFDTLIA/stainless/valid-BalancedParentheses__37.smt2	model: a class holding a linear term gets a fresh value (#137)
 QF_UFDTLIA/stainless/valid-BalancedParentheses__48.smt2	model: a class holding a linear term gets a fresh value (#137)
