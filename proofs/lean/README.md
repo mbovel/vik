@@ -113,8 +113,10 @@ tree at each lookup.
 `e2e.txt` lists 28 scripts of the corpus that together cover its logics, the
 kinds of justifications and input reasons, the lowering rules and the surface
 operators, and check in the kernel in about two minutes; `check-exports.sh`
-checks a directory of exports in the kernel or with `native_decide`, the way
-to run the rest of the corpus (its header has the commands).
+checks a directory of exports in the kernel or with `native_decide`, and
+`export.sh` writes the exports of a list. CI checks the set in the kernel and
+`corpus.txt`, the 263 scripts of the corpus sample that export, with
+`native_decide`.
 
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their

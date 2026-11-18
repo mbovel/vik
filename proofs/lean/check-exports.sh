@@ -8,11 +8,12 @@
 # The end-to-end set, `e2e.txt`, covers the corpus's logics, justifications,
 # input reasons, lowering rules and operators, and checks in the kernel in
 # about two minutes:
-#   sbt "vik/Test/runMain io.bovel.vik.LeanCorpus proofs/lean/e2e.txt out/e2e 60"
+#   proofs/lean/export.sh proofs/lean/e2e.txt out/e2e
 #   proofs/lean/check-exports.sh out/e2e
-# and the rest of the corpus with `native_decide`:
-#   sbt "vik/Test/runMain io.bovel.vik.LeanCorpus corpus out/all 60"
-#   proofs/lean/check-exports.sh out/all native
+# and the corpus list with `native_decide`:
+#   proofs/lean/export.sh proofs/lean/corpus.txt out/corpus
+#   proofs/lean/check-exports.sh out/corpus native
+# CI runs both (the lean and lean-native jobs).
 dir=$(cd "$1" && pwd)
 mode=${2:-kernel}
 jobs=${3:-2}
