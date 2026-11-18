@@ -26,6 +26,16 @@ class OptionsTest extends munit.FunSuite:
     s.assert("(< x 0)")
     assertEquals(s.checkSat(), Some(true))
 
+  test("check-models: lowered commands played directly are checked as lowered"):
+    val lowered = Lowering(Parser.parse("""
+      (declare-const b (_ BitVec 8))
+      (declare-const a (Array Int Int))
+      (assert (bvugt (bvmul b #x03) #x80))
+      (assert (= (select a 1) (ite (= b #x2b) 4 5)))
+      (check-sat)
+      (check-sat-assuming ((= (select a 2) 6)))""")).commands
+    assertEquals(Session(checkModels = true).play(lowered), List("sat", "sat"))
+
   test("rlimit and reason-unknown"):
     val script = Parser.parse("""
       (set-option :rlimit 1)

@@ -8,8 +8,8 @@ Test inputs and benchmark instances, one directory per logic, the smallest stand
 `(set-info :status ...)` before each `check-sat` gives the expected answer (the incremental convention). The JVM
 test `CorpusTest` (`smtlibutils/src/test`) registers one test per file it finds here: the answers must be the
 statuses, within a fuel per `check-sat` (a number of solver steps — conflicts, pivots, propagations, branches —
-so the outcome is the same on every machine), and the model of every `sat` must make the file's assertions true
-(the session's `checkModels`). `ignore.txt` lists the files the solver is known not to answer
+so the outcome is the same on every machine), and the model of every `sat` must make the file's assertions true,
+as written and as lowered (the session's `checkModels`). `ignore.txt` lists the files the solver is known not to answer
 within that fuel, or to answer wrongly, or whose model fails that check (`model:`, with the issue), with the
 reason: the test expects those to fail, and when one passes it asks for its line to be removed, so a fixed file
 surfaces. The benchmarks (`bench/`) use the subset listed in

@@ -166,10 +166,13 @@ After `sat`, `get-model` and `get-value` say how; after `unsat`, `get-unsat-core
 ```
 
 `(set-option :check-models true)`, cvc5's name for it, checks every `sat` before it is trusted. VIK builds the model
-and evaluates each assertion in force, and the assumptions of a `check-sat-assuming`, as the script wrote them, the
-way `get-value` evaluates a term. An assertion that is not true adds `(error "model check: ...")` after the `sat`,
-naming it and its value. The check is off by default, since it builds a model at every `sat`. From Scala,
-`Session(checkModels = true)` turns it on, and the corpus test runs with it.
+and evaluates the assertions in force, and the assumptions of a `check-sat-assuming`, twice: as VIK lowered them
+for its solver, and as the script wrote them, the way `get-value` evaluates a term. The two must agree that the
+model is one. At either level, an assertion that is not true adds `(error "model check: ...")` after the `sat`,
+naming it and its value; the lowered ones are called `lowered assertion`. An error at the lowered level alone
+means the search or the model is wrong, and one at the script's level alone means the lowering is. The check is
+off by default, since it builds a model at every `sat`. From Scala, `Session(checkModels = true)` turns it on, and
+the corpus test runs with it.
 
 ```smt2
 (set-option :check-models true)
