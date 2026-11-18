@@ -11,15 +11,15 @@ import scala.util.Try
  *  Origins: `cvc5` (`test/regress/cli`, answers in `; EXPECT:` lines, or the
  *  file's own statuses where it has none), `z3test` (`regressions/smt2`,
  *  answers in `.expected.out` files), `princess` (`testcases`, answers in each
- *  directory's `Answers` log), `submission` and `smt-lib`/`smt-lib-incremental`
- *  (statuses in the files), `cvc5-examples` (`examples/api/smtlib` of the cvc5
- *  repository) and `z3guide` (`website/docs-smtlib` of the z3 guide's
- *  repository: every `z3` code block of its pages), the last two without
- *  answers — `statusstamp` supplies them. Every candidate is parsed: only the
- *  files in the supported fragment are copied, into
- *  `<logic>/<origin>/<family>__<file>.smt2`, with a header naming the origin,
- *  the original path and the license, and a `(set-info :status ...)` before
- *  each `check-sat` when the answers are known.
+ *  directory's `Answers` log), `smtinterpol` (`SMTInterpolTest/test`, statuses
+ *  in the files), `submission` and `smt-lib`/`smt-lib-incremental` (statuses in
+ *  the files), `cvc5-examples` (`examples/api/smtlib` of the cvc5 repository)
+ *  and `z3guide` (`website/docs-smtlib` of the z3 guide's repository: every
+ *  `z3` code block of its pages), the last two without answers — `statusstamp`
+ *  supplies them. Every candidate is parsed: only the files in the supported
+ *  fragment are copied, into `<logic>/<origin>/<family>__<file>.smt2`, with a
+ *  header naming the origin, the original path and the license, and a
+ *  `(set-info :status ...)` before each `check-sat` when the answers are known.
  */
 @main def smt2import(origin: String, root: String, perFamily: Int = 0): Unit =
   Import.run(origin, Path.of(root), perFamily)
@@ -31,6 +31,7 @@ object Import:
     "z3guide" -> "MIT, LICENSES/z3guide.txt",
     "z3test" -> "MIT, LICENSES/z3test.txt",
     "princess" -> "BSD, LICENSES/princess.txt",
+    "smtinterpol" -> "LGPL-3.0, LICENSES/smtinterpol.txt",
     "submission" -> "see the file's header",
     "smt-lib-incremental" -> "CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096)",
     "smt-lib" -> "CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866)"
@@ -155,6 +156,8 @@ object Import:
                 ).map(_.group(1).nn)
               }.map(_.linesIterator.map(_.trim).filter(answers).toList).filter(_.nonEmpty)
                 .map(e => Candidate(rel, text, Some(e), parts(parts.length - 2)))
+            case "smtinterpol" => // SMTInterpolTest/test/<family>/[subdirs/]file, statuses in the files
+              Some(Candidate(rel, text, None, if parts.length > 1 then parts.init.mkString("__") else "root"))
             case "submission" => // <non-incremental|incremental>/<logic>/<family>/.../file
               val family =
                 if parts.length > 3 then parts(2) else if parts.length > 1 then parts(parts.length - 2) else "root"
