@@ -225,7 +225,7 @@ theorem negS_int {P : Problem} (hwP : Low.wellFormed P.nodes = true) {t w : Nat}
   unfold negS
   split
   · rename_i v hv
-    have hval := Low.val_num (I := I) hwP hv
+    have hval := Low.val_num (I := I) hwP ((Tab.at_eq _ _).symm.trans hv)
     rw [← hρ, ht] at hval
     have hv' : K = v := (num_int_eq_iff (U := V)).mp hval
     subst hv'
@@ -323,8 +323,8 @@ theorem sym_val {x : Nat} {r : Rule} {j : Nat} (h : tr.symAt SP P x = some (r, j
         obtain ⟨rfl, rfl⟩ := h
         obtain ⟨m, rfl⟩ : ∃ m, k = SP.sig.decls.length + m := ⟨k - SP.sig.decls.length, by omega⟩
         rw [Nat.add_sub_cancel_left] at hm
-        rw [Low.val_const hwP hk]
-        exact const_rule SP P tr Ms hwP hm (fun y hy => ((hG.rule m _ _ hm).2 y hy).2)
+        rw [Low.val_const hwP ((Tab.at_eq _ _).symm.trans hk)]
+        exact const_rule SP P tr Ms hwP ((Tab.at_eq _ _).symm.trans hm) (fun y hy => ((hG.rule m _ _ ((Tab.at_eq _ _).symm.trans hm)).2 y hy).2)
       · cases h
     · cases h
   · cases h
@@ -342,8 +342,8 @@ theorem symNode_sym {r : Rule} {j x : Nat} (h : tr.symNode SP P r j = some x) :
       have e1 := getElem?_idxOf P.nodes _ hx
       have e2 := getElem?_idxOf tr.mints _ hm
       unfold Trace.symAt
-      rw [e1]
-      simp only [Nat.le_add_right, if_true, Nat.add_sub_cancel_left, e2]
+      rw [Tab.at_eq, e1]
+      simp only [Tab.at_eq, Nat.le_add_right, if_true, Nat.add_sub_cancel_left, e2]
     · cases h
   · cases h
 
@@ -413,7 +413,7 @@ theorem bvWidth_sound {l w : Nat} (hl : l < P.nodes.length) (h : tr.bvWidth SP P
   split at h
   · rename_i w' hw'
     cases h
-    obtain ⟨k, e, h0, h1⟩ := hrng l hl w (by rw [hG.bvIndex, lookup_bvIndex]; exact hw')
+    obtain ⟨k, e, h0, h1⟩ := hrng l hl w (by rw [hG.bvIndex, lookup_bvIndex]; simpa only [Tab.at_eq, Tab.at_eq] using hw')
     exact ⟨k, e, h0, by simp only; omega⟩
   · obtain ⟨i, hi, hfi⟩ := List.exists_of_findSome?_eq_some h
     rw [List.mem_range] at hi
@@ -432,9 +432,9 @@ theorem leafIv_sound (sym : Rule → Nat → Option (Int × Int))
   unfold Trace.leafIv at h
   split at h
   · rename_i v hv
-    cases h; exact ⟨v, Low.val_num hwP hv, Int.le_refl _, Int.le_refl _⟩
+    cases h; exact ⟨v, Low.val_num hwP ((Tab.at_eq _ _).symm.trans hv), Int.le_refl _, Int.le_refl _⟩
   · rename_i n _ hn
-    have hl := lt_of_get hn
+    have hl := lt_of_get ((Tab.at_eq _ _).symm.trans hn)
     split at h
     · rename_i r j hs; exact hsym l r j p hs h
     · obtain ⟨w, hw', rfl⟩ := Option.map_eq_some_iff.mp h
@@ -450,7 +450,7 @@ theorem condAtom_sound {x : Nat} (hx : (ρ x).truth = true) :
   · rename_i a b hn
     split at hgc
     · simp only [List.mem_singleton] at hgc; subst hgc
-      rw [Low.val_node hwP hn] at hx
+      rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hn)] at hx
       simp only [Low.evalNode, truth_bool, decide_eq_true_eq] at hx
       change (ρ a).toR ≤ (ρ b).toR at hx
       have ha := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) a
@@ -467,7 +467,7 @@ theorem condCons_sound {c : Nat} {pos : Bool} (hc : (ρ c).truth = pos) :
   unfold condCons at hgc
   cases pos with
   | true =>
-    simp only [if_true] at hgc
+    simp only [Tab.at_eq, if_true] at hgc
     split at hgc
     · rename_i xs hn
       obtain ⟨x, hx, hgx⟩ := List.mem_flatMap.mp hgc
@@ -476,7 +476,7 @@ theorem condCons_sound {c : Nat} {pos : Bool} (hc : (ρ c).truth = pos) :
       exact condAtom_sound hwP (hc x hx) gc hgx
     · exact condAtom_sound hwP hc gc hgc
   | false =>
-    simp only [Bool.false_eq_true, if_false] at hgc
+    simp only [Tab.at_eq, Bool.false_eq_true, if_false] at hgc
     split at hgc
     · rename_i a b hn
       split at hgc
@@ -689,7 +689,7 @@ theorem symAt_args {x : Nat} {r : Rule} {j : Nat} (h : tr.symAt SP P x = some (r
       · rename_i r' j' hm
         simp only [Option.some.injEq, Prod.mk.injEq] at h
         obtain ⟨rfl, rfl⟩ := h
-        exact ⟨lt_of_get hk, fun y hy => ((hG.rule _ _ _ hm).2 y hy).1⟩
+        exact ⟨lt_of_get ((Tab.at_eq _ _).symm.trans hk), fun y hy => ((hG.rule _ _ _ ((Tab.at_eq _ _).symm.trans hm)).2 y hy).1⟩
       · cases h
     · cases h
   · cases h
@@ -701,7 +701,7 @@ theorem signedOk_sound {t w x : Nat} {K : Int} (hok : tr.signedOk SP P t w x = t
   unfold Trace.signedOk at hok
   split at hok
   · rename_i v hv
-    have e := Low.val_num (I := MI) hwP hv
+    have e := Low.val_num (I := MI) hwP ((Tab.at_eq _ _).symm.trans hv)
     rw [htv] at e
     have := (num_int_eq_iff (U := U ⊕ Nat)).mp e
     subst this
@@ -781,7 +781,7 @@ theorem ruleFacts_truth (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs 
         · refine eqI_holds MI ρ (ev_same_num MI ρ eK) (ev_num2' MI ρ er eq 1 (2 ^ w) 0 rfl rfl) ?_
           grind
   | cases c t e lo hi =>
-    simp only [Trace.ruleOk, Bool.and_eq_true] at hok
+    simp only [Tab.at_eq, Trace.ruleOk, Bool.and_eq_true] at hok
     obtain ⟨⟨⟨⟨hti, hei⟩, _⟩, hbt⟩, hbe⟩ := hok
     have ek := (sym 0 (by simp [Rule.nsyms])).2
     have ha := args 0 (by simp [Rule.nsyms])
@@ -927,7 +927,7 @@ theorem ruleFacts_truth (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs 
     have eb : ∀ j < w, ρ (ks.getD j 0) = .num ((bit K j : Int) : R) := by
       intro j hj
       have := (sym j (by simpa [Rule.nsyms] using hj)).2
-      simpa only [Rule.ival, eK, intOf_num] using this
+      simpa only [Tab.at_eq, Rule.ival, eK, intOf_num] using this
     simp only [Rule.facts, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_singleton] at hs
     rcases hs with ⟨j, hj, hs⟩ | rfl
     · exact intS_holds MI ρ (eb j hj) (bit_range K j).1 (bit_range K j).2 s hs
@@ -1016,8 +1016,8 @@ theorem real_val {x : Nat} {r : RRule} (h : tr.realAt SP P x = some r) :
         simp only [Option.some.injEq] at h; subst h
         obtain ⟨m, rfl⟩ : ∃ m, k = SP.sig.decls.length + m := ⟨k - SP.sig.decls.length, by omega⟩
         rw [Nat.add_sub_cancel_left] at hm
-        rw [Low.val_const hwP hk]
-        exact const_real SP P tr Ms hwP hm (fun y hy => ((hG.real m _ hm).2 y hy).2)
+        rw [Low.val_const hwP ((Tab.at_eq _ _).symm.trans hk)]
+        exact const_real SP P tr Ms hwP ((Tab.at_eq _ _).symm.trans hm) (fun y hy => ((hG.real m _ ((Tab.at_eq _ _).symm.trans hm)).2 y hy).2)
       · cases h
     · cases h
   · cases h
@@ -1035,8 +1035,8 @@ theorem realNode_real {r : RRule} {x : Nat} (h : tr.realNode SP P r = some x) :
       have e1 := getElem?_idxOf P.nodes _ hx
       have e2 := getElem?_idxOf tr.mints _ hm
       unfold Trace.realAt
-      rw [e1]
-      simp only [Nat.le_add_right, if_true, Nat.add_sub_cancel_left, e2]
+      rw [Tab.at_eq, e1]
+      simp only [Tab.at_eq, Nat.le_add_right, if_true, Nat.add_sub_cancel_left, e2]
     · cases h
   · cases h
 

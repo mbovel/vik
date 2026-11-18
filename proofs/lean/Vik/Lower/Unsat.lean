@@ -49,14 +49,14 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     fun as hs => List.map_congr_left (fun a m => form_ev (ihc a (hs a m)))
   cases n with
   | const k =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     split at h
     · rename_i hk; cases h
       rw [hv]; simp only [Surf.evalNode, Shape.ev]
       exact const_base SP P tr Ms hk
     · cases h
   | app f args =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, Shape.evs_eq, List.map_map]
     rw [ihc f (by simp [SNode.children])]
     have := leafs args (fun a m => by simp [SNode.children, m])
@@ -65,21 +65,21 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       from by rw [List.map_map]; rfl]
     exact app_enc_enc SP P tr Ms _ _
   | num v =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, Shape.ev, Lia.eval, enc_num]
     congr 1; grind
   | tt =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; rfl
   | ff =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; rfl
   | not a =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, form_ev (ihc a (by simp [SNode.children])),
       truth_bool, enc_bool]
   | and as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, Shape.allTrue_eq, enc_bool]
     congr 1
     rw [all_as_map, List.map_map, all_as_map as]
@@ -89,7 +89,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     simp only [Function.comp_def]
     rw [this]
   | or as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, Shape.anyTrue_eq, enc_bool]
     congr 1
     rw [any_as_map, List.map_map, any_as_map as]
@@ -99,13 +99,13 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     simp only [Function.comp_def]
     rw [this]
   | select a x =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, Shape.evs]
     rw [ihc a (by simp [SNode.children]), leaf_ev hM hw ht (lenc x (by simp [SNode.children]))
       (ihc x (by simp [SNode.children])), ← List.map_singleton (f := enc)]
     exact app_enc_enc SP P tr Ms _ _
   | store a x v =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     split at h
     · rename_i g _ _
       split at h
@@ -113,7 +113,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
         split at h
         · rename_i hst
           cases h
-          simp only [Trace.storeOf, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hst
+          simp only [Tab.at_eq, Trace.storeOf, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hst
           rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, Shape.evs]
           rw [const_store SP P tr Ms hst.1 hst.2,
             leaf_ev hM hw ht (lenc a (by simp [SNode.children])) (ihc a (by simp [SNode.children])),
@@ -124,19 +124,19 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       · cases h
     · cases h
   | implies as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, enc_bool]
     apply impliesS_ev _ _ _ (as.map fun a => (vs a).truth) _ h
     rw [List.map_map, List.map_map]
     exact forms as (fun a m => by simp [SNode.children, m])
   | xor as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, enc_bool]
     apply xorS_ev _ _ _ (as.map fun a => (vs a).truth) _ h
     rw [List.map_map, List.map_map]
     exact forms as (fun a m => by simp [SNode.children, m])
   | iff as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .iff (form tr x) (form tr y))
       (fun x y => (vs x).truth = (vs y).truth) (fun x mx y my => by
         refine ⟨_, rfl, ?_⟩
@@ -147,11 +147,11 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     apply bool_eq_decide
     rw [hr, chainP_map]
   | ite c a b =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     split at h
     · rename_i hb
       simp only [Option.some.injEq] at h; subst h
-      simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, beq_iff_eq] at hty
+      simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, beq_iff_eq] at hty
       obtain ⟨⟨_, hsa⟩, hsb⟩ := hty
       have ba : SP.isBool a = true := by simp only [SProblem.isBool, SProblem.sort_eq] at hb ⊢; rw [hsa]; exact hb
       have bb : SP.isBool b = true := by simp only [SProblem.isBool, SProblem.sort_eq] at hb ⊢; rw [hsb]; exact hb
@@ -166,7 +166,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
         split at h
         · rename_i hite
           simp only [Option.some.injEq] at h; subst h
-          simp only [Trace.iteOf, Bool.and_eq_true, decide_eq_true_eq] at hite
+          simp only [Tab.at_eq, Trace.iteOf, Bool.and_eq_true, decide_eq_true_eq] at hite
           obtain ⟨hk', hm⟩ := hite
           split at hm
           · rename_i i' c0 a0 b0 hmi hni
@@ -195,14 +195,14 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
         · cases h
       · cases h
   | add as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, Shape.ev, enc_num]
     congr 1
     rw [sumForms_eval _ (linOf P tr) (fun a => (vs a).toR) as
       (fun a m => lin_ev hwP (ihc a (by simp [SNode.children, m]))), sumR_eq, List.map_map]
     rfl
   | sub as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     cases as with
     | nil =>
       simp only [Option.some.injEq] at h; subst h
@@ -222,14 +222,14 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       rw [this, ← hr]
       grind
   | neg a =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     rw [hv]; simp only [Surf.evalNode, surf_get_values, Shape.ev, enc_num]
     congr 1
     have ha := lin_ev hwP (ihc a (by simp [SNode.children]))
     rw [Lia.eval_neg, Ring.intCast_neg, ← ha]
     grind
   | mul as =>
-    simp only [expect, hn, Option.map_eq_some_iff] at h
+    simp only [Tab.at_eq, expect, hn, Option.map_eq_some_iff] at h
     obtain ⟨p, hp, rfl⟩ := h
     rw [hv]; simp only [Surf.evalNode, Shape.ev, enc_num]
     congr 1
@@ -237,7 +237,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       (fun a m => lin_ev hwP (ihc a (by simp [SNode.children, m]))) p hp, prodR_eq, List.map_map]
     rfl
   | eq as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     cases as with
     | nil => cases h
     | cons a rest =>
@@ -246,7 +246,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       · cases h
       · rename_i hnb
         simp only [Option.some.injEq] at h; subst h
-        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have sorts : ∀ x ∈ a :: rest, SP.sort x = SP.sort a := by
           intro x m; simp only [List.mem_cons] at m
           rcases m with rfl | m
@@ -283,12 +283,12 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
         apply bool_eq_decide
         exact hr.trans (chainP_map _ _ _).symm
   | distinct as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     cases as with
     | nil => cases h
     | cons a rest =>
       simp only at h
-      simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+      simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
       have sorts : ∀ x ∈ a :: rest, SP.sort x = SP.sort a := by
         intro x m; simp only [List.mem_cons] at m
         rcases m with rfl | m
@@ -349,11 +349,11 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
   | concat wa wb a b => exact concat_sound hM hw ht hwP hn h ih
   | bv2int sg w a => exact bv2int_sound hM hw ht hn h ih
   | bvcmp op w a b => exact bvcmp_sound hM hw ht hwP hn h ih
-  | bvbin op w a b => simp only [expect, hn] at h; cases h
-  | int2bv w a => simp only [expect, hn] at h; cases h
-  | rat _ _ | div _ | toReal _ | toInt _ | isInt _ | letIn _ _ | bound _ => simp only [expect, hn] at h; cases h
+  | bvbin op w a b => simp only [Tab.at_eq, expect, hn] at h; cases h
+  | int2bv w a => simp only [Tab.at_eq, expect, hn] at h; cases h
+  | rat _ _ | div _ | toReal _ | toInt _ | isInt _ | letIn _ _ | bound _ => simp only [Tab.at_eq, expect, hn] at h; cases h
   | le as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .le (.same (tr.at x)) (.same (tr.at y)))
       (fun x y => (vs x).toR ≤ (vs y).toR) (fun x mx y my =>
         ⟨_, le_ev (ihc x mx) (ihc y my), by simp only [decide_eq_true_eq]⟩)
@@ -362,7 +362,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     apply bool_eq_decide
     exact hr.trans (chainP_map _ _ _).symm
   | ge as =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     obtain ⟨b, hb, hr⟩ := chain_ev MI ρ as (fun x y => .le (.same (tr.at y)) (.same (tr.at x)))
       (fun x y => (vs y).toR ≤ (vs x).toR) (fun x mx y my =>
         ⟨_, le_ev (ihc y my) (ihc x mx), by simp only [decide_eq_true_eq]⟩)
@@ -371,7 +371,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
     apply bool_eq_decide
     exact hr.trans (chainP_map (fun x y => y ≤ x) (fun a => (vs a).toR) as).symm
   | lt as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     split at h
     · rename_i hint
       simp only [Option.some.injEq] at h; subst h
@@ -395,7 +395,7 @@ theorem expect_sound (hwP : Low.wellFormed P.nodes = true) {i : Nat} {n : SNode}
       apply bool_eq_decide
       exact hr.trans (chainP_map _ _ _).symm
   | gt as =>
-    simp only [expect, hn] at h
+    simp only [Tab.at_eq, expect, hn] at h
     split at h
     · rename_i hint
       simp only [Option.some.injEq] at h; subst h
@@ -476,7 +476,7 @@ theorem check_spec {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} (h : 
     obtain ⟨ws, hw⟩ := zip_all_left hal hlv s hs
     simp only [hfs, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hw
     obtain ⟨w, hw⟩ := zip_all_left (g := fun q => decide (q.1 < P.nodes.length) && tr.inputOk SP P q.1 q.2)
-      hw.1 (fun q hq => by simpa only [Bool.and_eq_true] using hw.2 q hq) f hf
+      hw.1 (fun q hq => by simpa only [Tab.at_eq, Bool.and_eq_true] using hw.2 q hq) f hf
     simp only [Bool.and_eq_true, decide_eq_true_eq] at hw
     exact ⟨hw.1, _, hw.2⟩
 
@@ -522,7 +522,7 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
   rotate_left 2
   · exact absurd hn hnum
   · have hd := hty hk
-    simp only [Tab.at_eq, Low.nodeTyped, beq_iff_eq] at hd
+    simp only [Tab.at_eq, Tab.at_eq, Low.nodeTyped, beq_iff_eq] at hd
     rw [Low.val_const hA.wf hk]
     rcases Nat.lt_or_ge k SP.sig.decls.length with hkl | hkl
     · rw [hG.decls k hkl] at hd
@@ -564,7 +564,7 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         rw [const_witness SP P tr Ms hkl (by rw [hm]; exact hx)]
         simp [hsw, enc, Ring.intCast_zero]
   · have hd := hty hfx
-    simp only [Tab.at_eq, Low.nodeTyped] at hd
+    simp only [Tab.at_eq, Tab.at_eq, Low.nodeTyped] at hd
     split at hd
     · rename_i as r hfs
       simp only [Bool.and_eq_true, beq_iff_eq] at hd
@@ -705,15 +705,15 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
         · rename_i i hm
           split at hs
           · rename_i c a b hn
-            have hil := lt_of_get hn
-            have hch := children_lt hc.wf hn
+            have hil := lt_of_get ((Tab.at_eq _ _).symm.trans hn)
+            have hch := children_lt hc.wf ((Tab.at_eq _ _).symm.trans hn)
             have hci := hco c (by have := hch c (by simp [SNode.children]); omega)
             have hai := hco a (by have := hch a (by simp [SNode.children]); omega)
             have hbi := hco b (by have := hch b (by simp [SNode.children]); omega)
             have hk' : SP.sig.decls.length ≤ k := by omega
-            have hv := Surf.val_node (I := Ms.toInterp) hc.wf hn
+            have hv := Surf.val_node (I := Ms.toInterp) hc.wf ((Tab.at_eq _ _).symm.trans hn)
             simp only [Surf.evalNode, surf_get_values] at hv
-            have hK : (lowModel SP P tr Ms).const k = enc (vs i) := const_ite SP P tr Ms hk' hm
+            have hK : (lowModel SP P tr Ms).const k = enc (vs i) := const_ite SP P tr Ms hk' ((Tab.at_eq _ _).symm.trans hm)
             -- `k = t` holds when `k` is `t`
             have eqT : ∀ t, t ∈ (SNode.ite c a b).children → vs i = vs t → ρ (tr.at t) = enc (vs t) →
                 (eqS (SP.isArith i) (.const k) (.same (tr.at t))).ev MI ρ = .bool true := by

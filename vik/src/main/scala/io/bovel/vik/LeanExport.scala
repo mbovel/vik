@@ -133,6 +133,19 @@ private[vik] object LeanExport:
     if r.isInteger then s"(${r.num} : Rat)" else s"((${r.num} : Rat) / ${r.den})"
   private def list(xs: Iterable[String]): String = xs.mkString("[", ", ", "]")
 
+  // The kernel checks the derived steps, their justifications, the nodes of
+  // the script and the inputs of the lowering in slices of these sizes, each a theorem of its own: it keeps
+  // the values it computes within a declaration, which on a large proof take
+  // more memory and stack than one check can have.
+  private val stepSlice = 250
+  private val nodeSlice = 500
+  private val inputSlice = 100
+
+  /** `[0, total)` in slices of `size`: their starts and lengths. */
+  private def slices(total: Int, size: Int): List[(Int, Int)] = (0 until total by size).map(a =>
+    (a, size min (total - a))
+  ).toList
+
   private final class Writer(in: Input, surface: Option[Surface]):
     import in.*
 
@@ -538,25 +551,49 @@ private[vik] object LeanExport:
       val levelReasons = assumed.map(v => list(levels.find(_._1 == v).fold(Nil)(_._2).map(reason(sf, _))))
       val datatypes =
         sf.datatypes.map((d, cs) => s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})")
-      val b = StringBuilder()
-      b ++= "def script : Vik.Lower.SProblem where\n"
-      b ++= s"  sig := ⟨${list(sf.sorts.map(_.text))}, ${list(sf.decls.map(_._2.toString))}⟩\n"
-      b ++= s"  nodes := ${list(sf.nodes)}\n"
-      b ++= s"  sortOf := ${list(sf.sortOf.map(_.toString))}\n"
-      b ++= s"  asserts := ${list(sf.asserts.map(_.toString))}\n"
-      b ++= s"  datatypes := ${list(datatypes)}\n"
-      b ++= s"  defs := ${list(sf.defs)}\n\n"
-      b ++= "def trace : Vik.Lower.Trace where\n"
-      b ++= s"  node := ${list(node.map(_.toString))}\n"
-      b ++= s"  mints := ${list(mints)}\n"
-      b ++= s"  inputs := ${list(reasons)}\n"
-      b ++= s"  levels := ${list(levelReasons)}\n"
-      b ++= s"  insts := ${list(sf.insts.map((i, ms) => s"($i, ${list(ms.map(_.toString))})"))}\n\n"
-      b.toString
+      LeanSexp.structure(
+        "script",
+        "Vik.Lower.SProblem",
+        List(
+          "sig" -> s"⟨${list(sf.sorts.map(_.text))}, ${list(sf.decls.map(_._2.toString))}⟩",
+          "nodes" -> list(sf.nodes),
+          "sortOf" -> list(sf.sortOf.map(_.toString)),
+          "asserts" -> list(sf.asserts.map(_.toString)),
+          "datatypes" -> list(datatypes),
+          "defs" -> list(sf.defs)
+        )
+      ) + "\n" + LeanSexp.structure(
+        "trace",
+        "Vik.Lower.Trace",
+        List(
+          "node" -> list(node.map(_.toString)),
+          "mints" -> list(mints),
+          "inputs" -> list(reasons),
+          "levels" -> list(levelReasons),
+          "insts" -> list(sf.insts.map((i, ms) => s"($i, ${list(ms.map(_.toString))})"))
+        )
+      ) + "\n" + surfaceTheorems(sf.nodes.length, reasons.length)
 
-    private val surfaceTheorems =
-      """|theorem checked : trace.check script problem answer = true := by decide +kernel
-         |
+    private def surfaceTheorems(nodes: Int, inputs: Int): String =
+      val ns = slices(nodes, nodeSlice)
+      val is = slices(inputs, inputSlice)
+      val b = StringBuilder()
+      b ++= "theorem checkedBase : trace.checkBase script problem answer = true := by decide +kernel\n"
+      for (a, n) <- ns do
+        b ++= s"theorem checkedNodes$a : trace.nodesSlice script problem $a $n = true := by decide +kernel\n"
+      for (a, n) <- is do
+        b ++= s"theorem checkedInputs$a : trace.inputsSlice script problem $a $n = true := by decide +kernel\n"
+      val nodeChain =
+        ns.foldRight("(Vik.Lower.Trace.nodesFrom_end script problem trace (by decide +kernel))")((an, rest) =>
+          s"(Vik.Lower.Trace.nodesFrom_slice script problem trace checkedNodes${an._1}\n    $rest)"
+        )
+      val inputChain =
+        is.foldRight("(Vik.Lower.Trace.inputsFrom_end script problem trace (by decide +kernel))")((an, rest) =>
+          s"(Vik.Lower.Trace.inputsFrom_slice script problem trace checkedInputs${an._1}\n    $rest)"
+        )
+      b ++= "\ntheorem checked : trace.check script problem answer = true :=\n"
+      b ++= s"  Vik.Lower.Trace.check_of_slices script problem trace checkedBase\n    $nodeChain\n    $inputChain\n"
+      b ++= """|
          |/-- No model of the script satisfies its assertions. -/
          |theorem no_model {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
          |    [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Vik.Surf.Model R U)
@@ -564,6 +601,24 @@ private[vik] object LeanExport:
          |    (h : ∀ a ∈ script.asserts, Vik.Surf.holds M.toInterp script.nodes a) : False :=
          |  Vik.Lower.Trace.unsat checked accepted M size hL hfl h
          |""".stripMargin
+      b.toString
+
+    private def acceptedTheorems(steps: Int): String =
+      val ss = slices(steps, stepSlice)
+      val b = StringBuilder()
+      b ++= "theorem acceptedBase : problem.acceptsBase answer = true := by decide +kernel\n"
+      for (a, n) <- ss do
+        b ++= s"theorem acceptedJusts$a : problem.justsSlice answer $a $n = true := by decide +kernel\n"
+        b ++= s"theorem acceptedSteps$a : answer.rupSlice $a $n = true := by decide +kernel\n"
+      val justs = ss.foldRight("(Problem.justsFrom_end problem answer (by decide +kernel))")((an, rest) =>
+        s"(Problem.justsFrom_slice problem answer acceptedJusts${an._1}\n    $rest)"
+      )
+      val rup = ss.foldRight("(Answer.rupFrom_end answer (by decide +kernel))")((an, rest) =>
+        s"(Answer.rupFrom_slice answer acceptedSteps${an._1}\n    $rest)"
+      )
+      b ++=
+        s"\ntheorem accepted : problem.accepts answer = true :=\n  Problem.accepts_of_slices problem answer acceptedBase\n    $justs\n    $rup\n"
+      b.toString
 
     def write(): String =
       val steps = ArrayBuffer.empty[String]
@@ -661,36 +716,49 @@ private[vik] object LeanExport:
       val declList = decls.keysIterator.map(declSorts(_).toString).toList
       val stores = decls.keysIterator.filter(_.startsWith("store!")).map(decls(_).toString).toList
       val b = StringBuilder(options)
-      b ++= "def problem : Problem where\n"
-      b ++= s"  sig := ⟨${list(sorts)}, ${list(declList)}⟩\n"
-      b ++= s"  nodes := ${list(nodes)}\n"
-      b ++= s"  sortOf := ${list(nodeSorts.map(_.toString))}\n"
-      b ++= s"  inputs := ${list(inputIds.map(_.toString))}\n"
       val dtsText = surface.fold(list(dts))(sf =>
         list(sf.datatypes.map((d, cs) =>
           s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})"
         ))
       )
-      b ++= s"  datatypes := $dtsText\n"
-      b ++= s"  stores := ${list(stores)}\n"
-      b ++= s"  bvIndex := ${list(bvIndex.map((s, w) => s"($s, $w)"))}\n\n"
-      b ++= "def answer : Answer where\n"
-      b ++= s"  meaning := ${list(meaning)}\n"
-      b ++= s"  trueLit := ${lit(trueLit)}\n"
-      b ++= s"  levels := ${list(levelsText)}\n"
-      b ++= s"  assumed := ${list(assumed.map(_.toString))}\n"
-      b ++= s"  ufAtoms := ${list(ufAtoms)}\n"
-      b ++= s"  trueClass := $trueNode\n  falseClass := $falseNode\n"
-      b ++= s"  ufCtors := ${list(ctors)}\n"
-      b ++= s"  ufTesters := ${list(testers)}\n"
-      b ++= s"  liaAtoms := ${list(liaAtomsText)}\n"
-      b ++= s"  liaForms := ${list(liaForms)}\n"
-      b ++= s"  steps := ${list(steps)}\n"
-      b ++= s"  justs := ${list(justs)}\n"
-      b ++= s"  conclusion := $last\n"
-      b ++= s"  exts := ${list(extsText)}\n"
-      b ++= s"  witnesses := ${list(witnessSyms.map(_.toString))}\n\n"
-      b ++= "theorem accepted : problem.accepts answer = true := by decide +kernel\n"
+      b ++= LeanSexp.structure(
+        "problem",
+        "Problem",
+        List(
+          "sig" -> s"⟨${list(sorts)}, ${list(declList)}⟩",
+          "nodes" -> list(nodes),
+          "sortOf" -> list(nodeSorts.map(_.toString)),
+          "inputs" -> list(inputIds.map(_.toString)),
+          "datatypes" -> dtsText,
+          "stores" -> list(stores),
+          "bvIndex" -> list(bvIndex.map((s, w) => s"($s, $w)"))
+        )
+      )
+      b ++= "\n"
+      b ++= LeanSexp.structure(
+        "answer",
+        "Answer",
+        List(
+          "meaning" -> list(meaning),
+          "trueLit" -> lit(trueLit),
+          "levels" -> list(levelsText),
+          "assumed" -> list(assumed.map(_.toString)),
+          "ufAtoms" -> list(ufAtoms),
+          "trueClass" -> trueNode.toString,
+          "falseClass" -> falseNode.toString,
+          "ufCtors" -> list(ctors),
+          "ufTesters" -> list(testers),
+          "liaAtoms" -> list(liaAtomsText),
+          "liaForms" -> list(liaForms),
+          "steps" -> list(steps),
+          "justs" -> list(justs),
+          "conclusion" -> last.toString,
+          "exts" -> list(extsText),
+          "witnesses" -> list(witnessSyms.map(_.toString))
+        )
+      )
+      b ++= "\n"
+      b ++= acceptedTheorems(steps.length)
       for text <- surfaceDefs do
-        b ++= "\n" + text + surfaceTheorems
+        b ++= "\n" + text
       b.toString
