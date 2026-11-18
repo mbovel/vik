@@ -155,6 +155,14 @@ final class Solver(val simplify: Boolean = true):
 
   /** Declares a datatype: its constructors, selectors and testers become known
    *  function symbols.
+   *
+   *  The datatype must be well-founded: one of its constructors takes only
+   *  fields that have values without it, the datatypes declared before having
+   *  some. The solver assumes it, and builds the default values of its models
+   *  from such constructors: a datatype without values would leave a model with
+   *  nothing to give its terms. The parser refuses a script's datatype that is
+   *  not well-founded, as SMT-LIB asks (`Parser.wellFounded`, issue 147); a
+   *  datatype declared here directly is not checked.
    */
   def declare(datatype: Datatype): Unit =
     if encoder != null then dirty = true // its rules and exhaustiveness need an encoder that knows it
@@ -637,6 +645,35 @@ private final class Encoder(
               case None => Infinite
         cardinalities(sort) = found
         found
+
+  /** The constructor of each datatype's default value in a model: one without
+   *  fields if there is one, else the first whose fields all have a default
+   *  already, a least fixpoint. A default built from these is ground: the first
+   *  constructor of `((rec (next D)) (base (n Bool)))` leads back to `D`, and
+   *  the default ended in an abstract element, `(rec (rec @D!2))` (issue 140).
+   *  An array field has the default of its elements everywhere.
+   *
+   *  Every datatype has one: the solver assumes its datatypes are well-founded
+   *  (see [[Solver.declare]]), and a well-founded datatype has a constructor
+   *  whose fields all have values without it.
+   */
+  private val groundConstructors: Map[String, Constructor] =
+    var known = Map.empty[String, Constructor]
+    def ground(sort: Sort): Boolean = sort match
+      case Sort.Fun(_, element) => ground(element)
+      case _ => datatypeOf(sort).forall(d => known.contains(d.name))
+    var changed = true
+    while changed do
+      val more =
+        for
+          d <- datatypes if !known.contains(d.name)
+          c <- d.constructors.find(_.selectors.isEmpty).orElse(d.constructors.find(_.selectors.forall((_, s) =>
+            ground(s)
+          )))
+        yield d.name -> c
+      changed = more.nonEmpty
+      known ++= more
+    known
 
   /** The terms known to be `Int`-sorted from their use in arithmetic (a summand
    *  of a combination, a side of `Le`), for undeclared constants.
@@ -1565,12 +1602,13 @@ private final class Encoder(
     def testerOf(root: EClassId, tester: String): Option[Boolean] =
       applicationOf(tester, root).map(c => eg.find(c) == eg.find(trueTerm))
     def selectorOf(root: EClassId, selector: String): Option[EClassId] = applicationOf(selector, root)
-    def defaultOf(sort: Sort, seen: Set[Sort]): Term = datatypeOf(sort) match
-      case Some(d) if !seen(sort) =>
-        val c = d.constructors.find(_.selectors.isEmpty).getOrElse(d.constructors.head)
-        val args = c.selectors.map((_, s) => defaultOf(s, seen + sort))
-        if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
-      case Some(_) => elementOf(sort, eg.newClass())
+    def defaultOf(sort: Sort): Term = datatypeOf(sort) match
+      case Some(d) =>
+        val c = groundConstructors.getOrElse(
+          d.name,
+          throw IllegalArgumentException(s"the datatype ${d.name} has no value: it is not well-founded")
+        )
+        construct(c, c.selectors.map((_, s) => defaultOf(s)))
       case None => valueOfTerm(Term.Const("@default"), sort)
     def construct(c: Constructor, args: List[Term]): Term =
       if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
@@ -1581,7 +1619,7 @@ private final class Encoder(
     def freshOf(sort: Sort, seen: Set[Sort]): Option[Term] = sort match
       case Sort.Int => Some(Term.Num(freshInt(eg.newClass())))
       case Sort.Real => Some(Model.rationalTerm(freshReal(eg.newClass())))
-      case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort, Set.empty)))
+      case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort)))
       case _ =>
         val fields =
           for
@@ -1593,7 +1631,7 @@ private final class Encoder(
             construct(
               c,
               c.selectors.zipWithIndex.map { case ((_, s), j) =>
-                if i == j then inner else defaultOf(s, Set.empty)
+                if i == j then inner else defaultOf(s)
               }
             )
         val value = fields.nextOption()
@@ -1622,7 +1660,7 @@ private final class Encoder(
                   case None if free.exists(_._1 == i) => free.get._2
                   case None if s == Sort.Int => Term.Num(freshInt(eg.newClass()))
                   case None if s == Sort.Real => Model.rationalTerm(freshReal(eg.newClass()))
-                  case None => defaultOf(s, Set.empty)
+                  case None => defaultOf(s)
               }
             )
           val value = valueWith(c, None)
