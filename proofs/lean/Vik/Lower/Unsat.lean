@@ -448,7 +448,7 @@ theorem zip_all_left {α β : Type} {xs : List α} {ys : List β} {g : α × β 
 
 theorem check_spec {SP : SProblem} {P : Problem} {tr : Trace} {A : Answer} (h : tr.check SP P A = true) :
     CheckSpec SP P tr A := by
-  simp only [Trace.check, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+  simp only [Trace.check, Trace.nodeOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨hw, ht⟩, hs⟩, hg⟩, _⟩, hn⟩, hlen⟩, hi⟩, hal⟩, hlv⟩ := h
   refine ⟨hw, ht, sortsOk_spec hs, sigOk_spec hg, ?_, ?_, ?_⟩
   · intro i hi'

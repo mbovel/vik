@@ -315,6 +315,7 @@ theorem foldl_scan_zero (F : List Nat → Node → Nat) (hF : ∀ ds n, (∀ x �
 theorem depthOf_zero {rank : Nat → Nat} (hr : ∀ n, rank n = 0) (nodes : List Node) (i : Nat) :
     depthOf (depths rank nodes) i = 0 := by
   have hz : ∀ x ∈ depths rank nodes, x = 0 := by
+    rw [depths_eq_scan]
     refine foldl_scan_zero _ (fun ds n h => ?_) nodes [] (by simp)
     unfold depthNode maxOf
     have ho : n.own rank = 0 := by cases n <;> simp [Node.own, hr]
@@ -375,6 +376,82 @@ def Problem.accepts : Bool :=
       match Tab.at (A.steps.map Clausal.Step.clause) A.conclusion with
       | some goal => goal.all fun l => !l.pos && A.assumed.contains l.var && (A.levels.lookup l.var).isSome
       | none => false)
+
+/-! ### The checker in slices
+
+The kernel checks a large answer faster, and on a smaller stack, in slices
+that Lean checks in parallel: the justifications and the derived steps from
+`a` to `a + n`, and the rest of `accepts` once. -/
+
+/-- `accepts` but the justifications and the derived steps. -/
+def Problem.acceptsBase : Bool :=
+  P.witnessesOkF A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
+    (match (A.meaning[A.trueLit.var]?).getD none with
+      | some t => A.trueLit.pos && P.node t == some .tt
+      | none => false) &&
+    (match P.node A.trueClass, P.node A.falseClass with
+      | some (.bterm t), some (.bterm f) => P.node t == some .tt && P.node f == some .ff
+      | _, _ => false) &&
+    A.levels.all (fun (s, _) =>
+      ((A.meaning[s]?).getD none).isNone && (A.ufAtom s).isNone && (A.liaAtom s).isNone) &&
+    (List.range (max A.ufAtoms.length A.liaAtoms.length)).all (P.atomOk A) &&
+    A.steps.length == A.justs.length &&
+    match Tab.at (A.steps.map Clausal.Step.clause) A.conclusion with
+    | some goal => goal.all fun l => !l.pos && A.assumed.contains l.var && (A.levels.lookup l.var).isSome
+    | none => false
+
+/-- The justifications from the `a`-th on. -/
+def Problem.justsFrom (a : Nat) : Bool :=
+  ((A.steps.zip A.justs).drop a).all (fun (s, j) => P.justOk A s j)
+
+/-- The justifications from the `a`-th to the `a + n`-th. -/
+def Problem.justsSlice (a n : Nat) : Bool :=
+  (((A.steps.zip A.justs).drop a).take n).all (fun (s, j) => P.justOk A s j)
+
+/-- The derived steps from the `a`-th on. -/
+def Answer.rupFrom (a : Nat) : Bool :=
+  Clausal.checkT (A.steps.map Clausal.Step.clause) a (A.steps.drop a)
+
+/-- The derived steps from the `a`-th to the `a + n`-th. -/
+def Answer.rupSlice (a n : Nat) : Bool :=
+  a + n ≤ A.steps.length && Clausal.checkT (A.steps.map Clausal.Step.clause) a ((A.steps.drop a).take n)
+
+theorem Problem.justsFrom_slice {a n : Nat} (h₁ : P.justsSlice A a n = true) (h₂ : P.justsFrom A (a + n) = true) :
+    P.justsFrom A a = true := by
+  unfold Problem.justsSlice at h₁
+  unfold Problem.justsFrom at h₂ ⊢
+  rw [← List.take_append_drop n ((A.steps.zip A.justs).drop a), List.all_append, h₁, List.drop_drop, h₂]
+  rfl
+
+theorem Problem.justsFrom_end {a : Nat} (h : A.steps.length ≤ a) : P.justsFrom A a = true := by
+  unfold Problem.justsFrom
+  rw [List.drop_eq_nil_of_le (by simp; omega)]
+  rfl
+
+theorem Answer.rupFrom_slice {a n : Nat} (h₁ : A.rupSlice a n = true) (h₂ : A.rupFrom (a + n) = true) :
+    A.rupFrom a = true := by
+  unfold Answer.rupSlice at h₁
+  unfold Answer.rupFrom at h₂ ⊢
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h₁
+  obtain ⟨hn, h₁⟩ := h₁
+  have hl : ((A.steps.drop a).take n).length = n := by simp; omega
+  rw [← List.take_append_drop n (A.steps.drop a), Clausal.checkT_append, h₁, hl, List.drop_drop, h₂]
+  rfl
+
+theorem Answer.rupFrom_end {a : Nat} (h : A.steps.length ≤ a) : A.rupFrom a = true := by
+  unfold Answer.rupFrom
+  rw [List.drop_eq_nil_of_le h]
+  rfl
+
+theorem Problem.accepts_of_slices (hb : P.acceptsBase A = true) (hj : P.justsFrom A 0 = true)
+    (hr : A.rupFrom 0 = true) : P.accepts A = true := by
+  unfold Problem.acceptsBase at hb
+  unfold Problem.justsFrom at hj
+  unfold Answer.rupFrom at hr
+  unfold Problem.accepts
+  simp only [List.drop_zero] at hj hr
+  simp only [hj, hr, Bool.and_true, Bool.true_and]
+  exact hb
 
 end Checker
 

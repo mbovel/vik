@@ -264,6 +264,19 @@ def checkT (tab : List Clause) : Nat → List Step → Bool
   | k, .derived c hints :: rest => rupT tab k c hints && checkT tab (k + 1) rest
   | k, _ :: rest => checkT tab (k + 1) rest
 
+theorem checkT_append (tab : List Clause) :
+    ∀ (l₁ l₂ : List Step) (k : Nat), checkT tab k (l₁ ++ l₂) = (checkT tab k l₁ && checkT tab (k + l₁.length) l₂)
+  | [], l₂, k => by simp [checkT]
+  | .derived c hints :: l₁, l₂, k => by
+    simp only [List.cons_append, checkT, checkT_append tab l₁ l₂ (k + 1), List.length_cons, Bool.and_assoc]
+    rw [show k + 1 + l₁.length = k + (l₁.length + 1) by omega]
+  | .input c :: l₁, l₂, k => by
+    simp only [List.cons_append, checkT, checkT_append tab l₁ l₂ (k + 1), List.length_cons]
+    rw [show k + 1 + l₁.length = k + (l₁.length + 1) by omega]
+  | .lemma c :: l₁, l₂, k => by
+    simp only [List.cons_append, checkT, checkT_append tab l₁ l₂ (k + 1), List.length_cons]
+    rw [show k + 1 + l₁.length = k + (l₁.length + 1) by omega]
+
 theorem checkT_sound (tab : List Clause) :
     ∀ (rest : List Step) (k : Nat), tab.drop k = rest.map Step.clause →
       checkT tab k rest = true → check (tab.take k) rest = some tab

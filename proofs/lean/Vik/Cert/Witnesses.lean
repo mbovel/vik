@@ -55,7 +55,16 @@ def depthNode (rank : Nat → Nat) (ds : List Nat) (n : Node) : Nat :=
 def scan {α : Type} (F : List α → Node → α) (nodes : List Node) : List α :=
   nodes.foldl (fun ds n => ds ++ [F ds n]) []
 
-def depths (rank : Nat → Nat) (nodes : List Node) : List Nat := scan (depthNode rank) nodes
+/-- The depths of the nodes from the `k`-th on, `acc` those before it in
+    reverse and `t` their tree, where a node looks the depths of its children
+    up. -/
+def depthsAux (rank : Nat → Nat) : Tab Nat → List Nat → Nat → List Node → List Nat
+  | _, acc, _, [] => acc
+  | t, acc, k, n :: ns =>
+    let d := max (n.own rank) (maxOf (n.children.map fun j => (t.get j).getD 0))
+    depthsAux rank (t.set k d) (d :: acc) (k + 1) ns
+
+def depths (rank : Nat → Nat) (nodes : List Node) : List Nat := (depthsAux rank .leaf [] 0 nodes).reverse
 
 def depthOf (ds : List Nat) (i : Nat) : Nat := (Tab.at ds i).getD 0
 
@@ -122,6 +131,37 @@ theorem scan_take (nodes : List Node) {i j : Nat} (hj : j < i) (hi : i ≤ nodes
   rw [scan_prefix F _ _ j (by unfold scan at hl; rw [hl]; exact hj)]
   rfl
 
+theorem depthsAux_eq (rank : Nat → Nat) :
+    ∀ (ns : List Node) (pre : List Nat) (t : Tab Nat), t.Holds (fun j => pre[j]?.getD 0) pre.length →
+      depthsAux rank t pre.reverse pre.length ns = (ns.foldl (fun ds n => ds ++ [depthNode rank ds n]) pre).reverse
+  | [], _, _, _ => rfl
+  | n :: ns, pre, t, ht => by
+    have hd : max (n.own rank) (maxOf (n.children.map fun j => (t.get j).getD 0)) = depthNode rank pre n := by
+      unfold depthNode
+      congr 2
+      apply List.map_congr_left
+      intro j _
+      rw [ht j]
+      split
+      · rfl
+      · rename_i hj; rw [List.getElem?_eq_none (by omega)]
+    simp only [depthsAux, List.foldl_cons]
+    rw [hd]
+    have ht' := Tab.Holds.congr (Tab.holds_set t _ pre.length (depthNode rank pre n) ht) (g := fun j => (pre ++ [depthNode rank pre n])[j]?.getD 0)
+      (by
+        intro j hj
+        by_cases e : j = pre.length
+        · subst e; simp
+        · simp only [e, ↓reduceIte]; rw [List.getElem?_append_left (by omega)])
+    rw [← depthsAux_eq rank ns (pre ++ [depthNode rank pre n]) _ (by simpa using ht')]
+    simp
+
+theorem depths_eq_scan (rank : Nat → Nat) (nodes : List Node) : depths rank nodes = scan (depthNode rank) nodes := by
+  unfold depths scan
+  have := depthsAux_eq rank nodes [] .leaf (fun _ => rfl)
+  simp only [List.reverse_nil, List.length_nil] at this
+  rw [this, List.reverse_reverse]
+
 end Scan
 
 theorem lt_length_of_get {nodes : List Node} {i : Nat} {n : Node} (h : nodes[i]? = some n) :
@@ -143,13 +183,13 @@ theorem depth_node {rank : Nat → Nat} {nodes : List Node} (hw : wellFormed nod
   have hi := lt_length_of_get h
   have hc := children_lt hw h
   have e : depthOf (depths rank nodes) i = depthNode rank (scan (depthNode rank) (nodes.take i)) n := by
-    rw [depthOf_eq]; unfold depths; rw [scan_get _ nodes i n h]; rfl
+    rw [depthOf_eq, depths_eq_scan, scan_get _ nodes i n h]; rfl
   rw [e]
   refine ⟨Nat.le_max_left _ _, fun j m => ?_⟩
   unfold depthNode
   refine Nat.le_trans ?_ (Nat.le_max_right _ _)
   have : (scan (depthNode rank) (nodes.take i))[j]?.getD 0 = depthOf (depths rank nodes) j := by
-    rw [depthOf_eq]; unfold depths; rw [scan_take _ nodes (hc j m) (Nat.le_of_lt hi)]
+    rw [depthOf_eq, depths_eq_scan, scan_take _ nodes (hc j m) (Nat.le_of_lt hi)]
   rw [← this]
   exact le_maxOf (List.mem_map.mpr ⟨j, m, rfl⟩)
 
