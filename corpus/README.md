@@ -15,6 +15,18 @@ reason: the test expects those to fail, and when one passes it asks for its line
 surfaces. The benchmarks (`bench/`) use the subset listed in
 their `@Param`s.
 
+`sbt "smtlibutils/runMain io.bovel.smtlib.ignorestamp [regex]"` brings `ignore.txt` up to date after a change to
+the solver: it runs the corpus under the test's rules (about seven minutes; a regex restricts it to the paths it
+finds) and rewrites the lines whose file changed standing. A listed file that passes loses its line. A file that
+now fails gets one, with a generated reason (`timeout (5 s limit)`, `wrong: ...`, `model: ...`) to complete by
+hand, with the issue. A listed file that fails in another way than its line says gets the new reason, and one that
+fails the same way keeps its line as written. Every change is confirmed by a second run of the file alone, and a
+file listed for its time leaves the list only when it passes within half the budget. A `skip` file is probed in a
+JVM of its own, with half the tests' heap and killed soon after the budget, so that it cannot take the run down:
+one that ends by itself there, without exhausting the heap or the stack, loses its `skip` line or gets the reason
+of that run. The test runs the listed files with a small fraction of the fuel and so sees only the ones that became easy;
+`ignorestamp` runs them with all of it. Review the diff before committing it.
+
 ## Origins and licenses
 
 | Origin | Directory | What | License |
@@ -42,7 +54,7 @@ Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and
 files in (the origins' layouts and answer formats are in `Import.scala`): every candidate is parsed, only the
 files in the supported fragment are copied, with the header and the statuses, each into the directory of the
 smallest standard logic it fits (with its `set-logic` changed if it set another, as `prune logic` does), and the
-rejected ones are reported by error. After a change that affects the answers, run the corpus test and edit `ignore.txt` as it asks.
+rejected ones are reported by error. After a change that affects the answers, run `ignorestamp` (above), or the corpus test and edit `ignore.txt` as it asks.
 
 `sbt "smtlibutils/runMain io.bovel.smtlib.prune invalid [--delete] [prefix ...]"` lists the files that neither
 VIK's parser nor z3 reads (z3 sees the script without its `check-sat`s, `get-`s and options), and `--delete`

@@ -16,8 +16,6 @@ QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_srvr.blast.06.i.cil-1.c_
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_srvr.blast.06.i.cil-1.c_4.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/bench_ab__a247test0002.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/bench_ab__a288test0004.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
-QF_ABV/smt-lib/bench_ab__a307test0003.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
-QF_ABV/smt-lib/bench_ab__b168test0010.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/bench_ab__ft-out-2006-03-02--18_03_59-test0002.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/bmc-arrays__array_free.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/bmc-arrays__ex40.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -32,11 +30,11 @@ QF_ABV/smt-lib/brummayerbiere__wchains019se.smt2	skip: the encoding runs past th
 QF_ABV/smt-lib/brummayerbiere__wchains026se.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/brummayerbiere__wchains036se.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/egt__egt-2532.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
-QF_ABV/smt-lib/egt__egt-2647.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
+QF_ABV/smt-lib/egt__egt-2647.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/egt__egt-2944.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/egt__egt-4450.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/egt__egt-5614.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
-QF_ABV/smt-lib/egt__egt-6506.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
+QF_ABV/smt-lib/egt__egt-6506.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/egt__egt-6940.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/platania__copy_array__copy_array36.c.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/platania__copy_array__copy_array46.c.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -103,7 +101,9 @@ QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__25.smt2	model: an array field of 
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__26.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__27.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__28.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__29.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__3.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
+QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__30.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__31.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__32.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
 QF_AUFBVDTLIA/stainless/invalid-BinarySearch1__33.smt2	model: an array field of a datatype value is an abstract element, which a read cannot evaluate (#139)
@@ -192,7 +192,7 @@ QF_AUFBVDTLIA/stainless/invalid-BinarySearch3__7.smt2	model: an array field of a
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--ppp--ppp_generic.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__205_9a_array_unsafes_linux-3.16-rc1.tar.xz-205_9a-drivers--net--wireless--mwifiex--mwifiex_sdio.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--input--misc--atlas_btns.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
-QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--platform--x86--dell-wmi-aio.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	timeout (5 s limit)
+QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--platform--x86--dell-wmi-aio.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--usb--dwc3--dwc3-pci.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound; it answered fast while a store declared after the first check-sat got no axioms (issue 13)
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_7_cilled_const_ok_linux-32_1-drivers--isdn--capi--kernelcapi.ko-ldv_main3_sequence_infinite_withcheck_stateful.cil.out_smt-query.1.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_7a_cilled_linux-3.8-rc1-32_7a-drivers--block--paride--pf.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -203,15 +203,10 @@ QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__linux-4
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__linux-4.2-rc1.tar.xz-43_2a-drivers--infiniband--ulp--isert--ib_isert.ko-entry_point.cil.out_smt-query.0.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
 QF_AUFBVLIA/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__string-initializer_true-unreach-label.c.files_smt-query.1.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_AUFLIA/smt-lib/array_benchmarks__pipeline-invalid.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
-QF_AUFLIA/smt-lib/cvc__read7.smt2	skip: the sharing atoms exhaust the heap at the encoding
 QF_AUFLIA/smt-lib/cvc__read8.smt2	skip: the sharing atoms exhaust the heap at the encoding
 QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_002.cvc.smt2	timeout (5 s limit)
 QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_003.cvc.smt2	timeout (5 s limit)
 QF_AUFLIA/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ni_00010_005.cvc.smt2	timeout (5 s limit)
-QF_AX/smt-lib/cvc__read5.smt2	skip: the sharing atoms exhaust the heap at the encoding
-QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_001.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
-QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_002.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
-QF_AX/smt-lib/storecomm__storecomm_invalid_t1_np_nf_ai_00010_005.cvc.smt2	skip: the sharing atoms exhaust the heap at the encoding
 QF_BV/cvc5/regress0-bv__bitvec1.smtv1.smt2	timeout (5 s limit)
 QF_BV/cvc5/regress0-bv__bitvec3.smtv1.smt2	timeout (5 s limit)
 QF_BV/cvc5/regress0-bv__extract-concat.smt2	timeout (5 s limit)
@@ -343,18 +338,15 @@ QF_LRA/smt-lib/tropical-matrix__constraint-199552.smt2	beyond the search today (
 QF_LRA/smt-lib/tropical-matrix__constraint-223827.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_UF/cvc5/regress3__hole10.cvc.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress3__hole9.cvc.smt2	timeout (5 s limit)
+QF_UF/smt-lib-incremental/20190906-CLEARSY__0002__00171.smt2	timeout (5 s limit, with the model check: a model for each of its 51 sat answers)
 QF_UF/smt-lib/PEQ__PEQ018_size5.smt2	timeout (5 s limit)
 QF_UF/smt-lib/SEQ__SEQ009_size10.smt2	timeout (5 s limit)
 QF_UF/z3test/regressions__fp-rounding_mode-3.smt2	the parser refuses RoundingMode, a floating-point sort it does not support
-QF_UFBV/dotty/alpha-mergeSortBounds2-beed69a33f4e.smt2	skip: bvsdiv of two unknowns, outside the fragment (no bit-blasting)
 QF_UFBV/smt-lib-incremental/2018-Goel-hwbench__QF_UFBV_bv_bv_v_FIFO_ab_min_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib-incremental/2018-Wolf-fmbench__zipcpu-zipmmu-compact.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib-incremental/2019-Wolf-fmbench__2019B__marlann_compute_cp_fail1_QF_UFBV.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_needham.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_at.1.prop1_ab_cti_max.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_brp2.2.prop3_ab_reg_max.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_iprotocol.1.prop1_ab_reg_max.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_resistance.2.prop1_ab_cti_max.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-nomem.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFBV/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_55_QF_UFBV.smt2	timeout (5 s limit)
@@ -441,7 +433,7 @@ QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__44788_1965f0d6d94d5d8054ba_36_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__52759_af0c476fe3b544b9a8507f3e42472c43_12_QF_UFDTLIA.smt2	timeout (5 s limit)
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_5_QF_UFDTLIA.smt2	skip: the encoding runs past the suite's guard, which the fuel does not bound
-QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2	skip: out of the search's reach (over 30 s as a native binary)
+QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_6_QF_UFDTLIA.smt2	model: a class holding a linear term gets a fresh value (#137)
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__65782_cd31513fdcd15701933b_8_QF_UFDTLIA.smt2	timeout (5 s limit)
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72658_63104dadde9c6026353f_70_QF_UFDTLIA.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_UFDTLIA/smt-lib/20230314-Jaroslav-Bendik-Certora__72771_f9d228efc97cf1458e38_64_QF_UFDTLIA.smt2	timeout (5 s limit)
@@ -560,25 +552,17 @@ QF_UFIDL/smt-lib/20210312-Bouvier__vlsat3_f81.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/mathsat__EufLaArithmetic__vhard__vhard6.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/mathsat__EufLaArithmetic__vhard__vhard7.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/mathsat__EufLaArithmetic__vhard__vhard8.smt2	timeout (5 s limit)
-QF_UFIDL/smt-lib/pete2__c6bid_s.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFIDL/smt-lib/pete2__c6n_i.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/pete2__c6nidw_s.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/pete2__c8b.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFIDL/smt-lib/pete2__g6nid.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/pete3__bug_file1.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFIDL/smt-lib/pete3__bug_file2.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFIDL/smt-lib/pete3__bug_file5.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
-QF_UFIDL/smt-lib/pete__cxs-bp-ex-inp-safety.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFIDL/smt-lib/pete__cxs-bp-ex.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFIDL/smt-lib/pete__cxs-bp-safety.smt2	beyond the search today (the fuel, two million steps, runs out)
-QF_UFIDL/smt-lib/pete__cxs-bp.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/pete__fxs-safety.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/uclid2__bug1.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/uclid2__cache.inv15.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/uclid2__cache.inv16.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/uclid2__ooo.rf11.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFIDL/smt-lib/uclid2__ooo.rf12.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
-QF_UFIDL/smt-lib/uclid__ooo.rf8.smt2	beyond the search today (the fuel, two million steps, runs out)
 QF_UFIDL/smt-lib/uclid__ooo.rf9.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/uclid__q2.14.smt2	timeout (5 s limit)
 QF_UFIDL/smt-lib/uclid__q2.18.smt2	timeout (5 s limit)
