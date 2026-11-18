@@ -12,9 +12,9 @@ enum Command:
   case SetInfo(key: String, value: String)
   case DeclareSort(name: String, arity: Int)
 
-  /** `auxiliary`: a constant the lowering introduced to define an operation (a
-   *  bit, a quotient, a remainder), not one the problem reasons about — the
-   *  search decides its atoms last (see [[Solver.declare]]).
+  /** `auxiliary`: a bit the lowering introduced to define a bitwise operation,
+   *  not a constant the problem reasons about — the search decides its atoms
+   *  last (see [[Solver.declare]]).
    */
   case DeclareFun(name: String, argSorts: List[String], sort: String, auxiliary: Boolean = false)
   case DeclareDatatypes(datatypes: List[Datatype])

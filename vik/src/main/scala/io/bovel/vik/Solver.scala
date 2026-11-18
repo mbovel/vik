@@ -77,11 +77,13 @@ final class Solver(val simplify: Boolean = true):
   private val auxiliaries = HashSet.empty[String] // the declared constants that only define an operation (see declare)
 
   /** `auxiliary`: a constant that only defines an operation of the problem (a
-   *  bit, a quotient or a remainder of the bit-vector lowering). The search
-   *  decides the bounds on such constants after every other atom: their values
-   *  follow from the problem's own terms, and a search that guesses them first
-   *  enumerates bit patterns through the simplex, with conflicts as wide as the
-   *  bit-vector.
+   *  bit of the bit-vector lowering). The search decides the bounds on such
+   *  constants after every other atom: their values follow from the problem's
+   *  own terms, and a search that guesses them first enumerates bit patterns
+   *  through the simplex, with conflicts as wide as the bit-vector. Only the
+   *  bits: deferring the quotients, the remainders and the results of the
+   *  modular operations too loses the searches for a model that need them early
+   *  (BinarySearch, in the corpus).
    */
   def declare(name: String, argSorts: List[String], sort: String, auxiliary: Boolean = false): Unit =
     if encoder != null && encoder.nn.introducedName(name) then

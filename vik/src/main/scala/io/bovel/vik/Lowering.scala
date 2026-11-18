@@ -84,7 +84,7 @@ private final class Lowerer:
     if minted(name) || name.startsWith("store!") then
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
-  private val auxiliary = HashSet.empty[String] // those of them that only define a bit-vector operation
+  private val auxiliary = HashSet.empty[String] // those of them that are the bits of a term (see bits)
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
 
   /** What the lowering minted, by what it was minted for. An entry stands for
@@ -918,12 +918,12 @@ private final class Lowerer:
   // Bit-vectors, to linear integer arithmetic.
 
   /** A fresh `Int` constant in `[lo, hi]`, declared and bounded before the
-   *  current assertion.
+   *  current assertion. `aux`: declared auxiliary (see [[Command.DeclareFun]]).
    */
-  private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
+  private def freshInt(prefix: String, lo: BigInt, hi: BigInt, aux: Boolean = false): Term =
     val name = freshName(prefix)
     introduced += ((name, "Int"))
-    auxiliary += name
+    if aux then auxiliary += name
     val k = Const(name)
     definitions += Ge(k, Num(lo))
     definitions += Le(k, Num(hi))
@@ -1159,7 +1159,7 @@ private final class Lowerer:
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
     knownBits(t, width).getOrElse {
-      val bs = (0 until width).map(_ => freshInt("bit", 0, 1))
+      val bs = (0 until width).map(_ => freshInt("bit", 0, 1, aux = true))
       definitions += IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b))))
       val fs = bs.map(b => Ge(b, Num(1)))
       for (f, b) <- fs.zip(bs) do bitConstants(f) = b
@@ -1382,7 +1382,6 @@ private final class Lowerer:
           val r = freshInt("bv", 0, modulus(width) - 1)
           val name = freshName("k")
           introduced += ((name, "Int"))
-          auxiliary += name
           val k = Const(name)
           definitions += IntEq(t, r + k * modulus(width))
           r
