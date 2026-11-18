@@ -32,7 +32,7 @@ of that run. The test runs the listed files with a small fraction of the fuel an
 | Origin | Directory | What | License |
 |---|---|---|---|
 | SMT-LIB release 2025, non-incremental ([Zenodo 16740866](https://zenodo.org/records/16740866)) | `<logic>/smt-lib/` | a representative sample per logic (see below): up to fourteen files per family spread over the sizes, run under the suite's budget, then about two thirds that VIK answers — the fastest of each family where the files are alike, one slower one for the spread — and one third it does not, on `ignore.txt` with the reason; plus the instances the evaluation uses | CC BY 4.0 for the release; a family may state its own license in its header (Rodin and CLEARSY: CC BY-NC 4.0 — kept out of new imports) |
-| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the same sampling per logic (several `check-sat` per file, `push`/`pop`), plus the evaluation's `kind`, `safari` and `cpachecker` picks, and the first rounds of four scripts too long for it (`prefix` in their names: `lustre`, `2019-Mann`, `Heizmann`) | CC BY 4.0 |
+| SMT-LIB release 2025, incremental ([Zenodo 15493096](https://zenodo.org/records/15493096)) | `<logic>/smt-lib-incremental/` | the same sampling per logic (several `check-sat` per file, `push`/`pop`), plus the evaluation's `kind`, `safari` and `cpachecker` picks, and the first rounds of seven scripts too long for it (`prefix` in their names: `lustre`, `2019-Mann`, `Heizmann`, `UltimateBuchiAutomizer`) | CC BY 4.0 |
 | [SMT-LIB benchmark submission](https://github.com/SMT-LIB/benchmark-submission), the staging repository for the 2026 release | `<logic>/submission/` | the files in our fragment (a snapshot: not the final 2026 release) | as stated in each file's `:license` header |
 | [cvc5](https://github.com/cvc5/cvc5) regression tests, `test/regress/cli` | `<logic>/cvc5/` | every regression file in our fragment with `; EXPECT:` answers or, where it has no `; EXPECT:` line, a `sat` or `unsat` status before a `check-sat` (the statuses cvc5's runner then checks), and no option in `; COMMAND-LINE:` that could change the answers: 1 096 files, of which 760 were added at commit 0f863c21 on 2026-11-17 (506 of them by their statuses), less five whose `; EXPECT:` lines hold cvc5's own behavior (`print-success`, an error after a `define-fun`, `reset-assertions`, a `Seq` value, a parametric constructor's name) | modified BSD, [LICENSES/cvc5.txt](LICENSES/cvc5.txt) |
 | [z3test](https://github.com/Z3Prover/z3test), `regressions/smt2` | `<logic>/z3test/` | every file in our fragment whose `.expected.out` is made of answers | MIT, [LICENSES/z3test.txt](LICENSES/z3test.txt) |
@@ -150,6 +150,16 @@ rounds. Two are here cut to their first rounds, for the evaluation, as the two `
 `2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8` and
 `20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300`.
 
+`QF_RDL` and the incremental `QF_ALIA` (2026-11-18), the last two logics of the releases in the fragment that
+were absent. `QF_RDL` has 255 files in six families, 147 of them up to 200 KB, all in the fragment; none of
+`skdmxa` and `skdmxa2` is under that size. Of the 147, VIK answers 93 within the budget, three of them at its edge, and 51 time out; 3 of
+`scheduling` have no status that z3 gives in 30 s. Those six are left out. Forty are here, spread over the sizes of each
+family: ten of `SMT-Temporal-Planning-Benchmarks`, which VIK answers whole, the two of `check`, and nine answered
+and five timeouts each of `sal` and `scheduling`. The incremental `QF_ALIA` is one family, `UltimateBuchiAutomizer`:
+44 scripts of 10 MB to 700 MB, thousands of rounds each over arrays of arrays of integers, none under 200 KB. In
+the first rounds of eight of them, VIK stops at a round between the 8th and the 31st and does not pass it in 30 s.
+The first 40 rounds of three are here (`prefix40`), all on `ignore.txt` as timeouts: the weakness to document.
+
 `QF_UFBVDT` (2026-11-17), absent until then: its one family, `20230314-Jaroslav-Bendik-Certora` (the Certora
 Prover's verification conditions for smart contracts, the bit-vector encoding with datatypes for hashing, CC BY
 4.0), has 76 files, 52 up to 200 KB, of which 49 lower within two minutes. z3 answers 11 of them in 20 s and cvc5
@@ -184,6 +194,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_ABV` | smt-lib | 59 | 8 | 26 | 5 | 28 |
 | `QF_ABV` | smt-lib-incremental | 13 | 1 | 9 | 4 | 0 |
 | `QF_ALIA` | smt-lib | 18 | 6 | 6 | 2 | 10 |
+| `QF_ALIA` | smt-lib-incremental | 3 | 1 | 0 | 3 | 0 |
 | `QF_AUFBV` | smt-lib | 1 | 1 | 0 | 0 | 1 |
 | `QF_AUFBV` | smt-lib-incremental | 4 | 3 | 2 | 0 | 2 |
 | `QF_AUFBVLIA` | smt-lib-incremental | 13 | 1 | 0 | 2 | 11 |
@@ -200,6 +211,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_LIRA` | smt-lib | 2 | 1 | 2 | 0 | 0 |
 | `QF_LRA` | smt-lib | 154 | 35 | 138 | 16 | 0 |
 | `QF_LRA` | smt-lib-incremental | 1 | 1 | 1 | 0 | 0 |
+| `QF_RDL` | smt-lib | 40 | 4 | 30 | 10 | 0 |
 | `QF_UF` | smt-lib | 69 | 27 | 67 | 2 | 0 |
 | `QF_UF` | smt-lib-incremental | 89 | 2 | 89 | 0 | 0 |
 | `QF_UFBV` | smt-lib | 27 | 4 | 3 | 23 | 1 |

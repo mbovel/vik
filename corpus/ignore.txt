@@ -81,6 +81,9 @@ QF_ABV/smt-lib/platania__selection_sort__selection_sort7.c.smt2	skip: the encodi
 QF_ABV/smt-lib/platania__strcmp__strcmp2.c.smt2	model: an array indexed by bit-vectors is read at abstract indices (#138)
 QF_ABV/smt-lib/platania__strcmp__strcmp37.c.smt2	timeout (5 s limit)
 QF_ABV/smtinterpol/abv__ext01.smt2	wrong: sat, the reads of bit-vector elements at an extensionality witness unbounded (issue 154)
+QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__a.08-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)
+QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__array02-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)
+QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__cstrncpy-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)
 QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_lazy.i_3.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_lazy.i_7.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
 QF_ALIA/smt-lib/20230321-UltimateAutomizerSvcomp2023__cs_stateful-1.i_4.smt2	skip: out of memory at 2 GB before the search (the lowering or the theory lemmas), which would end the suite
@@ -452,6 +455,16 @@ QF_LRA/smt-lib/miplib__pp08a-7350.smt2	beyond the search today (minutes of simpl
 QF_LRA/smt-lib/miplib__pp08a-9000.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/tropical-matrix__constraint-199552.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_LRA/smt-lib/tropical-matrix__constraint-223827.smt2	beyond the search today (minutes of simplex, or not answered within them)
+QF_RDL/smt-lib/sal__fischer3-mutex-17.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/sal__fischer6-mutex-11.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/sal__fischer6-mutex-15.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/sal__fischer9-mutex-11.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/sal__fischer9-mutex-13.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/scheduling__abz7_500.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/scheduling__orb01_1000.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/scheduling__orb03_1100.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/scheduling__orb06_1000.smt2	timeout (5 s limit)
+QF_RDL/smt-lib/scheduling__orb08_930.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress0-uf__eq_diamond23.smtv1.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress0-uf__iso_icl_repgen004.smtv1.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress3__hole10.cvc.smt2	timeout (5 s limit)
