@@ -59,7 +59,9 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
       ∀ m' s', m' ≠ m → tr.mints[m']? = some (.store s') → P.sig.decls[SP.sig.decls.length + m']? ≠ some ds
   rule : ∀ m r j, tr.mints[m]? = some (.rule r j) →
     (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
-      (SP.sig.sorts[s]? = some .int ∨ ∃ w, SP.sig.sorts[s]? = some (.bv w) ∧ r.bvOut j w = true)) ∧
+      (SP.sig.sorts[s]? = some .int ∨ ∃ w, SP.sig.sorts[s]? = some (.bv w) ∧
+        (r.bvOut j w = true ∨
+          ivSub (r.fixedIv (tr.fixedAt SP P ((m + 1) * P.nodes.length) 2) j) 0 (2 ^ w - 1) = true))) ∧
       ∀ x ∈ r.args, x < P.nodes.length ∧ depthOf (depths (tr.rank SP) P.nodes) x ≤ m
   real : ∀ m r, tr.mints[m]? = some (.real r) →
     (∃ s, P.sig.decls[SP.sig.decls.length + m]? = some s ∧
@@ -76,7 +78,8 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
   bvIndex : P.bvIndex = SP.bvIndex
   bvNodes : ∀ j < P.nodes.length, ∀ w, SP.sortWidth (P.sortOf[j]?.getD 0) = some w →
     (∃ k, P.nodes[j]? = some (.const k)) ∨ (∃ f xs, P.nodes[j]? = some (.app f xs)) ∨
-      ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
+      (∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w) ∨
+      ivSub (tr.fixedAt SP P (tr.mu SP P j) 2 j) 0 (2 ^ w - 1) = true
 
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
   simp only [Tab.at_eq, Trace.sigOk, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
@@ -149,7 +152,7 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     · rename_i s e
       split at hd1
       · rename_i hs; exact ⟨s, e, .inl hs⟩
-      · rename_i w hs; exact ⟨s, e, .inr ⟨w, hs, hd1⟩⟩
+      · rename_i w hs; exact ⟨s, e, .inr ⟨w, hs, Bool.or_eq_true_iff.mp hd1⟩⟩
       · cases hd1
     · cases hd1
   · intro m r hmr
@@ -197,7 +200,8 @@ theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
     · rename_i f xs e; exact .inr (.inl ⟨f, xs, e⟩)
     · rename_i c e
       simp only [Bool.and_eq_true, decide_eq_true_eq] at this
-      exact .inr (.inr ⟨c, e, this.1, this.2⟩)
+      exact .inr (.inr (.inl ⟨c, e, this.1, this.2⟩))
+    · exact .inr (.inr (.inr this))
     · cases this
 
 end

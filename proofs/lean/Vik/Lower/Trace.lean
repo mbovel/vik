@@ -453,6 +453,41 @@ def Trace.leafIv (sym : Rule → Nat → Option (Int × Int)) (l : Nat) : Option
     | none => (tr.bvWidth SP P l).map fun w => (0, 2 ^ w - 1)
   | none => none
 
+/-- The interval of symbol `j` of a rule from the intervals `node` of its
+    arguments alone, whatever the truth of its conditions, if it has one. -/
+def Rule.fixedIv (node : Nat → Option (Int × Int)) : Rule → Nat → Option (Int × Int)
+  | .modulo _ w _ _, 0 => some (0, 2 ^ w - 1)
+  | .cases _ t e _ _, _ => ivHull (node t) (node e)
+  | .int2bv _ w, 0 => some (0, 2 ^ w - 1)
+  | .smodz .., _ => some (0, 1)
+  | .bits .., _ => some (0, 1)
+  | .udiv _ _ w, _ => some (0, 2 ^ w - 1)
+  | _, _ => none
+
+/-- The order in which the ranges of lowered nodes follow from one another: by
+    the depth of the rule symbols they depend on, then by number. -/
+def Trace.mu (x : Nat) : Nat := depthOf (depths (tr.rank SP) P.nodes) x * P.nodes.length + x
+
+/-- The interval of a leaf: a number, a rule symbol (`sym`), or a node of a
+    bit-vector sort before `B` in the order `mu`. -/
+def Trace.fixedLeaf (B : Nat) (sym : Rule → Nat → Option (Int × Int)) (l : Nat) : Option (Int × Int) :=
+  match Tab.at P.nodes l with
+  | some (.num v) => some (v, v)
+  | some _ =>
+    match tr.symAt SP P l with
+    | some (r, j) => sym r j
+    | none =>
+      if tr.mu SP P l < B then (SP.sortWidth ((Tab.at P.sortOf l).getD 0)).map fun w => (0, 2 ^ w - 1)
+      else none
+  | none => none
+
+/-- The intervals of the lowered nodes from those of numbers, rule symbols and
+    nodes of bit-vector sorts before `B`, unfolding `n` rules deep: such as
+    that of the sum of a bit-vector's bits, or of a sign extension. -/
+def Trace.fixedAt (B : Nat) : Nat → Nat → Option (Int × Int)
+  | 0 => nodeIv P (tr.fixedLeaf SP P B (Rule.fixedIv fun _ => none))
+  | n + 1 => nodeIv P (tr.fixedLeaf SP P B (Rule.fixedIv (Trace.fixedAt B n)))
+
 /-- The intervals of the lowered nodes, unfolding `n` rules deep. -/
 def Trace.ivAt : Nat → Nat → Option (Int × Int)
   | 0 => nodeIv P (tr.leafIv SP P fun _ _ => none)
@@ -1111,11 +1146,19 @@ def Trace.stepNode (op : BvBin) (w t j : Nat) : Option Nat :=
   let d : Int := 2 ^ (2 ^ j)
   match op with
   | .shl =>
-    tr.findSym SP P fun r => match r with
+    match tr.findSym SP P fun r => match r with
       | .modulo v w' lo hi =>
         w' == w && lo == 0 && hi == d - 1 &&
           fits P.sig P.nodes P.sortOf v (.num (Lia.scale (d : Rat) (lin P.nodes t).1) (d * (lin P.nodes t).2))
-      | _ => false
+      | _ => false with
+    | some s => some s
+    | none =>
+      -- a constant shifted in range: the lowering folds it to a number
+      match constOf (lin P.nodes t) with
+      | some c =>
+        let x := P.nodes.idxOf (.num (c * d))
+        if 0 ≤ c * d && c * d < 2 ^ w && x < P.nodes.length then some x else none
+      | none => none
   | .lshr => tr.symNode SP P (.divide t d (2 ^ w / d - 1)) 0
   | _ => (tr.symNode SP P (.sdivide t w d true) 0).bind fun q => tr.symNode SP P (.modulo q w (-1) 0) 0
 
@@ -1477,7 +1520,8 @@ def Trace.sigOk : Bool :=
         | some s =>
           match SP.sig.sorts[s]? with
           | some .int => true
-          | some (.bv w) => r.bvOut j w
+          | some (.bv w) =>
+            r.bvOut j w || ivSub (r.fixedIv (tr.fixedAt SP P ((m + 1) * P.nodes.length) 2) j) 0 (2 ^ w - 1)
           | _ => false
         | none => false) &&
         r.args.all fun x => x < P.nodes.length && depthOf (depths (tr.rank SP) P.nodes) x ≤ m
@@ -1498,7 +1542,8 @@ def Trace.sigOk : Bool :=
     | some (.store _) => true
     | _ => false) &&
   P.datatypes == SP.datatypes && P.bvIndex == SP.bvIndex &&
-  -- the nodes of bit-vector sorts are symbols, applications and numbers in range
+  -- the nodes of bit-vector sorts are symbols, applications, and numbers and
+  -- sums in range
   (List.range P.nodes.length).all fun j =>
     match SP.bvIndex.lookup ((Tab.at P.sortOf j).getD 0) with
     | none => true
@@ -1506,6 +1551,8 @@ def Trace.sigOk : Bool :=
       match Tab.at P.nodes j with
       | some (.const _) | some (.app _ _) => true
       | some (.num c) => 0 ≤ c && c < 2 ^ w
+      -- a sum such as that of bits, in range whatever they are
+      | some (.linear _ _) => ivSub (tr.fixedAt SP P (tr.mu SP P j) 2 j) 0 (2 ^ w - 1)
       | _ => false
 
 /-- The facts of the real rule `r`, its symbol at node `k`. -/
