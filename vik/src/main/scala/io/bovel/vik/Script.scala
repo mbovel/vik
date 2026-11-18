@@ -19,6 +19,8 @@ enum Command:
    *  declaration says of a symbol that outlives the levels under
    *  `:global-declarations` — a bit-vector constant's range, which went with
    *  the level it was asserted in while the constant stayed (issue 145).
+   *  Printed `(assert-global F)`: a command of VIK's own, SMT-LIB having none
+   *  that asserts below the current level.
    */
   case AssertGlobal(formula: Formula)
 

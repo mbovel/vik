@@ -58,6 +58,8 @@ class LoweringTest extends munit.FunSuite:
     val range = And(List(Le(Num(0), Const("x")), Le(Const("x"), Num(1))))
     assertEquals(assertions(s"$global(push 1)$x(pop 1)"), List(Command.AssertGlobal(range)))
     assertEquals(assertions(s"$global$x"), List(Command.AssertGlobal(range)))
+    // The lowered script names it by a command of its own, which SMT-LIB does not have.
+    assertEquals(Printer.print(Command.AssertGlobal(range)), "(assert-global (and (<= 0 x) (<= x 1)))")
     // Without the option the range is the level's, like the declaration.
     assertEquals(assertions(s"(push 1)$x(pop 1)"), List(Command.Assert(range)))
     // It holds after one `pop`, after two levels popped at once, and when the option is turned off
