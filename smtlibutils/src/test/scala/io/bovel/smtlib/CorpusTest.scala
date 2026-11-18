@@ -14,10 +14,11 @@ import io.bovel.vik.{Model, Session, Solver}
  *  within five seconds of wall clock — the budget the benchmarks also hold to;
  *  a file over either goes to `corpus/ignore.txt`, nobody waits on it. Every
  *  `sat` is model-checked (`Session`'s `checkModels`): each assertion in force
- *  must be true in the model. A file on `corpus/ignore.txt` (out of fuel or
- *  time, a wrong answer, a model that fails its check, an unsupported feature)
- *  is expected to fail, with a tenth of the fuel unless its model is the
- *  problem; when it passes, the test asks for its line to be removed.
+ *  must be true in the model, as lowered and as written. A file on
+ *  `corpus/ignore.txt` (out of fuel or time, a wrong answer, a model that fails
+ *  its check, an unsupported feature) is expected to fail, with a tenth of the
+ *  fuel unless its model is the problem; when it passes, the test asks for its
+ *  line to be removed.
  */
 class CorpusTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
