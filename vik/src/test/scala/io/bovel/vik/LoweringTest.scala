@@ -46,6 +46,31 @@ class LoweringTest extends munit.FunSuite:
       )
     )
 
+  test("a pop keeps what a global declaration asserts (issue 145)"):
+    // Under `:global-declarations` the constant outlives its level, and its range, asserted there, did not.
+    val global = "(set-option :global-declarations true)"
+    val x = "(declare-const x (_ BitVec 1))"
+    def afterPops(script: String): List[List[Command]] =
+      val commands = Lowering(Parser.parse(script)).commands
+      commands.indices.toList.collect {
+        case i if commands(i).isInstanceOf[Command.Pop] =>
+          commands.drop(i + 1).takeWhile(_.isInstanceOf[Command.Assert])
+      }
+    val range = Command.Assert(And(List(Le(Num(0), Const("x")), Le(Const("x"), Num(1)))))
+    assertEquals(afterPops(s"$global(push 1)$x(pop 1)"), List(List(range)))
+    // Said again at each level on the way down, once per `pop` command, and never without the option
+    // or for a declaration of the first level.
+    assertEquals(afterPops(s"$global(push 2)$x(pop 1)(pop 1)(push 1)(pop 1)"), List(List(range), List(range), Nil))
+    assertEquals(afterPops(s"$global(push 2)$x(pop 2)"), List(List(range)))
+    assertEquals(afterPops(s"(push 1)$x(pop 1)"), List(Nil))
+    assertEquals(afterPops(s"$global$x(push 1)(pop 1)"), List(Nil))
+    // The option turned off before the `pop` does not undo the declaration, so the range still follows.
+    assertEquals(afterPops(s"$global(push 1)$x(set-option :global-declarations false)(pop 1)"), List(List(range)))
+    assertEquals(
+      Session.run(Parser.parse(s"$global(push 1)$x(pop 1)(assert (bvugt x #b1))(check-sat)")),
+      List("unsat")
+    )
+
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
       case Command.DeclareFun(name, _, _) => name.startsWith(prefix + "!")
