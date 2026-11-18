@@ -68,9 +68,14 @@ structure Enc where
   /-- The sorts of bit-vector indices, with their widths. -/
   bvIndex : List (Nat × Nat)
 
-def Enc.node (e : Enc) (i : Nat) : Option Node := e.nodes[i]?
+def Enc.node (e : Enc) (i : Nat) : Option Node := Tab.at e.nodes i
 
-def Enc.meaningOf (e : Enc) (v : Nat) : Option Nat := (e.meaning[v]?).getD none
+def Enc.meaningOf (e : Enc) (v : Nat) : Option Nat := (Tab.at e.meaning v).getD none
+
+@[simp] theorem Enc.node_eq (e : Enc) (i : Nat) : e.node i = e.nodes[i]? := Tab.at_eq _ _
+
+@[simp] theorem Enc.meaningOf_eq (e : Enc) (v : Nat) : e.meaningOf v = (e.meaning[v]?).getD none := by
+  simp [Enc.meaningOf]
 
 def Enc.guarded (e : Enc) (v : Nat) : Option (List Nat) := e.levels.lookup v
 
@@ -385,14 +390,14 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
     simp only at h
     split at h
     · rename_i g hf
-      rw [holds_not hw hf, ← denotes_sound fuel l.neg g h, Lit.holds_neg]
+      rw [holds_not hw ((Enc.node_eq _ _).symm.trans hf), ← denotes_sound fuel l.neg g h, Lit.holds_neg]
       exact ⟨fun h n => n h, fun h => Classical.byContradiction h⟩
     · rename_i hf
       simp only [beq_iff_eq] at h; subst h
-      exact ⟨fun _ => holds_tt hw hf, fun _ => htrue⟩
+      exact ⟨fun _ => holds_tt hw ((Enc.node_eq _ _).symm.trans hf), fun _ => htrue⟩
     · rename_i hf
       simp only [beq_iff_eq] at h; subst h
-      exact ⟨fun h' => absurd h' (trueLit_neg hw hmean htrue), fun h' => absurd h' (not_holds_ff hw hf)⟩
+      exact ⟨fun h' => absurd h' (trueLit_neg hw hmean htrue), fun h' => absurd h' (not_holds_ff hw ((Enc.node_eq _ _).symm.trans hf))⟩
     · rename_i a b hf
       simp only [Bool.and_eq_true] at h
       obtain ⟨hpos, h⟩ := h
@@ -402,7 +407,7 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
         · rename_i n b' hn
           simp only [Bool.and_eq_true, beq_iff_eq] at h
           obtain ⟨rfl, hna⟩ := h
-          unfold Lit.holds; rw [hpos, hmean _ _ hm, holds_or hw hn, holds_implies hw hf]
+          unfold Lit.holds; rw [hpos, hmean _ _ hm, holds_or hw ((Enc.node_eq _ _).symm.trans hn), holds_implies hw ((Enc.node_eq _ _).symm.trans hf)]
           simp only [List.mem_cons, List.not_mem_nil, or_false,
             exists_eq_or_imp, exists_eq_left]
           rw [holds_not hw (by simpa using hna)]
@@ -419,13 +424,13 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
       split at h
       · rename_i hab
         simp only [beq_iff_eq] at hab h; subst hab h
-        rw [holds_eq hw hf]; exact ⟨fun _ => rfl, fun _ => htrue⟩
+        rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hf)]; exact ⟨fun _ => rfl, fun _ => htrue⟩
       · exact plain h
     · rename_i a b hf
       split at h
       · rename_i v hv
         simp only [beq_iff_eq] at h; subst h
-        rw [holdsLit_sound hw hmean htrue, holds_le hw hf, decide_eq_true_iff]
+        rw [holdsLit_sound hw hmean htrue, holds_le hw ((Enc.node_eq _ _).symm.trans hf), decide_eq_true_iff]
         have := constant_sound (I := I) hw hv
         rw [← cast_le_zero_iff (R := R), ← this]
         grind
@@ -434,7 +439,7 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
       split at h
       · rename_i v hv
         simp only [beq_iff_eq] at h; subst h
-        rw [holdsLit_sound hw hmean htrue, holds_lt hw hf, decide_eq_true_iff]
+        rw [holdsLit_sound hw hmean htrue, holds_lt hw ((Enc.node_eq _ _).symm.trans hf), decide_eq_true_iff]
         have := constant_sound (I := I) hw hv
         rw [← cast_lt_zero_iff (R := R), ← this]
         grind
@@ -471,7 +476,7 @@ theorem sides_sound {m l r : Nat} (h : sides e m = some (l, r)) (hv : val I e.no
   unfold sides at h
   split at h
   · rename_i a b hm
-    cases h; exact (holds_eq hw hm).mpr hv
+    cases h; exact (holds_eq hw ((Enc.node_eq _ _).symm.trans hm)).mpr hv
   · rename_i x y hm
     split at h
     · rename_i a b b' a' hx hy
@@ -480,12 +485,12 @@ theorem sides_sound {m l r : Nat} (h : sides e m = some (l, r)) (hv : val I e.no
         cases h
         simp only [Bool.and_eq_true, beq_iff_eq] at hc
         obtain ⟨rfl, rfl⟩ := hc
-        rw [holds_and hw hm]
+        rw [holds_and hw ((Enc.node_eq _ _).symm.trans hm)]
         intro z hz
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
         rcases hz with rfl | rfl
-        · rw [holds_le hw hx, hv]; exact Std.le_refl _
-        · rw [holds_le hw hy, hv]; exact Std.le_refl _
+        · rw [holds_le hw ((Enc.node_eq _ _).symm.trans hx), hv]; exact Std.le_refl _
+        · rw [holds_le hw ((Enc.node_eq _ _).symm.trans hy), hv]; exact Std.le_refl _
       · cases h
     · cases h
   · cases h
@@ -537,7 +542,7 @@ theorem testsOk_sound {I : Interp R U} {e : Enc} (hw : wellFormed e.nodes = true
         · rename_i k t' hk
           simp only [Bool.and_eq_true, beq_iff_eq] at hp
           obtain ⟨rfl, hk'⟩ := hp
-          rw [holds_pred hw hq, val_app hw hk, List.map_cons, List.map_nil, val_const hw hk']
+          rw [holds_pred hw ((Enc.node_eq _ _).symm.trans hq), val_app hw ((Enc.node_eq _ _).symm.trans hk), List.map_cons, List.map_nil, val_const hw ((Enc.node_eq _ _).symm.trans hk')]
           exact hct
         · cases hp
       · cases hp
@@ -573,20 +578,20 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
       · rename_i as hm'
         split at h
         · rename_i hp
-          exact dm.1 hp ((holds_and hw hm').mpr fun a ma => hn (List.all_eq_true.mp h a ma))
+          exact dm.1 hp ((holds_and hw ((Enc.node_eq _ _).symm.trans hm')).mpr fun a ma => hn (List.all_eq_true.mp h a ma))
         · rename_i hp
           obtain ⟨a, ma, ha⟩ := List.any_eq_true.mp h
-          exact nh ha ((holds_and hw hm').mp (dm.2 (by simpa using hp)) a ma)
+          exact nh ha ((holds_and hw ((Enc.node_eq _ _).symm.trans hm')).mp (dm.2 (by simpa using hp)) a ma)
       · rename_i as hm'
         split at h
         · rename_i hp
           obtain ⟨a, ma, ha⟩ := List.any_eq_true.mp h
-          exact dm.1 hp ((holds_or hw hm').mpr ⟨a, ma, hn ha⟩)
+          exact dm.1 hp ((holds_or hw ((Enc.node_eq _ _).symm.trans hm')).mpr ⟨a, ma, hn ha⟩)
         · rename_i hp
-          obtain ⟨a, ma, ha⟩ := (holds_or hw hm').mp (dm.2 (by simpa using hp))
+          obtain ⟨a, ma, ha⟩ := (holds_or hw ((Enc.node_eq _ _).symm.trans hm')).mp (dm.2 (by simpa using hp))
           exact nh (List.all_eq_true.mp h a ma) ha
       · rename_i x y hm'
-        rw [holds_iff hw hm'] at dm
+        rw [holds_iff hw ((Enc.node_eq _ _).symm.trans hm')] at dm
         split at h
         · rename_i hp
           simp only [Bool.or_eq_true, Bool.and_eq_true] at h
@@ -601,7 +606,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
           · exact nh h2 (this.mp (hn h1))
           · exact nh h1 (this.mpr (hn h2))
       · rename_i x t f hm'
-        rw [holds_ite hw hm'] at dm
+        rw [holds_ite hw ((Enc.node_eq _ _).symm.trans hm')] at dm
         split at h
         · rename_i hp
           simp only [Bool.or_eq_true, Bool.and_eq_true] at h
@@ -622,10 +627,10 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
             · exact absurd (hn h1) hx
             · exact nh h2 this
       · rename_i t hm'
-        rw [holds_pred hw hm'] at dm
+        rw [holds_pred hw ((Enc.node_eq _ _).symm.trans hm')] at dm
         split at h
         · rename_i inner ht
-          rw [val_bterm hw ht] at dm
+          rw [val_bterm hw ((Enc.node_eq _ _).symm.trans ht)] at dm
           simp only [Val.bool.injEq, decide_eq_true_iff] at dm
           split at h
           · rename_i hp; exact dm.1 hp (hn h)
@@ -663,7 +668,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
     · rename_i cs ps hcs hno
       obtain ⟨ct, hct, happ⟩ := hS.exhaustive t cs ht hcs
       obtain ⟨p, hp, hh⟩ := testsOk_sound hw h ct hct happ
-      exact nh ho ((holds_or hw hno).mpr ⟨p, hp, hh⟩)
+      exact nh ho ((holds_or hw ((Enc.node_eq _ _).symm.trans hno)).mpr ⟨p, hp, hh⟩)
     · cases h
   | sharedSplit lt le =>
     obtain ⟨l, hl, h⟩ := List.any_eq_true.mp h
@@ -675,17 +680,17 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
       · rename_i a b hab
         simp only [Bool.and_eq_true, beq_iff_eq] at h
         obtain ⟨⟨⟨⟨⟨na, nb⟩, hlt⟩, hle⟩, h1⟩, h2⟩ := h
-        rw [holds_eq hw hab] at nm
-        have := nh h1; rw [holds_lt hw hlt] at this
-        have := hn h2; rw [holds_le hw hle] at this
+        rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hab)] at nm
+        have := nh h1; rw [holds_lt hw ((Enc.node_eq _ _).symm.trans hlt)] at this
+        have := hn h2; rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)] at this
         apply nm
         apply num_eq hS na nb
         apply Std.le_antisymm <;> grind
       · rename_i a b hab
         simp only [Bool.and_eq_true, beq_iff_eq] at h
         obtain ⟨hlt, h1⟩ := h
-        rw [holds_le hw hab] at nm
-        have := hn h1; rw [holds_lt hw hlt] at this
+        rw [holds_le hw ((Enc.node_eq _ _).symm.trans hab)] at nm
+        have := hn h1; rw [holds_lt hw ((Enc.node_eq _ _).symm.trans hlt)] at this
         exact nm (Std.le_of_lt this)
       · cases h
     · cases h
@@ -707,7 +712,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
             have hp : l.pos = true := by simpa using hpos.symm
             rcases hnum with hnum | ⟨na, nb⟩
             · exact hnum rfl
-            · apply hlf; rw [hp, hmean _ _ hm, holds_eq hw hab]
+            · apply hlf; rw [hp, hmean _ _ hm, holds_eq hw ((Enc.node_eq _ _).symm.trans hab)]
               apply num_eq hS na nb
               rw [Ring.intCast_zero] at hd; grind
           · have hp : l.pos = false := by
@@ -715,7 +720,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
               · rfl
               · rw [hl'] at hpos; simp at hpos; exact absurd hpos v0
             have : ρ l.var = true := by cases e' : ρ l.var <;> simp_all
-            rw [hmean _ _ hm, holds_eq hw hab] at this
+            rw [hmean _ _ hm, holds_eq hw ((Enc.node_eq _ _).symm.trans hab)] at this
             rw [this] at hd
             have := cast_inj (R := R) (a := v) (b := 0) (by rw [Ring.intCast_zero]; grind)
             exact v0 this
@@ -734,9 +739,9 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
           simp only [Bool.and_eq_true, beq_iff_eq] at h
           obtain ⟨⟨rfl, he⟩, h1⟩ := h
           have hfg := hn h1
-          rw [holds_eq hw he] at hfg
+          rw [holds_eq hw ((Enc.node_eq _ _).symm.trans he)] at hfg
           apply lfalse l hl
-          rw [hlm, holds_eq hw hpq, val_app hw hp, val_app hw hq, hfg]
+          rw [hlm, holds_eq hw ((Enc.node_eq _ _).symm.trans hpq), val_app hw ((Enc.node_eq _ _).symm.trans hp), val_app hw ((Enc.node_eq _ _).symm.trans hq), hfg]
         · cases h
       · cases h
     · cases h
@@ -770,7 +775,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
                     intro hji
                     exact lfalse l' hl' ((positive_sound hw hmean htrue hm').mpr
                       (sides_sound hw hmean htrue h hji.symm))
-                  rw [law.2 hij, val_app hw hw']; rfl
+                  rw [law.2 hij, val_app hw ((Enc.node_eq _ _).symm.trans hw')]; rfl
                 · cases h
             · cases hk
           · cases h
@@ -792,13 +797,13 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
     apply nh hf
     split at h
     · rename_i a b hle
-      rw [holds_le hw hle]
+      rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
       split at h
       · rename_i z n ha hb
         simp only [Bool.and_eq_true, beq_iff_eq, Option.isSome_iff_exists] at h
         obtain ⟨rfl, w, hw'⟩ := h
         obtain ⟨k, hk, h0, _⟩ := hS.range n w hw'
-        rw [val_num hw ha, val_const hw hb, hk]
+        rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), val_const hw ((Enc.node_eq _ _).symm.trans hb), hk]
         simp only [Val.toR]
         have := cast_le (R := R) h0
         rw [Ring.intCast_zero] at this
@@ -809,7 +814,7 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
           simp only [beq_iff_eq] at h
           subst h
           obtain ⟨k, hk, _, h1⟩ := hS.range n w hw'
-          rw [val_num hw hb, val_const hw ha, hk]
+          rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), val_const hw ((Enc.node_eq _ _).symm.trans ha), hk]
           simp only [Val.toR]
           exact cast_le (R := R) (by omega)
         · cases h

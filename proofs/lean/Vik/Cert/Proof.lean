@@ -762,7 +762,7 @@ theorem dom_of {i : Nat} (hi : i < P.nodes.length) : M.dom (P.sort i) (val M.toI
 
 include hin hext hwr in
 theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
-  meaning v f h := assign_meaning hA h
+  meaning v f h := assign_meaning hA ((Enc.meaningOf_eq _ _).symm.trans h)
   trueLit := by
     obtain ⟨t, ht, hp, hn⟩ := hA.trueLit
     unfold Lit.holds; simp only [Problem.enc]; rw [hp]
@@ -788,7 +788,7 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
     simp only [Problem.enc] at h ht
     exact hL.exhaust _ _ (lookup_mem h) _ (dom_of hA hL hrng ht)
   store r s k n a i v j hr hs hk hn := by
-    simp only [Enc.node, Problem.enc] at hr hs hk ⊢
+    simp only [Enc.node_eq, Problem.enc] at hr hs hk ⊢
     simp only [Problem.enc] at hn
     -- the declarations of the store
     have hst := List.all_eq_true.mp hA.stores n hn
