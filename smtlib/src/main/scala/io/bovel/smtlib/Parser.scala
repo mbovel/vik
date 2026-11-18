@@ -64,7 +64,9 @@ final class Parser:
   private val owner = HashMap.empty[String, String] // a parametric constructor or selector to its datatype
   private val instantiated = scala.collection.mutable.HashSet.empty[String] // datatype instances, by sort text
   private val pending = scala.collection.mutable.ArrayBuffer.empty[Command] // instances' declarations
-  private var sortSubst: Map[String, SExpr] = Map.empty // a template's parameters, while instantiating
+  // A template's parameters, while instantiating, bound to sorts already read: a parameter may be named
+  // like a sort of the script, which it then shadows (issue 152).
+  private var sortSubst: Map[String, Sort] = Map.empty
 
   // A declaration or a definition belongs to the level it was made at and goes with the level's `pop`,
   // unless `:global-declarations` is true (issue 40): one list of undos per open level.
@@ -372,7 +374,7 @@ final class Parser:
               undoable(instanceSymbols, instanceName)
               instanceSymbols += instanceName
               val saved = sortSubst
-              sortSubst = params.zip(actual).toMap
+              sortSubst = params.zip(actualSorts).toMap
               try
                 poly match
                   case Poly.Fun(_, as, r) =>
@@ -407,7 +409,7 @@ final class Parser:
       undoable(instantiated, text)
       instantiated += text
       val saved = sortSubst
-      sortSubst = params.zip(args.map(sexprOf)).toMap
+      sortSubst = params.zip(args).toMap
       try
         val datatype = Datatype(
           text,
@@ -544,7 +546,7 @@ final class Parser:
         case other => throw Smt2Error(s"bad constructor $other")
 
   private def sort(s: SExpr): Sort = s match
-    case SSymbol(name) if sortSubst.contains(name) => sort(sortSubst(name))
+    case SSymbol(name) if sortSubst.contains(name) => sortSubst(name)
     case SSymbol(name) if sortDefinitions.get(name).exists(_._1.isEmpty) => sort(sortDefinitions(name)._2)
     case SList(SSymbol(name) :: args) if sortDefinitions.contains(name) =>
       val (params, body) = sortDefinitions(name)
