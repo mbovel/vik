@@ -1119,7 +1119,7 @@ private final class Encoder(
       case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
       case _ => lia.Rational.zero
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
-    val arraysBeingValued = scala.collection.mutable.HashSet.empty[EClassId] // against a cycle of stores
+    val arraysBeingValued = scala.collection.mutable.HashSet.empty[EClassId] // against a cycle of stores or of fields
     // The value of a datatype class with no constructor node: none of its testers holds, so none is
     // asserted of it, and the value is built — a constructor whose tester is not false, its fields
     // from the selectors' classes when the problem has them and fresh values otherwise — one that
@@ -1184,6 +1184,10 @@ private final class Encoder(
             case "Int" => Term.Num(freshInt(eg.find(cls)))
             case "Real" => Model.rationalTerm(freshReal(eg.find(cls)))
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
+            // An array, as a constructor's field: its value as an array, where an abstract element was
+            // no array to read or to compare (issue 139). A class reached again while it is valued is
+            // inside its own value, through an array of the datatype: only there is it an element.
+            case _ if Sorts.arrow(sort).isDefined && !arraysBeingValued(eg.find(cls)) => arrayValue(cls, sort)
             case _ => elementOf(sort, cls)
     def valueOfTerm(t: Term, sort: String): Term =
       (t, sort) match
@@ -1193,7 +1197,7 @@ private final class Encoder(
             sum + lia.Rational(a) * asRational(valueOfTerm(u, sortOf(u)))
           })
         case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
-          if classes.contains(t) then arrayValue(t, s)
+          if classes.contains(t) then arrayValue(classOf(t), s)
           else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
         case (_, "Int") =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
@@ -1214,8 +1218,8 @@ private final class Encoder(
                   case None => elementOf(sort, eg.newClass())
     // An array's value, per e-class: its default and the indices its class was read at — its own
     // selects, the ones of every array equal to it, the write of a store it equals.
-    def arrayValue(array: Term, sort: String): Term =
-      val root = eg.find(classOf(array))
+    def arrayValue(array: EClassId, sort: String): Term =
+      val root = eg.find(array)
       arrayValues.getOrElseUpdate(
         root, {
           // A bit-vector index sort keeps its text for its width (see assertExtensionality), and its
@@ -1225,6 +1229,7 @@ private final class Encoder(
             case Encoder.bitVector(_) => "Int"
             case other => other
           val elementSort = Sorts.applied(sort, 1) // itself an array, for an array of arrays
+          arraysBeingValued += root
           val rows = classes.keys.collect {
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
               (valueOfTerm(j, indexSort), valueOfTerm(app, elementSort))
@@ -1234,12 +1239,11 @@ private final class Encoder(
           // array of its own reads over a default of its own; the class's reads then agree with it
           // by the read-over-write lemmas. A class reached again while its base is valued keeps to
           // its reads.
-          arraysBeingValued += root
           val written = classes.keys.collectFirst {
             case s @ Term.App(Term.Const(n), List(base, i, v))
                 if n.startsWith("store!") && classes.get(s).exists(c => eg.find(c) == root)
                   && !arraysBeingValued(eg.find(classOf(base))) =>
-              Model.store(arrayValue(base, sort), valueOfTerm(i, indexSort), valueOfTerm(v, elementSort))
+              Model.store(arrayValue(classOf(base), sort), valueOfTerm(i, indexSort), valueOfTerm(v, elementSort))
           }
           arraysBeingValued -= root
           val start = written.getOrElse {
@@ -1257,7 +1261,7 @@ private final class Encoder(
       // An array the assertions never read or wrote holds a default everywhere: a value all the same,
       // where `(select arr i)` was printed as itself (issue 48).
       constants += name -> (
-        if classes.contains(Term.Const(name)) then arrayValue(Term.Const(name), sort)
+        if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
         else Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       )
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
@@ -1267,7 +1271,7 @@ private final class Encoder(
     do
       val rows = classes.keys.collect {
         case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-          (args.zip(argSorts).map(valueOfTerm), arrayValue(a, sort))
+          (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
       }.toList
       val default = Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       functions += name -> Model.Function(argSorts, Sorts.array(sort), rows, default)
