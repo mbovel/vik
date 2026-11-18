@@ -73,14 +73,25 @@ final class Solver(val simplify: Boolean = true):
    */
   private[vik] val declarations = HashMap.empty[String, (List[Sort], Sort)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
+  private val auxiliaries = HashSet.empty[String] // the declared constants that only define an operation (see declare)
 
-  def declare(name: String, argSorts: List[Sort], sort: Sort): Unit =
+  /** `auxiliary`: a constant that only defines an operation of the problem (a
+   *  bit of the bit-vector lowering). The search decides the bounds on such
+   *  constants after every other atom: their values follow from the problem's
+   *  own terms, and a search that guesses them first enumerates bit patterns
+   *  through the simplex, with conflicts as wide as the bit-vector. Only the
+   *  bits: deferring the quotients, the remainders and the results of the
+   *  modular operations too loses the searches for a model that need them early
+   *  (BinarySearch, in the corpus).
+   */
+  def declare(name: String, argSorts: List[Sort], sort: Sort, auxiliary: Boolean = false): Unit =
     if encoder != null && encoder.nn.introducedName(name) then
       throw io.bovel.smtlib.Smt2Error(s"$name: a name the solver uses; pick another")
     // A name the live encoder knows at another sort — declared again after the pop of its level (issue
     // 40): the encoder's sort, class and variable for it are the old symbol's, so it is rebuilt.
     if encoder != null && encoded.get(name).exists(_ != (argSorts, sort)) then dirty = true
     declarations(name) = (argSorts, sort)
+    if auxiliary then auxiliaries += name else auxiliaries -= name
     if encoder != null then encoded(name) = (argSorts, sort)
     facts -= name
     sort match
@@ -119,6 +130,7 @@ final class Solver(val simplify: Boolean = true):
   def undeclare(name: String): Unit =
     declarations -= name
     facts -= name
+    auxiliaries -= name
 
   /** Forgets a datatype: its level is popped. The live encoder still holds its
    *  rules and the exhaustiveness of its sort, and would apply them to a sort
@@ -351,7 +363,7 @@ final class Solver(val simplify: Boolean = true):
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val e = Encoder(declarations, datatypes.toList, () => anyStore, () => asked())
+      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked())
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -508,6 +520,7 @@ private object Encoder:
 private final class Encoder(
     declarations: HashMap[String, (List[Sort], Sort)],
     datatypes: List[Datatype],
+    auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
     keepGoing: () => Boolean // of the solve under way (see Solver.solve)
 ):
@@ -1021,6 +1034,11 @@ private final class Encoder(
   private val liaSolver = lia.Solver()
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
   private val slacks = HashMap.empty[List[(BigInt, Term)], lia.Var] // linear combinations of them
+  // The LIA variables of the auxiliary constants and of the combinations of those alone, and the atoms
+  // bounding them: the ones the search decides last (see Solver.declare).
+  private val auxiliaryVars = HashSet.empty[lia.Var]
+  private val deferred = ArrayBuffer.empty[cdclt.Var]
+  private var deferredCursor = 0
 
   private val clauses = ArrayBuffer.empty[Array[Lit]]
   private val atoms = ArrayBuffer.empty[(EClassId, EClassId) | Null] // per variable, its UF atom `t = u`
@@ -1167,6 +1185,7 @@ private final class Encoder(
   private def bound(x: lia.Var, c: BigInt, strict: Boolean): Lit =
     atoms += null
     liaAtoms += LiaTheory.Atom.Bound(x, c, strict)
+    if auxiliaryVars(x) then deferred += atoms.length - 1
     Lit(atoms.length - 1)
 
   /** `lhs − rhs ≤ 0` (`< 0` when strict), as a bound on the combination
@@ -1188,13 +1207,25 @@ private final class Encoder(
     term match
       case Term.App(_, _) => classOf(term)
       case _ => ()
-    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = sortOf(term) != Sort.Real))
+    intVars.getOrElseUpdate(
+      term, {
+        val x = liaSolver.newVar(integer = sortOf(term) != Sort.Real)
+        term match
+          case Term.Const(name) if auxiliaries(name) => auxiliaryVars += x
+          case _ => ()
+        x
+      }
+    )
 
   /** The LIA variable standing for a linear combination of `Int` terms. */
   private def slack(terms: List[(BigInt, Term)]): lia.Var =
     slacks.getOrElseUpdate(
-      terms,
-      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortOf(t) == Sort.Real))
+      terms, {
+        val vars = terms.map((a, t) => (a, intVar(t)))
+        val x = liaSolver.newSlack(vars, integer = !terms.exists((_, t) => sortOf(t) == Sort.Real))
+        if vars.forall((_, y) => auxiliaryVars(y)) then auxiliaryVars += x
+        x
+      }
     )
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
@@ -1417,6 +1448,9 @@ private final class Encoder(
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
+    while deferredCursor < deferred.length do
+      sat.defer(deferred(deferredCursor))
+      deferredCursor += 1
     while clauseCursor < clauses.length do
       sat.addClause(clauses(clauseCursor))
       clauseCursor += 1

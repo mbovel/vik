@@ -221,13 +221,13 @@ final class Session(
         "unknown"
 
   private def declare(command: Command): Unit = command match
-    case Command.DeclareFun(name, argSorts, sort) => current.declare(name, argSorts, sort)
+    case Command.DeclareFun(name, argSorts, sort, auxiliary) => current.declare(name, argSorts, sort, auxiliary)
     case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.declare)
     case _ => ()
 
   private def undeclare(command: Command): Unit =
     command match
-      case Command.DeclareFun(name, _, _) => current.undeclare(name)
+      case Command.DeclareFun(name, _, _, _) => current.undeclare(name)
       case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.undeclare)
       case _ => ()
     val i = declarations.lastIndexOf(command)
@@ -290,7 +290,7 @@ final class Session(
     then current.produceModels = true
     for command <- commands do
       command match
-        case Command.DeclareFun(_, _, _) | Command.DeclareDatatypes(_) =>
+        case Command.DeclareFun(_, _, _, _) | Command.DeclareDatatypes(_) =>
           lastCheck = ""
           declarations += command
           if declaredAt.length > 1 && !globalDeclarations then declaredAt.last += command
