@@ -82,6 +82,7 @@ variable (P : Problem) (A : Answer)
 def Answer.ufAtom (v : Nat) : Option (Nat × Nat) := (Tab.at A.ufAtoms v).getD none
 def Answer.liaAtom (v : Nat) : Option LiaAtom := (Tab.at A.liaAtoms v).getD none
 def Answer.liaForm (x : Nat) : Lia.Form := (Tab.at A.liaForms x).getD []
+def Answer.meaningOf (v : Nat) : Option Nat := (Tab.at A.meaning v).getD none
 
 def Problem.node (i : Nat) : Option Node := Tab.at P.nodes i
 def Problem.sort (i : Nat) : Nat := P.sortOf[i]?.getD 0
@@ -89,6 +90,7 @@ def Problem.sort (i : Nat) : Nat := P.sortOf[i]?.getD 0
 theorem Answer.ufAtom_eq (v : Nat) : A.ufAtom v = (A.ufAtoms[v]?).getD none := by simp [Answer.ufAtom]
 theorem Answer.liaAtom_eq (v : Nat) : A.liaAtom v = (A.liaAtoms[v]?).getD none := by simp [Answer.liaAtom]
 theorem Answer.liaForm_eq (x : Nat) : A.liaForm x = (A.liaForms[x]?).getD [] := by simp [Answer.liaForm]
+theorem Answer.meaningOf_eq (v : Nat) : A.meaningOf v = (A.meaning[v]?).getD none := by simp [Answer.meaningOf]
 theorem Problem.node_eq (i : Nat) : P.node i = P.nodes[i]? := by simp [Problem.node]
 theorem Problem.sort_eq (i : Nat) : P.sort i = P.sortOf[i]?.getD 0 := rfl
 theorem Problem.node_some {P : Problem} {i : Nat} {n : Node} (h : P.node i = some n) : P.nodes[i]? = some n := by
@@ -173,7 +175,7 @@ def Problem.atomOk (v : Nat) : Bool :=
     | none => true
     | some (a, b) =>
       (b != A.trueClass || (a < P.nodes.length && P.sig.is ((Tab.at P.sortOf a).getD 0) .bool)) &&
-        match (A.meaning[v]?).getD none with
+        match A.meaningOf v with
         | none => (A.liaAtom v).isNone
         | some m =>
           match P.node m with
@@ -183,7 +185,7 @@ def Problem.atomOk (v : Nat) : Bool :=
   let lia := match A.liaAtom v with
     | none => true
     | some atom =>
-      match (A.meaning[v]?).getD none with
+      match A.meaningOf v with
       | none => true
       | some m =>
         match atom, P.node m with
@@ -361,7 +363,7 @@ def Problem.justOk (s : Step) (j : Just) : Bool :=
 def Problem.accepts : Bool :=
   P.witnessesOkF A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
     -- `true`, its literal and classes
-    (match (A.meaning[A.trueLit.var]?).getD none with
+    (match A.meaningOf A.trueLit.var with
       | some t => A.trueLit.pos && P.node t == some .tt
       | none => false) &&
     (match P.node A.trueClass, P.node A.falseClass with
@@ -369,7 +371,7 @@ def Problem.accepts : Bool :=
       | _, _ => false) &&
     -- levels stand for no formula and no atom
     A.levels.all (fun (s, _) =>
-      ((A.meaning[s]?).getD none).isNone && (A.ufAtom s).isNone && (A.liaAtom s).isNone) &&
+      (A.meaningOf s).isNone && (A.ufAtom s).isNone && (A.liaAtom s).isNone) &&
     (List.range (max A.ufAtoms.length A.liaAtoms.length)).all (P.atomOk A) &&
     A.steps.length == A.justs.length &&
     (A.steps.zip A.justs).all (fun (s, j) => P.justOk A s j) &&
@@ -387,14 +389,14 @@ that Lean checks in parallel: the justifications and the derived steps from
 /-- `accepts` but the justifications and the derived steps. -/
 def Problem.acceptsBase : Bool :=
   P.witnessesOkF A && wellFormed P.nodes && typed P.sig P.nodes P.sortOf && P.dtOk && P.storesOk && P.classesOk A &&
-    (match (A.meaning[A.trueLit.var]?).getD none with
+    (match A.meaningOf A.trueLit.var with
       | some t => A.trueLit.pos && P.node t == some .tt
       | none => false) &&
     (match P.node A.trueClass, P.node A.falseClass with
       | some (.bterm t), some (.bterm f) => P.node t == some .tt && P.node f == some .ff
       | _, _ => false) &&
     A.levels.all (fun (s, _) =>
-      ((A.meaning[s]?).getD none).isNone && (A.ufAtom s).isNone && (A.liaAtom s).isNone) &&
+      (A.meaningOf s).isNone && (A.ufAtom s).isNone && (A.liaAtom s).isNone) &&
     (List.range (max A.ufAtoms.length A.liaAtoms.length)).all (P.atomOk A) &&
     A.steps.length == A.justs.length &&
     match Tab.at (A.steps.map Clausal.Step.clause) A.conclusion with
@@ -614,7 +616,7 @@ structure Accepted (P : Problem) (A : Answer) : Prop where
 theorem accepted (h : P.accepts A = true) : Accepted P A := by
   unfold Problem.accepts at h
   simp only [Problem.witnessesOkF_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, Problem.node_eq,
-    Tab.at_eq] at h
+    Tab.at_eq, Answer.meaningOf_eq] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hwit, hw⟩, ht⟩, hdt⟩, hst⟩, hcl⟩, htl⟩, htc⟩, hlv⟩, hat⟩, hlen⟩, hj⟩, hc⟩ := h
   refine ⟨hwit, hw, ht, hdt, hst, hcl, ?_, ?_, ?_, hat, fun s j m => hj (s, j) m, hlen, ?_⟩
   · split at htl
@@ -683,7 +685,7 @@ theorem assign_uf {v a b : Nat} (h : A.ufAtom v = some (a, b)) :
     assign P A I v = true ↔ val I P.nodes a = val I P.nodes b := by
   have hok := atomOk_of hA (v := v) (Or.inl (by simp [h]))
   unfold Problem.atomOk at hok
-  simp only [Problem.node_eq, h, Bool.and_eq_true] at hok
+  simp only [Problem.node_eq, Answer.meaningOf_eq, h, Bool.and_eq_true] at hok
   obtain ⟨⟨_, hm⟩, _⟩ := hok
   unfold assign
   rw [level_none hA (Or.inr (Or.inl (by simp [h])))]
@@ -748,7 +750,7 @@ theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
     assign P A M.toInterp v = true ↔ liaHolds P A M.toInterp a := by
   have hok := atomOk_of hA (v := v) (Or.inr (by simp [h]))
   unfold Problem.atomOk at hok
-  simp only [Problem.node_eq, h, Bool.and_eq_true] at hok
+  simp only [Problem.node_eq, Answer.meaningOf_eq, h, Bool.and_eq_true] at hok
   obtain ⟨huf, hm⟩ := hok
   clear huf
   unfold assign
@@ -805,10 +807,10 @@ theorem assign_lia {v : Nat} {a : LiaAtom} (h : A.liaAtom v = some a) :
       rw [holds_eq hA.wf hnode]
       simp only [liaHolds]
       have nl : ∃ x, val M.toInterp P.nodes l = .num x := by
-        unfold Enc.numeric at hl; simp only [Bool.and_eq_true, decide_eq_true_eq] at hl
+        unfold Enc.numeric at hl; simp only [Tab.at_eq, Bool.and_eq_true, decide_eq_true_eq] at hl
         exact dom_num_of_numeric hM hl.2 (val_dom hM hA.wf hA.typed hrng l hl.1)
       have nr : ∃ x, val M.toInterp P.nodes r = .num x := by
-        unfold Enc.numeric at hr; simp only [Bool.and_eq_true, decide_eq_true_eq] at hr
+        unfold Enc.numeric at hr; simp only [Tab.at_eq, Bool.and_eq_true, decide_eq_true_eq] at hr
         exact dom_num_of_numeric hM hr.2 (val_dom hM hA.wf hA.typed hrng r hr.1)
       obtain ⟨a, ha⟩ := nl
       obtain ⟨b, hb⟩ := nr
@@ -860,7 +862,7 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
     simp only [decide_eq_false_iff_not]
     intro hs; exact absurd hs.1 (by simpa [Problem.enc] using hn)
   numeric i h := by
-    simp only [Enc.numeric, Problem.enc, Bool.and_eq_true, decide_eq_true_eq] at h
+    simp only [Enc.numeric, Problem.enc, Tab.at_eq, Bool.and_eq_true, decide_eq_true_eq] at h
     exact dom_num_of_numeric hL.sound h.2 (dom_of hA hL hrng h.1)
   exhaustive t cs ht h := by
     simp only [Problem.enc] at h ht
