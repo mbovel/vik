@@ -14,6 +14,15 @@ import io.bovel.smtlib as s2
  *  of its own is [[Session.run]], or [[Session.answers]] for just its
  *  `check-sat`s.
  *
+ *  With `checkModels` on, or `(set-option :check-models true)` (cvc5's name),
+ *  each `sat` is checked: the solver builds the model, and every assertion in
+ *  force, with the assumptions of a `check-sat-assuming`, is evaluated in it as
+ *  the script wrote it, the way `get-value` evaluates an item, so that the
+ *  lowering is checked along with the search. The first one that is not true
+ *  (false, or beyond the evaluation) adds `(error "model check: ...")` after
+ *  the `sat`, which [[checkSat]] and [[Session.answers]] throw. It is off by
+ *  default, since it costs a model per sat and a walk of the assertions.
+ *
  *  {{{
  *  val s = Session()
  *  s.run("(declare-const x Int) (declare-const y Int)")
@@ -25,18 +34,22 @@ final class Session(
     initial: Solver = Solver(),
     fuel: Long = Long.MaxValue,
     timeoutMs: Option[Long] = None,
-    deadline: Option[Long] = None // a point in `System.nanoTime`: no check-sat searches past it
+    deadline: Option[Long] = None, // a point in `System.nanoTime`: no check-sat searches past it
+    checkModels: Boolean = false // every sat's model checked against the assertions (see above)
 ):
   private val parser = s2.Parser()
   private val lowerer = Lowerer()
   private var current = initial
-  current.produceModels = false // a walk per sat: paid only once the commands ask (see play)
+  private var checking = checkModels
+  current.produceModels = checking // a walk per sat: paid only once the commands ask (see play), or to check it
 
   /** The solver underneath (`reset` replaces it). */
   def solver: Solver = current
 
   // The assertion stack as asserted, one buffer per level: what get-assertions prints.
   private val asserted = ArrayBuffer(ArrayBuffer.empty[Formula])
+  // The same stack as the script wrote it, what the model check evaluates; `play` keeps its levels.
+  private val written = ArrayBuffer(ArrayBuffer.empty[s2.Formula])
   private val declarations = ArrayBuffer.empty[Command] // replayed by `reset-assertions`
   // The declarations of each open level, undone with its `pop` unless `:global-declarations` is true
   // (issue 40); the first level's are never popped.
@@ -86,7 +99,40 @@ final class Session(
         case Some(m) =>
           List(items.map((source, item) => s"($source ${lowerer.evaluate(item, m)})").mkString("(", " ", ")"))
         case None => play(List(lowered.last))
+    case s2.Command.Assert(f) => asserting(c, f)
+    case s2.Command.AssertNamed(_, f) => asserting(c, f)
+    case s2.Command.CheckSat => checked(play(lowerer.commands(List(c))), Nil)
+    case s2.Command.CheckSatAssuming(assumptions) => checked(play(lowerer.commands(List(c))), assumptions)
     case _ => play(lowerer.commands(List(c)))
+
+  private def asserting(c: s2.Command, formula: s2.Formula): List[String] =
+    val responses = play(lowerer.commands(List(c)))
+    written.last += formula // once lowered and asserted: an assertion the lowering refuses is not in force
+    responses
+
+  /** A check-sat's responses, and in the model-check mode, after a `sat`, the
+   *  error naming the first assertion in force or assumption that the model
+   *  does not make true: evaluated as written, by the lowering's evaluation
+   *  that `get-value` uses, so a wrong lowering shows as much as a wrong model.
+   */
+  private def checked(responses: List[String], assumptions: List[s2.Formula]): List[String] =
+    if !checking || !responses.lastOption.contains("sat") then responses
+    else
+      val items = written.flatten.zipWithIndex.map((f, i) => (s"assertion ${i + 1}", f)) ++
+        assumptions.zipWithIndex.map((f, i) => (s"assumption ${i + 1}", f))
+      val failure = current.model() match
+        case None => Some("no model")
+        case Some(m) =>
+          items.iterator.flatMap { (what, f) =>
+            val value =
+              try lowerer.evaluate(f, m)
+              catch case e: Exception => s"not evaluable (${e.getClass.getSimpleName}: ${e.getMessage})"
+            Option.when(value != "true") {
+              val text = s2.Printer.print(f)
+              s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
+            }
+          }.nextOption()
+      responses ++ failure.map(f => "(error \"model check: " + f.replace("\"", "\"\"") + "\")")
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
@@ -96,7 +142,7 @@ final class Session(
   def pop(): Unit = run(s2.Script(List(s2.Command.Pop(1))))
 
   /** `check-sat`: `Some(true)` for sat, `None` for unknown. */
-  def checkSat(): Option[Boolean] = decision(play(List(Command.CheckSat)))
+  def checkSat(): Option[Boolean] = decision(run(s2.Script(List(s2.Command.CheckSat))))
 
   /** `check-sat-assuming`: [[checkSat]] with `assumptions` holding for this
    *  check alone.
@@ -104,10 +150,7 @@ final class Session(
   def checkSatAssuming(assumptions: List[s2.Formula]): Option[Boolean] =
     decision(run(s2.Script(List(s2.Command.CheckSatAssuming(assumptions)))))
 
-  private def decision(responses: List[String]): Option[Boolean] = responses.head match
-    case "sat" => Some(true)
-    case "unsat" => Some(false)
-    case _ => None
+  private def decision(responses: List[String]): Option[Boolean] = Session.decisions(responses).head
 
   /** The model of the last `check-sat`, when it was sat and models were asked
    *  for — `(set-option :produce-models true)`, or a `get-model` or `get-value`
@@ -200,6 +243,7 @@ final class Session(
 
   private def restart(): Unit =
     asserted.clear(); asserted += ArrayBuffer.empty
+    written.clear(); written += ArrayBuffer.empty
     declaredAt.clear(); declaredAt += ArrayBuffer.empty
     val produceModels = current.produceModels
     replaced += current.spent
@@ -248,6 +292,7 @@ final class Session(
           for _ <- 0 until n do
             current.push()
             asserted += ArrayBuffer.empty
+            written += ArrayBuffer.empty
             declaredAt += ArrayBuffer.empty
         case Command.Pop(n) =>
           lastCheck = ""
@@ -255,6 +300,7 @@ final class Session(
             current.pop()
             if declaredAt.length > 1 then declaredAt.remove(declaredAt.length - 1).reverseIterator.foreach(undeclare)
           asserted.dropRightInPlace(n min (asserted.length - 1))
+          written.dropRightInPlace(n min (written.length - 1))
         case Command.CheckSat => responses += answer()
         case Command.CheckSatAssuming(assumptions) =>
           current.push()
@@ -273,6 +319,9 @@ final class Session(
         case Command.SetOption(":global-declarations", value) => globalDeclarations = value == "true"
         case Command.SetOption(":rlimit", value) => rlimit = value.toLong
         case Command.SetOption(":timeout", value) => timeout = Some(value.toLong)
+        case Command.SetOption(":check-models", value) =>
+          checking = value == "true"
+          if checking then current.produceModels = true
         case Command.GetInfo(":reason-unknown") => responses += s"((:reason-unknown ${reason.getOrElse("incomplete")}))"
         case _ => ()
     responses.toList
@@ -288,9 +337,10 @@ object Session:
       script: s2.Script,
       fuel: Long = Long.MaxValue,
       timeoutMs: Option[Long] = None,
-      deadline: Option[Long] = None
+      deadline: Option[Long] = None,
+      checkModels: Boolean = false
   ): List[String] =
-    Session(fuel = fuel, timeoutMs = timeoutMs, deadline = deadline).run(script)
+    Session(fuel = fuel, timeoutMs = timeoutMs, deadline = deadline, checkModels = checkModels).run(script)
 
   /** The answer of each `check-sat` of a script run in a session of its own:
    *  `Some(true)` for sat, `None` for unknown (the `fuel` of the `check-sat` is
@@ -300,9 +350,16 @@ object Session:
       script: s2.Script,
       fuel: Long = Long.MaxValue,
       timeoutMs: Option[Long] = None,
-      deadline: Option[Long] = None
-  ): List[Option[Boolean]] =
-    run(script, fuel, timeoutMs, deadline).collect {
+      deadline: Option[Long] = None,
+      checkModels: Boolean = false
+  ): List[Option[Boolean]] = decisions(run(script, fuel, timeoutMs, deadline, checkModels))
+
+  /** The check-sat answers among responses; a failed model check, which an
+   *  answer cannot carry, is thrown.
+   */
+  private def decisions(responses: List[String]): List[Option[Boolean]] =
+    responses.find(_.startsWith("(error \"model check")).foreach(e => throw IllegalStateException(e))
+    responses.collect {
       case "sat" => Some(true)
       case "unsat" => Some(false)
       case "unknown" => None
