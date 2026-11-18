@@ -12,10 +12,12 @@ import io.bovel.vik.{Model, Session, Solver}
  *  the answers must be the statuses in the file, within a fuel per `check-sat`
  *  (conflicts and branches: deterministic, the same on every machine) and
  *  within five seconds of wall clock — the budget the benchmarks also hold to;
- *  a file over either goes to `corpus/ignore.txt`, nobody waits on it. A file
- *  on `corpus/ignore.txt` (out of fuel or time, a wrong answer, an unsupported
- *  feature) is expected to fail, with a tenth of the fuel; when it passes, the
- *  test asks for its line to be removed.
+ *  a file over either goes to `corpus/ignore.txt`, nobody waits on it. Every
+ *  `sat` is model-checked (`Session`'s `checkModels`): each assertion in force
+ *  must be true in the model. A file on `corpus/ignore.txt` (out of fuel or
+ *  time, a wrong answer, a model that fails its check, an unsupported feature)
+ *  is expected to fail, with a tenth of the fuel unless its model is the
+ *  problem; when it passes, the test asks for its line to be removed.
  */
 class CorpusTest extends munit.FunSuite:
   override val munitTimeout = Duration(30, "min")
@@ -63,20 +65,28 @@ class CorpusTest extends munit.FunSuite:
             val script = Parser.parse(text)
             val expected = script.expectedStatuses
             val deadline = Some(System.nanoTime() + budget.toNanos)
+            // A `model:` file is answered: its fuel is the full one, for the check to be reached.
+            val reduced = reason.exists(!_.startsWith("model"))
+            val responses =
+              Session.run(script, fuel = if reduced then ignoredFuel else fuel, deadline = deadline, checkModels = true)
             val got =
-              Session.answers(script, fuel = if reason.isDefined then ignoredFuel else fuel, deadline = deadline)
+              responses.collect { case "sat" => Some(true); case "unsat" => Some(false); case "unknown" => None }
             val agrees = got.length == expected.length &&
               got.zip(expected).forall((g, e) => g.isDefined && e.forall(_ == g.get))
             // An answer against the status: a soundness bug, whatever the file's standing.
             val wrong = got.zip(expected).exists((g, e) => g.isDefined && e.isDefined && g != e)
+            // A model that fails its check (see Session): the first assertion it does not make true.
+            val failedCheck = responses.find(_.startsWith("(error \"model check"))
             // A file with `; EXPECT:` lines (stamped by `expectstamp`) holds every response to them.
             val expects = text.linesIterator.filter(_.startsWith("; EXPECT: ")).map(_.drop(10)).toList
-            val responses =
-              if expects.isEmpty || reason.isDefined ||
-                !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains)
-              then expects
-              else Session.run(script, fuel = fuel, deadline = deadline)
-            (agrees && responses == expects, wrong, s"expected ${show(expected)}, got ${show(got)}")
+            val matches = expects.isEmpty || reason.isDefined ||
+              !List("(get-value", "(get-model", "(get-unsat-core", "(get-assertions").exists(text.contains) ||
+              responses == expects
+            (
+              agrees && matches && failedCheck.isEmpty,
+              wrong,
+              s"expected ${show(expected)}, got ${show(got)}" + failedCheck.fold("")(e => s", and $e")
+            )
           },
           budget
         )
@@ -84,8 +94,8 @@ class CorpusTest extends munit.FunSuite:
       reason match
         case None => assert(outcome.get._1, outcome.get._3)
         case Some(why) =>
-          // An ignored file may run out of fuel or time, or fail as its `wrong:` line says; it may not
-          // answer against its status under another reason — that is a wrong answer filed as a timeout.
+          // An ignored file may run out of fuel or time, or fail as its `wrong:` or `model:` line says; it
+          // may not answer against its status under another reason — that is a wrong answer filed as a timeout.
           for (_, wrong, message) <- outcome.toOption do
             assert(!wrong || why.startsWith("wrong"), s"$message: a wrong answer, not what ignore.txt says ($why)")
           assert(outcome.toOption.forall(!_._1), s"passes now: remove it from corpus/ignore.txt (was: $why)")
