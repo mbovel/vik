@@ -337,7 +337,13 @@ theorem dom_enc_rng {s : Nat} (hs : s < SP.sig.sorts.length) {v : Val R (U ⊕ N
 include hw ht in
 theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr Ms).Sound P.sig P.bvIndex := by
   have hM := hL.sound
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  rotate_right
+  · -- the sorts of bit-vectors are lowered to `Int`
+    intro s w h
+    rw [hG.bvIndex, lookup_bvIndex, sortWidth_eq] at h
+    rw [hG.sorts s (lt_of_get h), h]
+    rfl
   · intro s v h
     have hs := base_of_not_fn hG h (by intro _ _ e; cases e)
     obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h

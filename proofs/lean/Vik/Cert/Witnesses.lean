@@ -240,6 +240,18 @@ def chainRev (nodes : List Node) (f : Nat) : Nat → List Nat → Bool
     | some (.app h [c]) => nodes[c]? == some (.const w) && chainRev nodes f h rest
     | _ => false
 
+/-- Whether the witnesses of a chain `F` (as `chainRev`) have the sorts of the
+    parameters they are given for, not merely sorts that fit them. -/
+def chainExact (sig : Sig) (nodes : List Node) (sortOf : List Nat) : Nat → List Nat → Bool
+  | _, [] => true
+  | F, _ :: rest =>
+    match nodes[F]? with
+    | some (.app h [c]) =>
+      (match sig.sorts[sortOf[h]?.getD 0]? with
+        | some (.fn [a] _) => a == sortOf[c]?.getD 0
+        | _ => false) && chainExact sig nodes sortOf h rest
+    | _ => false
+
 /-- `p` applied to the values `xs` in turn. -/
 def appAll (I : Interp R U) (p : Val R U) (xs : List (Val R U)) : Val R U :=
   xs.foldl (fun v x => I.app v [x]) p
@@ -274,16 +286,17 @@ theorem sortChain_snoc {sig : Sig} {a t : Nat} :
 def Sig.declOf (sig : Sig) (n : Nat) : Nat := (sig.decls[n]?).getD 0
 
 theorem chain_sorts {sig : Sig} {nodes : List Node} {sortOf : List Nat} (ht : typed sig nodes sortOf = true)
-    {f : Nat} : ∀ (ws : List Nat) (F : Nat), chainRev nodes f F ws = true →
+    {f : Nat} : ∀ (ws : List Nat) (F : Nat), chainRev nodes f F ws = true → chainExact sig nodes sortOf F ws = true →
       SortChain sig (sortOf[f]?.getD 0) (ws.reverse.map sig.declOf) (sortOf[F]?.getD 0)
-  | [], F, h => by
+  | [], F, h, _ => by
     simp only [chainRev, beq_iff_eq] at h; subst h; rfl
-  | w :: rest, F, h => by
+  | w :: rest, F, h, hx => by
     simp only [chainRev] at h
     split at h
     · rename_i h' c hF
+      simp only [chainExact, hF, Bool.and_eq_true] at hx
       simp only [Bool.and_eq_true, beq_iff_eq] at h
-      have ih := chain_sorts ht rest h' h.2
+      have ih := chain_sorts ht rest h' h.2 hx.2
       simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
       have tF := ht.2 F (lt_length_of_get hF)
       rw [hF] at tF
@@ -293,7 +306,12 @@ theorem chain_sorts {sig : Sig} {nodes : List Node} {sortOf : List Nat} (ht : ty
       split at tF
       · rename_i as r hs
         simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil] at tF
-        obtain ⟨rfl, rfl⟩ := tF
+        obtain ⟨rfl, -⟩ := tF
+        have eas : as = [sortOf[c]?.getD 0] := by
+          have hx1 := hx.1
+          rw [hs] at hx1
+          rcases as with _ | ⟨a, _ | ⟨b, _⟩⟩ <;> simp_all
+        subst eas
         have hd : sig.declOf w = sortOf[c]?.getD 0 := by simp [Sig.declOf, tc]
         simp only [List.reverse_cons, List.map_append, List.map_cons, List.map_nil, hd]
         exact sortChain_snoc ih hs
