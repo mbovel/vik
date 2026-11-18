@@ -491,6 +491,18 @@ private final class Encoder(
 
   private val datatypeNames = datatypes.map(_.name).toSet
 
+  /** The fields that [[shareIntegers]] pairs with their constructor's arguments
+   *  (the selector rule): the arithmetic ones and the arrays, each as its
+   *  selector, its constructor and its position. Found once: the pass runs at
+   *  every round of every check, and a sort's text is built at each asking.
+   */
+  private val sharedFields: List[(Term, Term, Int)] =
+    for
+      d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
+      text = sort.text
+      if text == "Int" || text == "Real" || Sorts.arrow(text).isDefined
+    yield (Term.Const(selector), Term.Const(c.name), i)
+
   /** The datatypes with finitely many values: no constructor field of an
    *  uninterpreted sort or of an infinite (e.g. recursive) datatype, computed
    *  as a least fixpoint.
@@ -589,12 +601,8 @@ private final class Encoder(
     // An arithmetic field, integer or real: a real one shared only through the e-graph left the
     // simplex without its equalities (issue 18). And an array field: the e-graph equates the selector's
     // application with the array, but their reads are shared only once the two are a pair (issue 134).
-    for
-      d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
-      if sort.text == "Int" || sort.text == "Real" || Sorts.arrow(sort.text).isDefined
-    do
-      for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
-      do
+    for (selector, constructor, i) <- sharedFields do
+      for s <- applications.getOrElse(selector, Nil); k <- applications.getOrElse(constructor, Nil) do
         if k.args.length > i then pair(s, k.args(i))
     for (a, b) <- pairs do
       val e = lit(Formula.Eq(a, b))
