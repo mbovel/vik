@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp}
 import io.bovel.smtlib as s2
@@ -87,8 +87,10 @@ private final class Lowerer:
   // The fresh constants and the assertions defining them, which go out before the assertion they were made
   // for, in the order they were made: each constant is declared right before its definitions. The solver
   // meets a bit-vector constant's range at its declaration, and the search follows the order it meets things in.
+  // `auxiliary`: a constant that is a bit of a term (see bits), whose atoms the search decides last.
   private val pending = ArrayBuffer.empty[Command]
-  private def introduce(name: String, sort: Sort): Unit = pending += Command.DeclareFun(name, Nil, sort)
+  private def introduce(name: String, sort: Sort, auxiliary: Boolean = false): Unit =
+    pending += Command.DeclareFun(name, Nil, sort, auxiliary)
   private def define(definition: Formula): Unit = pending += Command.Assert(definition)
 
   /** What the lowering minted, by what it was minted for. An entry stands for
@@ -884,11 +886,11 @@ private final class Lowerer:
   // Bit-vectors, to linear integer arithmetic.
 
   /** A fresh `Int` constant in `[lo, hi]`, declared and bounded before the
-   *  current assertion.
+   *  current assertion. `aux`: declared auxiliary (see [[Command.DeclareFun]]).
    */
-  private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
+  private def freshInt(prefix: String, lo: BigInt, hi: BigInt, aux: Boolean = false): Term =
     val name = freshName(prefix)
-    introduce(name, Sort.Int)
+    introduce(name, Sort.Int, aux)
     val k = Const(name)
     define(Ge(k, Num(lo)))
     define(Le(k, Num(hi)))
@@ -1110,7 +1112,7 @@ private final class Lowerer:
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
     knownBits(t, width).getOrElse {
-      val bs = (0 until width).map(_ => freshInt("bit", 0, 1))
+      val bs = (0 until width).map(_ => freshInt("bit", 0, 1, aux = true))
       define(IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b)))))
       val fs = bs.map(b => Ge(b, Num(1)))
       for (f, b) <- fs.zip(bs) do bitConstants(f) = b

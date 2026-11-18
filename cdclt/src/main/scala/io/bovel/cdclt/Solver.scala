@@ -92,6 +92,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    *  never-bumped variables compare equal and the reset can leave `vmtfSearch`
    *  past an unassigned variable — a decision never made, and a `Sat` on an
    *  incomplete assignment.
+   *
+   *  A deferred variable ([[defer]]) keeps its place in the list and is decided
+   *  only when every other variable is assigned: `vmtfFirst` is `vmtfSearch`
+   *  for the others, the position from which the search for one of them starts,
+   *  `-1` when it ran off the list.
    */
   private var vmtfPrev = Array.tabulate(numVars)(v => v - 1)
   private var vmtfNext = Array.tabulate(numVars)(v => if v + 1 < numVars then v + 1 else -1)
@@ -99,6 +104,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   private var vmtfHead = if numVars > 0 then 0 else -1
   private var vmtfTail = numVars - 1
   private var vmtfSearch = vmtfHead
+  private var vmtfFirst = vmtfHead
+  private var deferred = new Array[Boolean](numVars)
+  private var anyDeferred = false
   private var vmtfTime = 0L
 
   /** The value each variable had when last unassigned (phase saving), false at
@@ -136,6 +144,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       vmtfPrev = java.util.Arrays.copyOf(vmtfPrev, n / 2)
       vmtfNext = java.util.Arrays.copyOf(vmtfNext, n / 2)
       vmtfStamp = java.util.Arrays.copyOf(vmtfStamp, n / 2)
+      deferred = java.util.Arrays.copyOf(deferred, n / 2)
     watches += ArrayBuffer.empty
     watches += ArrayBuffer.empty
     vmtfPrev(v) = vmtfTail
@@ -144,6 +153,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     if vmtfTail >= 0 then vmtfNext(vmtfTail) = v else vmtfHead = v
     vmtfTail = v
     if vmtfSearch < 0 then vmtfSearch = v
+    if vmtfFirst < 0 then vmtfFirst = v
     v
 
   /** Conflicts so far, and the count at which to restart next (Luby sequence
@@ -356,7 +366,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
         value(lit.index) = 0
         value(lit.neg.index) = 0
         phase(lit.variable) = lit.positive
-        if vmtfSearch < 0 || vmtfStamp(lit.variable) > vmtfStamp(vmtfSearch) then vmtfSearch = lit.variable
+        val v = lit.variable
+        if vmtfSearch < 0 || vmtfStamp(v) > vmtfStamp(vmtfSearch) then vmtfSearch = v
+        if !deferred(v) && (vmtfFirst < 0 || vmtfStamp(v) > vmtfStamp(vmtfFirst)) then vmtfFirst = v
       theory.pop()
     qhead = math.min(qhead, trail.length) // a literal enqueued at a surviving level stays to be propagated
 
@@ -375,12 +387,28 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       vmtfHead = v
     vmtfTime += 1
     vmtfStamp(v) = vmtfTime
-    if value(Lit(v).index) == 0 then vmtfSearch = v
+    if value(Lit(v).index) == 0 then
+      vmtfSearch = v
+      if !deferred(v) then vmtfFirst = v
 
-  /** The first unassigned variable of the move-to-front list, `-1` if none. */
+  /** Has `v` decided only when every variable that is not deferred is assigned:
+   *  for the variables whose value follows from the others', where a guess made
+   *  first is a guess the others then refute one at a time.
+   */
+  def defer(v: Var): Unit =
+    deferred(v) = true
+    anyDeferred = true
+
+  /** The first unassigned variable of the move-to-front list that is not
+   *  deferred, else the first unassigned one, `-1` if none.
+   */
   private def nextDecision(): Var =
     while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)
-    vmtfSearch
+    if !anyDeferred then vmtfSearch
+    else
+      while vmtfFirst >= 0 && (deferred(vmtfFirst) || value(Lit(vmtfFirst).index) != 0) do
+        vmtfFirst = vmtfNext(vmtfFirst)
+      if vmtfFirst >= 0 then vmtfFirst else vmtfSearch
 
   private def decide(v: Var): Unit =
     decisions += 1
