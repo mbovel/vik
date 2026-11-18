@@ -332,19 +332,20 @@ final class Solver(val simplify: Boolean = true):
     // The Boolean terms are decided in the loop, first: deciding one encodes the terms inside it,
     // a `store` in a Boolean argument among them, which the passes of the same round then see
     // (issue 17). The loop measures the terms decided as well as the clauses, since a round that
-    // registers a Boolean and emits nothing else is not done.
-    var emitted = -1
-    var decided = -1
-    while (emitted != e.clauseCount || decided != e.booleanCount) && keepGoing() do
-      emitted = e.clauseCount
-      decided = e.booleanCount
+    // registers a Boolean and emits nothing else is not done; and the function equalities, since the
+    // sharing makes one per pair of arrays without a clause, and its witness is the next round's
+    // (issue 133).
+    def progress = (e.clauseCount, e.booleanCount, e.functionEqualityCount)
+    var before = (-1, -1, -1)
+    while before != progress && keepGoing() do
+      before = progress
       e.decideBooleans()
       e.assertExtensionality()
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertExhaustiveness()
       e.shareIntegers()
-    if emitted != e.clauseCount || decided != e.booleanCount then
+    if before != progress then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
       // sat without them (issue 38).
       lastCore = Nil
@@ -522,7 +523,7 @@ private final class Encoder(
    */
   private val sharedPairs = scala.collection.mutable.HashSet.empty[(Term, Term)]
 
-  def shareIntegers(): Unit = if anyInt || intTerms.nonEmpty || anyStore() then
+  def shareIntegers(): Unit = if anyInt || anyArray || intTerms.nonEmpty || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     def pair(a: Term, b: Term): Unit =
@@ -674,6 +675,8 @@ private final class Encoder(
   private val functionEqualities = ArrayBuffer.empty[Formula]
   private var recordFunctionEqualities = true
 
+  def functionEqualityCount: Int = functionEqualities.length
+
   /** A witness index's name, `ext!N`, past the script's symbols: a script
    *  constant `ext!0` was the witness, and a later declaration of a witness's
    *  name is refused by [[Solver.declare]].
@@ -768,11 +771,14 @@ private final class Encoder(
   private def boolean(term: Term): Unit =
     if sortOf(term) == "Bool" && booleanClasses.add(classOf(term)) then booleans += term
 
-  /** Whether some term is an integer, or some equality is between functions
-   *  (arrays): the passes over all the terms of [[shareIntegers]] and
+  /** Whether some term is an integer, some application takes or gives an array
+   *  (two arrays under the same function are a pair to share, with or without
+   *  an integer or a `store` around: issue 133), or some equality is between
+   *  functions (arrays): the passes over all the terms of [[shareIntegers]] and
    *  [[assertExtensionality]] are skipped otherwise (many queries are small).
    */
   private var anyInt = false
+  private var anyArray = false
   private var anyFunctionEquality = false
 
   def classOf(term: Term): EClassId = classes.getOrElseUpdate(
@@ -789,6 +795,7 @@ private final class Encoder(
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) =>
         args.foreach(boolean)
+        if isFun(term) || args.exists(isFun) then anyArray = true
         eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
       case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
       case Term.Bool(_) => eg.newClass() // a leaf, tied to its formula by `Pred` (see `encode`)
