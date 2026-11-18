@@ -441,6 +441,7 @@ final class Parser:
    *  `(_ is C)` : `D -> Bool`).
    */
   private def declareDatatypes(declarations: List[(String, List[SExpr])]): Command =
+    for (name, constructors) <- declarations do distinct(name, constructors)
     for (name, _) <- declarations do // named first: the fields read below may mention them, and instantiate
       undoable(datatypeNames, name)
       datatypeNames += name
@@ -464,6 +465,19 @@ final class Parser:
     datatypes.foreach(fields)
     Command.DeclareDatatypes(datatypes)
 
+  /** Refuses a datatype that declares a constructor or a selector twice, as z3
+   *  and cvc5 do (issue 146): the second declaration would replace the first, a
+   *  selector `f` of two constructors being one function symbol here.
+   */
+  private def distinct(datatype: String, constructors: List[SExpr]): Unit =
+    val names = constructors.collect { case SList(SSymbol(constructor) :: _) => constructor }
+    val selectors = constructors.collect { case SList(_ :: fields) => fields }.flatten
+      .collect { case SList(SSymbol(selector) :: _) => selector }
+    for name <- names.diff(names.distinct).headOption do
+      throw Smt2Error(s"$name: a constructor declared twice in the datatype $datatype")
+    for name <- selectors.diff(selectors.distinct).headOption do
+      throw Smt2Error(s"$name: a selector declared twice in the datatype $datatype")
+
   /** Makes a datatype's constructors, selectors and testers known. */
   private def register(datatype: Datatype): Unit =
     val d = Sort.Named(datatype.name)
@@ -485,6 +499,7 @@ final class Parser:
    */
   private def template(name: String, params: List[SExpr], constructors: List[SExpr]): Unit =
     val ps = params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad sort parameter $other") }
+    distinct(name, constructors)
     undoable(templates, name)
     templates(name) = (ps, constructors)
     val self = SList(SSymbol(name) :: ps.map(SSymbol(_)))

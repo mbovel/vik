@@ -169,6 +169,23 @@ class ParserTest extends munit.FunSuite:
       )
     do intercept[Smt2Error](parse(script))
 
+  test("a datatype declares each constructor and each selector once"):
+    // The second `f` replaced the first, so `(f (A 5))` was any integer (issue 146).
+    for script <- List(
+        "(declare-datatype D ((A (f Int)) (B (f Int))))",
+        "(declare-datatype D ((A (f Int) (f Bool))))",
+        "(declare-datatype D ((A) (A (f Int))))",
+        "(declare-datatypes ((D 0) (E 0)) (((A)) ((B (f Int)) (C (f Int)))))",
+        "(declare-datatype D (par (T) ((A (f T)) (B (f T)))))",
+        "(declare-datatypes ((D 1) (E 0)) ((par (T) ((A (f T)))) ((B (g Int)) (C (g Int)))))"
+      )
+    do intercept[Smt2Error](parse(script))
+    val e = intercept[Smt2Error](parse("(declare-datatype D ((A (f Int)) (B (f Int))))"))
+    assertEquals(e.getMessage, "f: a selector declared twice in the datatype D")
+    // Two datatypes may name a selector alike, and a selector may be named like a constructor.
+    parse("(declare-datatypes ((D 0) (E 0)) (((A (f Int))) ((B (f Int)))))")
+    parse("(declare-datatype D ((A (B Int)) (B (A Int))))")
+
   test("the datatypes a field may mention"):
     parse("""
       (declare-sort U 0) (declare-sort B 1)
