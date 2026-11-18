@@ -93,7 +93,13 @@ final class Solver(val simplify: Boolean = true):
   /** Forgets a declaration: its level is popped (issue 40). */
   def undeclare(name: String): Unit = declarations -= name
 
+  /** Forgets a datatype: its level is popped. The live encoder still holds its
+   *  rules and the exhaustiveness of its sort, and would apply them to a sort
+   *  or to symbols declared later under the same names (issue 144): it is
+   *  rebuilt.
+   */
   def undeclare(datatype: Datatype): Unit =
+    if encoder != null then dirty = true
     datatypes.filterInPlace(_.name != datatype.name)
     for c <- datatype.constructors do
       declarations -= c.name
