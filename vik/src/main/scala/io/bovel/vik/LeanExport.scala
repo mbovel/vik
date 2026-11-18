@@ -274,7 +274,7 @@ private[vik] object LeanExport:
 
     // Applications and equalities, by their nodes: `fixSorts` gives a number
     // or a witness the bit-vector sort they are used at.
-    private val appNodes = ArrayBuffer.empty[(Int, List[Int])]
+    private val appNodes = ArrayBuffer.empty[(Int, Int, List[Int])]
     private val eqNodes = ArrayBuffer.empty[(Int, Int)]
 
     /** Vik lowers bit-vectors to integers, so a numeral or an answer's witness
@@ -286,10 +286,16 @@ private[vik] object LeanExport:
      */
     private def fixSorts(): Unit =
       val widths = bvIndex.toMap
-      val fnParams = """\.fn \[([0-9, ]*)\] \d+""".r
+      val fnParams = """\.fn \[([0-9, ]*)\] (\d+)""".r
       def params(f: Int): List[Int] = sorts(nodeSorts(f)) match
-        case fnParams(ps) => if ps.nn.isEmpty then Nil else ps.nn.split(", ").nn.toList.map(_.nn.toInt)
+        case fnParams(ps, _) => if ps.nn.isEmpty then Nil else ps.nn.split(", ").nn.toList.map(_.nn.toInt)
         case _ => Nil
+      // an application has the result sort of its function's, which can be a
+      // bit-vector's where the term's own sort is `Int`
+      for (i, f, _) <- appNodes do
+        sorts(nodeSorts(f)) match
+          case fnParams(_, r) => nodeSorts(i) = r.nn.toInt
+          case _ => ()
       val firstWitness = surface.fold(Int.MaxValue)(sf => sf.decls.length + sf.mints.length)
       val names = decls.iterator.map((n, d) => (d, n)).toMap
       val mintsByName = surface.fold(Map.empty[String, Mint])(_.mints.toMap)
@@ -324,7 +330,7 @@ private[vik] object LeanExport:
       var changed = true
       while changed do
         changed = false
-        for (f, as) <- appNodes; (x, p) <- as.zip(params(f)) do changed |= retarget(x, p)
+        for (_, f, as) <- appNodes; (x, p) <- as.zip(params(f)) do changed |= retarget(x, p)
         for (a, b) <- eqNodes do
           changed |= retarget(a, nodeSorts(b))
           changed |= retarget(b, nodeSorts(a))
@@ -347,7 +353,7 @@ private[vik] object LeanExport:
             case Term.Const(n) => results.get(declSorts(n))
             case _ => results.get(nodeSorts(f))
           val i = node(s".app $f ${list(as.map(_.toString))}", result.getOrElse(sortId(sortOf(t))))
-          appNodes += ((f, as))
+          appNodes += ((i, f, as))
           i
         case Term.Num(v) => node(s".num ${int(v)}", 1)
         case Term.Linear(ts, c) =>
@@ -403,7 +409,9 @@ private[vik] object LeanExport:
           case Some(a) =>
             val f = classNode(a.fun)
             val as = a.args.map(classNode)
-            node(s".app $f ${list(as.map(_.toString))}", sortId(classSort(x)))
+            val i = node(s".app $f ${list(as.map(_.toString))}", results.getOrElse(nodeSorts(f), sortId(classSort(x))))
+            appNodes += ((i, f, as.toList))
+            i
           case None =>
             classTerms.get(x) match
               case Some(t) => term(t)
