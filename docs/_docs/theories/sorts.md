@@ -63,6 +63,11 @@ a variable pattern catches everything after it.
 (check-sat)
 ```
 
+A datatype must be well-founded, as the standard asks: one of its constructors takes only fields that have
+values without it. `(declare-datatype T ((c (next T))))` has no value and is refused, as is a group of
+datatypes that only have values through one another. An array field counts for its indices and its
+elements, and a parametric datatype is judged at each instance.
+
 A parametric datatype — `(declare-datatype List (par (T) ...))` — is a datatype per instance, `(List Int)`,
 `(List Bool)`: see [sort parameters](#sort-parameters) below.
 

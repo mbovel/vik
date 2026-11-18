@@ -97,6 +97,7 @@ final class Parser:
       val commands = command(s)
       val out = pending.toList ++ commands
       pending.clear()
+      wellFounded(out.collect { case Command.DeclareDatatypes(datatypes) => datatypes }.flatten)
       out
   })
 
@@ -477,6 +478,27 @@ final class Parser:
       throw Smt2Error(s"$name: a constructor declared twice in the datatype $datatype")
     for name <- selectors.diff(selectors.distinct).headOption do
       throw Smt2Error(s"$name: a selector declared twice in the datatype $datatype")
+
+  /** Refuses datatypes that are not well-founded, as SMT-LIB asks and as z3 and
+   *  cvc5 do (issue 147): a datatype has values only if one of its constructors
+   *  takes fields that all have some. `datatypes` are the ones a command
+   *  declared, with the instances of parametric datatypes it made — a
+   *  parametric datatype is judged there, instance by instance. The sorts
+   *  declared before have values, and so the least fixpoint is over these: the
+   *  datatypes left once no other can be given a value have none. An array has
+   *  values when its indices and its elements do, which is the rule of the two.
+   */
+  private def wellFounded(datatypes: List[Datatype]): Unit =
+    def without(open: List[Datatype]): List[Datatype] =
+      val names = open.map(_.name).toSet
+      def inhabited(s: Sort): Boolean = s match
+        case Sort.Named(name) => !names(name)
+        case Sort.Array(index, element) => inhabited(index) && inhabited(element)
+        case _ => true
+      val rest = open.filterNot(_.constructors.exists(_.selectors.forall((_, s) => inhabited(s))))
+      if rest.length == open.length then open else without(rest)
+    for datatype <- without(datatypes).headOption do
+      throw Smt2Error(s"the datatype ${datatype.name} is not well-founded: none of its constructors has a value")
 
   /** Makes a datatype's constructors, selectors and testers known. */
   private def register(datatype: Datatype): Unit =
