@@ -145,6 +145,10 @@ instance of `List` at `Int` is the datatype `(List Int)` with constructors `nil@
 what models and `get-value` print, and what the [lowered script](../components/vik.md) contains: the
 solver never sees a sort parameter.
 
+A parameter is a name of its declaration only. It may be the name of a sort of the script, `T` in
+`(par (T) ...)` beside `(declare-sort T 0)`: in the declaration `T` is then the parameter, and the datatype
+is instantiated at the sort `T` like at any other.
+
 A use must determine its instance: `(f x)` binds `X` to the sort of `x`, `(as nil (List Int))` names it,
 and a use that does neither — a constant of sort `X` on its own — is refused with a message asking for
 `as`. The standard reads an assertion that still mentions a sort parameter as one assertion per
