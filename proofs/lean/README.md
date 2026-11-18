@@ -101,6 +101,15 @@ after another and keeps the kernel's work for the whole file, so a large proof
 is split into modules, one per slice, and checked in parallel processes:
 `./check-modules.sh <dir> [jobs]`.
 
+The kernel takes minutes to an hour on the largest proofs. Vik also writes
+each proof for `native_decide` (`native/` of the exports), which runs the
+same checkers as compiled code, in seconds to a few minutes, but trusts Lean's
+compiler (the axiom `Lean.ofReduceBool`): `./check-native.sh <file>`. The
+library is then compiled to a shared object (`precompileModules`), `sexp%`
+splits large lists into compiled definitions (`vik.sexp.chunk`), and compiled
+code looks up `Tab.at` in the list, by a `csimp` lemma, rather than build the
+tree at each lookup.
+
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their
 usual names.

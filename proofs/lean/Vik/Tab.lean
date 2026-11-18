@@ -103,6 +103,13 @@ theorem Tab.get_ofF {α : Type} : ∀ (f : Nat) (l : List α), l.length ≤ f �
 @[simp] theorem Tab.at_eq {α : Type} (l : List α) (i : Nat) : Tab.at l i = l[i]? :=
   Tab.get_ofF _ l (Nat.le_refl _) i
 
+/-- Compiled code, which does not share the tree across lookups as the kernel
+    does, looks up in the list. -/
+def Tab.atList {α : Type} (l : List α) (i : Nat) : Option α := l[i]?
+
+@[csimp] theorem Tab.at_eq_atList : @Tab.at = @Tab.atList := by
+  funext α l i; exact Tab.at_eq l i
+
 /-- The tree with element `i` set to `x`, for `i` at most the number of
     elements: a table grows by setting its next element. -/
 def Tab.set {α : Type} : Tab α → Nat → α → Tab α
