@@ -7,7 +7,7 @@ import scala.jdk.CollectionConverters.*
 import io.bovel.smtlib.Parser
 
 /** Writes the Lean proof of each script of a corpus whose last answer is
- *  `unsat`, for `proofs/lean` to check: `vik/Test/runMain
+ *  `unsat`, for `proofs/lean` to check: `smtlibutils/Test/runMain
  *  io.bovel.vik.LeanCorpus <corpus> <out> [seconds]`, the corpus a directory or
  *  a file listing the scripts' paths, each script solved with proofs within
  *  `seconds` (10 by default). Each proof is written as one file, `Cnnnnn.lean`,
