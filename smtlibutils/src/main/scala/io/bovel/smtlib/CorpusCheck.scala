@@ -6,9 +6,10 @@ import io.bovel.vik.Session
  *  `CorpusTest` enforces and that `ignorestamp` records in `corpus/ignore.txt`.
  *
  *  `expected` are the statuses before each `check-sat` and `got` the answers;
- *  `failedCheck` is the error of the first `sat` whose model fails its check
- *  (`Session`'s `checkModels`); `matches` says the responses are the file's
- *  `; EXPECT:` lines, when it has some and queries values (see `expectstamp`).
+ *  `failedCheck` is the error of the first model that fails its check
+ *  (`Session`'s `checkModels`), where the answer is then `unknown`; `matches`
+ *  says the responses are the file's `; EXPECT:` lines, when it has some and
+ *  queries values (see `expectstamp`).
  */
 final case class CorpusCheck(
     expected: List[Option[Boolean]],
