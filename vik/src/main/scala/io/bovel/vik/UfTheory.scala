@@ -46,6 +46,13 @@ final class UfTheory(
    */
   private val again = ArrayBuffer.empty[Var]
 
+  /** The atoms a propagation looks at, each once (see [[propagate]]): the stamp
+   *  of the last propagation to take each, and the ones taken.
+   */
+  private var seenAt = new Array[Int](0)
+  private var stamp = 0
+  private var candidates = new Array[Int](0)
+
   /** What the last propagation implied: the search does not take all of it when
    *  it finds a conflict.
    */
@@ -123,18 +130,39 @@ final class UfTheory(
             look(v)
             v += 1
         else
+          // Each atom once, in order of variable: an id of a class many terms meet lists its atoms with every
+          // other's, and sorting the list with its repeats was most of the search on arrays read at many
+          // indices, whose reads the theory combination pairs (`Encoder.shareIntegers`).
+          if seenAt.length < atoms.length then
+            seenAt = java.util.Arrays.copyOf(seenAt, math.max(atoms.length, 2 * seenAt.length))
+          if candidates.length < atoms.length then
+            candidates = new Array[Int](math.max(atoms.length, 2 * candidates.length))
+          stamp += 1
+          var n = 0
+          def take(v: Var): Unit =
+            if seenAt(v) != stamp then
+              seenAt(v) = stamp
+              candidates(n) = v
+              n += 1
           var i = 0
+          while i < again.length do
+            take(again(i))
+            i += 1
+          i = 0
           while i < ids.length do
             val id = ids(i)
             if id < atomsAt.length then
               val at = atomsAt(id)
-              if at != null then again ++= at
+              if at != null then
+                var k = 0
+                while k < at.length do
+                  take(at(k))
+                  k += 1
             i += 1
-          val candidates = again.toArray
-          java.util.Arrays.sort(candidates)
+          java.util.Arrays.sort(candidates, 0, n)
           i = 0
-          while i < candidates.length do
-            if i == 0 || candidates(i) != candidates(i - 1) then look(candidates(i))
+          while i < n do
+            look(candidates(i))
             i += 1
           ids.clear()
         again.clear()
