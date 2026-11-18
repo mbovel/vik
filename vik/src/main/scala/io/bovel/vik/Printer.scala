@@ -36,6 +36,7 @@ object Printer:
       }.mkString(" ")
       s"(declare-datatypes ($sorts) ($declarations))"
     case Command.Assert(formula) => s"(assert ${print(formula)})"
+    case Command.AssertGlobal(formula) => s"(assert ${print(formula)})" // SMT-LIB has no such level to name
     case Command.AssertNamed(name, formula) => s"(assert (! ${print(formula)} :named $name))"
     case Command.CheckSat => "(check-sat)"
     case Command.GetUnsatCore => "(get-unsat-core)"

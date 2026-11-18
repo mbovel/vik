@@ -62,18 +62,6 @@ private final class Lowerer:
       val previous = map.get(key)
       scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
 
-  // Under `:global-declarations` a declaration made inside a level outlives the level's `pop`, and what
-  // it asserts about its symbol ([[facts]]) does not: an assertion of that level like any other. The
-  // `pop` says it again at the level below, and that level's own `pop` again, down to the first level
-  // (issue 145).
-  private val restated = HashMap.empty[String, Sort]
-  private def restate(name: String, sort: Sort): Unit =
-    if scopes.nonEmpty then
-      scopes.last += { () =>
-        restated(name) = sort
-        restate(name, sort)
-      }
-
   private var fresh = 0
   val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own, a test for the session
 
@@ -419,14 +407,17 @@ private final class Lowerer:
   /** A sort as the solver writes it: a string, arrays as function sorts. */
   /** What a declaration of `name` at `sort` asserts about it, beyond the
    *  declaration itself: a bit-vector constant is an integer of its range, and
-   *  nothing else says so. Said at the declaration, again after a
-   *  `reset-assertions`, which drops the assertions but keeps the declarations,
-   *  and again after the `pop` of a level that a declaration outlives (see
-   *  `restate`) — one list, so that a second kind of fact is not forgotten in
-   *  one of the three places.
+   *  nothing else says so. Said at the declaration and again after a
+   *  `reset-assertions`, which drops the assertions but keeps the declarations
+   *  — one list, so that a second kind of fact is not forgotten in one of the
+   *  two places.
    */
   private def facts(name: String, sort: Sort): List[Command] = sort match
-    case Sort.BitVec(w) => List(Command.Assert(range(Const(name), w)))
+    // Under `:global-declarations` the declaration outlives the level it is made in, and so must the
+    // range: it is asserted below every level, where no `pop` takes it back (issue 145).
+    case Sort.BitVec(w) =>
+      val fact = range(Const(name), w)
+      List(if globalDeclarations then Command.AssertGlobal(fact) else Command.Assert(fact))
     case _ => Nil
 
   /** A sort as the lowered script declares it: a bit-vector is an `Int`, in a
@@ -471,7 +462,6 @@ private final class Lowerer:
       reserve(name)
       undoable(functions, name)
       functions(name) = Sort.BitVec(w)
-      if globalDeclarations then restate(name, Sort.BitVec(w))
       Command.DeclareFun(name, Nil, "Int") +: facts(name, Sort.BitVec(w))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       reserve(name)
@@ -510,9 +500,7 @@ private final class Lowerer:
       flush(Command.Push(levels))
     case s2.Command.Pop(levels) =>
       for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
-      val again = restated.toList.sortBy(_._1).flatMap(facts)
-      restated.clear()
-      Command.Pop(levels) +: again
+      List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
       clearMemos()
       // What a declaration says is asserted, and `reset-assertions` drops the assertions: said again

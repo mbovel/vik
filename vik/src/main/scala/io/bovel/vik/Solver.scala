@@ -208,6 +208,16 @@ final class Solver(val simplify: Boolean = true):
     else if e != null && !dirty then
       e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
 
+  /** Asserts `formula` below every open level: no [[pop]] takes it back. For
+   *  what is said of a symbol that outlives the levels (see
+   *  [[Command.AssertGlobal]]).
+   */
+  def assertGlobal(formula: Formula): Unit =
+    levels.head += formula
+    val e = encoder
+    if mentionsEliminated(formula) then dirty = true
+    else if e != null && !dirty then e.assert(formula, null)
+
   // The elimination assumed the constant stayed local; a mention breaks it: start over.
   private def mentionsEliminated(formula: Formula): Boolean = encoder != null && !dirty
     && eliminated.nonEmpty && formula.terms.exists(Term.constants(_).exists(eliminated.contains))

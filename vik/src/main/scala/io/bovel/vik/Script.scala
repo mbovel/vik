@@ -15,6 +15,13 @@ enum Command:
   case DeclareDatatypes(datatypes: List[Datatype])
   case Assert(formula: Formula)
 
+  /** An assertion below every level, which no `pop` takes back: what a
+   *  declaration says of a symbol that outlives the levels under
+   *  `:global-declarations` — a bit-vector constant's range, which went with
+   *  the level it was asserted in while the constant stayed (issue 145).
+   */
+  case AssertGlobal(formula: Formula)
+
   /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can
    *  name.
    */

@@ -299,6 +299,10 @@ final class Session(
           lastCheck = ""
           asserted.last += formula
           current.assert(formula)
+        case Command.AssertGlobal(formula) =>
+          lastCheck = ""
+          asserted.head += formula
+          current.assertGlobal(formula)
         case Command.AssertNamed(name, formula) =>
           lastCheck = ""
           asserted.last += formula
