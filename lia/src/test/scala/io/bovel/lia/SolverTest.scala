@@ -234,6 +234,24 @@ class SolverTest extends munit.FunSuite:
       case Result.Unsat(reasons) => assert(reasons.subsetOf(Set(1, 2, 3, 4)), reasons)
       case other => fail(s"expected unsat, got $other")
 
+  test("branch and bound halves the range of a bounded unknown it slides along"):
+    // Satisfiable, but the vertices are fractional all the way down a 2^32 range: one unit at a time never ends.
+    val top = BigInt(1) << 32
+    val box = (0 until 4).toList.flatMap(x =>
+      List(Constraint(List((1, x)), false, 0), Constraint(List((1, x)), true, top))
+    )
+    val k = box ++ List(
+      Constraint(List((2, 0), (-1, 1), (1, 2), (3, 3)), false, 2), // 2x - y + z + 3w ≥ 2
+      Constraint(List((-2, 0), (2, 1), (-3, 2)), false, top + 1) // -2x + 2y - 3z ≥ 2^32 + 1
+    )
+    val (solver, asserted) = solverOf(4, k)
+    assertEquals(asserted, Result.Sat)
+    var steps = 3000
+    solver.keepGoing = () =>
+      steps -= 1; steps >= 0
+    assertEquals(solver.check(), Result.Sat)
+    assert(k.forall(_.holds(solver.value)))
+
   test("the small-model box turns a sliding branch and bound into a sound unsat"):
     // x even and x odd: integer-infeasible, rationally satisfiable everywhere, and no single
     // expression's gcd sees it — the branches slide.

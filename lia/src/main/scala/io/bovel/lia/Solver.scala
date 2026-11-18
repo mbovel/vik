@@ -840,9 +840,19 @@ final class Solver:
           else
             branches += 1
             val v = deltaValue(x)
-            // The side toward zero first: flooring a negative value first can dive
-            // away from zero without end along an unbounded direction.
-            Branch(x, v.floor, v.ceil, -branches, Set.empty, up = v.floor.signum < 0)
+            val l = lower(x)
+            val u = upper(x)
+            if open.count(_.x == x) >= 16 && l != null && u != null then
+              // Many open branches on one bounded unknown: sliding one unit at a time along it can take as
+              // many steps as its range is wide (a bit-vector's 2^32), so halve the range instead. Not from
+              // the second branch on: the first ones stay around the relaxation's value, where the integer
+              // solutions of a small problem are.
+              val mid = (l.value.floor + u.value.ceil) >> 1
+              Branch(x, mid, mid + 1, -branches, Set.empty, up = v.ceil > mid)
+            else
+              // The side toward zero first: flooring a negative value first can dive
+              // away from zero without end along an unbounded direction.
+              Branch(x, v.floor, v.ceil, -branches, Set.empty, up = v.floor.signum < 0)
         else
           distinct.find((x, c, _) =>
             values(x) * Rational(if isInt(x) then scale(x) else BigInt(1)) == Rational(c)
