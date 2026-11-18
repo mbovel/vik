@@ -1258,7 +1258,13 @@ private final class Lowerer:
 
   private def circuit(op: BvOp, args: List[(Term, Int)]): Term =
     val w = args.head._2
-    def bs(i: Int): IndexedSeq[Formula] = bitsOf(args(i)._1, args(i)._2)
+    def bs(i: Int): IndexedSeq[Formula] = args match
+      // Under the sign mask, the bit a comparison: no decomposition of the other operand.
+      case List((t, w), (Num(m), _)) if op == BvOp.And && i == 0 && m == modulus(w - 1) && knownBits(t, w).isEmpty =>
+        IndexedSeq.fill(w - 1)(False) :+ Ge(t, Num(modulus(w - 1)))
+      case List((Num(m), w), (t, _)) if op == BvOp.And && i == 1 && m == modulus(w - 1) && knownBits(t, w).isEmpty =>
+        IndexedSeq.fill(w - 1)(False) :+ Ge(t, Num(modulus(w - 1)))
+      case _ => bitsOf(args(i)._1, args(i)._2)
     def fold(f: (IndexedSeq[Formula], IndexedSeq[Formula]) => IndexedSeq[Formula]): IndexedSeq[Formula] =
       args.indices.map(bs).reduceLeft(f)
     def sign(x: IndexedSeq[Formula]) = x(x.length - 1)
