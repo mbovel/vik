@@ -326,6 +326,10 @@ final class Session(
             asserted += ArrayBuffer.empty
             written += ArrayBuffer.empty
             declaredAt += ArrayBuffer.empty
+        // More levels than are open: an error, and nothing changes, as z3 answers it (issue 178). The levels
+        // are the ones since the last `reset-assertions`, which drops them all.
+        case Command.Pop(n) if n > asserted.length - 1 =>
+          responses += s"(error \"pop $n: the stack depth is ${asserted.length - 1}\")"
         case Command.Pop(n) =>
           lastCheck = ""
           for _ <- 0 until n do

@@ -87,8 +87,11 @@ final class Parser:
   private def push(levels: Int): Unit =
     for _ <- 1 to levels do scopes += scala.collection.mutable.ArrayBuffer.empty
 
+  // A `pop` of more levels than are open is refused whole, by the session, which answers an error for it
+  // (issue 178): nothing is undone here either.
   private def pop(levels: Int): Unit =
-    for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+    if levels <= scopes.length then
+      for _ <- 1 to levels do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
 
   // `(exit)` ends the script: what follows is not read (issue 52), as z3 and cvc5 stop there.
   private var exited = false
@@ -196,7 +199,11 @@ final class Parser:
       List(Command.CheckSatAssuming(assumptions.map(assertion)))
     case SList(SSymbol("check-sat") :: assumptions) => // z3's shorthand
       List(Command.CheckSatAssuming(assumptions.map(assertion)))
-    case SList(SSymbol("reset-assertions") :: Nil) => List(Command.ResetAssertions)
+    case SList(SSymbol("reset-assertions") :: Nil) =>
+      // The levels go, and the declarations made in them stay, as the session keeps them: their undos go
+      // unrun (issue 178).
+      scopes.clear()
+      List(Command.ResetAssertions)
     case SList(SSymbol("reset") :: Nil) =>
       functions.clear()
       macros.clear()
