@@ -299,7 +299,7 @@ def Trace.nsd : Nat := SP.sig.decls.length
 
 /-- `negative(t, w)`: the sign of the lowered node `t`, `2^(w-1) ≤ t`. -/
 def negS (t w : Nat) : Shape :=
-  match P.nodes[t]? with
+  match Tab.at P.nodes (t) with
   | some (.num v) => if 2 ^ (w - 1) ≤ v then .tt else .ff
   | _ => .le (.num [] (2 ^ (w - 1))) (.same t)
 
@@ -310,17 +310,17 @@ def negS (t w : Nat) : Shape :=
     symbols of rules minted before it. -/
 def Trace.rank (k : Nat) : Nat :=
   if SP.sig.decls.length ≤ k then
-    match tr.mints[k - SP.sig.decls.length]? with
+    match Tab.at tr.mints (k - SP.sig.decls.length) with
     | some (.rule _ _) | some (.real _) => k - SP.sig.decls.length + 1
     | _ => 0
   else 0
 
 /-- The rule and index of the symbol of lowered node `x`, if a rule mints it. -/
 def Trace.symAt (x : Nat) : Option (Rule × Nat) :=
-  match P.nodes[x]? with
+  match Tab.at P.nodes (x) with
   | some (.const k) =>
     if SP.sig.decls.length ≤ k then
-      match tr.mints[k - SP.sig.decls.length]? with
+      match Tab.at tr.mints (k - SP.sig.decls.length) with
       | some (.rule r j) => some (r, j)
       | _ => none
     else none
@@ -336,10 +336,10 @@ def Trace.symNode (r : Rule) (j : Nat) : Option Nat :=
 
 /-- The real rule of the symbol of lowered node `x`, if one mints it. -/
 def Trace.realAt (x : Nat) : Option RRule :=
-  match P.nodes[x]? with
+  match Tab.at P.nodes (x) with
   | some (.const k) =>
     if SP.sig.decls.length ≤ k then
-      match tr.mints[k - SP.sig.decls.length]? with
+      match Tab.at tr.mints (k - SP.sig.decls.length) with
       | some (.real r) => some r
       | _ => none
     else none
@@ -358,7 +358,7 @@ def Trace.realNode (r : RRule) : Option Nat :=
 /-- The width of a lowered node of a bit-vector: of its sort, or of a
     surface node it lowers. -/
 def Trace.bvWidth (l : Nat) : Option Nat :=
-  match SP.sortWidth (P.sortOf[l]?.getD 0) with
+  match SP.sortWidth ((Tab.at P.sortOf (l)).getD 0) with
   | some w => some w
   | none => (List.range SP.nodes.length).findSome? fun i => if tr.at i == l then SP.width i else none
 
@@ -382,7 +382,7 @@ def isIntN (x : Nat) : Bool := P.sig.is (P.sortOf[x]?.getD 0) .int
 /-- The constraint `g + gc ≥ 0` a comparison of integers `x` gives when it
     holds. -/
 def condAtom (x : Nat) : List (Lia.Form × Int) :=
-  match P.nodes[x]? with
+  match Tab.at P.nodes (x) with
   | some (.le a b) =>
     if isIntN P a && isIntN P b then [((lin P.nodes b).1 ++ Lia.neg (lin P.nodes a).1, (lin P.nodes b).2 - (lin P.nodes a).2)]
     else []
@@ -392,11 +392,11 @@ def condAtom (x : Nat) : List (Lia.Form × Int) :=
     of comparisons of integers. -/
 def condCons (c : Nat) (pos : Bool) : List (Lia.Form × Int) :=
   if pos then
-    match P.nodes[c]? with
+    match Tab.at P.nodes (c) with
     | some (.and xs) => xs.flatMap (condAtom P)
     | _ => condAtom P c
   else
-    match P.nodes[c]? with
+    match Tab.at P.nodes (c) with
     | some (.le a b) =>
       if isIntN P a && isIntN P b then [((lin P.nodes a).1 ++ Lia.neg (lin P.nodes b).1, (lin P.nodes a).2 - (lin P.nodes b).2 - 1)]
       else []
@@ -445,7 +445,7 @@ def Rule.iv (node : Nat → Option (Int × Int)) : Rule → Nat → Option (Int 
 /-- The interval of a leaf: a number, a symbol of a rule (`sym`), or a
     bit-vector. -/
 def Trace.leafIv (sym : Rule → Nat → Option (Int × Int)) (l : Nat) : Option (Int × Int) :=
-  match P.nodes[l]? with
+  match Tab.at P.nodes (l) with
   | some (.num v) => some (v, v)
   | some _ =>
     match tr.symAt SP P l with
@@ -521,8 +521,8 @@ def Rule.facts (ks : List Nat) (aux : Nat) : Rule → List Shape
 /-- Whether node `x` is `signed(t, w)`: the constant, or the `cases` tagged
     `signed`. -/
 def Trace.signedOk (t w x : Nat) : Bool :=
-  match P.nodes[t]? with
-  | some (.num v) => P.nodes[x]? == some (.num (signedI w v))
+  match Tab.at P.nodes (t) with
+  | some (.num v) => Tab.at P.nodes (x) == some (.num (signedI w v))
   | _ =>
     match tr.symAt SP P x with
     | some (.cases c thn els lo hi, 0) =>
@@ -559,24 +559,24 @@ def cmpS (op : BvCmp) (w a b : Nat) : Shape :=
     before it with the same lowered children. -/
 def Trace.iteOf (k i : Nat) : Bool :=
   k ≥ SP.sig.decls.length &&
-    match tr.mints[k - SP.sig.decls.length]?, SP.nodes[i]? with
+    match Tab.at tr.mints (k - SP.sig.decls.length), Tab.at SP.nodes (i) with
     | some (.ite i'), some (.ite c a b) =>
       i' ≤ i &&
-        match SP.nodes[i']? with
+        match Tab.at SP.nodes (i') with
         | some (.ite c' a' b') => tr.at c' == tr.at c && tr.at a' == tr.at a && tr.at b' == tr.at b
         | _ => false
     | _, _ => false
 
 /-- Whether the lowered symbol `n` is minted for the store of surface sort `s`. -/
 def Trace.storeOf (n s : Nat) : Bool :=
-  n ≥ SP.sig.decls.length && tr.mints[n - SP.sig.decls.length]? == some (.store s)
+  n ≥ SP.sig.decls.length && Tab.at tr.mints (n - SP.sig.decls.length) == some (.store s)
 
 /-- The shape of the lowering of surface node `i`. -/
 def expect (i : Nat) : Option Shape :=
   let T := tr.at
   let L := leaf SP tr
   let F := form tr
-  match SP.nodes[i]? with
+  match Tab.at SP.nodes (i) with
   | none => none
   | some n =>
   match n with
@@ -618,7 +618,7 @@ def expect (i : Nat) : Option Shape :=
   | .ite c a b =>
     if SP.isBool i then some (.ite (F c) (F a) (F b))
     else
-      match P.nodes[T i]? with
+      match Tab.at P.nodes (T i) with
       | some (.const k) => if tr.iteOf SP k i then some (.const k) else none
       | _ => none
   | .add as => some (.num (sumForms (as.map (linOf P tr))).1 (sumForms (as.map (linOf P tr))).2)
@@ -632,9 +632,9 @@ def expect (i : Nat) : Option Shape :=
   | .mul as => (mulForms (as.map (linOf P tr))).map fun p => .num p.1 p.2
   | .select a x => some (.app (.same (T a)) [L x])
   | .store a x v =>
-    match P.nodes[T i]? with
+    match Tab.at P.nodes (T i) with
     | some (.app g _) =>
-      match P.nodes[g]? with
+      match Tab.at P.nodes (g) with
       | some (.const n) => if tr.storeOf SP n (SP.sort a) then some (.app (.const n) [L a, L x, L v]) else none
       | _ => none
     | _ => none
@@ -674,7 +674,7 @@ def bvbinConst (op : BvBin) (w : Nat) (a b : Int) : Int :=
     constant, or the remainder of a `modulo` of a node of shape `f`. -/
 def Trace.modOk (l : Nat) (f : Lia.Form × Int) (w : Nat) : Bool :=
   match constOf f with
-  | some c => P.nodes[l]? == some (.num (c % 2 ^ w))
+  | some c => Tab.at P.nodes (l) == some (.num (c % 2 ^ w))
   | none =>
     match tr.symAt SP P l with
     | some (.modulo v w' _ _, 0) => w' == w && fits P.sig P.nodes P.sortOf v (.num f.1 f.2)
@@ -684,7 +684,7 @@ def Trace.modOk (l : Nat) (f : Lia.Form × Int) (w : Nat) : Bool :=
     `v` by `d`, `f` the linear combination of `v`. -/
 def Trace.divOk (l : Nat) (f : Lia.Form × Int) (d : Int) (j : Nat) : Bool :=
   match constOf f with
-  | some c => P.nodes[l]? == some (.num (if j = 0 then c / d else c % d))
+  | some c => Tab.at P.nodes (l) == some (.num (if j = 0 then c / d else c % d))
   | none =>
     match tr.symAt SP P l with
     | some (.divide v d' _, j') => d' == d && j' == j && fits P.sig P.nodes P.sortOf v (.num f.1 f.2)
@@ -878,10 +878,10 @@ def Trace.tbits (t w : Nat) : Option (List BitRef) :=
 
 /-- Whether formula node `x` has the truth of bit `r`. -/
 def Trace.refFits (x : Nat) : BitRef → Bool
-  | .lit b => P.nodes[x]? == some (if b then .tt else .ff)
+  | .lit b => Tab.at P.nodes (x) == some (if b then .tt else .ff)
   | .sym k => fits P.sig P.nodes P.sortOf x (.le (.num [] 1) (.same k)) || tr.casesBit SP P k (· == x)
   | .neg r =>
-    match P.nodes[x]? with
+    match Tab.at P.nodes (x) with
     | some (.not y) => Trace.refFits y r
     | _ => false
 
@@ -906,23 +906,23 @@ def Trace.gateOk (op : BvBin) (x y d : BitRef) : Bool :=
   | .and r s =>
     match d with
     | .sym k => tr.casesBit SP P k fun c =>
-      match P.nodes[c]? with
+      match Tab.at P.nodes (c) with
       | some (.and [p, q]) => tr.pairFits SP P p q r s
       | _ => false
     | _ => false
   | .or r s =>
     match d with
     | .sym k => tr.casesBit SP P k fun c =>
-      match P.nodes[c]? with
+      match Tab.at P.nodes (c) with
       | some (.or [p, q]) => tr.pairFits SP P p q r s
       | _ => false
     | _ => false
   | .xor r s =>
     match d with
     | .sym k => tr.casesBit SP P k fun c =>
-      match P.nodes[c]? with
+      match Tab.at P.nodes (c) with
       | some (.not z) =>
-        match P.nodes[z]? with
+        match Tab.at P.nodes (z) with
         | some (.iff p q) => tr.pairFits SP P p q r s
         | _ => false
       | _ => false
@@ -985,16 +985,16 @@ def Trace.sameOk (x : Nat) (r s : BitRef) : Bool :=
   else if s = .lit true then tr.refFits SP P x r
   else if r = .lit false then tr.refFits SP P x (.neg s)
   else if s = .lit false then tr.refFits SP P x (.neg r)
-  else if r = s then P.nodes[x]? == some .tt
+  else if r = s then Tab.at P.nodes (x) == some .tt
   else
-    match P.nodes[x]? with
+    match Tab.at P.nodes (x) with
     | some (.iff p q) => tr.refFits SP P p r && tr.refFits SP P q s
     | _ => false
 
 /-- `equal` bit by bit: formula node `x` is the conjunction of `same` on the
     bits of the lowered nodes `ta` and `tb`, of width `w`. -/
 def Trace.bitEqOk (x ta tb w : Nat) : Bool :=
-  match tr.tbits SP P ta w, tr.tbits SP P tb w, P.nodes[x]? with
+  match tr.tbits SP P ta w, tr.tbits SP P tb w, Tab.at P.nodes (x) with
   | some A, some B, some (.and xs) =>
     A.length == w && B.length == w && xs.length == w &&
       (List.range w).all fun i => tr.sameOk SP P (xs.getD i 0) (bitAt A i) (bitAt B i)
@@ -1009,7 +1009,7 @@ def Trace.pairEqOk (w x a b : Nat) : Bool :=
 /-- One condition of `chainOk`: `equal`, or its negation. -/
 def Trace.pairCondOk (w : Nat) (neg : Bool) (x : Nat) (p : Nat × Nat) : Bool :=
   if neg then
-    match P.nodes[x]? with
+    match Tab.at P.nodes (x) with
     | some (.not z) => tr.pairEqOk SP P w z p.1 p.2
     | _ => false
   else tr.pairEqOk SP P w x p.1 p.2
@@ -1019,7 +1019,7 @@ def Trace.chainOk (w x : Nat) (ps : List (Nat × Nat)) (neg : Bool) : Bool :=
   match ps with
   | [p] => tr.pairCondOk SP P w neg x p
   | _ =>
-    match P.nodes[x]? with
+    match Tab.at P.nodes (x) with
     | some (.and xs) =>
       xs.length == ps.length && (List.range ps.length).all fun j => tr.pairCondOk SP P w neg (xs.getD j 0) (ps.getD j (0, 0))
     | _ => false
@@ -1080,7 +1080,7 @@ def Trace.ruleOk (r : Rule) (aux : Nat) : Bool :=
   match r with
   | .modulo v w lo hi => isIntN P v && ivSub (tr.iv SP P v) (lo * 2 ^ w) ((hi + 1) * 2 ^ w - 1)
   | .cases c t e lo hi =>
-    isIntN P t && isIntN P e && P.sig.is (P.sortOf[c]?.getD 0) .bool &&
+    isIntN P t && isIntN P e && P.sig.is ((Tab.at P.sortOf (c)).getD 0) .bool &&
       ivSub (branchIv P (tr.iv SP P) c t true) lo hi && ivSub (branchIv P (tr.iv SP P) c e false) lo hi
   | .divide v d qmax => isIntN P v && 0 < d && ivSub (tr.iv SP P v) 0 (qmax * d + d - 1)
   | .sdivide t w d _ => isIntN P t && 0 < d && 0 < w && ivSub (tr.iv SP P t) 0 (2 ^ w - 1) && tr.signedOk SP P t w aux
@@ -1137,7 +1137,7 @@ def Trace.stageNode (op : BvBin) (w ta : Nat) (B : List BitRef) : Nat → Option
     formula node `c`: the bits from `n` on, and `w ≤ tam` when `w ≠ 2^n`. -/
 def Trace.farOk (w n tam : Nat) (B : List BitRef) (c : Nat) : Bool :=
   let ge : Shape := .le (.num [] w) (.same tam)
-  match P.nodes[c]? with
+  match Tab.at P.nodes (c) with
   | some (.or xs) =>
     (xs.all fun x => (List.range w).any (fun j => n ≤ j && tr.refFits SP P x (bitAt B j)) ||
       fits P.sig P.nodes P.sortOf x ge) &&
@@ -1227,7 +1227,7 @@ def Trace.sdivUnknownOk (op : BvBin) (w l ta tb : Nat) : Bool :=
 def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
   let fa := linOf P tr a
   let fb := linOf P tr b
-  let isNum (c : Int) := P.nodes[l]? == some (.num c)
+  let isNum (c : Int) := Tab.at P.nodes (l) == some (.num c)
   match op with
   | .add => tr.modOk SP P l (fa.1 ++ fb.1, fa.2 + fb.2) w
   | .sub => tr.modOk SP P l (fa.1 ++ Lia.neg fb.1, fa.2 - fb.2) w
@@ -1263,7 +1263,7 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
 /-- The rational `p / q` (`q > 0`) that surface node `a` stands for when it is
     a literal: a `rat`, or a node whose lowering is a constant. -/
 def Trace.litOf (a : Nat) : Option (Int × Nat) :=
-  match SP.nodes[a]? with
+  match Tab.at SP.nodes (a) with
   | some (.rat p q) => if 0 < q then some (p, q) else none
   | _ => if SP.isNum a then (constOf (linOf P tr a)).map fun c => (c, 1) else none
 
@@ -1271,7 +1271,7 @@ def Trace.litOf (a : Nat) : Option (Int × Nat) :=
     symbol of `rat`. -/
 def Trace.ratOk (l : Nat) (p : Int) (q : Nat) : Bool :=
   0 < q &&
-    match P.nodes[l]? with
+    match Tab.at P.nodes (l) with
     | some (.num c) => c * q == p
     | _ =>
       match tr.realAt SP P l with
@@ -1307,7 +1307,7 @@ def SProblem.callOf (n : SNode) : Option (Nat × List Nat × Bool) :=
   match n with
   | .const c => some (c, [], false)
   | .app f args =>
-    match SP.nodes[f]? with
+    match Tab.at SP.nodes (f) with
     | some (.const c) => some (c, args, true)
     | _ => none
   | _ => none
@@ -1316,7 +1316,7 @@ def SProblem.callOf (n : SNode) : Option (Nat × List Nat × Bool) :=
     inlines: the lowered node is that of the instance of the body. -/
 def Trace.defOk (i : Nat) : Bool :=
   let l := tr.at i
-  match SP.nodes[i]? with
+  match Tab.at SP.nodes (i) with
   | some (.letIn _ b) => l == tr.at b
   | some (.bound d) => l == tr.at d
   | some n =>
@@ -1336,16 +1336,16 @@ def Trace.defOk (i : Nat) : Bool :=
     one the lowering gives it. -/
 def Trace.realOk (i : Nat) : Bool :=
   let l := tr.at i
-  match SP.nodes[i]? with
+  match Tab.at SP.nodes (i) with
   | some (.rat p q) => tr.ratOk SP P l p q
   | some (.toReal a) => l == tr.at a
   | some (.toInt a) =>
     match tr.litOf SP P a with
-    | some (p, q) => P.nodes[l]? == some (.num (p / q))
+    | some (p, q) => Tab.at P.nodes (l) == some (.num (p / q))
     | none => tr.realAt SP P l == some (.floor (tr.at a))
   | some (.isInt a) =>
     match tr.litOf SP P a with
-    | some (p, q) => P.nodes[l]? == some (if p % q == 0 then .tt else .ff)
+    | some (p, q) => Tab.at P.nodes (l) == some (if p % q == 0 then .tt else .ff)
     | none =>
       match tr.realNode SP P (.floor (tr.at a)) with
       | some k => fits P.sig P.nodes P.sortOf l (eqI (.same (tr.at a)) (.same k))
@@ -1369,8 +1369,8 @@ def Trace.realOk (i : Nat) : Bool :=
     combination of rule symbols the lowering gives it. -/
 def Trace.bvOk (i : Nat) : Bool :=
   let l := tr.at i
-  let isNum (c : Int) := P.nodes[l]? == some (.num c)
-  match SP.nodes[i]? with
+  let isNum (c : Int) := Tab.at P.nodes (l) == some (.num c)
+  match Tab.at SP.nodes (i) with
   | some (.bvun op w a) =>
     let fa := linOf P tr a
     match constOf fa with
@@ -1418,9 +1418,9 @@ def Trace.bvOk (i : Nat) : Bool :=
 def iteFact (k : Nat) (thn : Bool) : Option Shape :=
   if k < SP.sig.decls.length then none
   else
-  match tr.mints[k - SP.sig.decls.length]? with
+  match Tab.at tr.mints (k - SP.sig.decls.length) with
   | some (.ite i) =>
-    match SP.nodes[i]? with
+    match Tab.at SP.nodes (i) with
     | some (.ite c a b) =>
       if thn then some (.implies (form tr c) (eqS (SP.isArith i) (.const k) (.same (tr.at a))))
       else some (.implies (.not (form tr c)) (eqS (SP.isArith i) (.const k) (.same (tr.at b))))
@@ -1579,12 +1579,11 @@ def Trace.check (A : Answer) : Bool :=
 As `Problem.accepts`, the check of a large trace runs faster in slices that
 Lean checks in parallel: the nodes from `a` to `a + n`, and the rest once. -/
 
-/-- `check` but the nodes. -/
+/-- `check` but the nodes and the inputs. -/
 def Trace.checkBase (A : Answer) : Bool :=
   Surf.wellFormed SP.nodes && Surf.typed SP.sig SP.nodes SP.sortOf && SP.sortsOk && tr.sigOk SP P &&
   tr.node.length == SP.nodes.length &&
   P.inputs.length == tr.inputs.length &&
-  (P.inputs.zip tr.inputs).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2) &&
   A.assumed.length == tr.levels.length &&
   (A.assumed.zip tr.levels).all (fun p =>
     match A.levels.lookup p.1 with
@@ -1611,13 +1610,35 @@ theorem Trace.nodesFrom_end {a : Nat} (h : SP.nodes.length ≤ a) : tr.nodesFrom
   rw [show SP.nodes.length - a = 0 by omega]
   rfl
 
-theorem Trace.check_of_slices {A : Answer} (hb : tr.checkBase SP P A = true) (hn : tr.nodesFrom SP P 0 = true) :
-    tr.check SP P A = true := by
+/-- The inputs from the `a`-th on. -/
+def Trace.inputsFrom (a : Nat) : Bool :=
+  ((P.inputs.zip tr.inputs).drop a).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2)
+
+/-- The inputs from the `a`-th to the `a + n`-th. -/
+def Trace.inputsSlice (a n : Nat) : Bool :=
+  (((P.inputs.zip tr.inputs).drop a).take n).all (fun p => p.1 < P.nodes.length && tr.inputOk SP P p.1 p.2)
+
+theorem Trace.inputsFrom_slice {a n : Nat} (h₁ : tr.inputsSlice SP P a n = true)
+    (h₂ : tr.inputsFrom SP P (a + n) = true) : tr.inputsFrom SP P a = true := by
+  unfold Trace.inputsSlice at h₁
+  unfold Trace.inputsFrom at h₂ ⊢
+  rw [← List.take_append_drop n ((P.inputs.zip tr.inputs).drop a), List.all_append, h₁, List.drop_drop, h₂]
+  rfl
+
+theorem Trace.inputsFrom_end {a : Nat} (h : P.inputs.length ≤ a) : tr.inputsFrom SP P a = true := by
+  unfold Trace.inputsFrom
+  rw [List.drop_eq_nil_of_le (by simp; omega)]
+  rfl
+
+theorem Trace.check_of_slices {A : Answer} (hb : tr.checkBase SP P A = true) (hn : tr.nodesFrom SP P 0 = true)
+    (hi : tr.inputsFrom SP P 0 = true) : tr.check SP P A = true := by
   unfold Trace.checkBase at hb
   unfold Trace.nodesFrom at hn
+  unfold Trace.inputsFrom at hi
   unfold Trace.check
   rw [List.range_eq_range', ← Nat.sub_zero SP.nodes.length, hn]
-  simp only [Nat.sub_zero, Bool.and_true] at hb ⊢
+  simp only [List.drop_zero] at hi
+  simp only [Nat.sub_zero, Bool.and_true, hi] at hb ⊢
   simpa only [Bool.and_assoc] using hb
 end
 

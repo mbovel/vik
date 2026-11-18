@@ -10,9 +10,10 @@ import io.bovel.smtlib.Parser
  *  `unsat`, for `proofs/lean` to check: `vik/Test/runMain
  *  io.bovel.vik.LeanCorpus <corpus> <out> [seconds]`, the corpus a directory or
  *  a file listing the scripts' paths, each script solved with proofs within
- *  `seconds` (10 by default). Prints a line per script: its path, the file
- *  written, and what came of it — `written`, why no proof was written, or the
- *  answer when it is not `unsat`.
+ *  `seconds` (10 by default). Each proof is written as one file, `Cnnnnn.lean`,
+ *  and split into modules, `Cnnnnn/`, for `proofs/lean/check-modules.sh`.
+ *  Prints a line per script: its path, the file written, and what came of it —
+ *  `written`, why no proof was written, or the answer when it is not `unsat`.
  */
 object LeanCorpus:
   def main(args: Array[String]): Unit =
@@ -41,7 +42,10 @@ object LeanCorpus:
             session.leanProof() match
               case Right(text) =>
                 val header = s"import Vik\n\nnamespace Vik.Low.Exported.$name\n\nopen Vik.Low Vik.Surf Vik.Clausal\n\n"
-                Files.writeString(out.resolve(s"$name.lean"), header + text + s"\nend Vik.Low.Exported.$name\n")
+                val full = header + text + s"\nend Vik.Low.Exported.$name\n"
+                Files.writeString(out.resolve(s"$name.lean"), full)
+                val dir = Files.createDirectories(out.resolve(name))
+                for (file, content) <- LeanModules(name, full) do Files.writeString(dir.resolve(file), content)
                 "written"
               case Left(why) => s"no proof: ${why.linesIterator.nextOption.getOrElse("").take(200)}"
         catch case e: Throwable => s"error: ${e.getClass.getSimpleName}: ${String.valueOf(e.getMessage).take(200)}"

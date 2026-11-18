@@ -82,6 +82,7 @@ theorem absOk_sound {t w x : Nat} {X : BitVec w} (h : tr.absOk SP P t w x = true
   have lt : evf ρ (lin P.nodes t) = ((Vik.val X : Int) : R) := by
     have := lin_val hwP (tr := tr) (Ms := Ms) (SP := SP) t; rw [ht, toR_num] at this; exact this.symm
   unfold Trace.absOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c th el lo hi hs
     simp only [Bool.and_eq_true] at h
@@ -107,6 +108,7 @@ theorem magDivOk_sound {ta tb w k j : Nat} {x y : BitVec w} (h : tr.magDivOk SP 
       else (if magV w (Vik.val y) = 0 then magV w (Vik.val x) else magV w (Vik.val x) % magV w (Vik.val y))) % 2 ^ w
         : Int) : R) := by
   unfold Trace.magDivOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i xa xb w' j' hs
     simp only [Bool.and_eq_true, beq_iff_eq] at h
@@ -126,6 +128,7 @@ theorem sremOf_sound {ta tb w rm r : Nat} {x y : BitVec w} (h : tr.sremOf SP P t
       ρ rm = .num (((if 2 ^ (w - 1) ≤ Vik.val x ∧ 1 ≤ Rm then 2 ^ w - Rm else Rm : Int)) : R) := by
   intro Rm
   unfold Trace.sremOf at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c th r' lo hi hs
     split at h
@@ -161,6 +164,7 @@ theorem sdivUnknownOk_sound {op : BvBin} {w l ta tb : Nat} {x y : BitVec w}
   have hx0 := Vik.val_nonneg x; have hx1 := Vik.val_lt x
   have hy0 := Vik.val_nonneg y; have hy1 := Vik.val_lt y
   unfold Trace.sdivUnknownOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c0 t0 e0 lo0 hi0 hs0
     simp only [Bool.and_eq_true, decide_eq_true_eq] at h

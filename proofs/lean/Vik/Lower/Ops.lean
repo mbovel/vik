@@ -50,6 +50,7 @@ include hwP htP hG hML hrng in
 theorem modOk_sound {l w : Nat} {f : Lia.Form × Int} {V : Int} (h : tr.modOk SP P l f w = true)
     (hf : (evf ρ f) = (V : R)) : ρ l = .num ((V % 2 ^ w : Int) : R) := by
   unfold Trace.modOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c hc
     have e := constOf_eval hc (fun u => (ρ u).toR)
@@ -71,6 +72,7 @@ include hwP htP hG hML hrng in
 theorem divOk_sound {l j : Nat} {f : Lia.Form × Int} {d V : Int} (h : tr.divOk SP P l f d j = true)
     (hf : (evf ρ f) = (V : R)) : ρ l = .num ((if j = 0 then V / d else V % d : Int) : R) := by
   unfold Trace.divOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c hc
     have e := constOf_eval hc (fun u => (ρ u).toR)
@@ -93,6 +95,7 @@ theorem casesOk_sound {l : Nat} {c : Shape} {thn els : Lia.Form × Int} {TH EL :
     (h : tr.casesOk SP P l c thn els = true) (hth : (evf ρ thn) = (TH : R)) (hel : (evf ρ els) = (EL : R)) :
     ρ l = .num ((if (c.ev MI ρ).truth then TH else EL : Int) : R) := by
   unfold Trace.casesOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i c' t e lo hi hs
     simp only [Bool.and_eq_true] at h
@@ -119,7 +122,8 @@ theorem shiftOk_sound {op : BvBin} {w l ta tam : Nat} {x y : BitVec w} (hop : op
     ρ l = .num ((Vik.val (op.apply x y) : Int) : R) := by
   obtain ⟨hn, hnw⟩ := stagesOf_spec w
   unfold Trace.shiftOk at h
-  simp only at h
+  try simp only [Tab.at_eq] at h
+  try simp only at h
   split at h
   · rename_i B hB
     simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
@@ -202,7 +206,8 @@ theorem sdivOk_sound {op : BvBin} {w l t : Nat} {c : Int} {x y : BitVec w} (hw0 
     rw [show (2 : Int) ^ w / 2 = 2 ^ (w - 1) by omega]
   have hX : x.toInt = signedI w (Vik.val x) := by rw [Vik.toInt_eq x hw0]; rfl
   unfold Trace.sdivOk at hb
-  simp only at hb
+  try simp only [Tab.at_eq] at hb
+  try simp only at hb
   split at hb
   · rename_i hT0
     have hy0 : y.toInt = 0 := by rw [hT, hT0]
@@ -266,6 +271,7 @@ theorem rotOk_sound {l t w s : Nat} {X : Int} (hl : l < P.nodes.length) (ht : ρ
     (hb : tr.rotOk SP P l t w s = true) :
     0 < s ∧ s < w ∧ ρ l = .num ((2 ^ s * (X % 2 ^ (w - s)) + X / 2 ^ (w - s) : Int) : R) := by
   unfold Trace.rotOk at hb
+  try simp only [Tab.at_eq] at hb
   simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
   obtain ⟨⟨hs, hsw⟩, hb⟩ := hb
   refine ⟨hs, hsw, ?_⟩
@@ -285,12 +291,12 @@ theorem bvun_ops_sound {i w a : Nat} {op : BvUn} (hn : SP.nodes[i]? = some (.bvu
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hal : a < SP.nodes.length := by have := lt_of_get hn; omega
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP hal hty.1 (ih a hai)
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
   simp only [Surf.evalNode, surf_get_values, hx, bvOf_ofBv] at hv
   rw [hv, ofBv_num, enc_num]
-  simp only [Trace.bvOk, hn] at hb
+  simp only [Tab.at_eq, Trace.bvOk, hn] at hb
   split at hb
   · rename_i ca hca
     have e := constOf_eval hca (fun u => (ρ u).toR)
@@ -310,6 +316,7 @@ theorem bvun_ops_sound {i w a : Nat} {op : BvUn} (hn : SP.nodes[i]? = some (.bvu
           ρ y = .num ((Vik.val x / 2 ^ lo : Int) : R) := by
         intro y hy
         unfold Trace.extractQ at hy
+        try simp only [Tab.at_eq] at hy
         split at hy
         · rename_i h0; subst h0
           rw [beq_iff_eq.mp hy, ea]; simp
@@ -357,7 +364,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hil := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP (by omega) hty.1.1 (ih a hai)
   obtain ⟨y, hy, eb, lb⟩ := bv_child hM hw ht hwP (by omega) hty.1.2 (ih b hbi)
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
@@ -367,7 +374,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
     have e := constOf_eval hc (fun u => (ρ u).toR)
     change evf ρ (linOf P tr b) = _ at e
     rw [lb] at e; exact cast_inj e
-  simp only [Trace.bvOk, hn] at hb
+  simp only [Tab.at_eq, Trace.bvOk, hn] at hb
   split at hb
   · rename_i ca cb hca hcb
     have e := constOf_eval hca (fun u => (ρ u).toR)
@@ -379,7 +386,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
     subst this
     rw [Low.val_num hwP (by simpa using hb), bvbinConst, ofInt_val, ofInt_val]
   · unfold Trace.binOk at hb
-    cases op <;> (try simp only [Bool.false_eq_true] at hb)
+    cases op <;> (try simp only [Tab.at_eq, Bool.false_eq_true] at hb)
     case add =>
       rw [modOk_sound hwP htP hG hML hrng hb (V := Vik.val x + Vik.val y) (by rw [evf_add, la, lb, Ring.intCast_add])]
       simp only [BvBin.apply, BvBin.width, (Vik.add_val x y).1]
@@ -472,6 +479,7 @@ theorem bvbin_ops_sound {i w a b : Nat} {op : BvBin} (hn : SP.nodes[i]? = some (
         obtain ⟨hw0, hb⟩ := hb
         simp only [BvBin.apply, BvBin.width, BitVec.sshiftRight_eq']
         unfold Trace.ashrOk at hb
+        try simp only [Tab.at_eq] at hb
         split at hb
         · rename_i v w' lo hi hs
           simp only [Bool.and_eq_true, beq_iff_eq] at hb
@@ -580,6 +588,7 @@ theorem pairCondOk_sound {w y : Nat} {neg : Bool} {p : Nat × Nat} (h : tr.pairC
     (hy : y < P.nodes.length) (hp : PairGood SP P tr ρ vs w p) :
     ρ y = .bool (decide (vs p.1 = vs p.2) ^^ neg) := by
   unfold Trace.pairCondOk at h
+  try simp only [Tab.at_eq] at h
   cases neg
   · simp only [Bool.false_eq_true, if_false] at h
     rw [pairEqOk_sound hM hw ht hwP htP hG hML hrng h hy hp, Bool.xor_false]
@@ -599,6 +608,7 @@ theorem chainOk_sound {w x : Nat} {ps : List (Nat × Nat)} {neg : Bool} (h : tr.
     (hx : x < P.nodes.length) (hps : ∀ p ∈ ps, PairGood SP P tr ρ vs w p) :
     ρ x = .bool (ps.all fun p => decide (vs p.1 = vs p.2) ^^ neg) := by
   unfold Trace.chainOk at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i p
     rw [pairCondOk_sound hM hw ht hwP htP hG hML hrng h hx (hps p (by simp))]
@@ -651,14 +661,14 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
   | bvbin op w a b => exact bvbin_ops_sound hM hw ht hwP htP hG hML hrng hn hl hb ih hat
   | bv2int sg w a =>
     cases sg with
-    | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | false => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Tab.at_eq, Trace.bvOk, hn] using hb) ih
     | true =>
     have hai := children_lt hw hn a (by simp [SNode.children])
-    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨x, hx, ea, la⟩ := bv_child hM hw ht hwP (by omega) hty.1 (ih a hai)
     simp only [Surf.evalNode, surf_get_values, hx, bvOf_ofBv, if_true] at hv
     rw [hv, enc_num]
-    simp only [Trace.bvOk, hn] at hb
+    simp only [Tab.at_eq, Trace.bvOk, hn] at hb
     split at hb
     · rename_i ca hca
       simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
@@ -672,7 +682,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       rw [signedOk_sound hwP htP hG hML hrng hb.2 ea, Vik.toInt_eq x hb.1]; rfl
   | int2bv w a =>
     have hai := children_lt hw hn a (by simp [SNode.children])
-    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨k, hk⟩ := v_int hM hw ht (a := a) (by omega) (by simpa [SProblem.isInt, SProblem.sort] using hty.1)
     have ea := ih a hai
     rw [hk, enc_num] at ea
@@ -680,7 +690,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
     rw [hk, toR_num] at la
     simp only [Surf.evalNode, surf_get_values, hk, intOf_num] at hv
     rw [hv, ofBv_num, enc_num, Vik.val_ofInt]
-    simp only [Trace.bvOk, hn] at hb
+    simp only [Tab.at_eq, Trace.bvOk, hn] at hb
     split at hb
     · rename_i ca hca
       have e := constOf_eval hca (fun u => (ρ u).toR)
@@ -692,12 +702,12 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       simp only [Rule.ival, ea, intOf_num]
   | eq as =>
     cases as with
-    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Tab.at_eq, Trace.bvOk, hn] using hb) ih
     | cons a rest =>
-      simp only [Trace.bvOk, hn] at hb
+      simp only [Tab.at_eq, Trace.bvOk, hn] at hb
       split at hb
       · rename_i w hwa
-        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have good : ∀ p ∈ consec (a :: rest), PairGood SP P tr ρ vs w p := by
           intro p hp
           obtain ⟨m1, m2⟩ := mem_consec hp
@@ -722,12 +732,12 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
       · cases hb
   | distinct as =>
     cases as with
-    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+    | nil => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Tab.at_eq, Trace.bvOk, hn] using hb) ih
     | cons a rest =>
-      simp only [Trace.bvOk, hn] at hb
+      simp only [Tab.at_eq, Trace.bvOk, hn] at hb
       split at hb
       · rename_i w hwa
-        simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
+        simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hty
         have good : ∀ p ∈ allPairs (a :: rest), PairGood SP P tr ρ vs w p := by
           intro p hp
           obtain ⟨m1, m2⟩ := mem_allPairs' hp
@@ -750,7 +760,7 @@ theorem bvOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : SN
         rw [List.all_eq_true, decide_eq_true_iff, pairwiseP_map, pairwiseP_allPairs]
         simp
       · cases hb
-  | _ => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Trace.bvOk, hn] using hb) ih
+  | _ => exact realOk_sound hM hw ht hwP htP hG hML hrng hD hn hl (by simpa only [Tab.at_eq, Trace.bvOk, hn] using hb) ih
 
 end
 

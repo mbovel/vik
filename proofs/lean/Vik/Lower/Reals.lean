@@ -112,6 +112,7 @@ include hwP hG in
 theorem ratOk_sound {l : Nat} {p : Int} {q : Nat} (h : tr.ratOk SP P l p q = true) :
     0 < q ∧ ρ l = .num ((p : R) / ((q : Int) : R)) := by
   unfold Trace.ratOk at h
+  try simp only [Tab.at_eq] at h
   simp only [Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨hq, h⟩ := h
   refine ⟨hq, ?_⟩
@@ -135,6 +136,7 @@ theorem ratmulOk_sound {l t : Nat} {p : Int} {q : Nat} (h : tr.ratmulOk SP P l p
     (hl : l < P.nodes.length) :
     ρ l = .num ((p : R) / ((q : Int) : R) * (ρ t).toR) := by
   unfold Trace.ratmulOk at h
+  try simp only [Tab.at_eq] at h
   simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true, beq_iff_eq] at h
   obtain ⟨hq, h | h⟩ := h
   · obtain ⟨hdiv, hf⟩ := h
@@ -170,6 +172,7 @@ include hM hw ht hwP in
 theorem litOf_sound {a : Nat} {p : Int} {q : Nat} (h : tr.litOf SP P a = some (p, q)) (ha : a < SP.nodes.length)
     (e : ρ (tr.at a) = enc (vs a)) : 0 < q ∧ vs a = .num ((p : R) / ((q : Int) : R)) := by
   unfold Trace.litOf at h
+  try simp only [Tab.at_eq] at h
   split at h
   · rename_i p' q' hn
     split at h
@@ -244,19 +247,19 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
   have hch := children_lt hw hn
   cases n with
   | rat p q =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     obtain ⟨_, e⟩ := ratOk_sound (Ms := Ms) hwP hG hb
     rw [e, hv]; rfl
   | toReal a =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     have hai := hch a (by simp [SNode.children])
     simp only [beq_iff_eq] at hb
-    simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+    simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
     obtain ⟨r, hr⟩ := v_num hM hw ht (a := a) (by omega) hty.2
     rw [hb, ih a hai, hv]
     simp only [Surf.evalNode, surf_get_values, hr, toR_num]
   | toInt a =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     have hai := hch a (by simp [SNode.children])
     have ea := ih a hai
     simp only [Surf.evalNode, surf_get_values] at hv
@@ -268,7 +271,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     · rw [real_val (Ms := Ms) hwP hG (beq_iff_eq.mp hb)]
       simp only [RRule.val, ea, toR_enc]; rfl
   | isInt a =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     have hai := hch a (by simp [SNode.children])
     have ea := ih a hai
     simp only [Surf.evalNode, surf_get_values] at hv
@@ -301,7 +304,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
         · show (ρ k).toR = _; rw [ek, toR_num]
       · cases hb
   | div as =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     match as, hb, hch, hv with
     | [a, b], hb, hch, hv =>
     simp only at hb
@@ -348,7 +351,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     | [_], hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
     | _ :: _ :: _ :: _, hb, _, _ => exact defOk_sound hM hw ht hD hn (by simpa [Trace.realOk, hn] using hb) ih
   | mul as =>
-    simp only [Trace.realOk, hn] at hb
+    simp only [Tab.at_eq, Trace.realOk, hn] at hb
     have has : ∀ a ∈ as, a < SP.nodes.length ∧ ρ (tr.at a) = enc (vs a) := fun a m =>
       have := hch a (by simp [SNode.children, m]); ⟨by omega, ih a this⟩
     simp only [Surf.evalNode, surf_get_values] at hv

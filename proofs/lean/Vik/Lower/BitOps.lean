@@ -385,7 +385,7 @@ theorem refFits_sound {r : BitRef} : ∀ {x : Nat} {b : Bool}, tr.refFits SP P x
   | lit c =>
     intro x b h hb
     rw [(refVal_lit ρ).mp hb]
-    simp only [Trace.refFits, beq_iff_eq] at h
+    simp only [Tab.at_eq, Trace.refFits, beq_iff_eq] at h
     rw [Low.val_node hwP h]
     cases c <;> simp [Low.evalNode, truth_bool]
   | sym k =>
@@ -408,7 +408,7 @@ theorem refFits_sound {r : BitRef} : ∀ {x : Nat} {b : Bool}, tr.refFits SP P x
       exact bitValue_cast_inj hk
   | neg r ih =>
     intro x b h hb
-    simp only [Trace.refFits] at h
+    simp only [Tab.at_eq, Trace.refFits] at h
     split at h
     · rename_i y hy
       rw [Low.val_node hwP hy]
@@ -484,7 +484,7 @@ theorem gateOk_sound {op : BvBin} {x y d : BitRef} {bx by' bd : Bool} (h : tr.ga
     · obtain ⟨c, _, hp, rfl⟩ := cb hd h
       split at hp
       · rename_i p q hpq
-        rw [Low.val_node hwP hpq]
+        rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hpq)]
         simp only [Low.evalNode, truth_bool, List.all_cons, List.all_nil, Bool.and_true, opB]
         rcases pairFits_sound hwP htP hG hML hrng hp hx hy with ⟨e1, e2⟩ | ⟨e1, e2⟩
         · change ((ρ p).truth && (ρ q).truth) = _; rw [e1, e2]
@@ -497,7 +497,7 @@ theorem gateOk_sound {op : BvBin} {x y d : BitRef} {bx by' bd : Bool} (h : tr.ga
     · obtain ⟨c, _, hp, rfl⟩ := cb hd h
       split at hp
       · rename_i p q hpq
-        rw [Low.val_node hwP hpq]
+        rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hpq)]
         simp only [Low.evalNode, truth_bool, List.any_cons, List.any_nil, Bool.or_false, opB]
         rcases pairFits_sound hwP htP hG hML hrng hp hx hy with ⟨e1, e2⟩ | ⟨e1, e2⟩
         · change ((ρ p).truth || (ρ q).truth) = _; rw [e1, e2]
@@ -513,10 +513,10 @@ theorem gateOk_sound {op : BvBin} {x y d : BitRef} {bx by' bd : Bool} (h : tr.ga
       · rename_i z hz
         split at hp
         · rename_i p q hpq
-          rw [Low.val_node hwP hz]
+          rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hz)]
           simp only [Low.evalNode, truth_bool]
           change (!(ρ z).truth) = _
-          rw [Low.val_node hwP hpq]
+          rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hpq)]
           simp only [Low.evalNode, truth_bool]
           rcases pairFits_sound hwP htP hG hML hrng hp hx hy with ⟨e1, e2⟩ | ⟨e1, e2⟩
           · change (!((ρ p).truth == (ρ q).truth)) = _; rw [e1, e2]; cases bx <;> cases by' <;> rfl
@@ -801,12 +801,12 @@ theorem sameOk_sound {x : Nat} {r s : BitRef} {br bs : Bool} (h : tr.sameOk SP P
   split at h
   · rename_i e; subst e
     rw [refVal_unique ρ hr hs]
-    simp only [beq_iff_eq] at h
+    simp only [Tab.at_eq, beq_iff_eq] at h
     rw [Low.val_node hwP h]; simp [Low.evalNode, truth_bool]
   split at h
   · rename_i p q hpq
     simp only [Bool.and_eq_true] at h
-    rw [Low.val_node hwP hpq]
+    rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hpq)]
     simp only [Low.evalNode, truth_bool]
     change ((ρ p).truth == (ρ q).truth) = _
     rw [refFits_sound hwP htP hG hML hrng h.1 hr, refFits_sound hwP htP hG hML hrng h.2 hs]
@@ -825,7 +825,7 @@ theorem bitEqOk_sound {x ta tb w : Nat} {X Y : BitVec w} (h : tr.bitEqOk SP P x 
     obtain ⟨⟨⟨_, _⟩, hxl⟩, hall⟩ := h
     obtain ⟨_, rA⟩ := tbits_sound hwP htP hG hML hrng hA hta ea
     obtain ⟨_, rB⟩ := tbits_sound hwP htP hG hML hrng hB htb eb
-    rw [Low.val_node hwP hx]
+    rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hx)]
     simp only [Low.evalNode, Val.bool.injEq]
     apply bool_eq_decide
     rw [Vik.eq_iff_bits, List.all_eq_true]
@@ -870,8 +870,8 @@ theorem findSym_sym {pred : Rule → Bool} {x : Nat} (h : tr.findSym SP P pred =
         | zero =>
           refine ⟨r, ?_, by simpa using hp⟩
           unfold Trace.symAt
-          rw [e1]
-          simp only [Nat.le_add_right, if_true, Nat.add_sub_cancel_left, hmi]
+          rw [Tab.at_eq, e1]
+          simp only [Tab.at_eq, Nat.le_add_right, if_true, Nat.add_sub_cancel_left, hmi]
         | succ j => simp at hp
       | _ => simp at hp
     · cases h
@@ -1105,7 +1105,7 @@ theorem farOk_sound {w n tam c : Nat} {B : List BitRef} {y : BitVec w} (h : tr.f
     simp only [Bool.and_eq_true, Bool.or_eq_true, List.all_eq_true, List.any_eq_true, List.mem_range,
       beq_iff_eq, decide_eq_true_eq] at h
     obtain ⟨⟨h1, h2⟩, h3⟩ := h
-    rw [Low.val_node hwP hxs]
+    rw [Low.val_node hwP ((Tab.at_eq _ _).symm.trans hxs)]
     simp only [Low.evalNode, truth_bool]
     apply Bool.eq_iff_iff.mpr
     simp only [List.any_eq_true, decide_eq_true_eq]

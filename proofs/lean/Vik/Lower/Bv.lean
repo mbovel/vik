@@ -117,7 +117,7 @@ theorem negS_ev (hwP : Low.wellFormed P.nodes = true) {l w : Nat} {x : BitVec w}
   unfold negS
   split
   · rename_i v hv
-    have hval := Low.val_num (I := MI) hwP hv
+    have hval := Low.val_num (I := MI) hwP ((Tab.at_eq _ _).symm.trans hv)
     rw [e, hx, ofBv_num, enc_num] at hval
     have hv' : Vik.val x = v := (num_int_eq_iff (U := U ⊕ Nat)).mp hval
     rw [hv']
@@ -132,7 +132,7 @@ theorem negS_ev (hwP : Low.wellFormed P.nodes = true) {l w : Nat} {x : BitVec w}
 
 theorem bvlit_sound {i w v : Nat} {s : Shape} (hn : SP.nodes[i]? = some (.bvlit w v))
     (h : expect SP P tr i = some s) : s.ev MI ρ = enc (vs i) := by
-  simp only [expect, hn] at h
+  simp only [Tab.at_eq, expect, hn] at h
   split at h
   · rename_i hv
     cases h
@@ -150,7 +150,7 @@ theorem bvun_sound (hwP : Low.wellFormed P.nodes = true) {i w a : Nat} {op : BvU
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hal : a < SP.nodes.length := by have := lt_of_get hn; omega
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht hal hty.1
   have ea := ih a hai
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
@@ -158,7 +158,7 @@ theorem bvun_sound (hwP : Low.wellFormed P.nodes = true) {i w a : Nat} {op : BvU
   rw [hv]
   have la := lin_ev hwP ea
   rw [hx, ofBv_num, toR_num] at la
-  simp only [expect, hn] at h
+  simp only [Tab.at_eq, expect, hn] at h
   cases op <;> simp only at h
   case neg => cases h
   case not =>
@@ -210,7 +210,7 @@ theorem concat_sound (hwP : Low.wellFormed P.nodes = true) {i wa wb a b : Nat} {
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1.1
   obtain ⟨y, hy⟩ := v_bv hM hw ht (by omega) hty.1.2
   have la := lin_ev hwP (ih a hai)
@@ -220,7 +220,7 @@ theorem concat_sound (hwP : Low.wellFormed P.nodes = true) {i wa wb a b : Nat} {
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
   simp only [Surf.evalNode, surf_get_values, hx, hy, bvOf_ofBv] at hv
   rw [hv]
-  simp only [expect, hn, Option.some.injEq] at h; subst h
+  simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
   simp only [Shape.ev, ofBv_num, enc_num, concat_val]
   congr 1
   rw [eval_append, Lia.eval_scale, Lia.rat_intCast, Ring.intCast_add, Ring.intCast_add, Ring.intCast_mul,
@@ -233,12 +233,12 @@ theorem bv2int_sound {i w a : Nat} {sg : Bool} {s : Shape}
   have hai := children_lt hw hn a (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1
   cases sg with
-  | true => simp only [expect, hn] at h; cases h
+  | true => simp only [Tab.at_eq, expect, hn] at h; cases h
   | false =>
-    simp only [expect, hn, Option.some.injEq] at h; subst h
+    simp only [Tab.at_eq, expect, hn, Option.some.injEq] at h; subst h
     have hv := Surf.val_node (I := Ms.toInterp) hw hn
     simp only [Surf.evalNode, surf_get_values, hx, bvOf_ofBv, Bool.false_eq_true, if_false] at hv
     rw [hv]
@@ -253,7 +253,7 @@ theorem bvcmp_sound (hwP : Low.wellFormed P.nodes = true) {i w a b : Nat} {op : 
   have hbi := children_lt hw hn b (by simp [SNode.children])
   have hl := lt_of_get hn
   have hty := typed_at hM hw ht hn
-  simp only [Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
+  simp only [Tab.at_eq, Tab.at_eq, Surf.nodeTyped, Bool.and_eq_true] at hty
   obtain ⟨x, hx⟩ := v_bv hM hw ht (by omega) hty.1.1
   obtain ⟨y, hy⟩ := v_bv hM hw ht (by omega) hty.1.2
   have ea := ih a hai
@@ -261,7 +261,7 @@ theorem bvcmp_sound (hwP : Low.wellFormed P.nodes = true) {i w a b : Nat} {op : 
   have hv := Surf.val_node (I := Ms.toInterp) hw hn
   simp only [Surf.evalNode, surf_get_values, hx, hy, bvOf_ofBv] at hv
   rw [hv, enc_bool]
-  simp only [expect, hn] at h
+  simp only [Tab.at_eq, expect, hn] at h
   split at h
   · cases h
   · rename_i hw0

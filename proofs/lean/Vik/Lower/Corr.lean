@@ -337,7 +337,7 @@ theorem lin_ev (hwP : Low.wellFormed P.nodes = true) {a : Nat} (e : ρ (tr.at a)
 theorem typed_at {i : Nat} {n : SNode} (hn : SP.nodes[i]? = some n) :
     Surf.nodeTyped SP.sig SP.sortOf n (SP.sort i) = true := by
   have hi := lt_of_get hn
-  simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
+  simp only [Tab.at_eq, Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht
   have := ht.2 i hi
   rw [hn] at this
   exact this

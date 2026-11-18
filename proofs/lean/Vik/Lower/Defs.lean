@@ -94,6 +94,7 @@ theorem defOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : S
         simp only [this, if_false]; rfl
     · cases hb
   unfold Trace.defOk at hb
+  try simp only [Tab.at_eq] at hb
   rw [hn] at hb
   cases n with
   | letIn bs b =>
@@ -111,7 +112,7 @@ theorem defOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : S
     | some m =>
       cases m with
       | const c =>
-        simp only [SProblem.callOf, hfn] at hb
+        simp only [Tab.at_eq, SProblem.callOf, hfn] at hb
         refine key c args true (fun a m => hch a (by simp [SNode.children, m])) ?_ hb
         rw [hv]
         have hfv := Surf.val_node (I := Ms.toInterp) hw hfn

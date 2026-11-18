@@ -79,7 +79,7 @@ structure SigSpec (SP : SProblem) (P : Problem) (tr : Trace) : Prop where
       ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
 
 theorem sigOk_spec (h : tr.sigOk SP P = true) : SigSpec SP P tr := by
-  simp only [Trace.sigOk, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
+  simp only [Tab.at_eq, Trace.sigOk, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hs, hd⟩, hl⟩, hx⟩, hm⟩, hst⟩, hdt⟩, hbv⟩, hbn⟩ := h
   refine ⟨?_, ?_, hl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hdt, hbv, ?_⟩
   · intro s hs'
@@ -428,7 +428,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         rw [const_ite SP P tr Ms hk (by rw [hm]; exact hx)]
         have hil := lt_of_get hi
         have hso : SP.sortOf.length = SP.nodes.length := by
-          simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
+          simp only [Tab.at_eq, Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
         have hsl : SP.sort i < SP.sig.sorts.length := by
           unfold SProblem.sort
           rw [List.getElem?_eq_getElem (by omega)]
@@ -459,7 +459,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         rw [h] at hd'; cases hd'
         rw [const_pick SP P tr Ms hk (by rw [hm]; exact hx)]
         have hso : SP.sortOf.length = SP.nodes.length := by
-          simp only [Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
+          simp only [Tab.at_eq, Surf.typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq] at ht; exact ht.1
         have hsl : SP.sort i < SP.sig.sorts.length := by
           unfold SProblem.sort
           rw [List.getElem?_eq_getElem (by omega)]
