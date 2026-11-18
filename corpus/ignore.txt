@@ -338,7 +338,6 @@ QF_LRA/smt-lib/tropical-matrix__constraint-199552.smt2	beyond the search today (
 QF_LRA/smt-lib/tropical-matrix__constraint-223827.smt2	beyond the search today (minutes of simplex, or not answered within them)
 QF_UF/cvc5/regress3__hole10.cvc.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress3__hole9.cvc.smt2	timeout (5 s limit)
-QF_UF/smt-lib-incremental/20190906-CLEARSY__0002__00171.smt2	timeout (5 s limit, with the model check: a model for each of its 51 sat answers)
 QF_UF/smt-lib/PEQ__PEQ018_size5.smt2	timeout (5 s limit)
 QF_UF/smt-lib/SEQ__SEQ009_size10.smt2	timeout (5 s limit)
 QF_UF/z3test/regressions__fp-rounding_mode-3.smt2	the parser refuses RoundingMode, a floating-point sort it does not support

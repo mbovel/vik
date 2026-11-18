@@ -10,21 +10,23 @@ import io.bovel.smtlib as s2
  *  text, one per command that answers (`check-sat`, `get-model`, ...), and
  *  `(get-info :reason-unknown)` says `resourceout` when the fuel is spent
  *  (`:rlimit`, or `fuel` here), `timeout` when the `:timeout` (milliseconds)
- *  passed, `canceled` when the caller stopped it. A whole script in a session
- *  of its own is [[Session.run]], or [[Session.answers]] for just its
- *  `check-sat`s.
+ *  passed, `canceled` when the caller stopped it, and the finding of a failed
+ *  model check as a string (below). A whole script in a session of its own is
+ *  [[Session.run]], or [[Session.answers]] for just its `check-sat`s.
  *
  *  With `checkModels` on, or `(set-option :check-models true)` (cvc5's name),
- *  each `sat` is checked: the solver builds the model, and the assertions in
- *  force, with the assumptions of a `check-sat-assuming`, are evaluated in it
- *  twice. Once as lowered, by [[Model.holds]]: the search against the problem
- *  it was given, which also covers lowered commands given to [[play]]. Once as
- *  the script wrote them, the way `get-value` evaluates an item: the lowering
- *  along with the search. The two must agree that the model is one: at each
- *  level, the first assertion that is not true (false, or beyond the
- *  evaluation) adds `(error "model check: ...")` after the `sat`, which
- *  [[checkSat]] and [[Session.answers]] throw. It is off by default, since it
- *  costs a model per sat and two walks of the assertions.
+ *  each `sat` is checked before it is answered: the solver builds the model,
+ *  and the assertions in force, with the assumptions of a `check-sat-assuming`,
+ *  are evaluated in it twice. Once as lowered, by the solver itself
+ *  ([[Solver.checkModels]]): the search against the problem it was given, which
+ *  also covers lowered commands given to [[play]]. Once as the script wrote
+ *  them, the way `get-value` evaluates an item: the lowering along with the
+ *  search. When an assertion is not true at either level (false, or beyond the
+ *  evaluation), the answer is `unknown`, followed by
+ *  `(error "model check: ...")` naming the assertion — a bug of VIK, to report
+ *  — which `(get-info :reason-unknown)` repeats, and there is no model. It is
+ *  off by default, since it costs a model per sat and two walks of the
+ *  assertions.
  *
  *  {{{
  *  val s = Session()
@@ -44,7 +46,8 @@ final class Session(
   private val lowerer = Lowerer()
   private var current = initial
   private var checking = checkModels
-  current.produceModels = checking // a walk per sat: paid only once the commands ask (see play), or to check it
+  current.produceModels = false // a walk per sat: paid only once the commands ask (see play)
+  current.checkModels = checking
 
   /** The solver underneath (`reset` replaces it). */
   def solver: Solver = current
@@ -113,48 +116,46 @@ final class Session(
     written.last += formula // once lowered and asserted: an assertion the lowering refuses is not in force
     responses
 
-  /** A check-sat's responses, and in the model-check mode, after a `sat`, the
-   *  error naming the first assertion in force or assumption that the model
-   *  does not make true: evaluated as written, by the lowering's evaluation
-   *  that `get-value` uses, so a wrong lowering shows as much as a wrong model.
-   *  It comes after the error of the lowered assertions, if any (see [[play]]).
+  /** A check-sat's responses, and in the model-check mode, when the solver
+   *  answered `sat` (its own check of the lowered assertions passed, see
+   *  [[Solver.checkModels]]), the check of the assertions in force and the
+   *  assumptions as written: evaluated by the lowering's evaluation that
+   *  `get-value` uses, so that a wrong lowering shows. The first one that is
+   *  not true turns the answer into `unknown`, with the error.
    */
   private def checked(responses: List[String], assumptions: List[s2.Formula]): List[String] =
     if !checking || !responses.contains("sat") then responses
     else
       val items = written.flatten.zipWithIndex.map((f, i) => (s"assertion ${i + 1}", f)) ++
         assumptions.zipWithIndex.map((f, i) => (s"assumption ${i + 1}", f))
-      responses ++ modelError(items, m => lowerer.evaluate(_, m) == "true", s2.Printer.print)
+      val found = current.model() match
+        case None => Some("no model")
+        case Some(m) =>
+          items.iterator.flatMap { (what, f) =>
+            val value =
+              try lowerer.evaluate(f, m)
+              catch case e: Exception => s"not evaluable (${e.getClass.getSimpleName}: ${e.getMessage})"
+            Option.when(value != "true") {
+              val text = s2.Printer.print(f)
+              s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
+            }
+          }.nextOption()
+      found match
+        case None => responses
+        case Some(what) =>
+          failed(what)
+          lastCheck = "unknown"
+          current.dropModel()
+          responses.map(r => if r == "sat" then "unknown" else r) ++ modelError
 
-  /** The same check one level down, on the assertions as lowered, the
-   *  lowering's own definitions and ranges among them: what the solver was
-   *  given, and all there is to check for lowered commands played directly.
-   */
-  private def checkedLowered(answer: String, assumptions: List[Formula]): List[String] =
-    if !checking || answer != "sat" then List(answer)
-    else
-      val items = asserted.flatten.zipWithIndex.map((f, i) => (s"lowered assertion ${i + 1}", f)) ++
-        assumptions.zipWithIndex.map((f, i) => (s"lowered assumption ${i + 1}", f))
-      answer :: modelError(items, m => lowerer.fold(m, Nil).holds, Printer.print).toList
+  // The model check's finding at the last check-sat, at either level: the reason of its `unknown`.
+  private var failure = Option.empty[String]
+  private def failed(what: String): Unit =
+    failure = Some(what)
+    reason = Some(quoted(s"model check: $what"))
+  private def modelError: Option[String] = failure.map(f => s"(error ${quoted(s"model check: $f")})")
+  private def quoted(text: String): String = "\"" + text.replace("\"", "\"\"") + "\""
 
-  /** The model-check error for the first of `items` that `holds` does not make
-   *  true in the last model: found false, or not evaluable when it throws.
-   */
-  private def modelError[F](items: Iterable[(String, F)], holds: Model => F => Boolean, print: F => String) =
-    val failure = current.model() match
-      case None => Some("no model")
-      case Some(m) =>
-        val holdsIn = holds(m)
-        items.iterator.flatMap { (what, f) =>
-          val value =
-            try if holdsIn(f) then "true" else "false"
-            catch case e: Exception => s"not evaluable (${e.getClass.getSimpleName}: ${e.getMessage})"
-          Option.when(value != "true") {
-            val text = print(f)
-            s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
-          }
-        }.nextOption()
-    failure.map(f => "(error \"model check: " + f.replace("\"", "\"\"") + "\")")
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
@@ -202,6 +203,7 @@ final class Session(
     var late = false
     var out = false
     reason = None
+    failure = None
     s.solve(() =>
       calls += 1
       if (calls & 15) == 1 then // the first step and every 16th: the sum is a dozen products, the clock a system call
@@ -211,6 +213,9 @@ final class Session(
     ) match
       case s.Result.Sat => "sat"
       case s.Result.Unsat => "unsat"
+      case s.Result.Unknown(s.Reason.Model(what)) =>
+        failed(s"lowered $what")
+        "unknown"
       case s.Result.Unknown(_) =>
         reason = Some(if late then "timeout" else if out then "resourceout" else "canceled")
         "unknown"
@@ -272,6 +277,7 @@ final class Session(
     for ((_, n), i) <- current.statistics.zipWithIndex do replacedCounts(i) += n
     current = Solver(simplify = current.simplify)
     current.produceModels = produceModels
+    current.checkModels = checking
 
   /** Plays lowered commands. */
   def play(commands: List[Command]): List[String] =
@@ -323,11 +329,11 @@ final class Session(
             if declaredAt.length > 1 then declaredAt.remove(declaredAt.length - 1).reverseIterator.foreach(undeclare)
           asserted.dropRightInPlace(n min (asserted.length - 1))
           written.dropRightInPlace(n min (written.length - 1))
-        case Command.CheckSat => responses ++= checkedLowered(answer(), Nil)
+        case Command.CheckSat => responses ++= answer() :: modelError.toList
         case Command.CheckSatAssuming(assumptions) =>
           current.push()
           assumptions.foreach(current.assert)
-          responses ++= checkedLowered(answer(), assumptions)
+          responses ++= answer() :: modelError.toList
           current.pop()
         case Command.ResetAssertions =>
           lastCheck = ""
@@ -343,7 +349,7 @@ final class Session(
         case Command.SetOption(":timeout", value) => timeout = Some(value.toLong)
         case Command.SetOption(":check-models", value) =>
           checking = value == "true"
-          if checking then current.produceModels = true
+          current.checkModels = checking
         case Command.GetInfo(":reason-unknown") => responses += s"((:reason-unknown ${reason.getOrElse("incomplete")}))"
         case _ => ()
     responses.toList
@@ -376,12 +382,8 @@ object Session:
       checkModels: Boolean = false
   ): List[Option[Boolean]] = decisions(run(script, fuel, timeoutMs, deadline, checkModels))
 
-  /** The check-sat answers among responses; a failed model check, which an
-   *  answer cannot carry, is thrown.
-   */
+  /** The check-sat answers among responses. */
   private def decisions(responses: List[String]): List[Option[Boolean]] =
-    val errors = responses.filter(_.startsWith("(error \"model check"))
-    if errors.nonEmpty then throw IllegalStateException(errors.mkString(" "))
     responses.collect {
       case "sat" => Some(true)
       case "unsat" => Some(false)

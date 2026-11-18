@@ -42,6 +42,12 @@ final class Solver(val simplify: Boolean = true):
      */
     case Stopped
 
+    /** With [[checkModels]]: the search found the assertions satisfiable, and
+     *  the model it built does not make one of them true, which `failure`
+     *  names. A bug of the solver, in the search or in the model, to report.
+     */
+    case Model(failure: String)
+
   private val levels = ArrayBuffer(ArrayBuffer.empty[Formula])
 
   /** The persistent encoder, built at the first [[solve]] — so that the first
@@ -140,6 +146,39 @@ final class Solver(val simplify: Boolean = true):
    */
   var produceModels: Boolean = true
 
+  /** Whether a `Sat` is checked before it is answered: the model is built and
+   *  every assertion in force, as given to [[assert]] (before the
+   *  simplification), must hold in it ([[Model.holds]]). When one does not, the
+   *  answer is `Unknown` with [[Reason.Model]], and there is no model. Off by
+   *  default: it costs a model and a walk of the assertions per `Sat`.
+   */
+  var checkModels: Boolean = false
+
+  /** The first assertion in force that the model of the `Sat` just found does
+   *  not make true: found false, or not evaluable when the evaluation throws.
+   */
+  private def modelFailure(): Option[String] = model() match
+    case None => Some("no model")
+    case Some(m) =>
+      val items = levels.iterator.flatten.zipWithIndex.map((f, i) => (s"assertion ${i + 1}", f)) ++
+        named.iterator.flatten.map((name, f) => (s"assertion $name", f))
+      items.flatMap { (what, f) =>
+        val value =
+          try if m.holds(f) then "true" else "false"
+          catch case e: Exception => s"not evaluable (${e.getClass.getSimpleName}: ${e.getMessage})"
+        Option.when(value != "true") {
+          val text = Printer.print(f)
+          s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
+        }
+      }.nextOption()
+
+  /** Forgets the model of the last `Sat`: for a caller whose own check of it
+   *  failed (see [[Session]]).
+   */
+  private[vik] def dropModel(): Unit =
+    val e = encoder
+    if e != null then e.lastModel = null
+
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
    *  [[Model]]).
@@ -184,7 +223,7 @@ final class Solver(val simplify: Boolean = true):
       calls += 1
       (calls & 15) != 1 || spent - start <= fuel // summed at the first step and every 16th: a dozen products
     ) match
-      case Result.Unknown(_) => Result.Unknown(Reason.Fuel)
+      case Result.Unknown(Reason.Stopped) => Result.Unknown(Reason.Fuel)
       case result => result
 
   /** Decides the assertions while `keepGoing` says so, asked at every step: a
@@ -283,7 +322,7 @@ final class Solver(val simplify: Boolean = true):
             selectors += e.newSelector(); selectors.last
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
-    e.produceModels = produceModels
+    e.produceModels = produceModels || checkModels
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
@@ -315,7 +354,13 @@ final class Solver(val simplify: Boolean = true):
     e.solve(assumed, keepGoing) match
       case cdclt.Solver.Result.Sat(_) =>
         lastCore = Nil
-        Result.Sat
+        if !checkModels then Result.Sat
+        else
+          modelFailure() match
+            case None => Result.Sat
+            case Some(failure) =>
+              e.lastModel = null
+              Result.Unknown(Reason.Model(failure))
       case cdclt.Solver.Result.Unsat =>
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }

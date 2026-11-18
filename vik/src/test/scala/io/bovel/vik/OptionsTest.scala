@@ -36,6 +36,36 @@ class OptionsTest extends munit.FunSuite:
       (check-sat-assuming ((= (select a 2) 6)))""")).commands
     assertEquals(Session(checkModels = true).play(lowered), List("sat", "sat"))
 
+  test("check-models: a model that fails its check answers unknown, with the error and the reason"):
+    // Issue 137: the class of `(+ a 1)` gets a value of its own in the model. To replace by another model
+    // that fails, once that is fixed.
+    val script = """
+      (set-option :check-models true)
+      (declare-datatype P ((mk (f Int))))
+      (declare-const a Int)
+      (declare-const x P)
+      (assert (= x (mk (+ a 1))))
+      (assert (= a 5))
+      (assert ((_ is mk) x))
+      (check-sat)
+      (get-info :reason-unknown)
+      (get-model)"""
+    val responses = Session.run(Parser.parse(script))
+    assertEquals(responses.head, "unknown")
+    assert(responses(1).startsWith("(error \"model check: "), responses(1))
+    assert(responses(2).startsWith("((:reason-unknown \"model check: "), responses(2))
+    assertEquals(responses(3), "(error \"no model\")")
+    assertEquals(Session.answers(Parser.parse(script)), List(None))
+    assertEquals(Session.run(Parser.parse(script.replace("(set-option :check-models true)", ""))).head, "sat")
+
+  test("check-models: the solver checks its own model"):
+    val s = Solver()
+    s.checkModels = true
+    s.declare("x", Nil, "Int")
+    s.assert(Formula.Less(Term.Const("x"), Term.Num(3)))
+    assertEquals(s.solve(), s.Result.Sat)
+    assert(s.model().exists(_.holds(Formula.Less(Term.Const("x"), Term.Num(3)))))
+
   test("rlimit and reason-unknown"):
     val script = Parser.parse("""
       (set-option :rlimit 1)
