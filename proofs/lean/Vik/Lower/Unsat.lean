@@ -617,11 +617,10 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
       have df := dS f (by omega) (muc hfx f (by simp [Node.children]))
       -- the arguments, in range
       have dxs : Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange SP.bvIndex a x) as (xs.map ρ) := by
-        rw [← hargs]
-        refine forall2_map _ _ _ xs (fun x m => ⟨?_, ?_⟩)
+        rw [← hG.bvIndex]
+        refine forall2_fit hM xs as hargs (fun x m => ⟨?_, ?_⟩)
         · exact dS x (by have := hxj x m; omega) (muc hfx x (by simp [Node.children, m]))
-        · rw [← hG.bvIndex]
-          exact ih x (by have := hxj x m; omega) (muc hfx x (by simp [Node.children, m]))
+        · exact ih x (by have := hxj x m; omega) (muc hfx x (by simp [Node.children, m]))
       rw [Low.val_app hA.wf hfx]
       rcases Nat.lt_or_ge (P.sortOf[f]?.getD 0) SP.sig.sorts.length with hfl | hfl
       · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hfl hfs

@@ -90,7 +90,8 @@ theorem wits_info :
     (∀ k eq eqw ws, A.exts[k]? = some (eq, eqw, ws) → nodupB ws = true ∧ (∀ n ∈ ws, A.rank n = k + 2) ∧
       ∃ f g F G, P.nodes[eq]? = some (.eq f g) ∧ P.nodes[eqw]? = some (.eq F G) ∧
         depthOf (depths A.rank P.nodes) f < k + 2 ∧ depthOf (depths A.rank P.nodes) g < k + 2 ∧
-        chainRev P.nodes f F ws.reverse = true ∧ chainRev P.nodes g G ws.reverse = true) := by
+        chainRev P.nodes f F ws.reverse = true ∧ chainRev P.nodes g G ws.reverse = true ∧
+        chainExact P.sig P.nodes P.sortOf F ws.reverse = true) := by
   have h := hA.wits
   unfold Problem.witnessesOk at h
   simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq, List.mem_range, Tab.at_eq, Problem.node_eq] at h
@@ -119,8 +120,8 @@ theorem wits_info :
     split at h
     · rename_i f g F G he hew
       simp only [Bool.and_eq_true, decide_eq_true_eq] at h
-      obtain ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ := h
-      exact ⟨f, g, F, G, he, hew, h1, h2, h3, h4⟩
+      obtain ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ := h
+      exact ⟨f, g, F, G, he, hew, h1, h2, h3, h4, h5⟩
     · cases h
 
 end
@@ -295,6 +296,7 @@ theorem withConst_sound {c : Nat → Val R U} (hc : ∀ n s, P.sig.decls[n]? = s
   real := hL.sound.real
   fn := hL.sound.fn
   const := hc
+  bvInt := hL.sound.bvInt
 
 include hL in
 /-- Two different functions differ on some arguments, in range for indices of
@@ -358,7 +360,7 @@ theorem instance_holds (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort
     ∀ (c : Nat → Val R U), (∀ n, A.rank n ≤ k + 2 → c n = buildConst P A M (k + 1) n) →
       holds (M.withConst c).toInterp P.nodes eq ∨ ¬holds (M.withConst c).toInterp P.nodes eqw := by
   intro c hc
-  obtain ⟨hnd, hr, f, g, F, G, he, hew, hdf, hdg, hcf, hcg⟩ := (wits_info hA).2.2.2.2.2.2 k eq eqw ws hk
+  obtain ⟨hnd, hr, f, g, F, G, he, hew, hdf, hdg, hcf, hcg, hxf⟩ := (wits_info hA).2.2.2.2.2.2 k eq eqw ws hk
   have hw := hA.wf
   let Ik := (M.withConst (buildConst P A M k)).toInterp
   let Ic := (M.withConst c).toInterp
@@ -383,7 +385,7 @@ theorem instance_holds (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort
   -- the step of instance `k`
   have hstep : buildConst P A M (k + 1) = stepConst P M (buildConst P A M k) (eq, eqw, ws) := by
     simp only [buildConst, hk]
-  have hs := chain_sorts hA.typed ws.reverse F hcf
+  have hs := chain_sorts hA.typed ws.reverse F hcf hxf
   rw [List.reverse_reverse] at hs
   have lf := child_lt hw he (j := f) (by simp [Node.children])
   have lg := child_lt hw he (j := g) (by simp [Node.children])

@@ -287,7 +287,8 @@ def Problem.witnessesOk : Bool :=
         match P.node eq, P.node eqw with
         | some (.eq f g), some (.eq F G) =>
           depthOf ds f < k + 2 && depthOf ds g < k + 2 &&
-            chainRev P.nodes f F ws.reverse && chainRev P.nodes g G ws.reverse
+            chainRev P.nodes f F ws.reverse && chainRev P.nodes g G ws.reverse &&
+            chainExact P.sig P.nodes P.sortOf F ws.reverse
         | _, _ => false
     | none => false
 
@@ -882,13 +883,13 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         have ts := typed_node hA.typed hs
         simp only [Tab.at_eq, nodeTyped] at ts
         rw [← Option.some.inj tk, hs0] at ts
-        simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil, List.cons.injEq] at ts
-        obtain ⟨hsort, ha, hi, hv, -⟩ := ts
+        simp only [Sig.allFit, Bool.and_true, Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil] at ts
+        obtain ⟨hsort, ha, hi, hv⟩ := ts
         have tr := typed_node hA.typed hr
         simp only [Tab.at_eq, nodeTyped] at tr
         rw [← hsort, harr] at tr
-        simp only [Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil, List.cons.injEq] at tr
-        obtain ⟨-, hj, -⟩ := tr
+        simp only [Sig.allFit, Bool.and_true, Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil] at tr
+        obtain ⟨-, hj⟩ := tr
         have lr := lt_of_node hr
         have ls := child_lt hA.wf hr (j := s) (by simp [Node.children])
         have lj := child_lt hA.wf hr (j := j) (by simp [Node.children])
@@ -900,13 +901,15 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
         have di := dom_of hA hL hrng (i := i) (by omega)
         have dv := dom_of hA hL hrng (i := v) (by omega)
         have dj := dom_of hA hL hrng (i := j) (by omega)
-        simp only [Problem.sort_eq] at da di dv dj
-        rw [ha] at da; rw [hi] at di; rw [hv] at dv; rw [hj] at dj
+        have ra := hrng a (by omega)
         have ri := hrng i (by omega)
         have rj := hrng j (by omega)
         have rv := hrng v (by omega)
-        simp only [Problem.sort_eq] at ri rj rv
-        rw [hi] at ri; rw [hj] at rj; rw [hv] at rv
+        simp only [Problem.sort_eq] at da di dv dj ra ri rj rv
+        obtain ⟨da, -⟩ := dom_fit hL.sound ha da ra
+        obtain ⟨di, ri⟩ := dom_fit hL.sound hi di ri
+        obtain ⟨dv, rv⟩ := dom_fit hL.sound hv dv rv
+        obtain ⟨dj, rj⟩ := dom_fit hL.sound hj dj rj
         have law := hL.store n hn s0 _ idx el hd hs0 harr _ _ _ _ da di dv dj ri rj rv
         rw [val_app hA.wf hr, val_app hA.wf hs, val_const hA.wf hk]
         simp only [List.map_cons, List.map_nil]
@@ -1059,8 +1062,7 @@ theorem ctorOf_info {x c : Nat} {args : List Nat} (h : Uf.ctorOf (P.ufEnv A) x =
             · rename_i as' r hs
               simp only [Bool.and_eq_true, beq_iff_eq] at tx
               simp only [Problem.argSorts, tc, hs]
-              rw [← tx.2]
-              exact forall2_map _ _ _ args fun j m =>
+              exact forall2_fit hL.sound args as' tx.2 fun j m =>
                 have hj := Nat.lt_trans (child_lt hA.wf hn' (by simp [Node.children, m])) (lt_of_node hn')
                 ⟨dom_of hA hL hrng hj, hrng j hj⟩
             · cases tx
@@ -1132,13 +1134,14 @@ theorem tester_arg {p t a T C d : Nat} {Ss : List Nat} (hp : P.nodes[p]? = some 
     · rename_i d' b hs'
       simp only [Bool.and_eq_true, beq_iff_eq] at hT'
       have hst : P.sortOf[t]?.getD 0 = s := (Option.some.inj tt).symm
-      simp only [hst, hs', Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil,
-        List.cons.injEq] at tp
-      have := dom_of hA hL hrng (i := a) (Nat.lt_trans (child_lt hA.wf hp (by simp [Node.children]))
-        (lt_of_node hp))
-      simp only [Problem.sort_eq] at this
-      rw [tp.2.1, hT'.1] at this
-      exact this
+      simp only [hst, hs', Sig.allFit, Bool.and_true, Bool.and_eq_true, beq_iff_eq, List.map_cons,
+        List.map_nil] at tp
+      have la := Nat.lt_trans (child_lt hA.wf hp (j := a) (by simp [Node.children])) (lt_of_node hp)
+      have := dom_of hA hL hrng (i := a) la
+      have ra := hrng a la
+      simp only [Problem.sort_eq] at this ra
+      rw [← hT'.1]
+      exact (dom_fit hL.sound tp.2 this ra).1
     · cases hT'
   · cases hT'
 

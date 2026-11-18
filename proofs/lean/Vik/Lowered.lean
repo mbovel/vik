@@ -346,6 +346,16 @@ def Sig.is (sig : Sig) (s : Nat) (d : SortDef) : Bool := sig.sorts[s]? == some d
 
 def Sig.numeric (sig : Sig) (s : Nat) : Bool := sig.is s .int || sig.is s .real
 
+/-- Whether a value of sort `s` can stand for one of sort `a`: the same sort,
+    or an integer for a real. -/
+def Sig.fits (sig : Sig) (s a : Nat) : Bool := s == a || (sig.is s .int && sig.is a .real)
+
+/-- Whether arguments of the sorts `ss` fit parameters of the sorts `as`. -/
+def Sig.allFit (sig : Sig) : List Nat → List Nat → Bool
+  | [], [] => true
+  | s :: ss, a :: as => sig.fits s a && sig.allFit ss as
+  | _, _ => false
+
 /-- Whether node `n` has sort `s`, its children those of `sortOf`. -/
 def nodeTyped (sig : Sig) (sortOf : List Nat) (n : Node) (s : Nat) : Bool :=
   let so (i : Nat) := (Tab.at sortOf i).getD 0
@@ -354,7 +364,7 @@ def nodeTyped (sig : Sig) (sortOf : List Nat) (n : Node) (s : Nat) : Bool :=
   | .const k => Tab.at sig.decls k == some s
   | .app f args =>
     match sig.sorts[so f]? with
-    | some (.fn as r) => r == s && args.map so == as
+    | some (.fn as r) => r == s && sig.allFit (args.map so) as
     | _ => false
   | .num _ => sig.is s .int
   | .linear ts _ =>
@@ -406,10 +416,42 @@ structure Model.Sound (sig : Sig) (bv : List (Nat × Nat)) (M : Model R U) : Pro
   fn : ∀ s as r f xs, sig.sorts[s]? = some (.fn as r) → M.dom s f →
     Forall2 (fun a x => M.dom a x ∧ inRange bv a x) as xs → M.dom r (M.app f xs) ∧ inRange bv r (M.app f xs)
   const : ∀ k s, sig.decls[k]? = some s → M.dom s (M.const k)
+  /-- The sorts of bit-vectors are integer sorts. -/
+  bvInt : ∀ s w, bv.lookup s = some w → sig.sorts[s]? = some .int
 
 section
 variable {sig : Sig} {bv : List (Nat × Nat)} {M : Model R U} (hM : M.Sound sig bv)
 include hM
+
+/-- A value of a sort that fits another is a value of that sort, in range. -/
+theorem dom_fit {s a : Nat} {v : Val R U} (h : sig.fits s a = true) (hd : M.dom s v) (hr : inRange bv s v) :
+    M.dom a v ∧ inRange bv a v := by
+  simp only [Sig.fits, Sig.is, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+  rcases h with e | ⟨hi, hre⟩
+  · rw [← e]; exact ⟨hd, hr⟩
+  · obtain ⟨k, ek⟩ := (hM.int _ _ hi).mp hd
+    refine ⟨(hM.real _ _ hre).mpr ⟨_, ek⟩, fun w hw => ?_⟩
+    rw [hM.bvInt a w hw] at hre; cases hre
+
+/-- Arguments that fit their parameters take values of the parameters'
+    sorts, in range. -/
+theorem forall2_fit {so : Nat → Nat} {v : Nat → Val R U} :
+    ∀ (l : List Nat) (as : List Nat), sig.allFit (l.map so) as = true →
+      (∀ x ∈ l, M.dom (so x) (v x) ∧ inRange bv (so x) (v x)) →
+      Forall2 (fun a x => M.dom a x ∧ inRange bv a x) as (l.map v)
+  | [], [], _, _ => trivial
+  | [], _ :: _, h, _ => by simp [Sig.allFit] at h
+  | _ :: _, [], h, _ => by simp [Sig.allFit] at h
+  | x :: l, a :: as, h, hx => by
+    simp only [List.map_cons, Sig.allFit, Bool.and_eq_true] at h
+    refine ⟨?_, forall2_fit l as h.2 (fun y m => hx y (List.mem_cons_of_mem x m))⟩
+    obtain ⟨hd, hr⟩ := hx x List.mem_cons_self
+    simp only [Sig.fits, Sig.is, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+    rcases h.1 with e | ⟨hi, hre⟩
+    · rw [← e]; exact ⟨hd, hr⟩
+    · obtain ⟨k, ek⟩ := (hM.int _ _ hi).mp hd
+      refine ⟨(hM.real _ _ hre).mpr ⟨_, ek⟩, fun w hw => ?_⟩
+      rw [hM.bvInt a w hw] at hre; cases hre
 
 theorem dom_num_of_numeric {s : Nat} {v : Val R U} (hs : sig.numeric s = true) (h : M.dom s v) :
     ∃ r, v = .num r := by
@@ -473,8 +515,7 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
       obtain ⟨rfl, hargs⟩ := hn
       rw [val_app hw hn']
       refine (hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children])) ?_).1
-      rw [← hargs]
-      exact forall2_map _ _ _ args (fun j m =>
+      exact forall2_fit hM args as hargs (fun j m =>
         ⟨ihc j (by simp [Node.children, m]),
           hrng j (hc j (by simp [Node.children, m]))⟩)
     · cases hn
@@ -553,8 +594,7 @@ theorem val_dom_sub {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nod
       obtain ⟨rfl, hargs⟩ := hn
       rw [val_app hw hn']
       refine (hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children])) ?_).1
-      rw [← hargs]
-      exact forall2_map _ _ _ args (fun j m =>
+      exact forall2_fit hM args as hargs (fun j m =>
         ⟨ihc j (by simp [Node.children, m]),
           hrng i _ hn' hSi j (by simp [Node.children, m])⟩)
     · cases hn
@@ -615,8 +655,7 @@ theorem rng_app {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes =
     obtain ⟨rfl, hargs⟩ := hn
     rw [val_app hw hn']
     refine (hM.fn _ as _ _ _ hs (hd f (by simp [Node.children])) ?_).2
-    rw [← hargs]
-    exact forall2_map _ _ _ args (fun j m =>
+    exact forall2_fit hM args as hargs (fun j m =>
       ⟨hd j (by simp [Node.children, m]), hrng j (hc j (by simp [Node.children, m]))⟩)
   · cases hn
 /-- In a well-sorted table whose nodes of bit-vector sorts are in range, every
