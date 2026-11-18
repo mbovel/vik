@@ -122,9 +122,13 @@ final class Parser:
       sortParameters += name
       Nil
     case SList(SSymbol("define-sort") :: SSymbol(name) :: SList(params) :: body :: Nil) =>
+      val names = params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad parameter $other") }
+      // The body is read where the definition is made, before its name exists, as z3 and cvc5 read it: a
+      // body that leads back to the name would expand without end at each use (issue 177).
+      if leadsTo(body, names.toSet, name, Set.empty) then
+        throw Smt2Error(s"unknown sort $name in its own definition (define-sort $name)")
       undoable(sortDefinitions, name)
-      sortDefinitions(name) =
-        (params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad parameter $other") }, body)
+      sortDefinitions(name) = (names, body)
       Nil
     case SList(SSymbol("declare-fun") :: SSymbol(name) :: SList(args) :: s :: Nil) => declare(name, args, s)
     case SList(SSymbol("define-const") :: SSymbol(name) :: s :: body :: Nil) => // a `define-fun` of no parameter
@@ -577,6 +581,18 @@ final class Parser:
         throw Smt2Error(s"the sort $name takes ${declaredSorts(name)} sort arguments")
       Sort.Named(s"($name ${args.map(sort(_).text).mkString(" ")})")
     case other => Sort.Named(other.toString) // rejected by `check` where a symbol is declared
+
+  /** Whether the sort written `body`, where the names in `bound` are
+   *  parameters, leads to the sort `name`: names it, or names a `define-sort`
+   *  whose body does, through any number of them (`seen`: the ones followed).
+   */
+  private def leadsTo(body: SExpr, bound: Set[String], name: String, seen: Set[String]): Boolean = body match
+    case SSymbol(s) if bound(s) => false
+    case SSymbol(s) if s == name => true
+    case SSymbol(s) =>
+      !seen(s) && sortDefinitions.get(s).exists((params, b) => leadsTo(b, params.toSet, name, seen + s))
+    case SList(items) => items.exists(leadsTo(_, bound, name, seen))
+    case _ => false
 
   /** Whether the script declared the sort `name`: a sort, a datatype, or an
    *  instance of a sort constructor or of a parametric datatype.
