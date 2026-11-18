@@ -280,6 +280,13 @@ final class LoweringCheck:
 
   // The replay of the commands.
 
+  /** The range of a bit-vector constant, asserted below every level under
+   *  `:global-declarations`, as the lowering does.
+   */
+  private def rangeFact(name: String, w: Int): Command =
+    val fact = range(Const(name), w)
+    if globalDeclarations then Command.AssertGlobal(fact) else Command.Assert(fact)
+
   private def replay(c: s2.Command): List[Command] | List[Formula | Term] = c match
     case s2.Command.SetLogic(logic) => List(Command.SetLogic(logic.replace("BV", "LIA")))
     case s2.Command.SetInfo(key, value) => List(Command.SetInfo(key, value))
@@ -291,7 +298,7 @@ final class LoweringCheck:
       sort match
         case Sort.BitVec(w) if argSorts.isEmpty =>
           functions(name) = sort
-          List(Command.DeclareFun(name, Nil, "Int"), Command.Assert(range(Const(name), w)))
+          List(Command.DeclareFun(name, Nil, "Int"), rangeFact(name, w))
         case _ =>
           functions(name) = Sort.fun(argSorts, sort)
           List(Command.DeclareFun(name, argSorts.map(sortString), sortString(sort)))
@@ -333,13 +340,17 @@ final class LoweringCheck:
       for _ <- 1 to levels do scopes += ArrayBuffer.empty
       List(Command.Push(levels))
     case s2.Command.Pop(levels) =>
-      for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+      // more levels than are open: the session refuses the `pop` whole, as the lowering does
+      if levels <= scopes.length then
+        for _ <- 1 to levels do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
+      // the levels go, and the declarations made in them stay, as the lowering does
+      scopes.clear()
       clearMemos()
       assertions.clear()
       Command.ResetAssertions +: functions.toList.sortBy(_._1).collect { case (n, Sort.BitVec(w)) =>
-        Command.Assert(range(Const(n), w))
+        rangeFact(n, w)
       }
     case s2.Command.Reset =>
       scopes.clear()
