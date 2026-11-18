@@ -498,15 +498,34 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hS := hL.sound
   have hG := hc.sig
-  intro j
-  induction j using Nat.strongRecOn with
-  | ind j ih =>
-  intro hj w hlw
+  -- by the order `mu`: the depth of the rule symbols a node depends on, then its number
+  suffices hmu : ∀ M, ∀ j < P.nodes.length, tr.mu SP P j = M →
+      inRange P.bvIndex (P.sortOf[j]?.getD 0) (ρ j) from fun j hj => hmu _ j hj rfl
+  intro M
+  induction M using Nat.strongRecOn with
+  | ind M ihM =>
+  intro j hj hM'
+  subst hM'
+  have ih : ∀ y < P.nodes.length, tr.mu SP P y < tr.mu SP P j →
+      inRange P.bvIndex (P.sortOf[y]?.getD 0) (ρ y) := fun y hy hl => ihM _ hl y hy rfl
+  -- the children of a node come before it
+  have muc : ∀ {y : Nat} {n : Node}, P.nodes[y]? = some n → ∀ c ∈ n.children, tr.mu SP P c < tr.mu SP P y := by
+    intro y n hn c hc'
+    have h1 := (depth_node (rank := tr.rank SP) hA.wf hn).2 c hc'
+    have h2 := Low.children_lt hA.wf hn c hc'
+    have := Nat.mul_le_mul_right P.nodes.length h1
+    unfold Trace.mu; omega
+  intro w hlw
   rw [hG.bvIndex, lookup_bvIndex] at hlw
   -- a number in range
   by_cases hnum : ∃ c : Int, P.nodes[j]? = some (.num c) ∧ 0 ≤ c ∧ c < 2 ^ w
   · obtain ⟨c, hc, h0, h1⟩ := hnum
     rw [Low.val_num hA.wf hc]; exact ⟨c, rfl, h0, h1⟩
+  -- a sum in range
+  by_cases hiv : ivSub (tr.fixedAt SP P (tr.mu SP P j) 2 j) 0 (2 ^ w - 1) = true
+  · obtain ⟨q, hq, h0, h1⟩ := ivSub_sound hiv
+    obtain ⟨k, ek, k0, k1⟩ := fixedAt_sound (R := R) (U := U) (Ms := Ms) hA.wf hG ih 2 j q hq
+    exact ⟨k, ek, by omega, by omega⟩
   generalize hs : P.sortOf[j]?.getD 0 = s at hlw
   have hsw := sortWidth_eq.mp hlw
   have hsl : s < SP.sig.sorts.length := lt_of_get hsw
@@ -518,9 +537,10 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
     exact ⟨_, rfl, Vik.val_nonneg x, Vik.val_lt x⟩
   have hty : ∀ {n : Node}, P.nodes[j]? = some n → Low.nodeTyped P.sig P.sortOf n s = true := by
     intro n hn; rw [← hs]; exact typed_node hA.typed hn
-  obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ | hn := hG.bvNodes j hj w (by rw [hs]; exact hlw)
+  obtain ⟨k, hk⟩ | ⟨f, xs, hfx⟩ | hn | hn := hG.bvNodes j hj w (by rw [hs]; exact hlw)
   rotate_left 2
   · exact absurd hn hnum
+  · exact absurd hn hiv
   · have hd := hty hk
     simp only [Tab.at_eq, Tab.at_eq, Low.nodeTyped, beq_iff_eq] at hd
     rw [Low.val_const hA.wf hk]
@@ -545,7 +565,25 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
         · rw [hd] at hd1; cases hd1
           rw [hsw] at hs1; cases hs1
           rw [const_rule SP P tr Ms hA.wf hx (fun x hx' => (hargs x hx').2)]
-          obtain ⟨h0, h1⟩ := Rule.bvOut_range hout (fun x => intOf (ρ x)) (fun x => (ρ x).truth)
+          obtain ⟨h0, h1⟩ : 0 ≤ Rule.ival (fun x => intOf (ρ x)) (fun x => (ρ x).truth) r j' ∧
+              Rule.ival (fun x => intOf (ρ x)) (fun x => (ρ x).truth) r j' < 2 ^ w := by
+            rcases hout with hout | hout
+            · exact Rule.bvOut_range hout (fun x => intOf (ρ x)) (fun x => (ρ x).truth)
+            · -- from the intervals of its arguments, of lower depth
+              obtain ⟨q, hq, q0, q1⟩ := ivSub_sound hout
+              have hdj : m + 1 ≤ depthOf (depths (tr.rank SP) P.nodes) j := by
+                have := (depth_node (rank := tr.rank SP) hA.wf hk).1
+                simp only [Node.own, Trace.rank, Tab.at_eq, hm, hx, Nat.le_add_right, if_true] at this
+                omega
+              have hr : ∀ y < P.nodes.length, tr.mu SP P y < (m + 1) * P.nodes.length →
+                  inRange P.bvIndex (P.sortOf[y]?.getD 0) (ρ y) := by
+                intro y hy hl
+                refine ih y hy ?_
+                have := Nat.mul_le_mul_right P.nodes.length hdj
+                unfold Trace.mu at hl ⊢; omega
+              obtain ⟨a0, a1⟩ := fixedIv_sound (R := R) (U := U) (Ms := Ms) hA.wf _
+                (fixedAt_sound hA.wf hG hr 2) r j' q hq
+              exact ⟨by omega, by omega⟩
           refine ⟨ofBv (BitVec.ofInt w (Rule.ival (fun x => intOf (ρ x)) (fun x => (ρ x).truth) r j')),
             (dom_bv_iff hS hsw).mpr ⟨_, rfl⟩, ?_⟩
           rw [ofBv_num, Vik.val_ofInt, Int.emod_eq_of_lt h0 h1]; rfl
@@ -571,14 +609,19 @@ theorem low_rng : ∀ j < P.nodes.length, inRange P.bvIndex (P.sortOf[j]?.getD 0
       obtain ⟨rfl, hargs⟩ := hd
       have hfj := child_lt hA.wf hfx (j := f) (by simp [Node.children])
       have hxj : ∀ x ∈ xs, x < j := fun x m => child_lt hA.wf hfx (j := x) (by simp [Node.children, m])
-      have df := val_dom_lt hM hA.wf hA.typed f (by omega) (fun i hi => ih i (by omega) (by omega))
+      -- the nodes before `j` in the order `mu` take values of their sorts
+      have dS := val_dom_sub hM hA.wf hA.typed (fun y => tr.mu SP P y < tr.mu SP P j)
+        (fun y n hn hy c hc' => Nat.lt_trans (muc hn c hc') hy)
+        (fun y n hn hy c hc' => ih c (Nat.lt_trans (Low.children_lt hA.wf hn c hc') (lt_of_get hn))
+          (Nat.lt_trans (muc hn c hc') hy))
+      have df := dS f (by omega) (muc hfx f (by simp [Node.children]))
       -- the arguments, in range
       have dxs : Forall2 (fun a x => (lowModel SP P tr Ms).dom a x ∧ inRange SP.bvIndex a x) as (xs.map ρ) := by
         rw [← hargs]
         refine forall2_map _ _ _ xs (fun x m => ⟨?_, ?_⟩)
-        · exact val_dom_lt hM hA.wf hA.typed x (by have := hxj x m; omega)
-            (fun i hi => ih i (by have := hxj x m; omega) (by have := hxj x m; omega))
-        · rw [← hG.bvIndex]; exact ih x (hxj x m) (by have := hxj x m; omega)
+        · exact dS x (by have := hxj x m; omega) (muc hfx x (by simp [Node.children, m]))
+        · rw [← hG.bvIndex]
+          exact ih x (by have := hxj x m; omega) (muc hfx x (by simp [Node.children, m]))
       rw [Low.val_app hA.wf hfx]
       rcases Nat.lt_or_ge (P.sortOf[f]?.getD 0) SP.sig.sorts.length with hfl | hfl
       · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hfl hfs

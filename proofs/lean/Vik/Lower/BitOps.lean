@@ -992,7 +992,51 @@ theorem stepNode_sound {op : BvBin} {w t j s : Nat} {X : BitVec w} (hw0 : 0 < w)
   have hx1 := Vik.val_lt X
   rcases hop with rfl | rfl | rfl
   · simp only [Trace.stepNode] at h
-    obtain ⟨_, rl, hs, hp⟩ := findSym_sym hG h
+    split at h
+    rotate_left
+    · -- a constant, folded
+      split at h
+      · rename_i c hc
+        split at h
+        · rename_i hcond
+          simp only [Option.some.injEq] at h; subst h
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+          obtain ⟨⟨h0, h1⟩, hx⟩ := hcond
+          rw [Low.val_num hwP (getElem?_idxOf _ _ hx)]
+          have hX : (Vik.val X : Int) = c := by
+            have e := constOf_eval hc (fun u => (ρ u).toR)
+            unfold evf at lt
+            rw [lt] at e
+            have := (IsCharP.intCast_eq_zero_iff (α := R) 0 (Vik.val X - c)).mp
+              (by rw [Ring.intCast_sub, e]; grind)
+            simp at this; omega
+          simp only [stepBv]
+          rw [Vik.shl_const_val]
+          congr 2
+          rw [hX]
+          split
+          · rename_i hle
+            have hD : (2 : Int) ^ w ≤ 2 ^ (2 ^ j) := by
+              have := Nat.pow_le_pow_right (n := 2) (by decide) hle; exact_mod_cast this
+            have hDp : (0 : Int) < 2 ^ (2 ^ j) := Int.pow_pos (by decide)
+            have hc0 : c = 0 := by
+              rcases Int.lt_or_le c 1 with h' | h'
+              · have : 0 ≤ c := by
+                  apply Classical.byContradiction; intro hn
+                  have : c * 2 ^ (2 ^ j) < 0 := Int.mul_neg_of_neg_of_pos (by omega) hDp
+                  omega
+                omega
+              · have := Int.mul_le_mul_of_nonneg_right h' (Int.le_of_lt hDp)
+                rw [Int.one_mul] at this
+                omega
+            subst hc0; simp
+          · have : ((2 ^ (2 ^ j) : Nat) : Int) = 2 ^ (2 ^ j) := by simp
+            rw [this, Int.emod_eq_of_lt h0 h1]
+        · cases h
+      · cases h
+    rename_i s' h'
+    simp only [Option.some.injEq] at h; subst h
+    obtain ⟨_, rl, hs, hp⟩ := findSym_sym hG h'
     cases rl with
     | modulo v w' lo hi =>
       simp only [Bool.and_eq_true, beq_iff_eq] at hp

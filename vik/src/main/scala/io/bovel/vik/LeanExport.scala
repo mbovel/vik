@@ -254,7 +254,8 @@ private[vik] object LeanExport:
      *  has the sort `Int` where it stands for a bit-vector: an argument of a
      *  function of bit-vectors, or a side of an equality with one. Such a node
      *  gets the bit-vector sort, if it is used at no other: a number in its
-     *  range, a witness valued in range.
+     *  range, a witness valued in range, or a sum the proof shows in range from
+     *  the intervals of its terms (`Trace.fixedLeaf`).
      */
     private def fixSorts(): Unit =
       val widths = bvIndex.toMap
@@ -265,12 +266,14 @@ private[vik] object LeanExport:
       val firstWitness = surface.fold(Int.MaxValue)(sf => sf.decls.length + sf.mints.length)
       val names = decls.iterator.map((n, d) => (d, n)).toMap
       val mintsByName = surface.fold(Map.empty[String, Mint])(_.mints.toMap)
-      // a rule's symbol in the range of `w` whatever its arguments (`Rule.bvOut`)
+      // a rule's symbol in the range of `w` (`Rule.bvOut`, or from its arguments)
       def bvOut(m: Mint, w: Int): Boolean = m match
         case Mint.Rule(Rule.Modulo(_, w1, _, _), 0) => w1 == w
         case Mint.Rule(Rule.Int2Bv(_, w1), 0) => w1 == w
         case Mint.Rule(Rule.UDiv(_, _, w1), _) => w1 == w
         case Mint.Rule(Rule.Bits(_, _) | Rule.SModZ(_, _, _), _) => w > 0
+        // in range by its branches, which the proof checks (`Rule.fixedIv`)
+        case Mint.Rule(Rule.Cases(_, _, _, lo, hi), _) => lo >= 0 && hi < BigInt(2).pow(w)
         case _ => false
       def retarget(x: Int, p: Int): Boolean =
         if nodeSorts(x) != 1 || !widths.contains(p) then false
@@ -286,7 +289,9 @@ private[vik] object LeanExport:
                 declSorts(n) = p
                 true
               }
-            else false
+            else
+              // a sum, such as that of a bit-vector's bits: the proof checks its range
+              text.startsWith(".linear ")
           if ok then nodeSorts(x) = p
           ok
       var changed = true

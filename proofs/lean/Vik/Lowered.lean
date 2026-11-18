@@ -510,6 +510,86 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
       | exact boolv hn.1.1.1 _
 
 
+/-- In a well-sorted table, every node of a set `S` closed under children,
+    whose children of bit-vector sorts are in range, takes a value of its
+    sort. -/
+theorem val_dom_sub {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
+    (ht : typed sig nodes sortOf = true) (S : Nat → Prop)
+    (hS : ∀ i n, nodes[i]? = some n → S i → ∀ c ∈ n.children, S c)
+    (hrng : ∀ i n, nodes[i]? = some n → S i → ∀ c ∈ n.children,
+      inRange bv (sortOf[c]?.getD 0) (val M.toInterp nodes c)) :
+    ∀ i, i < nodes.length → S i → M.dom (sortOf[i]?.getD 0) (val M.toInterp nodes i) := by
+  intro i
+  induction i using Nat.strongRecOn with
+  | ind i ih =>
+  intro hi hSi
+  simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, Tab.at_eq] at ht
+  have hn := ht.2 i hi
+  obtain ⟨n, hn'⟩ : ∃ n, nodes[i]? = some n := ⟨nodes[i], List.getElem?_eq_getElem hi⟩
+  rw [hn'] at hn
+  have hc : ∀ j ∈ n.children, j < i := by
+    have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
+    rw [Tab.at_eq, hn'] at this; simpa using this
+  have ihc : ∀ j ∈ n.children, M.dom (sortOf[j]?.getD 0) (val M.toInterp nodes j) :=
+    fun j m => ih j (hc j m) (Nat.lt_trans (hc j m) hi) (hS i n hn' hSi j m)
+  generalize sortOf[i]?.getD 0 = s at *
+  have boolv : sig.is s .bool = true → ∀ b : Bool, M.dom s (.bool b) := by
+    intro hb b
+    simp only [Sig.is, beq_iff_eq] at hb
+    exact (hM.bool _ _ hb).mpr ⟨b, rfl⟩
+  have boolv' : (sig.is s .bool && true) = true → ∀ b : Bool, M.dom s (.bool b) := by
+    simpa using boolv
+  have val_bool : ∀ b, val M.toInterp nodes i = .bool b → sig.is s .bool = true → M.dom s (val M.toInterp nodes i) :=
+    fun b e hb => by rw [e]; exact boolv hb b
+  cases n with
+  | const k =>
+    simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at hn
+    rw [val_const hw hn']; exact hM.const _ _ hn
+  | app f args =>
+    simp only [Tab.at_eq, nodeTyped] at hn
+    split at hn
+    · rename_i as r hs
+      simp only [Bool.and_eq_true, beq_iff_eq] at hn
+      obtain ⟨rfl, hargs⟩ := hn
+      rw [val_app hw hn']
+      refine (hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children])) ?_).1
+      rw [← hargs]
+      exact forall2_map _ _ _ args (fun j m =>
+        ⟨ihc j (by simp [Node.children, m]),
+          hrng i _ hn' hSi j (by simp [Node.children, m])⟩)
+    · cases hn
+  | num v =>
+    simp only [Tab.at_eq, nodeTyped, Sig.is, beq_iff_eq] at hn
+    rw [val_num hw hn']; exact (hM.int _ _ hn).mpr ⟨v, rfl⟩
+  | linear ts c =>
+    simp only [Tab.at_eq, nodeTyped, Bool.or_eq_true, Bool.and_eq_true, List.all_eq_true] at hn
+    rw [val_linear hw hn']
+    rcases hn with ⟨hs, hts⟩ | ⟨hs, _⟩
+    · simp only [Sig.is, beq_iff_eq] at hs
+      obtain ⟨k, hk⟩ := linSum_int hM (nodes := nodes) ts (fun p m => by
+        have := hts p m
+        simp only [Sig.is, beq_iff_eq] at this
+        exact (hM.int _ _ this).mp (ihc p.2 (by simp [Node.children]; exact ⟨p.1, m⟩)))
+      rw [hk]
+      exact (hM.int _ _ hs).mpr ⟨k + c, by simp [Ring.intCast_add]⟩
+    · simp only [Sig.is, beq_iff_eq] at hs
+      exact (hM.real _ _ hs).mpr ⟨_, rfl⟩
+  | bterm f =>
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
+    exact val_bool _ (val_bterm hw hn') hn.1
+  | tt | ff =>
+    simp only [Tab.at_eq, nodeTyped] at hn
+    rw [val_node hw hn']; exact boolv hn _
+  | not a | pred a | and _ | or _ | implies _ _ | iff _ _ | ite _ _ _ | eq _ _ | le _ _ | lt _ _ =>
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true] at hn
+    rw [val_node hw hn']
+    simp only [evalNode]
+    first
+      | exact boolv hn.1 _
+      | exact boolv hn.1.1 _
+      | exact boolv hn.1.1.1 _
+
+
 /-- An application in a well-sorted table whose nodes before it of bit-vector
     sorts are in range is in range. -/
 theorem rng_app {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)

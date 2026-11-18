@@ -660,6 +660,93 @@ theorem ruleIv_sound (node : Nat → Option (Int × Int)) (hnode : ∀ x q, node
     simp only [Rule.iv, Option.some.injEq] at h; subst h
     cases j <;> exact emod_bounds _ (two_pow_pos w)
 
+include hwP in
+/-- The value of a rule symbol is within the interval its arguments give. -/
+theorem fixedIv_sound (node : Nat → Option (Int × Int)) (hnode : ∀ x q, node x = some q → IvOk ρ x q)
+    (r : Rule) (j : Nat) (p : Int × Int) (h : r.fixedIv node j = some p) :
+    p.1 ≤ r.ival ιρ τρ j ∧ r.ival ιρ τρ j ≤ p.2 := by
+  cases r with
+  | modulo v w lo hi =>
+    cases j with
+    | zero =>
+      simp only [Rule.fixedIv, Option.some.injEq] at h; subst h
+      exact emod_bounds _ (two_pow_pos w)
+    | succ j => simp only [Rule.fixedIv] at h; cases h
+  | cases c t e lo hi =>
+    simp only [Rule.fixedIv] at h
+    unfold ivHull at h
+    split at h
+    · rename_i a b a' b' h1 h2
+      simp only [Option.some.injEq] at h; subst h
+      simp only [Rule.ival]
+      split
+      · obtain ⟨k, ek, k0, k1⟩ := hnode t _ h1
+        rw [ek, intOf_num]
+        exact ⟨Int.le_trans (Int.min_le_left _ _) k0, Int.le_trans k1 (Int.le_max_left _ _)⟩
+      · obtain ⟨k, ek, k0, k1⟩ := hnode e _ h2
+        rw [ek, intOf_num]
+        exact ⟨Int.le_trans (Int.min_le_right _ _) k0, Int.le_trans k1 (Int.le_max_right _ _)⟩
+    · cases h
+  | int2bv t w =>
+    cases j with
+    | zero =>
+      simp only [Rule.fixedIv, Option.some.injEq] at h; subst h
+      exact emod_bounds _ (two_pow_pos w)
+    | succ j => simp only [Rule.fixedIv] at h; cases h
+  | smodz a c w =>
+    simp only [Rule.fixedIv, Option.some.injEq] at h; subst h
+    simp only [Rule.ival]
+    exact smodzVal_bounds _ _ _
+  | bits t w =>
+    simp only [Rule.fixedIv, Option.some.injEq] at h; subst h
+    simp only [Rule.ival]
+    exact bit_range _ _
+  | udiv a b w =>
+    simp only [Rule.fixedIv, Option.some.injEq] at h; subst h
+    cases j <;> exact emod_bounds _ (two_pow_pos w)
+  | _ => simp only [Rule.fixedIv] at h; cases h
+
+include hwP hG in
+theorem fixedLeaf_sound {B : Nat}
+    (hr : ∀ y < P.nodes.length, tr.mu SP P y < B → inRange P.bvIndex (P.sortOf[y]?.getD 0) (ρ y))
+    (sym : Rule → Nat → Option (Int × Int))
+    (hsym : ∀ r j p, sym r j = some p → p.1 ≤ r.ival ιρ τρ j ∧ r.ival ιρ τρ j ≤ p.2)
+    (u : Nat) (p : Int × Int) (h : tr.fixedLeaf SP P B sym u = some p) : IvOk ρ u p := by
+  unfold Trace.fixedLeaf at h
+  split at h
+  · rename_i v hv
+    simp only [Option.some.injEq] at h; subst h
+    exact ⟨v, Low.val_num hwP ((Tab.at_eq _ _).symm.trans hv), Int.le_refl _, Int.le_refl _⟩
+  · rename_i n _ hn
+    split at h
+    · rename_i r j hs
+      obtain ⟨h0, h1⟩ := hsym r j p h
+      exact ⟨_, sym_val hwP hG hs, h0, h1⟩
+    · split at h
+      · rename_i hB
+        obtain ⟨w, hw, rfl⟩ := Option.map_eq_some_iff.mp h
+        have hl := lt_of_get ((Tab.at_eq _ _).symm.trans hn)
+        rw [Tab.at_eq] at hw
+        obtain ⟨k, ek, k0, k1⟩ := hr u hl hB w (by rw [hG.bvIndex, lookup_bvIndex]; exact hw)
+        exact ⟨k, ek, k0, by simp only; omega⟩
+      · cases h
+  · cases h
+
+include hwP hG in
+/-- The intervals that numbers, rule symbols and nodes of bit-vector sorts
+    before `B` give hold, when those nodes are in range. -/
+theorem fixedAt_sound {B : Nat}
+    (hr : ∀ y < P.nodes.length, tr.mu SP P y < B → inRange P.bvIndex (P.sortOf[y]?.getD 0) (ρ y)) :
+    ∀ n x p, tr.fixedAt SP P B n x = some p → IvOk ρ x p
+  | 0, x, p, h => by
+    simp only [Trace.fixedAt] at h
+    exact nodeIv_sound hwP _ (fixedLeaf_sound hwP hG hr _
+      (fixedIv_sound hwP _ (fun _ _ e => by cases e))) x p h
+  | n + 1, x, p, h => by
+    simp only [Trace.fixedAt] at h
+    exact nodeIv_sound hwP _ (fixedLeaf_sound hwP hG hr _
+      (fixedIv_sound hwP _ (fixedAt_sound hr n))) x p h
+
 include hM hw ht hwP htP hG hML hrng hco in
 /-- The intervals the trace computes hold. -/
 theorem ivAt_sound : ∀ n x p, tr.ivAt SP P n x = some p → IvOk ρ x p
