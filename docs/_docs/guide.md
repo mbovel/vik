@@ -165,6 +165,20 @@ After `sat`, `get-model` and `get-value` say how; after `unsat`, `get-unsat-core
 (get-unsat-core)
 ```
 
+`(set-option :check-models true)`, cvc5's name for it, checks every `sat` before it is trusted. VIK builds the model
+and evaluates each assertion in force, and the assumptions of a `check-sat-assuming`, as the script wrote them, the
+way `get-value` evaluates a term. An assertion that is not true adds `(error "model check: ...")` after the `sat`,
+naming it and its value. The check is off by default, since it builds a model at every `sat`. From Scala,
+`Session(checkModels = true)` turns it on, and the corpus test runs with it.
+
+```smt2
+(set-option :check-models true)
+(declare-const x Int)
+(declare-const y Int)
+(assert (< x y (+ x 2)))
+(check-sat)
+```
+
 ## Budgets
 
 A `check-sat` answers `unknown` when it runs out of fuel — an amount of work counted, not timed, so the answer is
