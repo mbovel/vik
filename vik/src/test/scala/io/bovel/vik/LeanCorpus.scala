@@ -11,7 +11,8 @@ import io.bovel.smtlib.Parser
  *  io.bovel.vik.LeanCorpus <corpus> <out> [seconds]`, the corpus a directory or
  *  a file listing the scripts' paths, each script solved with proofs within
  *  `seconds` (10 by default). Each proof is written as one file, `Cnnnnn.lean`,
- *  and split into modules, `Cnnnnn/`, for `proofs/lean/check-modules.sh`.
+ *  split into modules, `Cnnnnn/`, for `proofs/lean/check-modules.sh`, and for
+ *  `native_decide`, `native/Cnnnnn.lean`, for `proofs/lean/check-native.sh`.
  *  Prints a line per script: its path, the file written, and what came of it —
  *  `written`, why no proof was written, or the answer when it is not `unsat`.
  */
@@ -46,6 +47,8 @@ object LeanCorpus:
                 Files.writeString(out.resolve(s"$name.lean"), full)
                 val dir = Files.createDirectories(out.resolve(name))
                 for (file, content) <- LeanModules(name, full) do Files.writeString(dir.resolve(file), content)
+                val native = Files.createDirectories(out.resolve("native"))
+                Files.writeString(native.resolve(s"$name.lean"), LeanNative(full))
                 "written"
               case Left(why) => s"no proof: ${why.linesIterator.nextOption.getOrElse("").take(200)}"
         catch case e: Throwable => s"error: ${e.getClass.getSimpleName}: ${String.valueOf(e.getMessage).take(200)}"

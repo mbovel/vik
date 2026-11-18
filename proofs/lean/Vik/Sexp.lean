@@ -85,8 +85,18 @@ def intExpr (k : Int) : Expr :=
   if k ≥ 0 then mkApp (Lean.mkConst ``Int.ofNat) (mkRawNatLit k.toNat)
   else mkApp (Lean.mkConst ``Int.negSucc) (mkRawNatLit (-k - 1).toNat)
 
+register_option vik.sexp.chunk : Nat := {
+  defValue := 0
+  descr := "if positive, `sexp%` builds a list in compiled definitions of about this many atoms each, which Lean's compiler handles far faster than one large term"
+}
+
 structure State where
   rats : Std.HashMap String Expr := {}
+  /-- The atoms in a definition of a list, `0` not to split. -/
+  chunk : Nat := 0
+  /-- The definition being elaborated, and the auxiliary definitions so far. -/
+  base : Name := .anonymous
+  aux : Nat := 0
 
 abbrev M := StateRefT State MetaM
 
@@ -104,10 +114,33 @@ private def ratExpr (s : String) : M Expr := do
   modify fun st => { st with rats := st.rats.insert s e }
   return e
 
+/-- The atoms of `e`. -/
+partial def Sexp.weight : Sexp → Nat
+  | .atom _ => 1
+  | .list xs => xs.foldl (fun n x => n + x.weight) 1
+
+/-- A compiled definition of `e`, of the closed type `ty`. -/
+def auxDef (ty e : Expr) : M Expr := do
+  let st ← get
+  let n := st.base ++ Name.mkSimple s!"_sexp{st.aux}"
+  set { st with aux := st.aux + 1 }
+  let d : DefinitionVal :=
+    { name := n, levelParams := [], type := ty, value := e, hints := .regular 0, safety := .safe }
+  addAndCompile (.defnDecl d)
+  return Lean.mkConst n
+
 mutual
 
 /-- The term of type `ty` that `e` describes. -/
 partial def build (ty : Expr) (e : Sexp) : M Expr := do
+  -- `@c`: the constant `c`, of type `ty`, so that a large term can be split
+  -- across declarations
+  if let .atom s := e then
+    if s.startsWith "@" then
+      let c ← resolveGlobalConstNoOverload (mkIdent (s.drop 1).toName)
+      let e := Lean.mkConst c ((← getConstInfo c).levelParams.map fun _ => levelZero)
+      unless ← isDefEq (← inferType e) ty do throwError "sexp%: {c} is not of type {ty}"
+      return e
   let ty ← whnf ty
   let .const n lvls := ty.getAppFn | throwError "sexp%: unsupported type {ty}"
   let args := ty.getAppArgs
@@ -117,9 +150,16 @@ partial def build (ty : Expr) (e : Sexp) : M Expr := do
   | ``Rat, .atom s => ratExpr s
   | ``List, .list xs => do
     let α := args[0]!
+    let chunk := (← get).chunk
     let mut acc := mkApp (Lean.mkConst ``List.nil lvls) α
+    let mut w := 0
     for x in xs.reverse do
       acc := mkApp3 (Lean.mkConst ``List.cons lvls) α (← build α x) acc
+      if chunk > 0 then
+        w := w + x.weight
+        if w ≥ chunk then
+          acc ← auxDef ty acc
+          w := 0
     return acc
   | ``Prod, .list xs => do
     if xs.size < 2 then throwError "sexp%: expected a pair, got {e.toString}"
@@ -184,7 +224,12 @@ syntax (name := sexpElab) "sexp% " str : term
   let some ty := expectedType? | throwError "sexp%: the expected type is unknown"
   let some s := stx[1].isStrLit? | throwError "sexp%: expected a string literal"
   match parse s with
-  | .ok e => (build ty e).run' {}
+  | .ok e => do
+    let ty ← instantiateMVars ty
+    let opts ← getOptions
+    let chunk := if ty.hasMVar || ty.hasFVar then 0 else vik.sexp.chunk.get opts
+    let base := (← getDeclName?).getD `sexp
+    (build ty e).run' { chunk, base }
   | .error m => throwError "sexp%: {m}"
 
 end Vik.Sexp
