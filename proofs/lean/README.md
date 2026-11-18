@@ -31,6 +31,11 @@ installs it on first use.
   ordered field of characteristic zero, as `grind` describes them (Mathlib's
   `ℝ` is one).
 
+- `Vik/Tab.lean`: tables with logarithmic lookups, which the checkers use in
+  the kernel in place of list lookups.
+- `Vik/Sexp.lean`: `sexp% "…"`, which reads the data of an exported proof
+  from an S-expression; Lean's parser is slow on large literals. The kernel
+  checks the terms it builds.
 - `Vik/Lowered.lean`: the lowered terms and formulas, one table of nodes, with
   their sorts and their meaning in a model.
 - `Vik/Cert/Clausal.lean`: clausal proofs, checked by unit propagation.
@@ -85,6 +90,16 @@ installs it on first use.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.
+
+## Exported proofs
+
+Vik writes a proof as one Lean file: the script, the lowered problem, the
+answer and the trace as `sexp%` data, then theorems that the checkers accept
+them, in slices, and the theorem that no model satisfies the script. A small
+file checks with `lake env lean <file>`. Lean checks the theorems of a file one
+after another and keeps the kernel's work for the whole file, so a large proof
+is split into modules, one per slice, and checked in parallel processes:
+`./check-modules.sh <dir> [jobs]`.
 
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their
