@@ -413,7 +413,11 @@ private final class Lowerer:
    *  two places.
    */
   private def facts(name: String, sort: Sort): List[Command] = sort match
-    case Sort.BitVec(w) => List(Command.Assert(range(Const(name), w)))
+    // Under `:global-declarations` the declaration outlives the level it is made in, and so must the
+    // range: it is asserted below every level, where no `pop` takes it back (issue 145).
+    case Sort.BitVec(w) =>
+      val fact = range(Const(name), w)
+      List(if globalDeclarations then Command.AssertGlobal(fact) else Command.Assert(fact))
     case _ => Nil
 
   /** A sort as the lowered script declares it: a bit-vector is an `Int`, in a
