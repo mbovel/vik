@@ -1218,7 +1218,12 @@ private final class Encoder(
       val root = eg.find(classOf(array))
       arrayValues.getOrElseUpdate(
         root, {
-          val indexSort = Sorts.arrow(sort).get._1.head
+          // A bit-vector index sort keeps its text for its width (see assertExtensionality), and its
+          // terms are integers all the same: valued at that name, an index was an abstract element,
+          // which no read at a number finds (issue 138).
+          val indexSort = Sorts.arrow(sort).get._1.head match
+            case Encoder.bitVector(_) => "Int"
+            case other => other
           val elementSort = Sorts.applied(sort, 1) // itself an array, for an array of arrays
           val rows = classes.keys.collect {
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
