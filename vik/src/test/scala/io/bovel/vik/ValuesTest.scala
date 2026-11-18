@@ -51,7 +51,7 @@ class ValuesTest extends munit.FunSuite:
       ),
       List(
         "sat",
-        "((x #b0000) (y #b0001) ((select a x) #b0101) ((select a y) #b0110) ((select arr y) 1) (a (store (store ((as const (Array (_ BitVec 4) (_ BitVec 4))) #b0000) #b0000 #b0101) #b0001 #b0110)))"
+        "((x #b0001) (y #b0000) ((select a x) #b0101) ((select a y) #b0110) ((select arr y) 1) (a (store (store ((as const (Array (_ BitVec 4) (_ BitVec 4))) #b0000) #b0000 #b0110) #b0001 #b0101)))"
       )
     )
 
