@@ -16,7 +16,7 @@ class LoweringTest extends munit.FunSuite:
     val commands = Lowering(Parser.parse(
       "(declare-const p Bool) (declare-const x Int) (declare-const y Int) (assert (= (ite p x y) 2))"
     )).commands
-    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, "Int") => true; case _ => false })
+    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, "Int", _) => true; case _ => false })
     val asserts = commands.collect { case Command.Assert(f) => f }
     assertEquals(asserts(0), Implies(Pred(Const("p")), IntEq(Const("ite!1"), Const("x"))))
 
@@ -48,7 +48,7 @@ class LoweringTest extends munit.FunSuite:
 
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
-      case Command.DeclareFun(name, _, _) => name.startsWith(prefix + "!")
+      case Command.DeclareFun(name, _, _, _) => name.startsWith(prefix + "!")
       case _ => false
     }
   private val rational = "(assert (>= a 0.5))"
@@ -119,7 +119,7 @@ class LoweringTest extends munit.FunSuite:
     )).commands
     val asserts = commands.collect { case Command.Assert(f) => f }
     assertEquals(asserts(0), IntEq(Const("x"), Const("n"))) // to_real vanishes: sorts carry the difference
-    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, "Int") => true; case _ => false })
+    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, "Int", _) => true; case _ => false })
     assertEquals(asserts(1), Le(Const("floor!1"), Const("x")))
     assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const("floor!1"))), 1)))
     assertEquals(asserts(3), IntEq(Const("floor!1"), Num(2)))

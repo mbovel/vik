@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import io.bovel.smtlib.{ArithOp, BvCmpOp, BvOp, Sort}
 import io.bovel.smtlib as s2
@@ -84,6 +84,7 @@ private final class Lowerer:
     if minted(name) || name.startsWith("store!") then
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
   private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
+  private val auxiliary = HashSet.empty[String] // those of them that only define a bit-vector operation
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
 
   /** What the lowering minted, by what it was minted for. An entry stands for
@@ -528,7 +529,7 @@ private final class Lowerer:
       // The symbols minted here are declared for good: a `store!N` stays in `storeSymbols`, and a later
       // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
       // asserted after a check and go with the command instead.
-      val declared = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort))
+      val declared = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort, auxiliary.remove(name)))
       introduced.clear()
       definitions.clear()
       clearMemos() // a constant minted here has no definition: later uses must not find it
@@ -544,7 +545,7 @@ private final class Lowerer:
 
   /** The introduced declarations and defining assertions, then the command. */
   private def flush(command: Command): List[Command] =
-    val out = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort)) ++
+    val out = introduced.toList.map((name, sort) => Command.DeclareFun(name, Nil, sort, auxiliary.remove(name))) ++
       definitions.toList.map(Command.Assert(_)) :+ command
     introduced.clear()
     definitions.clear()
@@ -922,6 +923,7 @@ private final class Lowerer:
   private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
     val name = freshName(prefix)
     introduced += ((name, "Int"))
+    auxiliary += name
     val k = Const(name)
     definitions += Ge(k, Num(lo))
     definitions += Le(k, Num(hi))
@@ -1380,6 +1382,7 @@ private final class Lowerer:
           val r = freshInt("bv", 0, modulus(width) - 1)
           val name = freshName("k")
           introduced += ((name, "Int"))
+          auxiliary += name
           val k = Const(name)
           definitions += IntEq(t, r + k * modulus(width))
           r
