@@ -128,8 +128,9 @@ private object IgnoreRun:
           val check = CorpusCheck(file, CorpusCheck.fuel, start + budgetMs * 1000000, expects = true)
           if check.sound then Run("passes", "", ms, check.matches)
           else if check.wrong then
-            val i = check.got.zip(check.expected).indexWhere((g, e) => g.isDefined && e.isDefined && g != e)
-            val said = if check.got(i).get then "sat" else "unsat"
+            // What the search answered, where the model check may have made an `unknown` of it.
+            val i = check.searched.zip(check.expected).indexWhere((g, e) => g.isDefined && e.isDefined && g != e)
+            val said = if check.searched(i).get then "sat" else "unsat"
             Run("wrong", s"wrong: check-sat ${i + 1} answers $said against its status", ms, true)
           else if check.failedCheck.isDefined then
             val error = check.failedCheck.get.stripPrefix("(error \"model check: ").stripSuffix("\")")
