@@ -1289,6 +1289,7 @@ private final class Encoder(
    */
   private def takeModel(): Model =
     val elements = HashMap.empty[(String, EClassId), Term] // sort and class to element
+    val elementCounts = HashMap.empty[String, Int] // the elements of each sort so far, which name the next one
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
     for (t, x) <- intVars do
@@ -1308,7 +1309,13 @@ private final class Encoder(
       val root = eg.find(cls)
       // The name is bare, `@a b!0` for the sort `|a b|`: the printer adds the bars a name needs.
       val bare = sort.stripPrefix("|").stripSuffix("|")
-      elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
+      elements.getOrElseUpdate(
+        (sort, root), {
+          val n = elementCounts.getOrElse(sort, 0)
+          elementCounts(sort) = n + 1
+          Term.Const(s"@$bare!$n")
+        }
+      )
     // A number the simplex never saw — a constructor's field invented by a tester's expansion, say — is
     // free of arithmetic but not of the e-graph's disequalities: its class gets a value of its own, past
     // every value known, and not the 0 that `(not (= x (mk 0)))` forbids (issue 26).
@@ -1577,24 +1584,27 @@ private final class Encoder(
         if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
         else Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       )
+    // The applications of each function, in the order of `classes`: one pass over it, not one per function.
+    val applications =
+      classes.keys.toList.collect { case a @ Term.App(Term.Const(n), _) => n -> a }.groupMap(_._1)(_._2)
+    // The rows of a function's graph, one per value of its arguments and result (a set, as `classes.keys` makes).
+    def rowsOf(name: String, arity: Int)(row: Term.App => (List[Term], Term)): List[(List[Term], Term)] =
+      val apps = applications.getOrElse(name, Nil).iterator.filter(_.args.length == arity)
+      classes.keys.iterableFactory.from(apps.map(row)).toList
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
       (name, (argSorts, sort)) <- declarations
       if argSorts.nonEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
     do
-      val rows = classes.keys.collect {
-        case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-          (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
-      }.toList
+      val rows =
+        rowsOf(name, argSorts.length)(a => (a.args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort)))
       val default = Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       functions += name -> Model.Function(argSorts, Sorts.array(sort), rows, default)
     for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else
-        val rows = classes.keys.collect {
-          case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-            (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
-        }.toList
+        val rows =
+          rowsOf(name, argSorts.length)(a => (a.args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort)))
         val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
         functions += name -> Model.Function(argSorts, sort, rows, default)
     Model(constants.result(), functions.result(), datatypes)
