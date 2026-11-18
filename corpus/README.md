@@ -150,6 +150,13 @@ rounds. Two are here cut to their first rounds, for the evaluation, as the two `
 `2019-Mann__digital-estimation-convergence-inc_fwd_prove_ind.prefix8` and
 `20170501-Heizmann-UltimateAutomizer__sum_25x0_false-unreach-call_true-termination.c.prefix300`.
 
+`QF_UFBVDT` (2026-11-17), absent until then: its one family, `20230314-Jaroslav-Bendik-Certora` (the Certora
+Prover's verification conditions for smart contracts, the bit-vector encoding with datatypes for hashing, CC BY
+4.0), has 76 files, 52 up to 200 KB, of which 49 lower within two minutes. z3 answers 11 of them in 20 s and cvc5
+8 more; VIK answers one within 12 s. Fourteen are here, spread over the sizes, all with z3's or cvc5's statuses
+(three `unsat`): the one VIK answers and thirteen on `ignore.txt`, twelve as timeouts and one skipped, whose
+encoding runs past the guard.
+
 Divisions by an unknown divisor (2026-09-04, "Divisions by an unknown divisor") close `QF_BV`: of the five
 smallest files per family, 377 of 386 lower — the nine left are five a parser error rejects and four whose
 `define-fun` nest the lowering expands past two minutes. They added 26 files, of which 12 answer. One release
@@ -197,6 +204,7 @@ lowering expands by substitution, exponentially (queued).
 | `QF_UF` | smt-lib-incremental | 89 | 2 | 89 | 0 | 0 |
 | `QF_UFBV` | smt-lib | 27 | 4 | 3 | 23 | 1 |
 | `QF_UFBV` | smt-lib-incremental | 6 | 3 | 2 | 4 | 0 |
+| `QF_UFBVDT` | smt-lib | 14 | 1 | 1 | 12 | 1 |
 | `QF_UFBVLIA` | smt-lib-incremental | 13 | 1 | 13 | 0 | 0 |
 | `QF_UFDT` | smt-lib | 16 | 1 | 0 | 1 | 15 |
 | `QF_UFDTLIA` | smt-lib | 16 | 1 | 0 | 7 | 9 |
