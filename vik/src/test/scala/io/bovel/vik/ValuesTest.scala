@@ -80,6 +80,21 @@ class ValuesTest extends munit.FunSuite:
       List("sat", "(((f (store a 0 1)) 7) ((f (store (store a 0 1) 0 1)) 7))")
     )
 
+  test("an array field of a datatype value is an array"):
+    // It was an abstract element, `|@(-> Int Int)!0|`: `x` was not `(C a)` in the model, and arithmetic
+    // on a read of the field threw `not a number` (issue 139).
+    assertEquals(
+      run(
+        """(declare-datatype D ((C (arr (Array Int Int))))) (declare-const x D) (declare-const y D)
+           (declare-const a (Array Int Int)) (assert (= x (C a))) (assert (= (select a 3) 7)) (assert ((_ is C) y))
+           (check-sat) (get-value (x (select (arr x) 3) (+ (select (arr y) 0) 1)))"""
+      ),
+      List(
+        "sat",
+        "((x (C (store ((as const (Array Int Int)) 0) 3 7))) ((select (arr x) 3) 7) ((+ (select (arr y) 0) 1) 1))"
+      )
+    )
+
   test("a function symbol is answered as a lambda over its graph"):
     // It was echoed as its own value, `((f f))` (issue 50).
     assertEquals(
