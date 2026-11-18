@@ -335,17 +335,21 @@ final class Solver(val simplify: Boolean = true):
     // registers a Boolean and emits nothing else is not done; and the function equalities, since the
     // sharing makes one per pair of arrays without a clause, and its witness is the next round's
     // (issue 133).
-    def progress = (e.clauseCount, e.booleanCount, e.functionEqualityCount)
-    var before = (-1, -1, -1)
-    while before != progress && keepGoing() do
-      before = progress
+    var emitted = -1
+    var decided = -1
+    var equated = -1
+    def settled = emitted == e.clauseCount && decided == e.booleanCount && equated == e.functionEqualityCount
+    while !settled && keepGoing() do
+      emitted = e.clauseCount
+      decided = e.booleanCount
+      equated = e.functionEqualityCount
       e.decideBooleans()
       e.assertExtensionality()
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertExhaustiveness()
       e.shareIntegers()
-    if before != progress then
+    if !settled then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
       // sat without them (issue 38).
       lastCore = Nil
@@ -795,7 +799,8 @@ private final class Encoder(
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) =>
         args.foreach(boolean)
-        if isFun(term) || args.exists(isFun) then anyArray = true
+        // Looked at until the first one: once set, the flag stays.
+        if !anyArray && (isFun(term) || args.exists(isFun)) then anyArray = true
         eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
       case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
       case Term.Bool(_) => eg.newClass() // a leaf, tied to its formula by `Pred` (see `encode`)
