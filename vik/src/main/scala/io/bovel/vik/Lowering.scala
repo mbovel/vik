@@ -499,9 +499,13 @@ private final class Lowerer:
       // What a command that failed halfway minted goes out before the level opens: its entries are below it.
       flush(Command.Push(levels))
     case s2.Command.Pop(levels) =>
-      for _ <- 1 to (levels min scopes.length) do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+      // More levels than are open: the session refuses the `pop` whole (issue 178), and nothing is undone.
+      if levels <= scopes.length then
+        for _ <- 1 to levels do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
+      // The levels go, and the declarations made in them stay, as the session keeps them (issue 178).
+      scopes.clear()
       clearMemos()
       // What a declaration says is asserted, and `reset-assertions` drops the assertions: said again
       // here, or a bit-vector constant would be an integer of any size (a wrong `sat`, fixed 2026-09-04).
