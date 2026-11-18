@@ -267,7 +267,7 @@ def Answer.rank (n : Nat) : Nat := rankOf A.exts A.witnesses n
     witness; the functions of an instance only on the witnesses of earlier
     instances, or of ranges alone; and each instance is its two functions
     applied to its witnesses. A node of a bit-vector index that depends on a
-    witness is a witness. -/
+    witness is a witness or an application. -/
 def Problem.witnessesOk : Bool :=
   let ds := depths A.rank P.nodes
   P.bvIndex.all (fun p => P.sig.is p.1 .int) &&
@@ -278,6 +278,7 @@ def Problem.witnessesOk : Bool :=
     depthOf ds i == 0 || (P.bvIndex.lookup ((Tab.at P.sortOf i).getD 0)).isNone ||
       match P.node i with
       | some (.const n) => A.witnesses.contains n
+      | some (.app _ _) => true
       | _ => false) &&
   (List.range A.exts.length).all fun k =>
     match A.exts[k]? with

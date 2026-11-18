@@ -404,7 +404,7 @@ structure Model.Sound (sig : Sig) (bv : List (Nat × Nat)) (M : Model R U) : Pro
   int : ∀ s v, sig.sorts[s]? = some .int → (M.dom s v ↔ ∃ k : Int, v = .num (k : R))
   real : ∀ s v, sig.sorts[s]? = some .real → (M.dom s v ↔ ∃ r, v = .num r)
   fn : ∀ s as r f xs, sig.sorts[s]? = some (.fn as r) → M.dom s f →
-    Forall2 (fun a x => M.dom a x ∧ inRange bv a x) as xs → M.dom r (M.app f xs)
+    Forall2 (fun a x => M.dom a x ∧ inRange bv a x) as xs → M.dom r (M.app f xs) ∧ inRange bv r (M.app f xs)
   const : ∀ k s, sig.decls[k]? = some s → M.dom s (M.const k)
 
 section
@@ -472,7 +472,7 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
       simp only [Bool.and_eq_true, beq_iff_eq] at hn
       obtain ⟨rfl, hargs⟩ := hn
       rw [val_app hw hn']
-      apply hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children]))
+      refine (hM.fn _ as _ _ _ hs (ihc f (by simp [Node.children])) ?_).1
       rw [← hargs]
       exact forall2_map _ _ _ args (fun j m =>
         ⟨ihc j (by simp [Node.children, m]),
@@ -509,6 +509,36 @@ theorem val_dom_lt {nodes : List Node} {sortOf : List Nat} (hw : wellFormed node
       | exact boolv hn.1.1 _
       | exact boolv hn.1.1.1 _
 
+
+/-- An application in a well-sorted table whose nodes before it of bit-vector
+    sorts are in range is in range. -/
+theorem rng_app {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)
+    (ht : typed sig nodes sortOf = true) {i f : Nat} {args : List Nat} (hi : i < nodes.length)
+    (hn' : nodes[i]? = some (.app f args))
+    (hrng : ∀ j < i, inRange bv (sortOf[j]?.getD 0) (val M.toInterp nodes j)) :
+    inRange bv (sortOf[i]?.getD 0) (val M.toInterp nodes i) := by
+  have hc : ∀ j ∈ (Node.app f args).children, j < i := by
+    have := List.all_eq_true.mp hw i (List.mem_range.mpr hi)
+    rw [Tab.at_eq, hn'] at this; simpa using this
+  have hd : ∀ j ∈ (Node.app f args).children, M.dom (sortOf[j]?.getD 0) (val M.toInterp nodes j) :=
+    fun j m => val_dom_lt hM hw ht j (by have := hc j m; omega)
+      (fun j' h' => hrng j' (by have := hc j m; omega))
+  have ht' := ht
+  simp only [typed, Tab.at_eq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at ht'
+  have hn := ht'.2 i hi
+  rw [hn'] at hn
+  generalize sortOf[i]?.getD 0 = s at hn ⊢
+  simp only [Tab.at_eq, nodeTyped] at hn
+  split at hn
+  · rename_i as r hs
+    simp only [Bool.and_eq_true, beq_iff_eq] at hn
+    obtain ⟨rfl, hargs⟩ := hn
+    rw [val_app hw hn']
+    refine (hM.fn _ as _ _ _ hs (hd f (by simp [Node.children])) ?_).2
+    rw [← hargs]
+    exact forall2_map _ _ _ args (fun j m =>
+      ⟨hd j (by simp [Node.children, m]), hrng j (hc j (by simp [Node.children, m]))⟩)
+  · cases hn
 /-- In a well-sorted table whose nodes of bit-vector sorts are in range, every
     node takes a value of its sort. -/
 theorem val_dom {nodes : List Node} {sortOf : List Nat} (hw : wellFormed nodes = true)

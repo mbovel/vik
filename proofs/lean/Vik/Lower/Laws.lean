@@ -371,7 +371,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
     · rintro ⟨r, rfl⟩
       exact ⟨.num r, (hM.real s _ hx).mpr ⟨r, rfl⟩, rfl⟩
   · intro s as r f xs h hf hxs
-    rw [hG.bvIndex] at hxs
+    rw [hG.bvIndex] at hxs ⊢
     rcases Nat.lt_or_ge s SP.sig.sorts.length with hs | hs
     · obtain ⟨x, hx, ex⟩ := surf_sort_of hG hs h
       cases x with
@@ -383,7 +383,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
         obtain ⟨has, hr⟩ := hS.fn s as' r' hx
         obtain ⟨ys, rfl, hys⟩ := (forall2_base SP P tr Ms hM as' xs has).mp hxs
         rw [app_enc_enc]
-        exact dom_of_surf hM hr (hM.fn s as' r' f0 ys hx hf0 hys)
+        exact (rdom SP P tr Ms hM hr _).mpr ⟨_, hM.fn s as' r' f0 ys hx hf0 hys, rfl⟩
       | array i e =>
         obtain ⟨f0, hf0, rfl⟩ := dom_enc hS hG hL hs hx (by intro _ e; cases e) hf
         simp only [lowerSort, SortDef.fn.injEq] at ex
@@ -397,7 +397,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
           | cons _ _ => exact hys.2.elim
           | nil =>
             rw [app_enc_enc]
-            exact dom_of_surf hM he (hM.select s i e f0 y hx hf0 hys.1)
+            exact (rdom SP P tr Ms hM he _).mpr ⟨_, hM.select s i e f0 y hx hf0 hys.1, rfl⟩
       | _ => simp [lowerSort] at ex
     · obtain ⟨arr, idx, el, hd, harr⟩ := hG.extra s _ hs h
       simp only [SortDef.fn.injEq] at hd
@@ -412,7 +412,7 @@ theorem lowModel_sound (hwl : Low.wellFormed P.nodes = true) : (lowModel SP P tr
       match ys, hys with
       | [a, i, v], hys =>
         rw [List.map_cons, List.map_cons, List.map_cons, List.map_nil, app_store]
-        exact dom_of_surf hM ha (hM.store r idx el a i v harr hys.1 hys.2.1 hys.2.2.1).1
+        exact (rdom SP P tr Ms hM ha _).mpr ⟨_, (hM.store r idx el a i v harr hys.1 hys.2.1 hys.2.2.1).1, rfl⟩
   · intro k s h
     rcases Nat.lt_or_ge k SP.sig.decls.length with hk | hk
     · rw [hG.decls k hk] at h

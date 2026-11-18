@@ -86,7 +86,7 @@ theorem wits_info :
     (∀ f ∈ P.inputs, depthOf (depths A.rank P.nodes) f = 0) ∧
     (∀ l ∈ A.levels, ∀ f ∈ l.2, depthOf (depths A.rank P.nodes) f = 0) ∧
     (∀ i < P.nodes.length, depthOf (depths A.rank P.nodes) i = 0 ∨ (P.bvIndex.lookup (P.sort i)).isNone ∨
-      ∃ n, P.nodes[i]? = some (.const n) ∧ n ∈ A.witnesses) ∧
+      (∃ n, P.nodes[i]? = some (.const n) ∧ n ∈ A.witnesses) ∨ ∃ f args, P.nodes[i]? = some (.app f args)) ∧
     (∀ k eq eqw ws, A.exts[k]? = some (eq, eqw, ws) → nodupB ws = true ∧ (∀ n ∈ ws, A.rank n = k + 2) ∧
       ∃ f g F G, P.nodes[eq]? = some (.eq f g) ∧ P.nodes[eqw]? = some (.eq F G) ∧
         depthOf (depths A.rank P.nodes) f < k + 2 ∧ depthOf (depths A.rank P.nodes) g < k + 2 ∧
@@ -103,7 +103,9 @@ theorem wits_info :
     · exact Or.inr (Or.inl h)
     · split at h
       · rename_i n hn
-        exact Or.inr (Or.inr ⟨n, hn, List.contains_iff_mem.mp h⟩)
+        exact Or.inr (Or.inr (Or.inl ⟨n, hn, List.contains_iff_mem.mp h⟩))
+      · rename_i f args hn
+        exact Or.inr (Or.inr (Or.inr ⟨f, args, hn⟩))
       · cases h
   · have hkl : k < A.exts.length := by
       rcases Nat.lt_or_ge k A.exts.length with h' | h'
@@ -315,21 +317,26 @@ theorem exists_differ : ∀ (as : List Nat) (s t : Nat) (p q : Val R U), SortCha
         intro hne
         exact hn ⟨x, hx, hne⟩
     obtain ⟨x, hx, hne⟩ := this
-    have hp' := hL.sound.fn s [a] r p [x] hs hp ⟨hx, trivial⟩
-    have hq' := hL.sound.fn s [a] r q [x] hs hq ⟨hx, trivial⟩
+    have hp' := (hL.sound.fn s [a] r p [x] hs hp ⟨hx, trivial⟩).1
+    have hq' := (hL.sound.fn s [a] r q [x] hs hq ⟨hx, trivial⟩).1
     obtain ⟨xs, hxs, hd⟩ := exists_differ as r t _ _ hc hp' hq' hne
     exact ⟨x :: xs, ⟨hx, hxs⟩, hd⟩
 
-include hA in
+include hA hL in
 /-- The nodes of bit-vector sorts stay in range as the witnesses take their
-    values: they are of depth `0`, or witnesses. -/
+    values: they are of depth `0`, witnesses, or applications of nodes before
+    them. -/
 theorem rng_build (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (val M.toInterp P.nodes i))
     (k : Nat) : ∀ i < P.nodes.length,
       inRange P.bvIndex (P.sort i) (val (M.withConst (buildConst P A M k)).toInterp P.nodes i) := by
   obtain ⟨_, _, _, _, _, hbv, _⟩ := wits_info hA
   have hw := hA.wf
-  intro i hi
-  rcases hbv i hi with h0 | hn | ⟨n, hn, hwit⟩
+  have hsk := withConst_sound hL (buildConst_dom (A := A) hL k)
+  intro i
+  induction i using Nat.strongRecOn with
+  | ind i ih =>
+  intro hi
+  rcases hbv i hi with h0 | hn | ⟨n, hn, hwit⟩ | ⟨f, args, hn⟩
   · rw [val_agree (rank := A.rank) (I := (M.withConst (buildConst P A M k)).toInterp) (I' := M.toInterp) (D := 0)
       hw rfl (fun n hn => buildConst_zero (M := M) (j := k) hA (by omega)) i (by omega)]
     exact hrng i hi
@@ -342,6 +349,7 @@ theorem rng_build (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort i) (
       exact hw'
     obtain ⟨v, hv, hr⟩ := buildConst_range (M := M) hA k n w hwd
     exact ⟨v, by rw [val_const hw hn]; exact hv, hr⟩
+  · exact rng_app hsk hw hA.typed hi hn (fun j hj => ih j hj (by omega))
 
 include hA hL in
 /-- The instance `k` holds once its witnesses have taken their values. -/
@@ -380,8 +388,8 @@ theorem instance_holds (hrng : ∀ i < P.nodes.length, inRange P.bvIndex (P.sort
   have lf := child_lt hw he (j := f) (by simp [Node.children])
   have lg := child_lt hw he (j := g) (by simp [Node.children])
   have hsk := withConst_sound hL (buildConst_dom (A := A) hL k)
-  have df := val_dom hsk hw hA.typed (rng_build hA hrng k) f (by have := lt_of_node he; omega)
-  have dg := val_dom hsk hw hA.typed (rng_build hA hrng k) g (by have := lt_of_node he; omega)
+  have df := val_dom hsk hw hA.typed (rng_build hA hL hrng k) f (by have := lt_of_node he; omega)
+  have dg := val_dom hsk hw hA.typed (rng_build hA hL hrng k) g (by have := lt_of_node he; omega)
   have tg : P.sortOf[g]?.getD 0 = P.sortOf[f]?.getD 0 := by
     have := typed_node hA.typed he
     simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, beq_iff_eq] at this
@@ -502,8 +510,11 @@ theorem Problem.accepts_sound {P : Problem} {A : Answer} (h : P.accepts A = true
   · intro s hs fs hfs f m
     unfold holds; rw [same f (hlv (s, fs) (lookup_mem hfs) f m)]
     exact hlev s hs fs hfs f m
-  · intro i hi
-    rcases hbv i hi with h0 | hn | ⟨n, hn, hwit⟩
+  · intro i
+    induction i using Nat.strongRecOn with
+    | ind i ih =>
+    intro hi
+    rcases hbv i hi with h0 | hn | ⟨n, hn, hwit⟩ | ⟨f, args, hn⟩
     · rw [same i h0]; exact hrng i hi
     · intro w hw'; simp [hw'] at hn
     · intro w hw'
@@ -514,6 +525,7 @@ theorem Problem.accepts_sound {P : Problem} {A : Answer} (h : P.accepts A = true
         exact hw'
       obtain ⟨v, hv, hr⟩ := buildConst_range (M := M) hA N n w hwd
       exact ⟨v, by rw [val_const hw hn]; exact hv, hr⟩
+    · exact rng_app hL'.sound hw hA.typed hi hn (fun j hj => ih j hj (by omega))
   · intro k eq eqw ws hk
     have hkN : k < N := by
       rcases Nat.lt_or_ge k A.exts.length with h' | h'
