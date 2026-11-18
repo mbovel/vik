@@ -587,10 +587,11 @@ private final class Encoder(
     for case eq @ Formula.Eq(a, b) <- lits.keys if !lemmaEqualities(eq) do pair(a, b)
     // A selector's applications meet the arguments of its constructor at its position (the selector rule).
     // An arithmetic field, integer or real: a real one shared only through the e-graph left the
-    // simplex without its equalities (issue 18).
+    // simplex without its equalities (issue 18). And an array field: the e-graph equates the selector's
+    // application with the array, but their reads are shared only once the two are a pair (issue 134).
     for
       d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
-      if sort.text == "Int" || sort.text == "Real"
+      if sort.text == "Int" || sort.text == "Real" || Sorts.arrow(sort.text).isDefined
     do
       for s <- applications.getOrElse(Term.Const(selector), Nil); k <- applications.getOrElse(Term.Const(c.name), Nil)
       do
