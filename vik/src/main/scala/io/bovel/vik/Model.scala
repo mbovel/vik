@@ -155,10 +155,13 @@ object Model:
     case _ => (array, Map.empty)
 
   /** Whether two values are the same: arrays extensionally (their elements
-   *  likewise, for arrays of arrays), the rest as terms.
+   *  likewise, for arrays of arrays), wherever they sit — a field of a datatype
+   *  value is compared in the same way, so that `(C a)` is `(C (store a 0 1))`
+   *  when `a` holds 1 at 0 (issue 141) — the rest as terms.
    */
-  def same(a: Term, b: Term): Boolean =
-    if isArray(a) && isArray(b) then
+  def same(a: Term, b: Term): Boolean = (a, b) match
+    case _ if isArray(a) && isArray(b) =>
       val ((da, ma), (db, mb)) = (graph(a), graph(b))
       same(da, db) && ma.keySet == mb.keySet && ma.forall((i, v) => same(v, mb(i)))
-    else a == b
+    case (Term.App(f, as), Term.App(g, bs)) => f == g && as.length == bs.length && as.zip(bs).forall(same)
+    case _ => a == b

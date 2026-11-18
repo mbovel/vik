@@ -65,6 +65,19 @@ class ValuesTest extends munit.FunSuite:
       List("sat", "(((f (store a 0 1)) 7) ((f (store (store a 0 1) 0 1)) 7))")
     )
 
+  test("an array inside a datatype value is compared by its elements"):
+    // By structure, `(C a)` and `(C (store a 0 1))` were apart where `a` and the store are equal (issue 141).
+    assertEquals(
+      run("""(declare-datatype D ((C (arr (Array Int Int))))) (declare-const a (Array Int Int))
+             (assert (= (select a 0) 1)) (check-sat)
+             (get-value ((= a (store a 0 1)) (= (C a) (C (store a 0 1))) (distinct (C a) (C (store a 0 1)))
+                         (= (C a) (C (store a 0 2)))))"""),
+      List(
+        "sat",
+        "(((= a (store a 0 1)) true) ((= (C a) (C (store a 0 1))) true) ((distinct (C a) (C (store a 0 1))) false) ((= (C a) (C (store a 0 2))) false))"
+      )
+    )
+
   test("a function symbol is answered as a lambda over its graph"):
     // It was echoed as its own value, `((f f))` (issue 50).
     assertEquals(
