@@ -186,7 +186,7 @@
 ; conclusion: D.
 ; note: >
 ;   It stands for the chain of resolutions that conflict analysis finds, which
-;   proofs/src/main/scala/io/bovel/vik/proofs/Cpc.scala writes out in plain CPC
+;   vik/src/main/scala/io/bovel/vik/Cpc.scala writes out in plain CPC
 ;   on request.
 (declare-rule vik_rup ((Cs Bool) (D Bool))
   :premise-list Cs and
