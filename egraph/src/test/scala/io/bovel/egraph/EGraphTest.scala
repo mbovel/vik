@@ -611,12 +611,12 @@ class EGraphTest extends munit.FunSuite:
         members: Iterable[EClassId],
         parents: Iterable[(App, EClassId)]
     ): Unit =
-      if eg.find(a) == eg.find(b) && eg.conflict.isEmpty then eg.contradiction(eg.explain(a, b))
+      if eg.find(a) == eg.find(b) && eg.conflict.isEmpty then eg.contradiction(List((a, b)))
       val gs = eg.nodes(into).filter((n, _) => eg.find(n.fun) == g).toList
       for ((n1, c1), (n2, c2)) <- gs.zip(gs.drop(1)) do
         eg.derive(n1.args(0), n2.args(0), List((c1, c2))) // the g-nodes are equal
-    override def finalCheck(eg: EGraph): Option[ArrayBuffer[Int]] =
-      eg.parents(a).find((p, _) => eg.find(p.fun) == g && eg.find(p.args(0)) == eg.find(a)).map(_ => ArrayBuffer(-1))
+    override def finalCheck(eg: EGraph): Option[Seq[(EClassId, EClassId)]] =
+      eg.parents(a).find((p, _) => eg.find(p.fun) == g && eg.find(p.args(0)) == eg.find(a)).map(_ => List((a, a)))
     override def push(): Unit = pushes += 1
     override def pop(): Unit = pushes -= 1
 
@@ -657,4 +657,4 @@ class EGraphTest extends munit.FunSuite:
     assertEquals(eg.conflict, None)
     assertEquals(eg.finalCheck(), None)
     eg.add(App(1, ArraySeq(2)))
-    assertEquals(eg.finalCheck().map(_.toList), Some(List(-1)))
+    assertEquals(eg.finalCheck().map(_.toList), Some(List((2, 2))))
