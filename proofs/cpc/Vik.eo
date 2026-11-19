@@ -194,3 +194,181 @@
   :requires ((($vik_rup Cs D) true))
   :conclusion D
 )
+
+; ----------------------------------------------------------------------------
+; Lemmas of uninterpreted functions
+
+; The steps of an equality proof under the hypotheses of a lemma, each
+; deriving an equality from the hypotheses and the equalities before it, by
+; their index from 0.
+(declare-const VikStep Type)
+; (= t t).
+(declare-parameterized-const vik.refl ((T Type :implicit)) (-> T VikStep))
+; The hypothesis of the i-th literal of the lemma, the literal's negation: an
+; equality as it is, `(= x false)` for `(not x)`, `(= x true)` for another x.
+(declare-const vik.given (-> Int VikStep))
+; (= b a) from step j, (= a b).
+(declare-const vik.symm (-> Int VikStep))
+; (= a c) from steps j, (= a b), and k, (= b c).
+(declare-const vik.trans (-> Int Int VikStep))
+; (= (f a1 ... an) (g b1 ... bn)) from step j, (= f g), and the steps of the
+; list, (= ai bi).
+(declare-const vik.cong (-> Int @List VikStep))
+
+; program: $vik_hyps
+; args:
+; - C Bool: The or-list of a lemma's literals.
+; return: The @list of their negations, without double negations.
+(program $vik_hyps ((l Bool) (ls Bool :list))
+  :signature (Bool) @List
+  (
+  (($vik_hyps false) @list.nil)
+  (($vik_hyps (or l ls)) (eo::cons @list ($vik_neg ($vik_norm l)) ($vik_hyps ls)))
+  )
+)
+
+; program: $vik_given
+; args:
+; - h Bool: A hypothesis.
+; return: The equality it gives.
+(program $vik_given ((T Type) (a T) (b T) (x Bool))
+  :signature (Bool) Bool
+  (
+  (($vik_given (= a b)) (= a b))
+  (($vik_given (not x)) (= x false))
+  (($vik_given x) (= x true))
+  )
+)
+
+(program $vik_symm ((T Type) (a T) (b T))
+  :signature (Bool) Bool
+  (
+  (($vik_symm (= a b)) (= b a))
+  )
+)
+
+(program $vik_trans ((T Type) (a T) (b T) (c T))
+  :signature (Bool Bool) Bool
+  (
+  (($vik_trans (= a b) (= b c)) (= a c))
+  )
+)
+
+; program: $vik_cong
+; args:
+; - e Bool: (= f g).
+; - es @List: The equalities of the arguments, (= ai bi).
+; return: (= (f a1 ... an) (g b1 ... bn)).
+(program $vik_cong ((U Type) (T Type) (f (-> U T)) (g (-> U T)) (a U) (b U) (es @List :list) (e Bool))
+  :signature (Bool @List) Bool
+  (
+  (($vik_cong (= f g) (@list (= a b) es)) ($vik_cong (= (f a) (g b)) es))
+  (($vik_cong e @list.nil) e)
+  )
+)
+
+; program: $vik_at
+; args:
+; - R @List: The equalities derived so far, the last first.
+; - n Int: How many.
+; - j Int: The index of one, from the first.
+; return: That equality.
+(define $vik_at ((R @List) (n Int) (j Int)) (eo::list_nth @list R (eo::add n (eo::neg j) -1)))
+
+; program: $vik_ats
+; args:
+; - R @List, n Int: As for $vik_at.
+; - js @List: Indices.
+; return: The @list of their equalities.
+(program $vik_ats ((R @List) (n Int) (j Int) (js @List :list))
+  :signature (@List Int @List) @List
+  (
+  (($vik_ats R n @list.nil) @list.nil)
+  (($vik_ats R n (@list j js)) (eo::cons @list ($vik_at R n j) ($vik_ats R n js)))
+  )
+)
+
+; program: $vik_step
+; args:
+; - s VikStep: A step.
+; - R @List, n Int: The equalities so far, as for $vik_at.
+; - H @List: The hypotheses.
+; return: The equality the step derives.
+(program $vik_step ((T Type) (t T) (i Int) (j Int) (k Int) (js @List) (R @List) (n Int) (H @List))
+  :signature (VikStep @List Int @List) Bool
+  (
+  (($vik_step (vik.refl t) R n H) (= t t))
+  (($vik_step (vik.given i) R n H) ($vik_given (eo::list_nth @list H i)))
+  (($vik_step (vik.symm j) R n H) ($vik_symm ($vik_at R n j)))
+  (($vik_step (vik.trans j k) R n H) ($vik_trans ($vik_at R n j) ($vik_at R n k)))
+  (($vik_step (vik.cong j js) R n H) ($vik_cong ($vik_at R n j) ($vik_ats R n js)))
+  )
+)
+
+; program: $vik_steps
+; args:
+; - S @List: The steps left.
+; - R @List, n Int: The equalities so far, as for $vik_at.
+; - H @List: The hypotheses.
+; return: The equalities of all the steps, the last first.
+(program $vik_steps ((s VikStep) (S @List :list) (R @List) (n Int) (H @List))
+  :signature (@List @List Int @List) @List
+  (
+  (($vik_steps @list.nil R n H) R)
+  (($vik_steps (@list s S) R n H)
+    ($vik_steps S (eo::cons @list ($vik_step s R n H) R) (eo::add n 1) H))
+  )
+)
+
+(define $vik_has ((H @List) (h Bool)) (eo::not (eo::is_neg (eo::list_find @list H h))))
+
+; program: $vik_clash
+; args:
+; - e Bool: An equality.
+; - H @List: The hypotheses.
+; return: >
+;   Whether e contradicts them: it is (= true false), its negation is a
+;   hypothesis, or it makes a Boolean term true (false) whose negation (itself)
+;   is a hypothesis.
+(program $vik_clash ((T Type) (a T) (b T) (x Bool) (H @List))
+  :signature (Bool @List) Bool
+  (
+  (($vik_clash (= true false) H) true)
+  (($vik_clash (= false true) H) true)
+  (($vik_clash (= x true) H) ($vik_has H (not x)))
+  (($vik_clash (= true x) H) ($vik_has H (not x)))
+  (($vik_clash (= x false) H) ($vik_has H ($vik_norm x)))
+  (($vik_clash (= false x) H) ($vik_has H ($vik_norm x)))
+  (($vik_clash (= a b) H) (eo::or ($vik_has H (not (= a b))) ($vik_has H (not (= b a)))))
+  )
+)
+
+; program: $vik_uf
+; args:
+; - D Bool: A lemma, as a clause.
+; - S @List: The steps of an equality proof under the negations of its literals.
+; return: Whether the last step contradicts them.
+(program $vik_uf ((D Bool) (S @List))
+  :signature (Bool @List) Bool
+  (
+  (($vik_uf D S)
+    (eo::define ((H ($vik_hyps ($vik_clause D))))
+      ($vik_clash (eo::list_nth @list ($vik_steps S @list.nil 0 H) 0) H)))
+  )
+)
+
+; rule: vik_uf
+; args:
+; - D Bool: A lemma of uninterpreted functions, as a clause.
+; - S @List: The steps of an equality proof from the negations of its literals.
+; requires: That the proof derives an equality that contradicts them.
+; conclusion: D.
+; note: >
+;   It stands for a scope over the negations of D's literals in which the
+;   steps are refl, symm, trans, cong and ho_cong, which Cpc.scala writes out in
+;   plain CPC on request.
+(declare-rule vik_uf ((D Bool) (S @List))
+  :args (D S)
+  :requires ((($vik_uf D S) true))
+  :conclusion D
+)

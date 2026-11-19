@@ -796,6 +796,7 @@ object Cpc:
      *  which the equality proof derives `false`.
      */
     private def ufLemma(c: Vector[Lit], proof: Vector[Sexp], cert: Sexp): String =
+      if compact then return compactUfLemma(c, proof, cert)
       val hyps = c.map(_.neg)
       val hypSteps = hyps.map { h =>
         val p = id("h")
@@ -936,6 +937,69 @@ object Cpc:
             doubles.map(l => s"(not ${formula(l.v)})").mkString("(@list ", " ", ")")
           )
         )
+
+    /** The lemma clause `c` by the rule `vik_uf` of `Vik.eo`, whose steps
+     *  replay the equality proof under the negations of its literals.
+     */
+    private def compactUfLemma(c: Vector[Lit], proof: Vector[Sexp], cert: Sexp): String =
+      val steps = ArrayBuffer.empty[String]
+      def add(s: String): Int =
+        steps += s
+        steps.length - 1
+      /** The equality of each step: its sides, by class, and its index. */
+      val done = ArrayBuffer.empty[(Int, Int, Int)]
+      def oriented(a: Int, b: Int, e: (Int, Int, Int)): Int =
+        if (e._1, e._2) == (a, b) then e._3
+        else if (e._2, e._1) == (a, b) then add(s"(vik.symm ${e._3})")
+        else throw Malformed(s"step of ${(e._1, e._2)} for ${(a, b)}")
+
+      /** `a = b` from the hypothesis `r`, the negation of a literal of `c`. */
+      def fromHyp(a: Int, b: Int, r: Lit): Int =
+        val i = c.indexOf(r.neg)
+        if i < 0 then throw Malformed(s"no hypothesis $r")
+        val (x, y) = ufAtoms.lift(r.v).flatten.getOrElse(throw Malformed(s"variable ${r.v} is no atom"))
+        val natural = lNodes(meaningOf(r.v)) match
+          case Ctor("eq" | "iff", Vector(m1, m2)) if r.pos => (int(m1), int(m2))
+          case _ if y == trueClass => (x, if r.pos then trueClass else falseClass)
+          case other => throw Unsupported(s"atom of $other")
+        oriented(a, b, (natural._1, natural._2, add(s"(vik.given $i)")))
+
+      for s <- proof do
+        done += (s match
+          case Ctor("refl", Vector(a0)) =>
+            val a = int(a0)
+            (a, a, add(s"(vik.refl ${cls(a)})"))
+          case Ctor("given", Vector(a0, b0, r)) =>
+            val (a, b) = (int(a0), int(b0))
+            (a, b, fromHyp(a, b, lit(r)))
+          case Ctor("symm", Vector(i)) =>
+            val (a, b, k) = done(int(i))
+            (b, a, add(s"(vik.symm $k)"))
+          case Ctor("trans", Vector(i, j)) =>
+            val (a, _, k) = done(int(i))
+            val (_, d, m) = done(int(j))
+            (a, d, add(s"(vik.trans $k $m)"))
+          case Ctor("cong", Vector(a0, b0, f0, args0)) =>
+            val (a, b) = (int(a0), int(b0))
+            val f = done(int(f0))._3
+            (a, b, add(ints(args0).map(done(_)._3).mkString(s"(vik.cong $f (@list ", " ", "))")))
+          case Ctor(name, _) => throw Unsupported(s"equality step $name"))
+
+      // The last step contradicts the hypotheses, in either orientation.
+      def last(k: Int): Unit = if k != steps.length - 1 then add(s"(vik.symm $k)")
+      cert match
+        case Ctor("disequal", Vector(p0, _)) => last(done(int(p0))._3)
+        case Ctor("equal", Vector(p0)) => last(done(int(p0))._3)
+        case Ctor("apart", Vector(left, right, _)) =>
+          // `s = t = u = s2` under the hypothesis `t = u` of the first literal.
+          val (t, _, l) = done(int(left))
+          val (u, _, r) = done(int(right))
+          val st = add(s"(vik.symm $l)")
+          val tu = fromHyp(t, u, c.head.neg)
+          add(s"(vik.trans ${add(s"(vik.trans $st $tu)")} $r)")
+        case Ctor(name, _) => throw Unsupported(s"$name certificate")
+      val d = clauseTerm(c)
+      step(d, "vik_uf", args = Seq(d, steps.mkString("(@list ", " ", ")")))
 
     // ----------------------------------------------------------------------
     // Derived clauses
