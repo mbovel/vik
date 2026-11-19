@@ -33,5 +33,7 @@ import Vik.Lower.Reals
 import Vik.Lower.Ops
 import Vik.Lower.Unsat
 import Vik.Lower.Example
+import Vik.Cpc.Check
+import Vik.Cpc.Sound
 
 /-! The lemmas behind Vik's proofs: see `proofs/rules.md`. -/
