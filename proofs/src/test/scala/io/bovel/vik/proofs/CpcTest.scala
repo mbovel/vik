@@ -63,3 +63,31 @@ class CpcTest extends munit.FunSuite:
       "(declare-const p Bool) (declare-const q Bool) (declare-const r Bool) " +
         "(assert (= p (and q r))) (assert (ite p q (not r))) (assert (=> q (not r))) (assert (or p r)) (check-sat)"
     )
+
+  test("levels"):
+    check(
+      "Levels",
+      "(declare-sort U 0) (declare-const a U) (declare-const b U) (declare-const c U) (assert (= a b)) " +
+        "(push 1) (assert (not (= a b))) (check-sat) (pop 1) (push 1) (assert (= b c)) (assert (not (= a c))) (check-sat)"
+    )
+
+  test("assumptions"):
+    check(
+      "Assuming",
+      "(declare-sort U 0) (declare-const a U) (declare-const b U) (declare-const p Bool) " +
+        "(assert (=> p (= a b))) (assert (not (= a b))) (check-sat-assuming (p))"
+    )
+
+  test("definitions"):
+    check(
+      "Defs",
+      "(declare-sort U 0) (declare-fun f (U) U) (declare-const a U) (define-fun g ((y U)) U (f (f y))) " +
+        "(define-fun c () U (f a)) (assert (let ((z (g a))) (not (= z (f c))))) (check-sat)"
+    )
+
+  test("term ite"):
+    check(
+      "Ite",
+      "(declare-sort U 0) (declare-fun f (U) U) (declare-const a U) (declare-const b U) (declare-const p Bool) " +
+        "(assert (not (= (f (ite p a b)) (f a)))) (assert (= a b)) (check-sat)"
+    )

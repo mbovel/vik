@@ -92,13 +92,17 @@ object Cpc:
     private val sNodes = items(field("script", "nodes"))
     private val asserts = ints(field("script", "asserts"))
     if items(field("script", "datatypes")).nonEmpty then throw Unsupported("datatypes")
-    if items(field("script", "defs")).nonEmpty then throw Unsupported("define-fun")
+    /** The definitions: symbol, parameters, body nodes and root. */
+    private val defs = items(field("script", "defs")).map {
+      case Lst(Vector(f, ps, ns, r)) => (int(f), ints(ps), items(ns), int(r))
+      case d => throw Malformed(s"not a definition: ${d.toString.take(100)}")
+    }
 
     // The trace.
+    private val traceNode = ints(field("trace", "node"))
     private val mints = items(field("trace", "mints"))
     private val inputWhys = items(field("trace", "inputs"))
-    if mints.nonEmpty then throw Unsupported("minted symbols")
-    if items(field("trace", "levels")).nonEmpty then throw Unsupported("levels")
+    private val levelWhys = items(field("trace", "levels")).map(items)
 
     // The lowered problem.
     private val lNodes = items(field("problem", "nodes"))
@@ -117,8 +121,15 @@ object Cpc:
     private val steps = items(field("answer", "steps"))
     private val justs = items(field("answer", "justs"))
     private val conclusion = int(field("answer", "conclusion"))
-    if items(field("answer", "levels")).nonEmpty || items(field("answer", "assumed")).nonEmpty then
-      throw Unsupported("levels")
+    /** The formulas each level variable guards, and the levels the last check
+     *  assumed. The proof takes the assumed levels as true, so their negations
+     *  drop from the clauses, and it needs no clause of a retired level.
+     */
+    private val levels = items(field("answer", "levels")).map {
+      case Lst(Vector(v, fs)) => int(v) -> ints(fs)
+      case l => throw Malformed(s"not a level: $l")
+    }.toMap
+    private val assumedLevels = ints(field("answer", "assumed"))
     if items(field("answer", "exts")).nonEmpty then throw Unsupported("extensionality")
     if items(field("answer", "liaAtoms")).exists(_ != Atom("none")) then throw Unsupported("arithmetic")
 
@@ -145,9 +156,31 @@ object Cpc:
 
     private def symbol(k: Int): String = s"x$k"
 
+    /** The sorts, the declared symbols, and each definition as a CPC
+     *  `define`, which Ethos expands where the script uses it, as the lowering
+     *  inlines it.
+     */
     private def declarations(): Unit =
-      for (s, i) <- sSorts.zipWithIndex if s == Atom("user") do out ++= s"(declare-sort S$i 0)\n"
-      for (s, k) <- sDecls.zipWithIndex do out ++= s"(declare-const ${symbol(k)} ${sort(s)})\n"
+      for (s, i) <- sSorts.zipWithIndex if s == Atom("user") do header ++= s"(declare-sort S$i 0)\n"
+      val defined = HashMap.from(defs.map(d => d._1 -> d))
+      val params = defs.flatMap(_._2).toSet
+      // The declarations first, as a definition may use symbols declared after it.
+      for (s, k) <- sDecls.zipWithIndex if !params(k) && !defined.contains(k) do
+        header ++= s"(declare-const ${symbol(k)} ${sort(s)})\n"
+      for (s, k) <- sDecls.zipWithIndex do
+        defined.get(k) match
+          case None => ()
+          case Some((_, ps, ns, r)) =>
+            val texts = HashMap.empty[Int, String]
+            def body(i: Int): String = texts.getOrElseUpdate(
+              i,
+              surface(ns.lift(i).getOrElse(throw Malformed(s"no node $i in a definition")), body, t => t)
+            )
+            val result = sSorts.lift(s) match
+              case Some(Ctor("fn", Vector(_, res))) if ps.nonEmpty => sort(int(res))
+              case _ => sort(s)
+            val bindings = ps.map(p => s"(${symbol(p)} ${sort(sDecls(p))})").mkString(" ")
+            header ++= s"(define ${symbol(k)} ($bindings) ${body(r)} :type $result)\n"
 
     // ----------------------------------------------------------------------
     // Terms: each node with children is a `define` of its own.
@@ -159,29 +192,34 @@ object Cpc:
     private def sTerm(i: Int): String =
       sDefined.getOrElseUpdate(
         i, {
-          def all(name: String, as: Sexp) = ints(as).map(sTerm).mkString(s"($name ", " ", ")")
-          sNodes.lift(i).getOrElse(throw Malformed(s"no surface node $i")) match
-            case Ctor("const", Vector(n)) => symbol(int(n))
-            case Ctor("tt", _) => "true"
-            case Ctor("ff", _) => "false"
-            case Ctor("bound", Vector(d)) => sTerm(int(d))
-            case Ctor("letIn", Vector(_, body)) => sTerm(int(body))
-            case node =>
-              val text = node match
-                case Ctor("app", Vector(f, args)) => (sTerm(int(f)) +: ints(args).map(sTerm)).mkString("(", " ", ")")
-                case Ctor("not", Vector(a)) => s"(not ${sTerm(int(a))})"
-                case Ctor("and", Vector(as)) => nary("and", "true", ints(as).map(sTerm))
-                case Ctor("or", Vector(as)) => nary("or", "false", ints(as).map(sTerm))
-                case Ctor("implies", Vector(as)) => all("=>", as)
-                case Ctor("iff", Vector(as)) => all("=", as)
-                case Ctor("xor", Vector(as)) => all("xor", as)
-                case Ctor("eq", Vector(as)) => all("=", as)
-                case Ctor("distinct", Vector(as)) => all("distinct", as)
-                case Ctor("ite", Vector(c, a, b)) => s"(ite ${sTerm(int(c))} ${sTerm(int(a))} ${sTerm(int(b))})"
-                case Ctor(name, _) => throw Unsupported(s"surface $name")
-              define(s"s$i", text)
+          surface(sNodes.lift(i).getOrElse(throw Malformed(s"no surface node $i")), sTerm, define(s"s$i", _))
         }
       )
+
+    /** The term of a surface node, its children's terms from `sub`, and
+     *  `share` naming it when it has children.
+     */
+    private def surface(node: Sexp, sub: Int => String, share: String => String): String =
+      def all(name: String, as: Sexp) = ints(as).map(sub).mkString(s"($name ", " ", ")")
+      node match
+        case Ctor("const", Vector(n)) => symbol(int(n))
+        case Ctor("tt", _) => "true"
+        case Ctor("ff", _) => "false"
+        case Ctor("bound", Vector(d)) => sub(int(d))
+        case Ctor("letIn", Vector(_, body)) => sub(int(body))
+        case node =>
+          share(node match
+            case Ctor("app", Vector(f, args)) => (sub(int(f)) +: ints(args).map(sub)).mkString("(", " ", ")")
+            case Ctor("not", Vector(a)) => s"(not ${sub(int(a))})"
+            case Ctor("and", Vector(as)) => nary("and", "true", ints(as).map(sub))
+            case Ctor("or", Vector(as)) => nary("or", "false", ints(as).map(sub))
+            case Ctor("implies", Vector(as)) => all("=>", as)
+            case Ctor("iff", Vector(as)) => all("=", as)
+            case Ctor("xor", Vector(as)) => all("xor", as)
+            case Ctor("eq", Vector(as)) => all("=", as)
+            case Ctor("distinct", Vector(as)) => all("distinct", as)
+            case Ctor("ite", Vector(c, a, b)) => s"(ite ${sub(int(c))} ${sub(int(a))} ${sub(int(b))})"
+            case Ctor(name, _) => throw Unsupported(s"surface $name"))
 
     /** The term of lowered node `i`. */
     private def lTerm(i: Int): String =
@@ -190,8 +228,7 @@ object Cpc:
         lNodes.lift(i).getOrElse(throw Malformed(s"no lowered node $i")) match
           case Ctor("const", Vector(n)) =>
             val k = int(n)
-            if k >= sDecls.length then throw Unsupported("minted symbols")
-            symbol(k)
+            if k < sDecls.length then symbol(k) else minted(k)
           case Ctor("tt", _) => "true"
           case Ctor("ff", _) => "false"
           case Ctor("bterm", Vector(f)) => lTerm(int(f))
@@ -210,13 +247,51 @@ object Cpc:
             define(s"t$i", text)
       )
 
+    /** A symbol the lowering mints. The value of an `ite` is a `define` of the
+     *  `ite` of the lowered condition and branches.
+     */
+    private def minted(k: Int): String = iteOf(k)._1
+
+    private val ites = HashMap.empty[Int, (String, String, String, String)]
+
+    /** The `ite` symbol `k`: its term, condition and branches. */
+    private def iteOf(k: Int): (String, String, String, String) = ites.getOrElseUpdate(
+      k,
+      mints.lift(k - sDecls.length) match
+        case Some(Ctor("ite", Vector(i))) =>
+          sNodes.lift(int(i)) match
+            case Some(Ctor("ite", Vector(c, a, b))) =>
+              val Seq(tc, ta, tb) = Seq(c, a, b).map(x => lTerm(traceNode(int(x))))
+              (define(s"m$k", s"(ite $tc $ta $tb)"), tc, ta, tb)
+            case other => throw Malformed(s"the ite symbol $k is of no ite: $other")
+        case Some(Ctor(name, _)) => throw Unsupported(s"minted symbols ($name)")
+        case other => throw Malformed(s"no minted symbol $k: $other")
+    )
+
     /** An n-ary connective: its unit with no argument. */
     private def nary(op: String, unit: String, args: Seq[String]): String =
       if args.isEmpty then unit else args.mkString(s"($op ", " ", ")")
 
+    /** The declarations and definitions, which precede the proof so that no
+     *  `assume-push` scopes them.
+     */
+    private val header = StringBuilder()
+
+    /** The name of each term defined, by its text. */
+    private val names = HashMap.empty[String, String]
+
+    /** A term, as the name it is defined by if any: the same term is then the
+     *  same text, as resolution compares literals.
+     */
+    private def canon(text: String): String = names.getOrElse(text, text)
+
     private def define(name: String, text: String): String =
-      out ++= s"(define $name () $text)\n"
-      name
+      names.get(text) match
+        case Some(n) => n
+        case None =>
+          names(text) = name
+          header ++= s"(define $name () $text)\n"
+          name
 
     // ----------------------------------------------------------------------
     // Literals and clauses
@@ -227,7 +302,7 @@ object Cpc:
 
     private def formula(v: Int): String = lTerm(meaningOf(v))
 
-    private def litTerm(l: Lit): String = if l.pos then formula(l.v) else s"(not ${formula(l.v)})"
+    private def litTerm(l: Lit): String = if l.pos then formula(l.v) else canon(s"(not ${formula(l.v)})")
 
     private def clauseTerm(c: Seq[Lit]): String = c match
       case Seq() => "false"
@@ -253,11 +328,27 @@ object Cpc:
     /** The `assume` of each surface assertion. */
     private val assumed = HashMap.empty[Int, String]
 
-    private def stepClause(s: Sexp): Vector[Lit] = s match
-      case Ctor("input", Vector(c)) => items(c).map(lit)
-      case Ctor("lemma", Vector(c)) => items(c).map(lit)
-      case Ctor("derived", Vector(c, _)) => items(c).map(lit)
-      case _ => throw Malformed(s"not a step: ${s.toString.take(100)}")
+    /** The clause of a step, without the negations of assumed levels. */
+    private def stepClause(s: Sexp): Vector[Lit] =
+      val c = s match
+        case Ctor("input", Vector(c)) => items(c).map(lit)
+        case Ctor("lemma", Vector(c)) => items(c).map(lit)
+        case Ctor("derived", Vector(c, _)) => items(c).map(lit)
+        case _ => throw Malformed(s"not a step: ${s.toString.take(100)}")
+      c.filterNot(l => !l.pos && assumedLevels.contains(l.v))
+
+    /** The steps the conclusion depends on. */
+    private def cone(): Set[Int] =
+      val seen = HashSet.empty[Int]
+      val todo = ArrayBuffer(conclusion)
+      while todo.nonEmpty do
+        val k = todo.remove(todo.length - 1)
+        if seen.add(k) then
+          steps.lift(k) match
+            case Some(Ctor("derived", Vector(_, hints))) => todo ++= ints(hints).filter(_ < k)
+            case Some(_) => ()
+            case None => throw Malformed(s"no step $k")
+      seen.toSet
 
     def write(): String =
       declarations()
@@ -266,17 +357,24 @@ object Cpc:
         val p = s"@a$i"
         out ++= s"(assume $p $t)\n"
         assumed(a) = p
+      val needed = cone()
       for ((s, j), k) <- steps.zip(justs).zipWithIndex do
         val c = stepClause(s)
-        val p = (s, j) match
-          case (Ctor("input", _), Ctor("input", Vector(origin))) => input(c, origin)
-          case (Ctor("lemma", _), Ctor("uf", Vector(proof, cert))) => ufLemma(c, items(proof), cert)
-          case (Ctor("lemma", _), Ctor(name, _)) => throw Unsupported(s"$name lemma")
-          case (Ctor("derived", Vector(_, hints)), _) => derived(c, ints(hints))
-          case _ => throw Malformed(s"step $k does not match its justification")
-        proved += p -> c
+        if !needed(k) then proved += "" -> c
+        else
+          if c.exists(l => levels.contains(l.v)) then throw Unsupported("clause of a level not assumed")
+          val p = (s, j) match
+            case (Ctor("input", _), Ctor("input", Vector(origin))) => input(c, origin)
+            case (Ctor("lemma", _), Ctor("uf", Vector(proof, cert))) => ufLemma(c, items(proof), cert)
+            case (Ctor("lemma", _), Ctor(name, _)) => throw Unsupported(s"$name lemma")
+            case (Ctor("derived", Vector(_, hints)), _) => derived(c, ints(hints))
+            case _ => throw Malformed(s"step $k does not match its justification")
+          // Resolution removes one occurrence of a pivot: factor the clause.
+          val set = c.distinctBy(l => (formula(l.v), l.pos))
+          if set.length < c.length then proved += step(clauseTerm(set), "factoring", Seq(p)) -> set
+          else proved += p -> c
       if proved.lift(conclusion).forall(_._2.nonEmpty) then throw Malformed("the conclusion is not the empty clause")
-      out.result()
+      header.result() + out.result()
 
     // ----------------------------------------------------------------------
     // Inputs
@@ -291,18 +389,51 @@ object Cpc:
      *  then the literal of the clause that stands for it.
      */
     private def assertion(c: Vector[Lit], f: Int): String =
-      val j = inputs.indexOf(f)
-      if j < 0 then throw Unsupported("assertion under a level")
-      val a = inputWhys.lift(j) match
-        case Some(Ctor("assert", Vector(a))) => int(a)
-        case other => throw Unsupported(s"input of reason ${other.getOrElse("none")}")
-      val lowered = step(lTerm(f), "vik_lower", Seq(assumed(a)), Seq(lTerm(f)))
+      val why = inputs.indexOf(f) match
+        case -1 =>
+          assumedLevels.zipWithIndex.collectFirst(Function.unlift { (g, k) =>
+            levels.get(g).map(_.indexOf(f)).filter(_ >= 0).flatMap(i => levelWhys.lift(k).flatMap(_.lift(i)))
+          })
+        case j => inputWhys.lift(j)
+      val lowered = holds(why.getOrElse(throw Malformed(s"input $f has no reason")), f)
       c match
         case Vector(l) if denotes(l, f) =>
           bridge(f, l) match
             case None => lowered
             case Some(e) => step(litTerm(l), "eq_resolve", Seq(lowered, e))
         case _ => throw Unsupported("assertion with other literals")
+
+    /** A proof of the lowered input `f`, which holds by `why`. */
+    private def holds(why: Sexp, f: Int): String = why match
+      case Ctor("assert", Vector(a)) => step(lTerm(f), "vik_lower", Seq(assumed(int(a))), Seq(lTerm(f)))
+      case Ctor(name @ ("iteThen" | "iteElse"), Vector(k)) =>
+        // `c → k = t` (or `¬c → k = e`): under `c` (or `¬c`), the branch of
+        // `ite_eq` that `cnf_ite_pos1` (or `cnf_ite_pos2`) gives.
+        val thn = name == "iteThen"
+        val (ite, c, a, b) = iteOf(int(k))
+        val (hyp, eq) = lNodes(f) match
+          case Ctor("implies", Vector(h, e)) => (lTerm(int(h)), lTerm(int(e)))
+          case n => throw Malformed(s"not an implication: $n")
+        val axiom = s"(ite $c (= $ite $a) (= $ite $b))"
+        val p0 = step(axiom, "ite_eq", args = Seq(ite))
+        val cnf = step(
+          s"(or (not $axiom) ${if thn then s"(not $c)" else c} $eq)",
+          if thn then "cnf_ite_pos1" else "cnf_ite_pos2",
+          args = Seq(axiom)
+        )
+        val h = id("h")
+        out ++= s"(assume-push $h $hyp)\n"
+        val r = step(
+          eq,
+          "chain_m_resolution",
+          Seq(cnf, p0, h),
+          Seq(eq, s"(@list false ${if thn then "false" else "true"})", s"(@list $axiom $c)")
+        )
+        val p = id("p")
+        out ++= s"(step-pop $p ${lTerm(f)} :rule scope :premises ($r))\n"
+        p
+      case Ctor(name, _) => throw Unsupported(s"input of reason $name")
+      case other => throw Malformed(s"not a reason: $other")
 
     /** Whether literal `l` stands for the formula of node `f`, as the encoder
      *  reads formulas: through negations, implications and reflexive
@@ -433,22 +564,34 @@ object Cpc:
         case Some((rule, args, lits)) =>
           def term(n: Option[Int], pos: Boolean) =
             val t = n.fold(f)(lTerm)
-            if pos then t else s"(not $t)"
+            if pos then t else canon(s"(not $t)")
           val terms = lits.map(term)
           var p = step(clauseOf(terms), rule, args = args)
-          var clause = terms
-          for (n, pos) <- lits; m <- n do
+          // A definition over the same formula twice, as `(= a a)`, repeats a
+          // literal the clause has once.
+          if terms.distinct.length < terms.length then p = step(clauseOf(terms.distinct), "factoring", Seq(p))
+          var clause = terms.distinct
+          for (n, pos) <- lits.distinct; m <- n do
             val l = find(m, pos).get
             for e <- litBridge(m, pos, l) do
               val r = rewriteLit(p, clause, term(n, pos), litTerm(l), e)
               p = r._1
               clause = r._2
+          if clause.distinct.length < clause.length then p = step(clauseOf(clause.distinct), "factoring", Seq(p))
           Some(p)
         case None =>
           nodeOf(d.v) match
             case Ctor("pred", Vector(t0)) =>
               lNodes(int(t0)) match
-                case Ctor("bterm", Vector(inner)) if has(int(inner), !d.pos) => Some(excludedMiddle(f))
+                case Ctor("bterm", Vector(inner0)) if has(int(inner0), !d.pos) =>
+                  // `(or (not F) F)`, the literal of the inner formula then
+                  // rewritten to the term of the literal that stands for it.
+                  val inner = int(inner0)
+                  val p = excludedMiddle(f)
+                  val x = if d.pos then s"(not $f)" else f
+                  Some(litBridge(inner, !d.pos, find(inner, !d.pos).get).fold(p) { e =>
+                    rewriteLit(p, Seq(s"(not $f)", f), x, litTerm(find(inner, !d.pos).get), e)._1
+                  })
                 case _ => None
             case _ => None
 
@@ -542,27 +685,39 @@ object Cpc:
           case Ctor(name, _) => throw Unsupported(s"equality step $name")
         done += proved
 
+      /** `false`, from the proof `p` of `a = b` and the hypothesis `r` that
+       *  makes `a` and `b` distinct.
+       */
+      def apart(a: Int, b: Int, p: String, r: Lit): String =
+        if r == trueLit then
+          // `true = false`.
+          val tf = if (a, b) == (trueClass, falseClass) then p else step(eq(trueClass, falseClass), "symm", Seq(p))
+          val ft = step(eq(falseClass, trueClass), "symm", Seq(tf))
+          step("false", "true_elim", Seq(ft))
+        else
+          val (x, y) = ufAtoms(r.v).get
+          val h = hypStep(r)
+          lNodes(meaningOf(r.v)) match
+            case Ctor("eq" | "iff", Vector(m1, m2)) =>
+              val (n1, n2) = (int(m1), int(m2))
+              val q = if (a, b) == (n1, n2) then p else step(eq(n1, n2), "symm", Seq(p))
+              step("false", "contra", Seq(q, h))
+            case _ if y == trueClass =>
+              val q = if (a, b) == (x, trueClass) then p else step(eq(x, trueClass), "symm", Seq(p))
+              step("false", "contra", Seq(step(formula(r.v), "true_elim", Seq(q)), h))
+            case other => throw Unsupported(s"atom of $other")
+
       val bottom = cert match
         case Ctor("disequal", Vector(p0, r0)) =>
           val (a, b, p) = done(int(p0))
-          val r = lit(r0)
-          if r == trueLit then
-            // `true = false`.
-            val tf = if (a, b) == (trueClass, falseClass) then p else step(eq(trueClass, falseClass), "symm", Seq(p))
-            val ft = step(eq(falseClass, trueClass), "symm", Seq(tf))
-            step("false", "true_elim", Seq(ft))
-          else
-            val (x, y) = ufAtoms(r.v).get
-            val h = hypStep(r)
-            lNodes(meaningOf(r.v)) match
-              case Ctor("eq" | "iff", Vector(m1, m2)) =>
-                val (n1, n2) = (int(m1), int(m2))
-                val q = if (a, b) == (n1, n2) then p else step(eq(n1, n2), "symm", Seq(p))
-                step("false", "contra", Seq(q, h))
-              case _ if y == trueClass =>
-                val q = if (a, b) == (x, trueClass) then p else step(eq(x, trueClass), "symm", Seq(p))
-                step("false", "contra", Seq(step(formula(r.v), "true_elim", Seq(q)), h))
-              case other => throw Unsupported(s"atom of $other")
+          apart(a, b, p, lit(r0))
+        case Ctor("apart", Vector(left, right, r0)) =>
+          // `s = t = u = s2` under the hypothesis `t = u` of the first literal.
+          val (t, s, pl) = done(int(left))
+          val (u, s2, pr) = done(int(right))
+          val tu = fromHyp(t, u, c.head.neg)
+          val st = step(eq(s, t), "symm", Seq(pl))
+          apart(s, s2, step(eq(s, s2), "trans", Seq(st, tu, pr)), lit(r0))
         case Ctor("equal", Vector(p0)) =>
           // The first literal holds, against the hypothesis of its negation.
           val (a, b, p) = done(int(p0))
@@ -654,11 +809,13 @@ object Cpc:
           // The pivot as it occurs in the accumulated clause: `¬u`.
           pols += (if u.pos then "false" else "true")
           pivots += m
-      val concl = clauseTerm(c)
+      val text = clauseTerm(c)
+      // A long clause is a `define`: the step gives it twice.
+      val concl = if c.length > 8 then define(id("c").drop(1), text) else text
       if premises.length == 1 then
         // The conflict clause is the clause itself, up to order.
-        if proved(conflict)._2 == c then premises.head
-        else step(concl, "reordering", premises.toSeq)
+        if clauseTerm(proved(conflict)._2) == text then premises.head
+        else step(concl, "reordering", premises.toSeq, Seq(concl))
       else
         step(
           concl,
