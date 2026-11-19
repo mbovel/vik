@@ -7,7 +7,7 @@ import io.bovel.vik.{Session, Solver}
  *  solver's proof, each written as a Lean file of `target/lean-export` for
  *  `proofs/lean` to check (`proofs/lean/exported.sh`).
  */
-class ProofExportTest extends munit.FunSuite:
+class LeanTest extends munit.FunSuite:
   private val out =
     val dir = java.nio.file.Path.of("target", "lean-export")
     java.nio.file.Files.createDirectories(dir)
@@ -132,4 +132,19 @@ class ProofExportTest extends munit.FunSuite:
       (declare-const e (Array (_ BitVec 1) Bool))
       (assert (distinct a b c d e))
       (check-sat)"""
+    )
+
+  test("simplified diamonds"):
+    write(
+      "Diamond",
+      "(declare-sort U 0) (declare-const x U) (declare-const y U) (declare-const z U) (declare-const w U) " +
+        "(assert (or (and (= x y) (= y w)) (and (= x z) (= z w)))) (assert (not (= x w))) (check-sat)"
+    )
+
+  test("simplified chains"):
+    write(
+      "Chain",
+      "(declare-sort U 0) (declare-fun f (U) U) (declare-fun p (U) Bool) (declare-const a U) (declare-const b U) " +
+        "(declare-const k U) (assert (and (= a (f b)) (= b k) (p a) (or (p b) (= a b)))) (assert (not (p (f k)))) " +
+        "(check-sat)"
     )

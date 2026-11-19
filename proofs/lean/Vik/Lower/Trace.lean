@@ -3,6 +3,7 @@ import Vik.Lower.Shape
 import Vik.Cert.Extend
 import Vik.Rules
 import Vik.Values
+import Vik.Simp
 
 /-!
 # Lowering traces
@@ -184,6 +185,10 @@ inductive InputWhy where
   | rule (r : Rule) (f aux : Nat)
   /-- Fact `f` of the real rule `r`. -/
   | real (r : RRule) (f : Nat)
+  /-- A simplification of the lowered formula `o`, which holds by `w`: the
+      conjunctions `H` names lose the equalities at the positions it gives
+      them, each from its left side or not (see `Low.simplifies`). -/
+  | simp (o : Nat) (w : InputWhy) (H : List (Nat × List (Nat × Bool)))
   deriving DecidableEq, Repr
 
 structure Trace where
@@ -1598,6 +1603,7 @@ def Trace.inputOk (f : Nat) : InputWhy → Bool
         fits P.sig P.nodes P.sortOf f
           (.and [.le (.num [] 0) (.same (tr.at i)), .le (.same (tr.at i)) (.num [] (2 ^ w - 1))])
     | none => false
+  | .simp o w H => o < P.nodes.length && Trace.inputOk o w && Low.simplifies P.nodes H o f
 
 /-- Whether node `i` of the script lowers to a node of the expected shape. -/
 def Trace.nodeOk (i : Nat) : Bool :=

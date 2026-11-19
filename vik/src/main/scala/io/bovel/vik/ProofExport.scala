@@ -11,8 +11,9 @@ import io.bovel.smtlib.{Datatype, Sorts}
 /** Writes the certificate of an `Unsat`: the data that `proofs/lean` checks, as
  *  one S-expression, with no Lean code. Each section, `(name (field value) …)`,
  *  holds the fields of a Lean structure in order, as `sexp%` reads them: the
- *  script (`Vik.Lower.SProblem`), the trace of its lowering (`Vik.Lower.Trace`),
- *  the lowered problem (`Vik.Low.Problem`) and the answer (`Vik.Low.Answer`):
+ *  script (`Vik.Lower.SProblem`), the trace of its lowering
+ *  (`Vik.Lower.Trace`), the lowered problem (`Vik.Low.Problem`) and the answer
+ *  (`Vik.Low.Answer`):
  *
  *  {{{
  *  (vik-proof 1
@@ -33,8 +34,8 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *  variable the expression it stands for over them.
  *
  *  The script and the trace come with the script the check saw ([[Surface]]),
- *  and give that no model of the script satisfies its assertions. The table then
- *  starts with the script's sorts and symbols, then the minted ones, as
+ *  and give that no model of the script satisfies its assertions. The table
+ *  then starts with the script's sorts and symbols, then the minted ones, as
  *  `Trace.check` requires.
  */
 private[vik] object ProofExport:
@@ -57,6 +58,7 @@ private[vik] object ProofExport:
       proof: cdclt.Proof,
       datatypes: List[Datatype],
       inputs: List[Formula],
+      simplified: collection.Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])],
       levels: List[(cdclt.Var, List[Formula])],
       assumed: List[cdclt.Var]
   )
@@ -568,7 +570,12 @@ private[vik] object ProofExport:
       case Some(Reason.Range(i)) => s".range $i"
       case Some(Reason.Real(r, j)) => s".real (${rrule(r)}) $j"
       case Some(Reason.Rule(r, j, aux)) => s".rule (${rule(r)}) $j ${aux.fold(0)(term)}"
-      case None => throw Unsupported(s"the input $f, of no reason")
+      case None =>
+        simplified.get(f) match
+          case Some((o, under)) =>
+            val hints = under.map((a, es) => s"(${formula(a)}, ${list(es.map((i, left) => s"($i, $left)"))})")
+            s".simp ${formula(o)} (${reason(sf, o)}) ${list(hints)}"
+          case None => throw Unsupported(s"the input $f, of no reason")
 
     /** The script and the trace, written before the lowered problem: they add
      *  the nodes of the lowerings of the surface nodes.
@@ -674,6 +681,10 @@ private[vik] object ProofExport:
       // each form over the nodes of its unknowns, sorted, as `Lia.add` merges them
       val liaForms = (0 until liaVars).map(x => list(leanForm(x).map((n, a) => s"($n, ${ratT(a)})")))
       val inputIds = inputs.map(formula)
+      // the assertions simplified, before the script's nodes are sorted
+      for (o, under) <- simplified.values do
+        formula(o)
+        under.foreach(u => formula(u._1))
       val levelsText = levels.map((v, fs) => s"($v, ${list(fs.map(formula(_).toString))})")
       // datatypes, with the classes of their constructors and testers
       val dts = datatypes.map { d =>

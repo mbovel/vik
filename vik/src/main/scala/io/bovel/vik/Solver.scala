@@ -1,7 +1,7 @@
 package io.bovel.vik
 
 import scala.collection.immutable.ArraySeq
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap}
 import scala.util.boundary
 import scala.util.boundary.break
 
@@ -69,6 +69,14 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   private var eliminated: Map[String, Term] = Map.empty
   private var dirty = false
+
+  /** With proofs: the formulas asserted to the encoder below every level, the
+   *  simplifications of the first batch among them, and for each
+   *  simplification, its assertion and the eliminations under it (see
+   *  [[Simplifier.traced]]).
+   */
+  private val inputs = ArrayBuffer.empty[Formula]
+  private var simplified: Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])] = Map.empty
 
   /** The declared function symbols (argument sorts, result sort) and datatypes.
    *  Declarations are optional for uninterpreted functions and integers, and
@@ -276,7 +284,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   def certificate(surface: Option[ProofExport.Surface] = None): Either[String, String] = proof match
     case None => Left("no proof")
-    case Some(_) => encoder.nn.certificate(levels.head.toList, proved._2.toList.sorted, surface)
+    case Some(_) => encoder.nn.certificate(inputs.toList, simplified, proved._2.toList.sorted, surface)
 
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
@@ -312,6 +320,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
     val e = encoder
     if mentionsEliminated(formula) then dirty = true
     else if e != null && !dirty then
+      if levels.length == 1 && proofs then inputs += formula
       e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
 
   // The elimination assumed the constant stayed local; a mention breaks it: start over.
@@ -404,6 +413,38 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   private var asked: () => Boolean = () => true
 
+  /** With proofs, simplifies the first batch as without, when each
+   *  simplification comes with its proof ([[Simplifier.implies]]), and encodes
+   *  the simplifications; whether it did.
+   */
+  private def proofsOfSimplifications(e: Encoder, constructors: Set[String]): Boolean =
+    val (pairs, gone, hints) =
+      Simplifier.traced(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
+    if !pairs.forall((o, s) => o == s || Simplifier.implies(o, s, hints)) then false
+    else
+      eliminated = gone
+      val out = pairs.filter(_._2 != Formula.True)
+      simplified = out.collect {
+        case (o, s) if o != s =>
+          // the conjunctions of `o` that lost equalities
+          val under = LinkedHashMap.empty[Formula, Simplifier.Eliminations]
+          def walk(f: Formula): Unit = f match
+            case Formula.And(as) =>
+              hints.get(f).foreach(under(f) = _)
+              as.foreach(walk)
+            case Formula.Or(as) => as.foreach(walk)
+            case Formula.Implies(a, b) =>
+              walk(a); walk(b)
+            case Formula.Ite(c, a, b) =>
+              walk(c); walk(a); walk(b)
+            case _ => ()
+          walk(o)
+          s -> (o, under.toList)
+      }.toMap
+      inputs ++= out.map(_._2)
+      for (_, s) <- out do e.assert(s, null)
+      true
+
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
@@ -491,7 +532,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
               e.lastModel = null
               Result.Unknown(Reason.Model(failure))
       case cdclt.Solver.Result.Unsat =>
-        if proofs then proved = (levels.head.toSet, assumed.iterator.map(_.variable).toSet)
+        if proofs then proved = (inputs.toSet, assumed.iterator.map(_.variable).toSet)
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }
         Result.Unsat
@@ -1524,6 +1565,7 @@ private final class Encoder(
    */
   def certificate(
       inputs: List[Formula],
+      simplified: collection.Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])],
       assumed: List[cdclt.Var],
       surface: Option[ProofExport.Surface]
   ): Either[String, String] =
@@ -1548,6 +1590,7 @@ private final class Encoder(
           p.nn,
           datatypes,
           inputs,
+          simplified,
           guards.iterator.map((v, fs) => (v, fs.toList)).toList,
           assumed
         ),
