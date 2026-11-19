@@ -432,8 +432,165 @@ object Cpc:
         val p = id("p")
         out ++= s"(step-pop $p ${lTerm(f)} :rule scope :premises ($r))\n"
         p
+      case Ctor("simp", Vector(o0, w, h)) =>
+        val o = int(o0)
+        val hints = items(h).map {
+          case Lst(Vector(c, ps)) =>
+            int(c) -> items(ps).map {
+              case Lst(Vector(i, Atom(left))) => (int(i), left == "true")
+              case x => throw Malformed(s"not a simplification hint: $x")
+            }
+          case x => throw Malformed(s"not a simplification hint: $x")
+        }.toMap
+        Simp(hints).weak(Simp.Ctx(Vector.empty), o, f, holds(w, o))
       case Ctor(name, _) => throw Unsupported(s"input of reason $name")
       case other => throw Malformed(s"not a reason: $other")
+
+    /** The proof that a simplified input holds, from the proof of the formula
+     *  it simplifies (`weaker` in `Vik/Simp.lean`): through the positive
+     *  positions of both, the equalities a conjunction of the original loses
+     *  rewrite the rest, by congruence.
+     */
+    private class Simp(hints: Map[Int, Vector[(Int, Boolean)]]):
+      import Simp.Ctx
+
+      private def node(i: Int): Sexp = lNodes.lift(i).getOrElse(throw Malformed(s"no lowered node $i"))
+
+      /** The node with its children left out, and its children. */
+      private def shape(i: Int): (Sexp, Vector[Int]) = node(i) match
+        case Ctor("app", Vector(f, as)) => (Atom("app"), int(f) +: ints(as))
+        case Ctor(k @ ("and" | "or"), Vector(as)) => (Lst(Vector(Atom(k), Atom(ints(as).length.toString))), ints(as))
+        case Ctor(k @ ("not" | "bterm" | "pred"), Vector(a)) => (Atom(k), Vector(int(a)))
+        case Ctor(k @ ("implies" | "iff" | "eq"), Vector(a, b)) => (Atom(k), Vector(int(a), int(b)))
+        case Ctor("ite", Vector(c, a, b)) => (Atom("ite"), Vector(int(c), int(a), int(b)))
+        case n => (n, Vector())
+
+      /** Whether `a` and `b` are equal given the equalities of `ctx`. */
+      private def eqvOk(ctx: Ctx, a: Int, b: Int, depth: Int = 0): Boolean =
+        depth < 10000 && ctx.memo.getOrElseUpdate(
+          (a, b),
+          a == b || ctx.eqs.exists((x, y, _) => x == a && eqvOk(ctx, y, b, depth + 1)) || {
+            val (ka, as) = shape(a)
+            val (kb, bs) = shape(b)
+            ka == kb && as.nonEmpty && as.length == bs.length && as.zip(bs).forall(eqvOk(ctx, _, _, depth + 1))
+          }
+        )
+
+      /** A proof of `(= a b)`, which `eqvOk` accepts. */
+      private def eqv(ctx: Ctx, a: Int, b: Int): String =
+        val (ta, tb) = (lTerm(a), lTerm(b))
+        if a == b || ta == tb then step(s"(= $ta $tb)", "refl", args = Seq(ta))
+        else
+          ctx.eqs.collectFirst { case (x, y, p) if x == a && eqvOk(ctx, y, b) => (y, p) } match
+            case Some((y, p)) =>
+              if y == b then p else step(s"(= $ta $tb)", "trans", Seq(p, eqv(ctx, y, b)))
+            case None =>
+              val (k, as) = shape(a)
+              val ps = as.zip(shape(b)._2).map(eqv(ctx, _, _))
+              val e = s"(= $ta $tb)"
+              k match
+                case Atom("bterm" | "pred") => ps.head
+                case Lst(_) => step(e, "nary_cong", ps, Seq(ta))
+                case Atom("app") if as.head == shape(b)._2.head => step(e, "cong", ps.tail, Seq(ta))
+                case Atom("app") => step(e, "ho_cong", ps)
+                case _ => step(e, "cong", ps, Seq(ta))
+
+      /** Whether `s` holds where `o` and the equalities of `ctx` do. */
+      private def ok(ctx: Ctx, o: Int, s: Int, d: Int): Boolean =
+        d > 0 && (eqvOk(ctx, o, s) || ((node(o), node(s)) match
+          case (Ctor("or", Vector(os)), Ctor("or", Vector(ss))) =>
+            ints(os).length == ints(ss).length && ints(os).zip(ints(ss)).forall(ok(ctx, _, _, d - 1))
+          case (Ctor("implies", Vector(a, b)), Ctor("implies", Vector(a2, b2))) =>
+            eqvOk(ctx, int(a), int(a2)) && ok(ctx, int(b), int(b2), d - 1)
+          case (Ctor("and", Vector(os)), sn) =>
+            val (inner, kept) = conj(ctx, o, ints(os), None)
+            kept match
+              case Vector() => sn match { case Ctor("tt", _) => true; case _ => false }
+              case Vector((x, _)) => ok(inner, x, s, d - 1)
+              case xs =>
+                sn match
+                  case Ctor("and", Vector(ss)) =>
+                    xs.length == ints(ss).length && xs.zip(ints(ss)).forall((x, y) => ok(inner, x._1, y, d - 1))
+                  case _ => false
+          case _ => false))
+
+      /** The context of the conjuncts `os` of conjunction `o`, with the
+       *  equalities its hints eliminate, and the conjuncts it keeps with their
+       *  positions. With the proof of `o`, the equalities have proofs.
+       */
+      private def conj(ctx: Ctx, o: Int, os: Vector[Int], proof: Option[String]): (Ctx, Vector[(Int, Int)]) =
+        val elim = hints.getOrElse(o, Vector())
+        val eqs = elim.flatMap { (i, left) =>
+          os.lift(i).flatMap { c =>
+            node(c) match
+              case Ctor("eq" | "iff", Vector(x0, y0)) =>
+                val (x, y) = (int(x0), int(y0))
+                val p = proof.fold("") { po =>
+                  val e = step(lTerm(c), "and_elim", Seq(po), Seq(i.toString))
+                  if left then e else step(s"(= ${lTerm(y)} ${lTerm(x)})", "symm", Seq(e))
+                }
+                Some(if left then (x, y, p) else (y, x, p))
+              case _ => None
+          }
+        }
+        (Ctx(ctx.eqs ++ eqs), os.zipWithIndex.filterNot((_, i) => elim.exists(_._1 == i)))
+
+      /** A proof of `s`, from the proof `p` of `o`. */
+      def weak(ctx: Ctx, o: Int, s: Int, p: String): String =
+        if !ok(ctx, o, s, lNodes.length + 1) then throw Unsupported("simplification")
+        build(ctx, o, s, p, lNodes.length + 1)
+
+      private def build(ctx: Ctx, o: Int, s: Int, p: String, d: Int): String =
+        val (to, ts) = (lTerm(o), lTerm(s))
+        if to == ts then p
+        else if eqvOk(ctx, o, s) then step(ts, "eq_resolve", Seq(p, eqv(ctx, o, s)))
+        else
+          (node(o), node(s)) match
+            case (Ctor("or", Vector(os0)), Ctor("or", Vector(ss0))) =>
+              // Each disjunct of `s` from its disjunct of `o`, under it.
+              val (os, ss) = (ints(os0), ints(ss0))
+              val cases = os.zip(ss).map { (x, y) =>
+                val h = id("h")
+                out ++= s"(assume-push $h ${lTerm(x)})\n"
+                val q = build(ctx, x, y, h, d - 1)
+                val r = id("p")
+                out ++= s"(step-pop $r (=> ${lTerm(x)} ${lTerm(y)}) :rule scope :premises ($q))\n"
+                step(s"(or (not ${lTerm(x)}) ${lTerm(y)})", "implies_elim", Seq(r))
+              }
+              step(
+                ts,
+                "chain_m_resolution",
+                p +: cases,
+                Seq(ts, os.map(_ => "true").mkString("(@list ", " ", ")"), os.map(lTerm).mkString("(@list ", " ", ")"))
+              )
+            case (Ctor("implies", Vector(a0, b0)), Ctor("implies", Vector(a1, b1))) =>
+              val (a, b, a2, b2) = (int(a0), int(b0), int(a1), int(b1))
+              val h = id("h")
+              out ++= s"(assume-push $h ${lTerm(a2)})\n"
+              val ha = if lTerm(a) == lTerm(a2) then h else step(lTerm(a), "eq_resolve", Seq(h, eqv(ctx, a2, a)))
+              val ab = step(s"(or (not ${lTerm(a)}) ${lTerm(b)})", "implies_elim", Seq(p))
+              val hb = step(lTerm(b), "chain_m_resolution", Seq(ab, ha), Seq(lTerm(b), "(@list false)", s"(@list ${lTerm(a)})"))
+              val q = build(ctx, b, b2, hb, d - 1)
+              val r = id("p")
+              out ++= s"(step-pop $r $ts :rule scope :premises ($q))\n"
+              r
+            case (Ctor("and", Vector(os)), _) =>
+              val (inner, kept) = conj(ctx, o, ints(os), Some(p))
+              def part(x: Int, i: Int) = step(lTerm(x), "and_elim", Seq(p), Seq(i.toString))
+              kept match
+                case Vector() => step("true", "true_elim", Seq(step("(= true true)", "refl", args = Seq("true"))))
+                case Vector((x, i)) => build(inner, x, s, part(x, i), d - 1)
+                case xs =>
+                  val ss = node(s) match
+                    case Ctor("and", Vector(ss)) => ints(ss)
+                    case n => throw Malformed(s"not a conjunction: $n")
+                  step(ts, "and_intro", xs.zip(ss).map { case ((x, i), y) => build(inner, x, y, part(x, i), d - 1) })
+            case _ => throw Malformed(s"no simplification of $o to $s")
+
+    private object Simp:
+      /** The equalities that hold, each from its left side, with its proof. */
+      final case class Ctx(eqs: Vector[(Int, Int, String)]):
+        val memo = HashMap.empty[(Int, Int), Boolean]
 
     /** Whether literal `l` stands for the formula of node `f`, as the encoder
      *  reads formulas: through negations, implications and reflexive
