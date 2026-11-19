@@ -1,4 +1,4 @@
-package io.bovel.vik.proofs
+package io.bovel.vik
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
@@ -8,17 +8,17 @@ import Sexp.{Atom, Lst}
  *  in CPC, the Cooperating Proof Calculus of cvc5, which Ethos checks against
  *  cvc5's signature `Cpc.eo` together with `proofs/cpc/Vik.eo`.
  *
- *  The proof starts with the declarations of the script's sorts and symbols
- *  and one `assume` per assertion of the script, as written. The rest follows
- *  the answer, one CPC derivation per step:
+ *  The proof starts with the declarations of the script's sorts and symbols and
+ *  one `assume` per assertion of the script, as written. The rest follows the
+ *  answer, one CPC derivation per step:
  *
- *  - an input clause from its origin: the assertion itself, or the CNF rule
- *    of the formula a Tseitin variable stands for;
- *  - a lemma of the theory of uninterpreted functions as a scope over the
- *    negations of its literals, inside which the equality proof derives
- *    `false`;
- *  - a derived clause as one `chain_m_resolution` over its hints, the order
- *    and pivots found by replaying the unit propagation.
+ *    - an input clause from its origin: the assertion itself, or the CNF rule
+ *      of the formula a Tseitin variable stands for;
+ *    - a lemma of the theory of uninterpreted functions as a scope over the
+ *      negations of its literals, inside which the equality proof derives
+ *      `false`;
+ *    - a derived clause as one `chain_m_resolution` over its hints, the order
+ *      and pivots found by replaying the unit propagation.
  *
  *  A Tseitin variable is the formula it stands for, so the proof has no
  *  variables of its own. Terms are shared with `define`, one per node of the
@@ -39,7 +39,12 @@ object Cpc:
   private final case class Lit(v: Int, pos: Boolean):
     def neg: Lit = Lit(v, !pos)
 
-  def apply(certificate: String): String = Writer(certificate).write()
+  /** The CPC proof of `certificate`. A compact proof derives each clause of
+   *  conflict analysis by the rule `vik_rup` of `Vik.eo`, from the clauses that
+   *  propagate; a plain one (`compact = false`) by the chain of resolutions it
+   *  stands for, in CPC's rules only, for checkers that know no `Vik.eo`.
+   */
+  def apply(certificate: String, compact: Boolean = true): String = Writer(certificate, compact).write()
 
   private def num(s: Sexp): BigInt = s match
     case Atom(t) => BigInt(t)
@@ -68,7 +73,7 @@ object Cpc:
       case Lst(Atom(name) +: args) => Some((name, args))
       case _ => None
 
-  private final class Writer(certificate: String):
+  private final class Writer(certificate: String, compact: Boolean):
     private val sections: Map[String, Map[String, Sexp]] = Sexp.parse(certificate) match
       case Lst(Atom("vik-proof") +: Atom("1") +: rest) =>
         rest.map {
@@ -92,6 +97,7 @@ object Cpc:
     private val sNodes = items(field("script", "nodes"))
     private val asserts = ints(field("script", "asserts"))
     if items(field("script", "datatypes")).nonEmpty then throw Unsupported("datatypes")
+
     /** The definitions: symbol, parameters, body nodes and root. */
     private val defs = items(field("script", "defs")).map {
       case Lst(Vector(f, ps, ns, r)) => (int(f), ints(ps), items(ns), int(r))
@@ -113,14 +119,17 @@ object Cpc:
     // The answer.
     private val meaning = items(field("answer", "meaning")).map(option(_).map(int))
     private val trueLit = lit(field("answer", "trueLit"))
-    private val ufAtoms = items(field("answer", "ufAtoms")).map(option(_).map(p => ints(p) match
-      case Vector(a, b) => (a, b)
-      case _ => throw Malformed(s"not a pair: $p")))
+    private val ufAtoms = items(field("answer", "ufAtoms")).map(option(_).map(p =>
+      ints(p) match
+        case Vector(a, b) => (a, b)
+        case _ => throw Malformed(s"not a pair: $p")
+    ))
     private val trueClass = int(field("answer", "trueClass"))
     private val falseClass = int(field("answer", "falseClass"))
     private val steps = items(field("answer", "steps"))
     private val justs = items(field("answer", "justs"))
     private val conclusion = int(field("answer", "conclusion"))
+
     /** The formulas each level variable guards, and the levels the last check
      *  assumed. The proof takes the assumed levels as true, so their negations
      *  drop from the clauses, and it needs no clause of a retired level.
@@ -156,9 +165,9 @@ object Cpc:
 
     private def symbol(k: Int): String = s"x$k"
 
-    /** The sorts, the declared symbols, and each definition as a CPC
-     *  `define`, which Ethos expands where the script uses it, as the lowering
-     *  inlines it.
+    /** The sorts, the declared symbols, and each definition as a CPC `define`,
+     *  which Ethos expands where the script uses it, as the lowering inlines
+     *  it.
      */
     private def declarations(): Unit =
       for (s, i) <- sSorts.zipWithIndex if s == Atom("user") do header ++= s"(declare-sort S$i 0)\n"
@@ -176,11 +185,8 @@ object Cpc:
               i,
               surface(ns.lift(i).getOrElse(throw Malformed(s"no node $i in a definition")), body, t => t)
             )
-            val result = sSorts.lift(s) match
-              case Some(Ctor("fn", Vector(_, res))) if ps.nonEmpty => sort(int(res))
-              case _ => sort(s)
             val bindings = ps.map(p => s"(${symbol(p)} ${sort(sDecls(p))})").mkString(" ")
-            header ++= s"(define ${symbol(k)} ($bindings) ${body(r)} :type $result)\n"
+            header ++= s"(define ${symbol(k)} ($bindings) ${body(r)} :type ${sort(s)})\n"
 
     // ----------------------------------------------------------------------
     // Terms: each node with children is a `define` of its own.
@@ -196,8 +202,8 @@ object Cpc:
         }
       )
 
-    /** The term of a surface node, its children's terms from `sub`, and
-     *  `share` naming it when it has children.
+    /** The term of a surface node, its children's terms from `sub`, and `share`
+     *  naming it when it has children.
      */
     private def surface(node: Sexp, sub: Int => String, share: String => String): String =
       def all(name: String, as: Sexp) = ints(as).map(sub).mkString(s"($name ", " ", ")")
@@ -309,13 +315,22 @@ object Cpc:
       case Seq(l) => litTerm(l)
       case _ => c.map(litTerm).mkString("(or ", " ", ")")
 
+    /** A step. A compact proof leaves out its conclusion, which Ethos computes
+     *  from the rule.
+     */
     private def step(conclusion: String, rule: String, premises: Seq[String] = Nil, args: Seq[String] = Nil): String =
       val p = id("p")
-      out ++= s"(step $p $conclusion :rule $rule"
+      out ++= (if compact then s"(step $p :rule $rule" else s"(step $p $conclusion :rule $rule")
       if premises.nonEmpty then out ++= premises.mkString(" :premises (", " ", ")")
       if args.nonEmpty then out ++= args.mkString(" :args (", " ", ")")
       out ++= ")\n"
       p
+
+    /** The `scope` that closes the innermost `assume-push`, as `p`. */
+    private def pop(p: String, conclusion: String, premise: String): Unit =
+      out ++=
+        (if compact then s"(step-pop $p :rule scope :premises ($premise))\n"
+         else s"(step-pop $p $conclusion :rule scope :premises ($premise))\n")
 
     // ----------------------------------------------------------------------
     // Steps
@@ -430,7 +445,7 @@ object Cpc:
           Seq(eq, s"(@list false ${if thn then "false" else "true"})", s"(@list $axiom $c)")
         )
         val p = id("p")
-        out ++= s"(step-pop $p ${lTerm(f)} :rule scope :premises ($r))\n"
+        pop(p, s"${lTerm(f)}", r)
         p
       case Ctor("simp", Vector(o0, w, h)) =>
         val o = int(o0)
@@ -497,22 +512,26 @@ object Cpc:
 
       /** Whether `s` holds where `o` and the equalities of `ctx` do. */
       private def ok(ctx: Ctx, o: Int, s: Int, d: Int): Boolean =
-        d > 0 && (eqvOk(ctx, o, s) || ((node(o), node(s)) match
-          case (Ctor("or", Vector(os)), Ctor("or", Vector(ss))) =>
-            ints(os).length == ints(ss).length && ints(os).zip(ints(ss)).forall(ok(ctx, _, _, d - 1))
-          case (Ctor("implies", Vector(a, b)), Ctor("implies", Vector(a2, b2))) =>
-            eqvOk(ctx, int(a), int(a2)) && ok(ctx, int(b), int(b2), d - 1)
-          case (Ctor("and", Vector(os)), sn) =>
-            val (inner, kept) = conj(ctx, o, ints(os), None)
-            kept match
-              case Vector() => sn match { case Ctor("tt", _) => true; case _ => false }
-              case Vector((x, _)) => ok(inner, x, s, d - 1)
-              case xs =>
-                sn match
-                  case Ctor("and", Vector(ss)) =>
-                    xs.length == ints(ss).length && xs.zip(ints(ss)).forall((x, y) => ok(inner, x._1, y, d - 1))
-                  case _ => false
-          case _ => false))
+        d > 0 &&
+          (eqvOk(ctx, o, s) ||
+            ((node(o), node(s)) match
+              case (Ctor("or", Vector(os)), Ctor("or", Vector(ss))) =>
+                ints(os).length == ints(ss).length && ints(os).zip(ints(ss)).forall(ok(ctx, _, _, d - 1))
+              case (Ctor("implies", Vector(a, b)), Ctor("implies", Vector(a2, b2))) =>
+                eqvOk(ctx, int(a), int(a2)) && ok(ctx, int(b), int(b2), d - 1)
+              case (Ctor("and", Vector(os)), sn) =>
+                val (inner, kept) = conj(ctx, o, ints(os), None)
+                kept match
+                  case Vector() => sn match
+                      case Ctor("tt", _) => true;
+                      case _ => false
+                  case Vector((x, _)) => ok(inner, x, s, d - 1)
+                  case xs =>
+                    sn match
+                      case Ctor("and", Vector(ss)) =>
+                        xs.length == ints(ss).length && xs.zip(ints(ss)).forall((x, y) => ok(inner, x._1, y, d - 1))
+                      case _ => false
+              case _ => false))
 
       /** The context of the conjuncts `os` of conjunction `o`, with the
        *  equalities its hints eliminate, and the conjuncts it keeps with their
@@ -554,7 +573,7 @@ object Cpc:
                 out ++= s"(assume-push $h ${lTerm(x)})\n"
                 val q = build(ctx, x, y, h, d - 1)
                 val r = id("p")
-                out ++= s"(step-pop $r (=> ${lTerm(x)} ${lTerm(y)}) :rule scope :premises ($q))\n"
+                pop(r, s"(=> ${lTerm(x)} ${lTerm(y)})", q)
                 step(s"(or (not ${lTerm(x)}) ${lTerm(y)})", "implies_elim", Seq(r))
               }
               step(
@@ -569,10 +588,15 @@ object Cpc:
               out ++= s"(assume-push $h ${lTerm(a2)})\n"
               val ha = if lTerm(a) == lTerm(a2) then h else step(lTerm(a), "eq_resolve", Seq(h, eqv(ctx, a2, a)))
               val ab = step(s"(or (not ${lTerm(a)}) ${lTerm(b)})", "implies_elim", Seq(p))
-              val hb = step(lTerm(b), "chain_m_resolution", Seq(ab, ha), Seq(lTerm(b), "(@list false)", s"(@list ${lTerm(a)})"))
+              val hb = step(
+                lTerm(b),
+                "chain_m_resolution",
+                Seq(ab, ha),
+                Seq(lTerm(b), "(@list false)", s"(@list ${lTerm(a)})")
+              )
               val q = build(ctx, b, b2, hb, d - 1)
               val r = id("p")
-              out ++= s"(step-pop $r $ts :rule scope :premises ($q))\n"
+              pop(r, s"$ts", q)
               r
             case (Ctor("and", Vector(os)), _) =>
               val (inner, kept) = conj(ctx, o, ints(os), Some(p))
@@ -593,8 +617,8 @@ object Cpc:
         val memo = HashMap.empty[(Int, Int), Boolean]
 
     /** Whether literal `l` stands for the formula of node `f`, as the encoder
-     *  reads formulas: through negations, implications and reflexive
-     *  equalities (`denotes` in `Vik/Cert/Inputs.lean`).
+     *  reads formulas: through negations, implications and reflexive equalities
+     *  (`denotes` in `Vik/Cert/Inputs.lean`).
      */
     private def denotes(l: Lit, f: Int, fuel: Int = 64): Boolean =
       fuel > 0 && {
@@ -613,8 +637,8 @@ object Cpc:
           case _ => plain
       }
 
-    /** A proof that the formula of node `f` is the term of the literal `l`
-     *  that stands for it, or none when they are the same term.
+    /** A proof that the formula of node `f` is the term of the literal `l` that
+     *  stands for it, or none when they are the same term.
      */
     private def bridge(f: Int, l: Lit): Option[String] =
       val tf = lTerm(f)
@@ -638,8 +662,8 @@ object Cpc:
           Some(step(s"(= $tf true)", "eq-refl", args = Seq(lTerm(int(a)))))
         case _ => None
 
-    /** The literal `x` of a clause proved by `p`, replaced by `y`, given a proof
-     *  `e` of `(= x y)`.
+    /** The literal `x` of a clause proved by `p`, replaced by `y`, given a
+     *  proof `e` of `(= x y)`.
      */
     private def rewriteLit(p: String, clause: Seq[String], x: String, y: String, e: String): (String, Seq[String]) =
       val ce = step(s"(or (not (= $x $y)) (not $x) $y)", "cnf_equiv_pos1", args = Seq(s"(= $x $y)"))
@@ -673,6 +697,7 @@ object Cpc:
      */
     private def cnf(c: Vector[Lit], d: Lit): Option[String] =
       val f = formula(d.v)
+
       /** The literal of `c` that stands for node `n`, positive or negated. */
       def find(n: Int, pos: Boolean): Option[Lit] = c.find(l => denotes(if pos then l else l.neg, n))
       def has(n: Int, pos: Boolean) = find(n, pos).isDefined
@@ -700,8 +725,10 @@ object Cpc:
           else None
         case Ctor("iff", Vector(x0, y0)) =>
           val (x, y) = (int(x0), int(y0))
-          if d.pos && has(x, false) && has(y, false) then Some(("cnf_equiv_neg2", Seq(f), Seq(self, sub(x, false), sub(y, false))))
-          else if d.pos && has(x, true) && has(y, true) then Some(("cnf_equiv_neg1", Seq(f), Seq(self, sub(x, true), sub(y, true))))
+          if d.pos && has(x, false) && has(y, false) then
+            Some(("cnf_equiv_neg2", Seq(f), Seq(self, sub(x, false), sub(y, false))))
+          else if d.pos && has(x, true) && has(y, true) then
+            Some(("cnf_equiv_neg1", Seq(f), Seq(self, sub(x, true), sub(y, true))))
           else if !d.pos && has(x, false) && has(y, true) then
             Some(("cnf_equiv_pos1", Seq(f), Seq(self, sub(x, false), sub(y, true))))
           else if !d.pos && has(x, true) && has(y, false) then
@@ -709,8 +736,10 @@ object Cpc:
           else None
         case Ctor("ite", Vector(x0, a0, b0)) =>
           val (x, a, b) = (int(x0), int(a0), int(b0))
-          if d.pos && has(x, false) && has(a, false) then Some(("cnf_ite_neg1", Seq(f), Seq(self, sub(x, false), sub(a, false))))
-          else if d.pos && has(x, true) && has(b, false) then Some(("cnf_ite_neg2", Seq(f), Seq(self, sub(x, true), sub(b, false))))
+          if d.pos && has(x, false) && has(a, false) then
+            Some(("cnf_ite_neg1", Seq(f), Seq(self, sub(x, false), sub(a, false))))
+          else if d.pos && has(x, true) && has(b, false) then
+            Some(("cnf_ite_neg2", Seq(f), Seq(self, sub(x, true), sub(b, false))))
           else if !d.pos && has(x, false) && has(a, true) then
             Some(("cnf_ite_pos1", Seq(f), Seq(self, sub(x, false), sub(a, true))))
           else if !d.pos && has(x, true) && has(b, true) then
@@ -759,7 +788,8 @@ object Cpc:
       if pos then bridge(n, l)
       else
         val tn = lTerm(n)
-        val inner = bridge(n, l.neg).map(b => step(s"(= (not $tn) (not ${litTerm(l.neg)}))", "cong", Seq(b), Seq(s"(not $tn)")))
+        val inner =
+          bridge(n, l.neg).map(b => step(s"(= (not $tn) (not ${litTerm(l.neg)}))", "cong", Seq(b), Seq(s"(not $tn)")))
         if !l.pos then inner
         else
           val tl = litTerm(l)
@@ -771,7 +801,7 @@ object Cpc:
       val h = id("h")
       out ++= s"(assume-push $h $f)\n"
       val p = id("p")
-      out ++= s"(step-pop $p (=> $f $f) :rule scope :premises ($h))\n"
+      pop(p, s"(=> $f $f)", h)
       step(s"(or (not $f) $f)", "implies_elim", Seq(p))
 
     // ----------------------------------------------------------------------
@@ -786,6 +816,7 @@ object Cpc:
      *  which the equality proof derives `false`.
      */
     private def ufLemma(c: Vector[Lit], proof: Vector[Sexp], cert: Sexp): String =
+      if compact then return compactUfLemma(c, proof, cert)
       val hyps = c.map(_.neg)
       val hypSteps = hyps.map { h =>
         val p = id("h")
@@ -891,13 +922,14 @@ object Cpc:
               step("false", "contra", Seq(step(formula(l.v), "true_elim", Seq(q)), h))
         case Ctor(name, _) => throw Unsupported(s"$name certificate")
 
-      // Discharge the hypotheses, innermost first.
+      // Discharge the hypotheses, innermost first. Each implication is a
+      // `define` over the previous one, so that the scopes stay linear.
       var body = bottom
       var concl = "false"
       for (h, _) <- hypSteps.reverse do
-        concl = s"(=> ${litTerm(h)} $concl)"
+        if !compact then concl = define(id("i").drop(1), s"(=> ${litTerm(h)} $concl)")
         val p = id("p")
-        out ++= s"(step-pop $p $concl :rule scope :premises ($body))\n"
+        pop(p, s"$concl", body)
         body = p
       if hyps.isEmpty then return bottom
       val hypTerms = hyps.map(litTerm)
@@ -909,6 +941,9 @@ object Cpc:
         else step(hypTerms.map(h => s"(not $h)").mkString("(or ", " ", ")"), "not_and", Seq(scoped))
       val doubles = c.filter(_.pos)
       if doubles.isEmpty then split
+      else if compact then
+        // `vik_rup` reads `(not (not F))` as `F`.
+        step(clauseTerm(c), "vik_rup", Seq(split), Seq(clauseTerm(c)))
       else
         val premises = split +: doubles.map(l => excludedMiddle(formula(l.v)))
         // In the clause, `(not (not F))`: the pivot `(not F)` is negative.
@@ -922,6 +957,71 @@ object Cpc:
             doubles.map(l => s"(not ${formula(l.v)})").mkString("(@list ", " ", ")")
           )
         )
+
+    /** The lemma clause `c` by the rule `vik_uf` of `Vik.eo`, whose steps
+     *  replay the equality proof under the negations of its literals.
+     */
+    private def compactUfLemma(c: Vector[Lit], proof: Vector[Sexp], cert: Sexp): String =
+      val steps = ArrayBuffer.empty[String]
+      def add(s: String): Int =
+        steps += s
+        steps.length - 1
+
+      /** The equality of each step: its sides, by class, and its index. */
+      val done = ArrayBuffer.empty[(Int, Int, Int)]
+      def oriented(a: Int, b: Int, e: (Int, Int, Int)): Int =
+        if (e._1, e._2) == (a, b) then e._3
+        else if (e._2, e._1) == (a, b) then add(s"(vik.symm ${e._3})")
+        else throw Malformed(s"step of ${(e._1, e._2)} for ${(a, b)}")
+
+      /** `a = b` from the hypothesis `r`, the negation of a literal of `c`. */
+      def fromHyp(a: Int, b: Int, r: Lit): Int =
+        val i = c.indexOf(r.neg)
+        if i < 0 then throw Malformed(s"no hypothesis $r")
+        val (x, y) = ufAtoms.lift(r.v).flatten.getOrElse(throw Malformed(s"variable ${r.v} is no atom"))
+        val natural = lNodes(meaningOf(r.v)) match
+          case Ctor("eq" | "iff", Vector(m1, m2)) if r.pos => (int(m1), int(m2))
+          case _ if y == trueClass => (x, if r.pos then trueClass else falseClass)
+          case other => throw Unsupported(s"atom of $other")
+        oriented(a, b, (natural._1, natural._2, add(s"(vik.given $i)")))
+
+      for s <- proof do
+        done +=
+          (s match
+            case Ctor("refl", Vector(a0)) =>
+              val a = int(a0)
+              (a, a, add(s"(vik.refl ${cls(a)})"))
+            case Ctor("given", Vector(a0, b0, r)) =>
+              val (a, b) = (int(a0), int(b0))
+              (a, b, fromHyp(a, b, lit(r)))
+            case Ctor("symm", Vector(i)) =>
+              val (a, b, k) = done(int(i))
+              (b, a, add(s"(vik.symm $k)"))
+            case Ctor("trans", Vector(i, j)) =>
+              val (a, _, k) = done(int(i))
+              val (_, d, m) = done(int(j))
+              (a, d, add(s"(vik.trans $k $m)"))
+            case Ctor("cong", Vector(a0, b0, f0, args0)) =>
+              val (a, b) = (int(a0), int(b0))
+              val f = done(int(f0))._3
+              (a, b, add(ints(args0).map(done(_)._3).mkString(s"(vik.cong $f (@list ", " ", "))")))
+            case Ctor(name, _) => throw Unsupported(s"equality step $name"))
+
+      // The last step contradicts the hypotheses, in either orientation.
+      def last(k: Int): Unit = if k != steps.length - 1 then add(s"(vik.symm $k)")
+      cert match
+        case Ctor("disequal", Vector(p0, _)) => last(done(int(p0))._3)
+        case Ctor("equal", Vector(p0)) => last(done(int(p0))._3)
+        case Ctor("apart", Vector(left, right, _)) =>
+          // `s = t = u = s2` under the hypothesis `t = u` of the first literal.
+          val (t, _, l) = done(int(left))
+          val (u, _, r) = done(int(right))
+          val st = add(s"(vik.symm $l)")
+          val tu = fromHyp(t, u, c.head.neg)
+          add(s"(vik.trans ${add(s"(vik.trans $st $tu)")} $r)")
+        case Ctor(name, _) => throw Unsupported(s"$name certificate")
+      val d = clauseTerm(c)
+      step(d, "vik_uf", args = Seq(d, steps.mkString("(@list ", " ", ")")))
 
     // ----------------------------------------------------------------------
     // Derived clauses
@@ -951,7 +1051,8 @@ object Cpc:
               value(key(u)) = u.pos
               reasons += u -> h
             case _ => ()
-      if conflict < 0 then throw Malformed(s"hints ${hints.mkString(" ")} do not refute ${c.map(litTerm).mkString(" ")}")
+      if conflict < 0 then
+        throw Malformed(s"hints ${hints.mkString(" ")} do not refute ${c.map(litTerm).mkString(" ")}")
       // Resolve backwards from the conflict.
       val premises = ArrayBuffer(proved(conflict)._1)
       val pols = ArrayBuffer.empty[String]
@@ -969,6 +1070,10 @@ object Cpc:
       val text = clauseTerm(c)
       // A long clause is a `define`: the step gives it twice.
       val concl = if c.length > 8 then define(id("c").drop(1), text) else text
+      if compact && premises.length > 1 then
+        // The clauses resolution uses, in the order they propagate: the
+        // reasons, then the conflict.
+        return step(concl, "vik_rup", premises.tail.reverse.toSeq :+ premises.head, Seq(concl))
       if premises.length == 1 then
         // The conflict clause is the clause itself, up to order.
         if clauseTerm(proved(conflict)._2) == text then premises.head
