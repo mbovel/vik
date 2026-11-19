@@ -42,13 +42,20 @@
     // (a new image, a VS Code update) keeps them; their names are fixed, not
     // per container, so that they also outlive a change of the container's id.
     // The Dockerfile makes the two directories and points bash at the second.
+    //
+    // ~/scratch is a volume as well, for working files that have to outlive a
+    // rebuild and do not belong in the repository: the scripts and the jars of
+    // a night of benchmarks. /tmp, where Claude's own scratchpad is, starts
+    // empty in a new container. It is a local volume and not a folder of
+    // ~/.claude, which may be on a network file system.
     "mounts": [
         "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
         "source=vik-bench-venv-${devcontainerId},target=${localWorkspaceFolder}/bench/.venv,type=volume",
         "source=vik-gh-config,target=/home/vscode/.config/gh,type=volume",
-        "source=vik-shell-history,target=/home/vscode/.shell-history,type=volume"
+        "source=vik-shell-history,target=/home/vscode/.shell-history,type=volume",
+        "source=vik-scratch,target=/home/vscode/scratch,type=volume"
     ],
-    "postCreateCommand": "sudo chown vscode: bench/.venv /home/vscode/.config/gh /home/vscode/.shell-history && python3 -m venv bench/.venv && bench/.venv/bin/pip install -q -r bench/requirements.txt",
+    "postCreateCommand": "sudo chown vscode: bench/.venv /home/vscode/.config/gh /home/vscode/.shell-history /home/vscode/scratch && python3 -m venv bench/.venv && bench/.venv/bin/pip install -q -r bench/requirements.txt",
     "containerEnv": {
         "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
     },
