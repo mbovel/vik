@@ -27,7 +27,7 @@
   (($vik_lower (xor a b)) (not (= ($vik_lower a) ($vik_lower b))))
   (($vik_lower (ite c x y)) (ite ($vik_lower c) ($vik_lower x) ($vik_lower y)))
   (($vik_lower (= x y)) (= ($vik_lower x) ($vik_lower y)))
-  (($vik_lower (distinct ys)) ($mk_distinct_elim (distinct ys)))
+  (($vik_lower (distinct ys)) ($vik_lower ($mk_distinct_elim (distinct ys))))
   (($vik_lower x) x)
   )
 )
