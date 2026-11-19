@@ -449,103 +449,101 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     walkMarks += firstDone += trailDone += definitionsDone += requiredDone
     theory.push()
 
-  /** The unassigned variable most recently in a conflict of the clause, other
-   *  than `except`, if the clause is not satisfied, otherwise `-1`; `wanted` is
-   *  then the literal that is its first choice, and may have changed otherwise.
+  private val noLit: Lit = Lit.fromIndex(-1)
+
+  /** The unassigned literal of the clause whose variable was most recently in a
+   *  conflict, other than one of `except`, if the clause is not satisfied,
+   *  otherwise [[noLit]].
    */
-  private var wanted: Lit = Lit(0)
-  private def unsatisfiedIn(clause: Array[Lit], except: Var = -1): Var =
-    var best = -1
+  private def unsatisfiedIn(clause: Array[Lit], except: Var = -1): Lit =
+    var best = noLit
     var i = 0
     while i < clause.length do
       val l = clause(i)
       val x = value(l.index)
-      if x > 0 then return -1
-      if x == 0 && l.variable != except && (best < 0 || vmtfStamp(l.variable) > vmtfStamp(best)) then
-        best = l.variable
-        wanted = l
+      if x > 0 then return noLit
+      if x == 0 && l.variable != except && (best.index < 0 || vmtfStamp(l.variable) > vmtfStamp(best.variable)) then
+        best = l
       i += 1
     best
 
-  /** The variable to decide for `wanted` when it is a definition variable,
-   *  taken down through its definition: rather than the variable of a
-   *  disjunction, the operand that makes it true (or false for a conjunction),
-   *  the way a justification walk goes down a formula. The variable then
-   *  follows by propagation, and nested connectives cost no decision of their
-   *  own: a disjunction of ten written as nine binary ones (`hash_sat`) was a
-   *  chain of decisions before. The operand is decided the way the definition
-   *  wants it, whatever its saved phase: with that phase, half the decisions
-   *  satisfied nothing (measured 3× slower on `hash_sat`).
+  /** The literal to decide for `l`, a literal that would satisfy a clause: when
+   *  its variable is a definition variable, taken down through its definition.
+   *  Rather than the variable of a disjunction, the operand that makes it true
+   *  (or false for a conjunction), the way a justification walk goes down a
+   *  formula. The variable then follows by propagation, and nested connectives
+   *  cost no decision of their own: a disjunction of ten written as nine binary
+   *  ones (`hash_sat`) was a chain of decisions before. The operand is decided
+   *  the way the definition wants it, whatever its saved phase: with that
+   *  phase, half the decisions satisfied nothing (measured 3× slower on
+   *  `hash_sat`). A literal not taken down gets the phase of its variable (see
+   *  [[withPhase]]).
    */
-  private var descended = false
-  private def descend(v: Var): Var =
-    var u = v
+  private def descend(l: Lit): Lit =
+    var at = l
     var going = true
     while going do
       going = false
+      val u = at.variable
       val own = if u < definitions.length then definitions(u) else null
       if own != null then
-        val need = wanted.neg
+        val need = at.neg
         var k = 0
         while k < own.length && !going do
           val clause = clauses(own(k))
           if clause.contains(need) then
-            val before = wanted
             val operand = unsatisfiedIn(clause, except = u)
-            if operand >= 0 then
-              descended = true
-              u = operand
+            if operand.index >= 0 then
+              at = operand
               going = true
-            else wanted = before
           k += 1
-    u
+    if at == l then withPhase(l) else at
 
-  private def nextRelevant(): Var =
+  /** `l`'s variable, with the value it had last, or else the one its theory
+   *  prefers, or else `l`'s.
+   */
+  private def withPhase(l: Lit): Lit =
+    val v = l.variable
+    if seen(v) then Lit(v, phase(v)) else Lit(v, theory.phase(v).getOrElse(l.positive))
+
+  private def nextRelevant(): Lit =
     if !firstCollected then collectFirst()
     while firstDone < firstClauses.length do
-      val v = unsatisfiedIn(clauses(firstClauses(firstDone)))
-      if v >= 0 then return descend(v)
+      val l = unsatisfiedIn(clauses(firstClauses(firstDone)))
+      if l.index >= 0 then return descend(l)
       firstDone += 1
     while trailDone < trail.length do
       val u = trail(trailDone).variable
       val own = if u < definitions.length then definitions(u) else null
       if own != null then
         while definitionsDone < own.length do
-          val v = unsatisfiedIn(clauses(own(definitionsDone)))
-          if v >= 0 then return descend(v)
+          val l = unsatisfiedIn(clauses(own(definitionsDone)))
+          if l.index >= 0 then return descend(l)
           definitionsDone += 1
       definitionsDone = 0
       trailDone += 1
     while requiredDone < required.length do
       val v = required(requiredDone)
-      if value(Lit(v).index) == 0 then
-        wanted = Lit(v, phase(v))
-        return v
+      if value(Lit(v).index) == 0 then return withPhase(Lit(v, phase(v)))
       requiredDone += 1
-    -1
+    noLit
 
-  /** The variable to decide next: the first unassigned of the move-to-front
-   *  list, `-1` if none; or when only what is relevant is decided, one that has
-   *  been in a conflict if there is one, and else what the clauses need.
+  /** The literal to decide next, [[noLit]] if none: the first unassigned
+   *  variable of the move-to-front list; or when only what is relevant is
+   *  decided, one that has been in a conflict if there is one, and else what
+   *  the clauses need.
    */
-  private def nextDecision(): Var =
+  private def nextDecision(): Lit =
     while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)
     if !relevantOnly || (vmtfSearch >= 0 && vmtfStamp(vmtfSearch) > 0) then
-      wanted = if vmtfSearch >= 0 then Lit(vmtfSearch, phase(vmtfSearch)) else Lit(0)
-      vmtfSearch
+      if vmtfSearch >= 0 then withPhase(Lit(vmtfSearch, phase(vmtfSearch))) else noLit
     else nextRelevant()
 
-  private def decide(v: Var): Unit =
+  private def decide(l: Lit): Unit =
     decisions += 1
-    val first = wanted.positive
     openLevel()
-    val value =
-      if descended then first
-      else if seen(v) then phase(v)
-      else theory.phase(v).getOrElse(first)
-    descended = false
-    seen(v) = true
-    enqueue(Lit(v, value), Decision)
+    seen(l.variable) = true
+    enqueue(l, Decision)
 
   /** Learns the clause of a conflict and backjumps, or reports level 0. Returns
    *  whether the search can go on. A theory conflict may involve no literal of
@@ -662,10 +660,10 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
           openLevel()
           enqueue(a, Decision)
       else
-        val v = nextDecision()
-        if v >= 0 then
+        val l = nextDecision()
+        if l.index >= 0 then
           if !keepGoing() then return Result.Unknown
-          decide(v)
+          decide(l)
         else
           theory.finalCheck() match
             case Theory.Result.Unknown => return Result.Unknown
@@ -688,7 +686,6 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
                   val needed = if relevantOnly then theory.neededDecision() else Theory.nothingNeeded
                   if needed == Theory.everythingNeeded then relevantOnly = false
                   else if needed >= 0 then
-                    wanted = Lit(needed, phase(needed))
-                    decide(needed)
+                    decide(withPhase(Lit(needed, phase(needed))))
                   else return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
     Result.Unsat
