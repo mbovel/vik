@@ -212,11 +212,18 @@ object Simplifier:
    *  input (`Low.simplifies`), over formulas rather than nodes.
    */
   def implies(o: Formula, s: Formula, hints: collection.Map[Formula, Eliminations]): Boolean =
-    weaker(o, s, Nil, hints)
+    weaker(o, s, Equalities(Nil), hints)
 
   private type Expr = Term | Formula
 
-  private def weaker(o: Formula, s: Formula, eqs: List[(Expr, Expr)], hints: collection.Map[Formula, Eliminations])
+  /** Equalities oriented from their constant, with the pairs `eqv` already
+   *  compared under them: the formulas share subterms through `let`, which a
+   *  walk without memory visits once per path.
+   */
+  private final class Equalities(val pairs: List[(Expr, Expr)]):
+    val known = HashMap.empty[(Expr, Expr), Boolean]
+
+  private def weaker(o: Formula, s: Formula, eqs: Equalities, hints: collection.Map[Formula, Eliminations])
       : Boolean =
     eqv(o, s, eqs) ||
       ((o, s) match
@@ -231,7 +238,7 @@ object Simplifier:
               case Some(Eq(x, y)) => List(if left then (x, y) else (y, x))
               case _ => Nil
           )
-          val eqs2 = eqs ++ more
+          val eqs2 = if more.isEmpty then eqs else Equalities(eqs.pairs ++ more)
           os.zipWithIndex.collect { case (g, i) if !elim.exists(_._1 == i) => g } match
             case Nil => s == True
             case x :: Nil => weaker(x, s, eqs2, hints)
@@ -244,12 +251,15 @@ object Simplifier:
   /** Whether `a` and `b` have the same value where the equalities `eqs` hold,
    *  `a` replaced by the right side of an equality of which it is the left.
    */
-  private def eqv(a: Expr, b: Expr, eqs: List[(Expr, Expr)]): Boolean =
-    a == b || eqs.exists((x, y) => x == a && eqv(y, b, eqs)) ||
-      skeleton(a) == skeleton(b) && {
-        val (as, bs) = (children(a), children(b))
-        as.length == bs.length && as.lazyZip(bs).forall(eqv(_, _, eqs))
-      }
+  private def eqv(a: Expr, b: Expr, eqs: Equalities): Boolean =
+    a == b || eqs.pairs.nonEmpty && eqs.known.getOrElseUpdate(
+      (a, b),
+      eqs.pairs.exists((x, y) => x == a && eqv(y, b, eqs)) ||
+        skeleton(a) == skeleton(b) && {
+          val (as, bs) = (children(a), children(b))
+          as.length == bs.length && as.lazyZip(bs).forall(eqv(_, _, eqs))
+        }
+    )
 
   /** What `Node.skel` keeps of a node: its kind and its data, without its
    *  children.

@@ -364,18 +364,20 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
       val out = pairs.filter(_._2 != Formula.True)
       simplified = out.collect {
         case (o, s) if o != s =>
-          // the conjunctions of `o` that lost equalities
+          // the conjunctions of `o` that lost equalities, each subformula visited once
           val under = LinkedHashMap.empty[Formula, Simplifier.Eliminations]
-          def walk(f: Formula): Unit = f match
-            case Formula.And(as) =>
-              hints.get(f).foreach(under(f) = _)
-              as.foreach(walk)
-            case Formula.Or(as) => as.foreach(walk)
-            case Formula.Implies(a, b) =>
-              walk(a); walk(b)
-            case Formula.Ite(c, a, b) =>
-              walk(c); walk(a); walk(b)
-            case _ => ()
+          val seen = HashSet.empty[Formula]
+          def walk(f: Formula): Unit = if seen.add(f) then
+            f match
+              case Formula.And(as) =>
+                hints.get(f).foreach(under(f) = _)
+                as.foreach(walk)
+              case Formula.Or(as) => as.foreach(walk)
+              case Formula.Implies(a, b) =>
+                walk(a); walk(b)
+              case Formula.Ite(c, a, b) =>
+                walk(c); walk(a); walk(b)
+              case _ => ()
           walk(o)
           s -> (o, under.toList)
       }.toMap
