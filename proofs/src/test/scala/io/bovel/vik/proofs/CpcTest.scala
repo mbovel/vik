@@ -91,3 +91,12 @@ class CpcTest extends munit.FunSuite:
       "(declare-sort U 0) (declare-fun f (U) U) (declare-const a U) (declare-const b U) (declare-const p Bool) " +
         "(assert (not (= (f (ite p a b)) (f a)))) (assert (= a b)) (check-sat)"
     )
+
+  test("simplifications"):
+    check(
+      "Simp",
+      "(declare-sort U 0) (declare-fun f (U) U) (declare-fun p (U) Bool) (declare-const a U) (declare-const b U) " +
+        "(declare-const d U) (declare-const g U) (declare-const q Bool) " +
+        "(assert (and (= b (f a)) (p b))) " +
+        "(assert (or (and (= d a) (not (p (f d)))) (=> q (and (= g (f a)) (not (p g)))))) (assert q) (check-sat)"
+    )
