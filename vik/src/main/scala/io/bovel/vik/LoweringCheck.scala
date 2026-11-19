@@ -947,19 +947,19 @@ final class LoweringCheck:
     assertions += f
     if scopes.nonEmpty then scopes.last += (() => assertions.remove(assertions.length - 1))
 
-  /** The script the last check saw, as [[LeanExport.Surface]]: its assertions
+  /** The script the last check saw, as [[ProofExport.Surface]]: its assertions
    *  and assumptions, their nodes as written (`let` and the uses of definitions
    *  included, each instance of a definition's body before its use), the
    *  lowering of each node as the replay lowers it, what the lowering minted
    *  for them, and why each lowered assertion holds. `Left` for what the Lean
    *  trace does not cover yet.
    */
-  def surface(): Either[String, LeanExport.Surface] =
+  def surface(): Either[String, ProofExport.Surface] =
     try Right(Transcript().result())
     catch case Failed(msg) => Left(msg)
 
   private final class Transcript:
-    import LeanExport.{Mint, Reason, RRule, SortEntry}
+    import ProofExport.{Mint, Reason, RRule, SortEntry}
 
     private def list(xs: Iterable[Any]): String = xs.mkString("[", ", ", "]")
     private def int(v: BigInt): String = if v < 0 then s"($v)" else v.toString
@@ -1310,8 +1310,8 @@ final class LoweringCheck:
       factCache.get(intro)
 
     /** The rule of an intro of the lowering of bit-vectors. */
-    private def lowRule(intro: Intro): LeanExport.Rule =
-      import LeanExport.Rule.*
+    private def lowRule(intro: Intro): ProofExport.Rule =
+      import ProofExport.Rule.*
       (intro.kind, intro.key, intro.args) match
         case ("modulo", List(v: Term, w: Int, lo: BigInt, hi: BigInt), _) => Modulo(v, w, lo, hi)
         case ("cases", List(_, c: Term, t: Term, e: Term, lo: BigInt, hi: BigInt), _) =>
@@ -1324,7 +1324,7 @@ final class LoweringCheck:
         case ("udiv", _, List(a: Term, b: Term, w: Int)) => UDiv(a, b, w)
         case _ => fail(s"the ${intro.kind} rule is not in the Lean trace")
 
-    def result(): LeanExport.Surface =
+    def result(): ProofExport.Surface =
       val top = Ctx(main, Map.empty, Map.empty)
       val reasons = HashMap.empty[Formula, Reason]
       val asserts = (assertions.toList ++ assumed).map { f =>
@@ -1397,16 +1397,16 @@ final class LoweringCheck:
           case Mint.Real(r) => fs.indices.toList.map(Reason.Real(r, _))
           case Mint.Rule(r, 0) =>
             val aux = r match
-              case LeanExport.Rule.SDivide(t, w, _, _) => Some(signed(t, w))
-              case LeanExport.Rule.SModZ(a, c, w) =>
+              case ProofExport.Rule.SDivide(t, w, _, _) => Some(signed(t, w))
+              case ProofExport.Rule.SModZ(a, c, w) =>
                 val m = modulus(w)
                 Some(divideSigned(a, w, (if c >= m / 2 then c - m else c).abs)._2)
-              case LeanExport.Rule.UDiv(_, b, w) => Some(exactProduct(b, Const(n), w))
+              case ProofExport.Rule.UDiv(_, b, w) => Some(exactProduct(b, Const(n), w))
               case _ => None
             fs.indices.toList.map(Reason.Rule(r, _, aux))
           case Mint.Rule(_, _) => Nil
         for (f, r) <- fs.zip(why) do reasons.getOrElseUpdate(f, r)
-      LeanExport.Surface(
+      ProofExport.Surface(
         sorts.toList,
         decls.toList,
         mintList,

@@ -1,4 +1,4 @@
-package io.bovel.vik
+package io.bovel.vik.proofs
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -12,7 +12,7 @@ import scala.collection.mutable.ArrayBuffer
  *  modules of `name` are `name.Data`, `name.S…` and `name.Main`, for
  *  `proofs/lean/check-modules.sh` to check.
  */
-private[vik] object LeanModules:
+object LeanModules:
 
   /** The modules of the proof `text`, each its file name and content. */
   def apply(name: String, text: String): List[(String, String)] =

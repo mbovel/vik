@@ -93,16 +93,31 @@ certificates, with a theorem that an accepted certificate is sound.
 
 ## Exported proofs
 
-Vik writes a proof as one Lean file: the script, the lowered problem, the
-answer and the trace as `sexp%` data, then theorems that the checkers accept
-them, in slices, and the theorem that no model satisfies the script. A small
+Vik gives the proof of an `unsat` as a certificate, one S-expression with no
+Lean code (`Session.proof`):
+
+```
+(vik-proof 1
+  (script sig nodes sortOf asserts datatypes defs)
+  (trace node mints inputs levels insts)
+  (problem sig nodes sortOf inputs datatypes stores bvIndex)
+  (answer meaning trueLit levels assumed ufAtoms trueClass falseClass ufCtors
+    ufTesters liaAtoms liaForms steps justs conclusion exts witnesses))
+```
+
+Each section holds the fields of `Vik.Lower.SProblem`, `Vik.Lower.Trace`,
+`Vik.Low.Problem` and `Vik.Low.Answer`, in order, as `sexp%` reads them. The
+driver in `../src` (`io.bovel.vik.proofs.Lean`) writes it as one Lean file in a
+namespace of the caller's choice: the four sections as `sexp%` data, then
+theorems that the checkers accept them, in slices it computes from the data,
+and the theorem that no model satisfies the script. A small
 file checks with `lake env lean <file>`. Lean checks the theorems of a file one
 after another and keeps the kernel's work for the whole file, so a large proof
 is split into modules, one per slice, and checked in parallel processes:
 `./check-modules.sh <dir> [jobs]`.
 
-The kernel takes minutes to an hour on the largest proofs. Vik also writes
-each proof for `native_decide` (`native/` of the exports), which runs the
+The kernel takes minutes to an hour on the largest proofs. The driver also
+writes each proof for `native_decide` (`native/` of the exports), which runs the
 same checkers as compiled code, in seconds to a few minutes, but trusts Lean's
 compiler (the axiom `Lean.ofReduceBool`): `./check-native.sh <file>`. The
 library is then compiled to a shared object (`precompileModules`), `sexp%`

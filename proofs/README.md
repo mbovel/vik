@@ -11,6 +11,9 @@ those certificates sound. This folder holds them, one subfolder per checker:
   value. A checker for another system proves the same list.
 - [`lean/`](lean) proves them in Lean 4, with nothing beyond Lean's core
   library and its standard axioms.
+- [`src/`](src) is the sbt project `proofs`: it writes a certificate of Vik
+  (`Session.proof`) as Lean files for `lean/` to check, and the certificates
+  of a corpus (`LeanCorpus`).
 
 ## What the lemmas cover
 

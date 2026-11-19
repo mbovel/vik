@@ -270,12 +270,13 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    */
   def checkProof(): Option[String] = proof.flatMap(_ => encoder.nn.checkProof(proved._1, proved._2))
 
-  /** The [[proof]] of the last `Unsat` as Lean terms that `proofs/lean` checks
-   *  (see [[LeanExport]]), or why it cannot be written.
+  /** The certificate of the [[proof]] of the last `Unsat`, the S-expression
+   *  that `proofs/lean` checks (see [[ProofExport]]), or why it cannot be
+   *  written.
    */
-  def leanProof(surface: Option[LeanExport.Surface] = None): Either[String, String] = proof match
+  def certificate(surface: Option[ProofExport.Surface] = None): Either[String, String] = proof match
     case None => Left("no proof")
-    case Some(_) => encoder.nn.lean(levels.head.toList, proved._2.toList.sorted, surface)
+    case Some(_) => encoder.nn.certificate(levels.head.toList, proved._2.toList.sorted, surface)
 
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
@@ -1517,29 +1518,20 @@ private final class Encoder(
   )
   def proof: cdclt.Proof | Null = sat.proof
 
-  /** Checks [[proof]]: its derivations, and the lemmas of the theories that
-   *  come with a certificate (see [[UfLemmas]]); the others are taken on trust.
-   *  `None` when it holds, what is wrong otherwise.
+  /** The certificate of [[proof]], a refutation of `inputs` with the literals
+   *  of `assumed` (see [[checkProof]]), with the script it lowers when given
+   *  (see [[ProofExport]]), or why it cannot be written.
    */
-  /** Checks [[proof]], a refutation of `inputs` (the assertions of the first
-   *  level) with the literals of `assumed` (the selectors of the other levels,
-   *  the activations of the named assertions): its conclusion is the clause of
-   *  the negations of some of these; its derivations check; its input clauses
-   *  against where they come from (see [[InputClauses]]); the lemmas of the
-   *  theories against their certificates (see [[UfLemmas]] and [[LiaLemmas]]),
-   *  the atoms these mention against the formulas their variables stand for.
-   *  `None` when it holds, what is wrong otherwise.
-   */
-  def lean(
+  def certificate(
       inputs: List[Formula],
       assumed: List[cdclt.Var],
-      surface: Option[LeanExport.Surface]
+      surface: Option[ProofExport.Surface]
   ): Either[String, String] =
     val p = sat.proof
     if p == null then Left("no proof")
     else
-      LeanExport(
-        LeanExport.Input(
+      ProofExport(
+        ProofExport.Input(
           declarations,
           introduced,
           sortOf,
@@ -1562,6 +1554,15 @@ private final class Encoder(
         surface
       )
 
+  /** Checks [[proof]], a refutation of `inputs` (the assertions of the first
+   *  level) with the literals of `assumed` (the selectors of the other levels,
+   *  the activations of the named assertions): its conclusion is the clause of
+   *  the negations of some of these; its derivations check; its input clauses
+   *  against where they come from (see [[InputClauses]]); the lemmas of the
+   *  theories against their certificates (see [[UfLemmas]] and [[LiaLemmas]]),
+   *  the atoms these mention against the formulas their variables stand for.
+   *  `None` when it holds, what is wrong otherwise.
+   */
   def checkProof(inputs: Set[Formula], assumed: Set[cdclt.Var]): Option[String] =
     val constructors = datatypes.flatMap(_.constructors).map(c =>
       classOf(Term.Const(c.name)) -> c.selectors.map((s, _) => classOf(Term.Const(s)))

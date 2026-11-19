@@ -8,7 +8,7 @@ list=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 mkdir -p "$2"
 out=$(cd "$2" && pwd)
 cd "$root"
-sbt --server "smtlibutils/Test/runMain io.bovel.vik.LeanCorpus $list $out ${3:-60}" | tee "$out/export.log" |
+sbt --server "proofs/runMain io.bovel.vik.proofs.LeanCorpus $list $out ${3:-60}" | tee "$out/export.log" |
   grep -E "^[^[].*	C[0-9]+	" || true
 want=$(grep -c . "$list")
 got=$(grep -cP '\tC[0-9]+\twritten$' "$out/export.log" || true)
