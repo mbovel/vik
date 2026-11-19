@@ -39,18 +39,14 @@ CVC5 = ["cvc5", "--tlimit=%d" % (SECONDS * 1000), "--incremental", "--lang=smt2"
 # is kept out of the scripts or its findings are reported under the issue, without failing the run. `--lift N`
 # brings one back, to check a fix; once it is merged, delete the issue's line here and the code that reads it.
 KNOWN = {
-    125: "a Bool datatype field, or a field of a finite datatype under a datatype VIK counts as infinite: not "
-         "generated (fixed by PR #128, not merged)",
-    126: "a bit-vector datatype field of 1 to 3 bits: not generated, the fields are 4 or 8 bits wide",
     127: "BADMODEL on a script with a datatype VIK counts as infinite: reported under the issue",
     133: "arrays without an Int, Real or store term: a script with arrays gets an unrelated Int term",
     138: "BADMODEL whose model has an abstract bit-vector (an array index): reported under the issue",
-    154: "an array of bit-vector elements: not generated",
 }
-# VIK counts a datatype as infinite when it is recursive or has an Int, declared-sort or bit-vector field below
-# (has_infinite_datatype). Not generated either, and not liftable: datatype fields of an array sort (#153: finite
-# ones are unbounded; #134, #135, #139 and #141 are open on array fields too). A model with a parametric
-# constructor is printed by its internal name (#142), which z3 cannot read: such models are counted, not checked.
+# A datatype is infinite when it is recursive or has an Int or declared-sort field below (has_infinite_datatype).
+# Not generated either, and not liftable: datatype fields of an array sort (#135 and #141 are open on them). A
+# model with a parametric constructor is printed by its internal name (#142), which z3 cannot read: such models
+# are counted, not checked.
 
 
 # ---- s-expressions
@@ -108,24 +104,23 @@ def substitute(sort, sub):
     return sub.get(sort, sort) if isinstance(sort, str) else [substitute(s, sub) for s in sort]
 
 
-def finite(sort, defs, bits=True, seen=()):
-    """Whether a sort has finitely many values; a recursive datatype, Int, Real and declared sorts do not. With
-    `bits` false, a bit-vector counts as infinite, as it does for VIK under a datatype (#126)."""
-    if sort == "Bool" or (bits and isinstance(sort, list) and sort[:2] == ["_", "BitVec"]):
+def finite(sort, defs, seen=()):
+    """Whether a sort has finitely many values; a recursive datatype, Int, Real and declared sorts do not."""
+    if sort == "Bool" or (isinstance(sort, list) and sort[:2] == ["_", "BitVec"]):
         return True
     if isinstance(sort, list) and sort[0] == "Array":
-        return finite(sort[1], defs, bits, seen) and finite(sort[2], defs, bits, seen)
+        return finite(sort[1], defs, seen) and finite(sort[2], defs, seen)
     name, args = (sort, []) if isinstance(sort, str) else (sort[0], sort[1:])
     if name not in defs or show(sort) in seen:
         return False
     params, ctors = defs[name]
     sub = dict(zip(params, args))
-    return all(finite(substitute(t, sub), defs, bits, seen + (show(sort),)) for _, fields in ctors for _, t in fields)
+    return all(finite(substitute(t, sub), defs, seen + (show(sort),)) for _, fields in ctors for _, t in fields)
 
 
 def has_infinite_datatype(decls):
-    """Whether a datatype sort of the declarations (a datatype, or one a constant or function names) is infinite
-    for VIK: recursive, or with an Int, declared-sort or bit-vector field somewhere below."""
+    """Whether a datatype sort of the declarations (a datatype, or one a constant or function names) is infinite:
+    recursive, or with an Int or declared-sort field somewhere below."""
     defs = datatype_defs(decls)
     sorts = [name for name, (params, _) in defs.items() if not params]
     for d in map(parse, decls):
@@ -134,7 +129,7 @@ def has_infinite_datatype(decls):
             sorts.append(d[2])
         elif d[0] == "declare-fun":
             sorts += d[2] + [d[3]]
-    return any((s if isinstance(s, str) else s[0]) in defs and not finite(s, defs, bits=False) for s in sorts)
+    return any((s if isinstance(s, str) else s[0]) in defs and not finite(s, defs) for s in sorts)
 
 
 # ---- the generator
@@ -163,12 +158,7 @@ class Gen:
         self.arrays = []  # (array sort, index sort, element sort)
         self.decls = []
         self.uninterpreted = False
-        self.field_widths = [1, 2, 3, 4, 8] if 126 in lifted else [4, 8]  # #126
-
-    def finite(self, sort):
-        """Whether VIK counts a sort as finite: a bit-vector field makes a datatype infinite (#126)."""
-        defs = {d: ([], [(c, [(s, parse(t)[0]) for s, t in f]) for c, f in cs]) for d, cs in self.dts.items()}
-        return finite(parse(sort)[0], defs, bits=False)
+        self.field_widths = [1, 2, 3, 4, 8]
 
     def make_datatypes(self, uninterpreted=None, parametric=True):
         """Datatypes, mutually recursive in declaration order, the first constructor of each not recursive."""
@@ -192,17 +182,6 @@ class Gen:
                     fields.append(("%s%d_%d_%d" % (S, i, j, k), s))
                 ctors.append(("%s%d_%d" % (C, i, j), fields))
             self.dts[d] = ctors
-        if 125 not in self.lifted:
-            # #125: on main a Bool field is unbounded, and so is a field of a finite datatype under an infinite one,
-            # infinite as VIK counts it (a bit-vector field below makes it so). A bit-vector in place of the first,
-            # an Int in place of the second: no datatype changes finiteness but those already infinite, so one pass
-            # is enough.
-            self.dts = {d: [(c, [(s, bv(fw[0]) if t == "Bool" else t) for s, t in fields]) for c, fields in cs]
-                        for d, cs in self.dts.items()}
-            for d in names:
-                if not self.finite(d):
-                    self.dts[d] = [(c, [(s, "Int" if t in self.dts and self.finite(t) else t) for s, t in fields])
-                                   for c, fields in self.dts[d]]
         self.decls.append("(declare-datatypes (%s) (%s))" % (
             " ".join("(%s 0)" % d for d in names),
             " ".join("(%s)" % " ".join("(%s%s)" % (c, "".join(" (%s %s)" % f for f in fs)) for c, fs in self.dts[d])
@@ -210,14 +189,9 @@ class Gen:
         if parametric and r.random() < 0.3:
             self.decls.append("(declare-datatype Opt (par (T) ((none) (some (val T)))))")
             self.decls.append("(declare-datatype Pair (par (A B) ((pair (fst A) (snd B)))))")
-            for t in (bv(r.choice(fw)), r.choice(names)) + (("Bool",) if 125 in self.lifted else ()):
+            for t in (bv(r.choice(fw)), r.choice(names), "Bool"):
                 self.dts["(Opt %s)" % t] = [("(as none (Opt %s))" % t, []), ("some", [("val", t)])]
-            if 125 in self.lifted:
-                a, b = r.choice(base), r.choice(names + ["Bool"])
-            elif self.finite(b := r.choice(names)):  # #125: no Bool, and both finite or the second infinite
-                a = r.choice([d for d in names if self.finite(d)])
-            else:
-                a = r.choice(["Int"] + [bv(w) for w in fw] + (["U"] if uninterpreted else []))
+            a, b = r.choice(base), r.choice(names + ["Bool"])
             self.dts["(Pair %s %s)" % (a, b)] = [("pair", [("fst", a), ("snd", b)])]
 
     def sorts(self):
@@ -241,11 +215,9 @@ class Gen:
             args, res = [r.choice(ss) for _ in range(r.randint(1, 2))], r.choice(ss)
             self.funs.append(("f%d" % i, args, res))
             self.decls.append("(declare-fun f%d (%s) %s)" % (i, " ".join(args), res))
-        # #154: reads at an extensionality witness are unbounded for bit-vector elements.
-        elements = ss if 154 in self.lifted else [s for s in ss if bv_width(s) is None]
         for i in range(r.randint(0, 2)):
             idx = r.choice([bv(r.choice([1, 2, 3])), "Int", r.choice([d for d in self.dts])])
-            el = r.choice(elements)
+            el = r.choice(ss)
             srt = "(Array %s %s)" % (idx, el)
             self.arrays.append((srt, idx, el))
             for j in range(r.randint(1, 2)):
