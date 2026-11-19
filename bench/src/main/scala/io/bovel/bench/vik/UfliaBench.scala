@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit
 import scala.compiletime.uninitialized
 import scala.util.Random
 
-import io.bovel.smtlib.Sort
 import io.bovel.vik.*
 import org.openjdk.jmh.annotations.*
 import io.bovel.vik.Formula.*

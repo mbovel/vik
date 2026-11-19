@@ -1,13 +1,10 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.Datatype
-
 /** Prints lowered scripts, formulas and terms back to SMT-LIB 2 text (one
  *  command per line), e.g. to hand the problem the solver plays to another
  *  solver, or to show it (`io.bovel.vik.lower`, `get-assertions`, the models).
- *  One thing is not SMT-LIB's: a constant of a bit-vector sort stands in
- *  integer arithmetic, as the integer of its range that the solver takes it
- *  for.
+ *  One thing is not SMT-LIB's, which has no sort for a range of the integers:
+ *  `(_ IntRange l u)`, the sort a bit-vector sort is lowered to ([[Sort]]).
  */
 object Printer:
   /** A symbol as SMT-LIB writes it: quoted when it holds a character a simple

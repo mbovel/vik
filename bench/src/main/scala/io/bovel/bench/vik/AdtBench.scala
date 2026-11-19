@@ -7,7 +7,6 @@ import scala.util.Random
 
 import io.bovel.vik.*
 import org.openjdk.jmh.annotations.*
-import io.bovel.smtlib.{Constructor, Datatype, Sort}
 import io.bovel.vik.Formula.*
 import io.bovel.vik.Solver
 import io.bovel.vik.Term.*

@@ -1,6 +1,5 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.{Datatype, Sort}
 import io.bovel.smtlib.sexpr.SExpr
 
 /** A command of a lowered script: the player's instruction set, over the

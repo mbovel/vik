@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.{Parser, Smt2Error, Sort, Unsupported}
+import io.bovel.smtlib.{Parser, Smt2Error, Unsupported}
 import Formula.*
 import Term.*
 
@@ -36,7 +36,7 @@ class LoweringTest extends munit.FunSuite:
     // asserts nothing, and reset-assertions, which drops the assertions, leaves the constant a bit-vector.
     // While the range was an assertion, it had to be said again there, or an unsat script answered sat.
     val commands = Lowering(Parser.parse("(declare-const a (_ BitVec 8)) (reset-assertions)")).commands
-    assertEquals(commands, List(Command.DeclareFun("a", Nil, Sort.BitVec(8)), Command.ResetAssertions))
+    assertEquals(commands, List(Command.DeclareFun("a", Nil, Sort.IntRange(0, 255)), Command.ResetAssertions))
     val script = "(declare-const a (_ BitVec 1)) (reset-assertions) (assert (bvugt a #b1)) (check-sat)"
     assertEquals(Session.run(Parser.parse(script)).last, "unsat")
 
