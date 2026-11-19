@@ -9,9 +9,10 @@ import io.bovel.lia
 import io.bovel.smtlib.{Datatype, Sorts}
 
 /** Writes the certificate of an `Unsat`: the data that `proofs/lean` checks, as
- *  one S-expression, with no Lean code. The lowered problem (`Vik.Low.Problem`)
- *  and the answer (`Vik.Low.Answer`), each a section
- *  `(problem (field value) …)` whose fields `sexp%` reads in order:
+ *  one S-expression, with no Lean code. Each section, `(name (field value) …)`,
+ *  holds the fields of a Lean structure in order, as `sexp%` reads them: the
+ *  script (`Vik.Lower.SProblem`), the trace of its lowering (`Vik.Lower.Trace`),
+ *  the lowered problem (`Vik.Low.Problem`) and the answer (`Vik.Low.Answer`):
  *
  *  {{{
  *  (vik-proof 1
@@ -31,9 +32,8 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *  applied to its arguments. An LIA unknown is the node of its term, and a
  *  variable the expression it stands for over them.
  *
- *  With the script the check saw ([[Surface]]), it also writes the script
- *  (`Vik.Lower.SProblem`) and the trace of its lowering (`Vik.Lower.Trace`),
- *  from which no model of the script satisfies its assertions. The table then
+ *  The script and the trace come with the script the check saw ([[Surface]]),
+ *  and give that no model of the script satisfies its assertions. The table then
  *  starts with the script's sorts and symbols, then the minted ones, as
  *  `Trace.check` requires.
  */
