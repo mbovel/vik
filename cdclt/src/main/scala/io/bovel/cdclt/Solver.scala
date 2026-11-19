@@ -363,12 +363,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   private def backtrack(to: Int): Unit =
     while decisionLevel > to do
       val start = trailLim.remove(trailLim.length - 1)
-      val mark = walkMarks.length - 5
-      rootsDone = walkMarks(mark)
-      topDone = walkMarks(mark + 1)
-      trailDone = walkMarks(mark + 2)
-      definitionsDone = walkMarks(mark + 3)
-      requiredDone = walkMarks(mark + 4)
+      val mark = walkMarks.length - 4
+      firstDone = walkMarks(mark)
+      trailDone = walkMarks(mark + 1)
+      definitionsDone = walkMarks(mark + 2)
+      requiredDone = walkMarks(mark + 3)
       walkMarks.takeInPlace(mark)
       while trail.length > start do
         val lit = trail.remove(trail.length - 1)
@@ -414,32 +413,32 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Has `v` decided even if nothing needs it: see [[relevantOnly]]. */
   def require(v: Var): Unit = required += v
 
-  /** The definitions of the variables true or false before any decision, in the
-   *  order the variables were made, which is the order the formula was written
-   *  in: they are roots as well, and the trail has them in the order of
-   *  propagation instead, which turns a conjunction of nested `and`s around
-   *  (`hash_sat_10_20` went from timing out to 0.2 s). Collected at the first
-   *  decision of each [[solve]].
+  /** The clauses the walk starts with: the roots, then the definitions of the
+   *  variables true or false before any decision, in the order the variables
+   *  were made, which is the order the formula was written in. Those are roots
+   *  as well, and the trail has them in the order of propagation instead, which
+   *  turns a conjunction of nested `and`s around (`hash_sat_10_20` went from
+   *  timing out to 0.2 s). Collected at the first decision of each [[solve]].
    */
-  private val topDefinitions = ArrayBuffer.empty[Int]
-  private var topCollected = false
+  private val firstClauses = ArrayBuffer.empty[Int]
+  private var firstCollected = false
 
-  private def collectTop(): Unit =
+  private def collectFirst(): Unit =
+    firstClauses ++= roots
     val end = if trailLim.isEmpty then trail.length else trailLim(0)
     val defined = (0 until end).map(i => trail(i).variable).filter(u =>
       u < definitions.length && definitions(u) != null
     )
-    for u <- defined.sorted do topDefinitions ++= definitions(u).nn
-    topCollected = true
+    for u <- defined.sorted do firstClauses ++= definitions(u).nn
+    firstCollected = true
 
   /** How far the clauses to satisfy have been walked and found satisfied:
-   *  roots, the definitions of [[topDefinitions]], the trail with the
-   *  definitions of the current literal, the required variables. All that stays
-   *  true deeper in the search, so each level takes over from the one before,
-   *  and these are put back to their value at the decision on backtracking.
+   *  [[firstClauses]], the trail with the definitions of the current literal,
+   *  the required variables. All that stays true deeper in the search, so each
+   *  level takes over from the one before, and these are put back to their
+   *  value at the decision on backtracking.
    */
-  private var rootsDone = 0
-  private var topDone = 0
+  private var firstDone = 0
   private var trailDone = 0
   private var definitionsDone = 0
   private var requiredDone = 0
@@ -447,22 +446,22 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   private def openLevel(): Unit =
     trailLim += trail.length
-    walkMarks += rootsDone += topDone += trailDone += definitionsDone += requiredDone
+    walkMarks += firstDone += trailDone += definitionsDone += requiredDone
     theory.push()
 
-  /** The unassigned variable most recently in a conflict of the clause, if it
-   *  is not satisfied, otherwise `-1`; `wanted` is then the literal that is its
-   *  first choice.
+  /** The unassigned variable most recently in a conflict of the clause, other
+   *  than `except`, if the clause is not satisfied, otherwise `-1`; `wanted` is
+   *  then the literal that is its first choice, and may have changed otherwise.
    */
   private var wanted: Lit = Lit(0)
-  private def unsatisfiedIn(clause: Array[Lit]): Var =
+  private def unsatisfiedIn(clause: Array[Lit], except: Var = -1): Var =
     var best = -1
     var i = 0
     while i < clause.length do
       val l = clause(i)
       val x = value(l.index)
       if x > 0 then return -1
-      if x == 0 && (best < 0 || vmtfStamp(l.variable) > vmtfStamp(best)) then
+      if x == 0 && l.variable != except && (best < 0 || vmtfStamp(l.variable) > vmtfStamp(best)) then
         best = l.variable
         wanted = l
       i += 1
@@ -491,36 +490,22 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
         while k < own.length && !going do
           val clause = clauses(own(k))
           if clause.contains(need) then
-            var best = -1
-            var pick = wanted
-            var i = 0
-            var satisfied = false
-            while i < clause.length && !satisfied do
-              val l = clause(i)
-              val x = value(l.index)
-              if x > 0 then satisfied = true
-              else if x == 0 && l.variable != u && (best < 0 || vmtfStamp(l.variable) > vmtfStamp(best)) then
-                best = l.variable
-                pick = l
-              i += 1
-            if !satisfied && best >= 0 then
+            val before = wanted
+            val operand = unsatisfiedIn(clause, except = u)
+            if operand >= 0 then
               descended = true
-              u = best
-              wanted = pick
+              u = operand
               going = true
+            else wanted = before
           k += 1
     u
 
   private def nextRelevant(): Var =
-    while rootsDone < roots.length do
-      val v = unsatisfiedIn(clauses(roots(rootsDone)))
+    if !firstCollected then collectFirst()
+    while firstDone < firstClauses.length do
+      val v = unsatisfiedIn(clauses(firstClauses(firstDone)))
       if v >= 0 then return descend(v)
-      rootsDone += 1
-    if !topCollected then collectTop()
-    while topDone < topDefinitions.length do
-      val v = unsatisfiedIn(clauses(topDefinitions(topDone)))
-      if v >= 0 then return descend(v)
-      topDone += 1
+      firstDone += 1
     while trailDone < trail.length do
       val u = trail(trailDone).variable
       val own = if u < definitions.length then definitions(u) else null
@@ -649,10 +634,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    */
   def solve(assumptions: Array[Lit], keepGoing: () => Boolean): Result =
     backtrack(0)
-    rootsDone = 0
-    topDone = 0
-    topDefinitions.clear()
-    topCollected = false
+    firstDone = 0
+    firstClauses.clear()
+    firstCollected = false
     trailDone = 0
     definitionsDone = 0
     requiredDone = 0
