@@ -57,8 +57,9 @@ Where bits are needed, VIK is a bit-blaster with a small SAT solver behind a sim
 ## Internals
 
 Every bit-vector term becomes an integer, and every operation becomes its arithmetic image
-(`io.bovel.vik.Lowering`). The sorts stay: the solver takes `(_ BitVec n)` for the sort of the integers
-from `0` to `2ⁿ − 1`, and gives that range to every term of the sort — a constant at its declaration, an
+(`io.bovel.vik.Lowering`). A sort `(_ BitVec n)` becomes the sort of the integers from `0` to `2ⁿ − 1`
+(`Sort.IntRange` in the solver, which knows the range and nothing of the operations), and the solver
+gives that range to every term of the sort — a constant at its declaration, an
 application, a field or a read of an array when it first meets the term, the terms it makes itself among
 them (the reads at the index where two arrays differ, the fields of a datatype value). The range is what
 the sort says, not an assertion: no `pop` takes it back. The operations get fresh bounded constants where
@@ -114,8 +115,8 @@ the lowered script, declaring the constants each assertion needs and asserting t
 it, so the assertions that VIK plays are linear integer arithmetic. The player applies it before playing.
 Two ways to see it: `(get-assertions)` in a script answers with the lowered assertion stack, and
 `sbt "vik/runMain io.bovel.vik.lower file.smt2"` prints a whole file as VIK will play it. One thing there
-is not SMT-LIB's: a constant keeps its bit-vector sort and stands in integer arithmetic, as the integer
-of the sort's range that the solver takes it for.
+is not SMT-LIB's, which has no sort for a range of the integers: a bit-vector constant is declared at
+`(_ IntRange 0 255)`, say, the range the solver holds it to.
 
 ```smt2
 (set-logic QF_BV)

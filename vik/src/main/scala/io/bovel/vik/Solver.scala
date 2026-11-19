@@ -9,7 +9,6 @@ import io.bovel.cdclt
 import io.bovel.cdclt.{Lit, Theory}
 import io.bovel.egraph.{App, EClassId, EGraph, NoRules}
 import io.bovel.lia
-import io.bovel.smtlib.{Datatype, Sort}
 
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
  *  functions and linear integer arithmetic: `assert` formulas, `push` and `pop`
@@ -85,22 +84,22 @@ final class Solver(val simplify: Boolean = true):
     if encoder != null then encoded(name) = (argSorts, sort)
     facts -= name
     sort match
-      case Sort.BitVec(width) if argSorts.isEmpty =>
+      case Sort.IntRange(lower, upper) if argSorts.isEmpty =>
         val constant = Term.Const(name)
-        val range =
-          Formula.And(List(Formula.Le(Term.Num(0), constant), Formula.Le(constant, Term.Num(BigInt(2).pow(width) - 1))))
+        val range = Formula.And(List(Formula.Le(Term.Num(lower), constant), Formula.Le(constant, Term.Num(upper))))
         facts(name) = Fact(range, levels.length - 1, levels.last.length)
         val e = encoder
         if e != null && !dirty then e.assert(range, null)
       case _ => ()
     if name.startsWith("store!") then anyStore = true
 
-  /** What the sort of a declared constant says of it: a constant of a
-   *  bit-vector sort is an integer of the sort's range, `0 ≤ c < 2^n`. A fact
-   *  of the declaration and not an assertion: it holds below every level, for
-   *  as long as the constant is declared, and no [[pop]] takes it back (issue
-   *  145). The terms that have no declaration of their own get theirs from the
-   *  encoder (`Encoder.assertSorts`).
+  /** What the sort of a declared constant says of it: a constant of a range of
+   *  the integers ([[Sort.IntRange]], what a bit-vector sort is to the solver)
+   *  lies in the range, `0 ≤ c < 2^n` for `n` bits. A fact of the declaration
+   *  and not an assertion: it holds below every level, for as long as the
+   *  constant is declared, and no [[pop]] takes it back (issue 145). The terms
+   *  that have no declaration of their own get theirs from the encoder
+   *  (`Encoder.assertSorts`).
    *
    *  Each fact with the place of its declaration among the assertions, its
    *  level and the number of assertions the level had: an encoder built later
@@ -446,9 +445,9 @@ final class Solver(val simplify: Boolean = true):
  *  rules of the e-graph ([[AdtRules]]): the encoder registers their symbols'
  *  classes. Every term gets what its sort says of it, whoever made the term:
  *  one of its testers holds for a term of a datatype sort, and a term of a
- *  bit-vector sort is an integer of the sort's range. After a `sat`, the terms
- *  of a datatype sort get their fields of a finite sort as terms too, and the
- *  search goes on with them, so that it is complete on finite sorts.
+ *  range of the integers lies in the range. After a `sat`, the terms of a
+ *  datatype sort get their fields of a finite sort as terms too, and the search
+ *  goes on with them, so that it is complete on finite sorts.
  */
 object Solver:
   /** The kinds of work the fuel counts, with the cost of each in the units of
@@ -496,11 +495,11 @@ private object Encoder:
     case One, Finite, Infinite
 
   /** Whether the terms of `sort` are numbers, variables of the arithmetic
-   *  solver: the integers, the reals, and the bit-vectors, which are the
-   *  integers of a range (see [[Encoder.assertSorts]]).
+   *  solver: the integers, the reals, and the ranges of the integers, which is
+   *  what the bit-vector sorts are here (see [[Encoder.assertSorts]]).
    */
   def numeric(sort: Sort): Boolean = sort match
-    case Sort.Int | Sort.Real | Sort.BitVec(_) => true
+    case Sort.Int | Sort.Real | Sort.IntRange(_, _) => true
     case _ => false
 
   /** Thrown by [[Encoder.step]] when the solve's `keepGoing` says to stop. */
@@ -527,7 +526,7 @@ private final class Encoder(
 
   private val classes = HashMap.empty[Term, EClassId]
   private val terms = ArrayBuffer.empty[Term] // the terms of `classes`, in the order they arrived: for the passes
-  private val unranged = ArrayBuffer.empty[Term] // the terms of a bit-vector sort, as they arrive (see assertSorts)
+  private val unranged = ArrayBuffer.empty[Term] // the terms of an integer range, as they arrive (see assertSorts)
   private val equalities = ArrayBuffer.empty[Formula] // the equality atoms, as they are encoded (see shareIntegers)
   private var anyArrayApplication = false // an application of a store
   private val sorts = HashMap.empty[Term, Sort] // the sorts of terms, memoized: asked for every term, many times
@@ -588,12 +587,12 @@ private final class Encoder(
     yield (Term.Const(selector), Term.Const(c.name), i)
 
   /** How many values a sort has: one, finitely many, or infinitely many. A
-   *  bit-vector sort and `Bool` are finite; a datatype is when every field of
-   *  its constructors is, and has one value when it has one constructor whose
-   *  fields have one each; an array has one value when its elements do, and is
-   *  finite when its index and its elements are. The integers, the reals and
-   *  the uninterpreted sorts are infinite, and so is a datatype met again
-   *  inside its own values: a recursive one.
+   *  range of the integers and `Bool` are finite; a datatype is when every
+   *  field of its constructors is, and has one value when it has one
+   *  constructor whose fields have one each; an array has one value when its
+   *  elements do, and is finite when its index and its elements are. The
+   *  integers, the reals and the uninterpreted sorts are infinite, and so is a
+   *  datatype met again inside its own values: a recursive one.
    */
   private val cardinalities = HashMap.empty[Sort, Encoder.Cardinality]
 
@@ -604,7 +603,8 @@ private final class Encoder(
       case None =>
         cardinalities(sort) = Infinite // what the sort is found to be if it is met again below
         val found = sort match
-          case Sort.Bool | Sort.BitVec(_) => Finite
+          case Sort.Bool => Finite
+          case Sort.IntRange(lower, upper) => if lower == upper then One else Finite
           case Sort.Fun(args, result) =>
             cardinality(result) match
               case One => One
@@ -882,8 +882,8 @@ private final class Encoder(
           sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
-              // A witness is a constant of the index sort like any other: of a bit-vector sort, it gets
-              // the sort's range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
+              // A witness is a constant of the index sort like any other: of a range of the integers, it
+              // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
               // indices could still differ at it (issue 20).
               val witnesses = params.map { sort =>
                 val name = witnessName()
@@ -896,8 +896,8 @@ private final class Encoder(
   /** What a term's sort says of it, asserted once for every term the encoder
    *  knows, whoever made the term: an assertion of the script, a pass of the
    *  encoder, a witness of extensionality. A term of a datatype sort has one of
-   *  its testers hold. A term of a bit-vector sort is an integer of the sort's
-   *  range, `0 ≤ t < 2^n`.
+   *  its testers hold. A term of a range of the integers ([[Sort.IntRange]], a
+   *  bit-vector sort of the script) lies in the range, `0 ≤ t < 2^n`.
    *
    *  The sort says it, so no assertion of the script has to, and no level of
    *  the script can take it back: the lowering once asserted the range of the
@@ -927,7 +927,7 @@ private final class Encoder(
           )
     assertRanges()
 
-  /** The ranges of the terms of a bit-vector sort that arrived and have none
+  /** The ranges of the terms of an integer range that arrived and have none
    *  yet: of the applications of an assertion as [[meet]] finds them, and of
    *  the terms the passes make at the next [[assertSorts]]. Not of a declared
    *  constant, whose range the solver states at its declaration.
@@ -938,11 +938,8 @@ private final class Encoder(
       sortsRanged += 1
       if sortsAsserted.add(t) then
         sortOf(t) match
-          case Sort.BitVec(width) =>
-            assert(
-              Formula.And(List(Formula.Le(Term.Num(0), t), Formula.Le(t, Term.Num(BigInt(2).pow(width) - 1)))),
-              null
-            )
+          case Sort.IntRange(lower, upper) =>
+            assert(Formula.And(List(Formula.Le(Term.Num(lower), t), Formula.Le(t, Term.Num(upper)))), null)
           case _ => ()
 
   private val anyFiniteField =
@@ -1062,7 +1059,7 @@ private final class Encoder(
     term, {
       sortOf(term) match
         case Sort.Int | Sort.Real => anyInt = true
-        case Sort.BitVec(_) =>
+        case Sort.IntRange(_, _) =>
           anyInt = true
           term match
             case Term.Const(name) if !introduced.contains(name) => () // declared: the solver states its range
@@ -1134,12 +1131,12 @@ private final class Encoder(
         case Term.App(f, List(j)) if sortOf(f).arrow.isDefined => index(sortOf(f), j)
         case _ => ()
     for s <- stores do index(sortOf(s), s.args(1))
-    // Two numbers are equal by two bounds; two indices of a bit-vector sort by an equality atom, as they
-    // were while the index sort alone told a bit-vector from an integer.
+    // Two numbers are equal by two bounds; two indices of a range of the integers by an equality atom, as
+    // they were while the index sort alone told a bit-vector from an integer.
     def equalAt(sort: Sort, l: Term, r: Term): Formula =
       if Encoder.numeric(sort) then Formula.IntEq(l, r) else Formula.Eq(l, r)
     def equalIndex(sort: Sort, l: Term, r: Term): Formula =
-      if sort.isInstanceOf[Sort.BitVec] then Formula.Eq(l, r) else equalAt(sort, l, r)
+      if sort.isInstanceOf[Sort.IntRange] then Formula.Eq(l, r) else equalAt(sort, l, r)
     for case s @ Term.App(_, List(a, i, v)) <- stores do
       val sort = sortOf(s)
       val indexSort = sort.arrow.get._1.head
@@ -1296,7 +1293,7 @@ private final class Encoder(
     val l = lit(formula)
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
 
-  /** Meets the applications of a bit-vector sort in a formula, innermost first,
+  /** Meets the applications of an integer range in a formula, innermost first,
    *  before the formula is encoded: each gets its class, its variable and the
    *  two rows of its range together, ahead of the rows of the formula that use
    *  it. The encoder would find them while encoding the formula all the same,
@@ -1339,7 +1336,7 @@ private final class Encoder(
         case Term.App(fun, args) =>
           meet(fun)
           args.foreach(meet)
-          if sortOf(term).isInstanceOf[Sort.BitVec] then
+          if sortOf(term).isInstanceOf[Sort.IntRange] then
             classOf(term)
             assertRanges()
         case Term.Linear(terms, _) => terms.foreach((_, t) => meet(t))
@@ -1493,7 +1490,7 @@ private final class Encoder(
           case Term.App(_, args) => args.foreach(record)
           case _ =>
     // The constructor of a class, where it has one, and the classes of its fields.
-    def nodeOf(datatype: Datatype, cls: EClassId): Option[(io.bovel.smtlib.Constructor, List[EClassId])] =
+    def nodeOf(datatype: Datatype, cls: EClassId): Option[(Constructor, List[EClassId])] =
       adt.flatMap(a => Option(a.node(eg, cls))).flatMap(node =>
         datatype.constructors
           .find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
@@ -1519,7 +1516,7 @@ private final class Encoder(
         if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
       case Some(_) => elementOf(sort, eg.newClass())
       case None => valueOfTerm(Term.Const("@default"), sort)
-    def construct(c: io.bovel.smtlib.Constructor, args: List[Term]): Term =
+    def construct(c: Constructor, args: List[Term]): Term =
       if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
     // A value of the sort that differs from the ones made before, where the sort has values to
     // spare: a new number, or a datatype value around a new value of one of its fields. A sort met
@@ -1560,7 +1557,7 @@ private final class Encoder(
           }
           // The fields from the selectors' classes; a field with none is free, and takes `free` at
           // its position and its default elsewhere.
-          def valueWith(c: io.bovel.smtlib.Constructor, free: Option[(Int, Term)]): Term =
+          def valueWith(c: Constructor, free: Option[(Int, Term)]): Term =
             construct(
               c,
               c.selectors.zipWithIndex.map { case ((selector, s), i) =>
@@ -1613,7 +1610,7 @@ private final class Encoder(
                 )
         case None =>
           sort match
-            case Sort.Int | Sort.BitVec(_) => Term.Num(freshInt(eg.find(cls)))
+            case Sort.Int | Sort.IntRange(_, _) => Term.Num(freshInt(eg.find(cls)))
             case Sort.Real => Model.rationalTerm(freshReal(eg.find(cls)))
             case Sort.Bool => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
@@ -1630,8 +1627,8 @@ private final class Encoder(
           })
         case (_, s) if s.arrow.isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
-          else Model.constArray(s.asArray, valueOfTerm(Term.Const("@default"), applied(s, 1)))
-        case (_, Sort.Int | Sort.BitVec(_)) =>
+          else Model.constArray(s, valueOfTerm(Term.Const("@default"), applied(s, 1)))
+        case (_, Sort.Int | Sort.IntRange(_, _)) =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
@@ -1674,7 +1671,7 @@ private final class Encoder(
           }
           arraysBeingValued -= root
           val start = written.getOrElse {
-            Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), elementSort))
+            Model.constArray(sort, valueOfTerm(Term.Const("@default"), elementSort))
           }
           rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
         }
@@ -1719,7 +1716,7 @@ private final class Encoder(
       // where `(select arr i)` was printed as itself (issue 48).
       constants += name -> (
         if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
-        else Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
+        else Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
       )
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
@@ -1730,8 +1727,8 @@ private final class Encoder(
         case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
           (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
       }.toList
-      val default = Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
-      functions += name -> Model.Function(argSorts, sort.asArray, rows, default)
+      val default = Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
+      functions += name -> Model.Function(argSorts, sort, rows, default)
     for (name, (argSorts, sort)) <- declarations if sort.arrow.isEmpty do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else

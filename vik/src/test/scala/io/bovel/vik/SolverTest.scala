@@ -2,7 +2,6 @@ package io.bovel.vik
 
 import Formula.*
 import Term.*
-import io.bovel.smtlib.Sort
 
 class SolverTest extends munit.FunSuite:
   val a = Const("a")
@@ -184,12 +183,12 @@ class SolverTest extends munit.FunSuite:
       s"only $simplifiedSomething simplified"
     ) // elimination applies in positive positions only
 
-  test("a term of a bit-vector sort is an integer of the sort's range (issues 145 and 154)"):
+  test("a term of a range of the integers lies in the range (issues 145 and 154)"):
     val x = Const("x")
     // A declared constant, from its declaration on and below every level: no `pop` takes the range back.
     val s = Solver()
     s.push()
-    s.declare("x", Nil, Sort.BitVec(2))
+    s.declare("x", Nil, Sort.IntRange(0, 3))
     s.assert(x >= Num(4))
     assertEquals(s.solve(), s.Result.Unsat)
     s.pop()
@@ -197,7 +196,7 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve(), s.Result.Sat)
     assertEquals(s.model().get.constants("x"), Num(3))
     // An application, when the solver first meets it.
-    s.declare("f", List(Sort.Int), Sort.BitVec(1))
+    s.declare("f", List(Sort.Int), Sort.IntRange(0, 1))
     s.push()
     s.assert(App(Const("f"), List(x)) >= Num(2))
     assertEquals(s.solve(), s.Result.Unsat)

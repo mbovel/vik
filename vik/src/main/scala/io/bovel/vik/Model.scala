@@ -1,7 +1,6 @@
 package io.bovel.vik
 
 import io.bovel.lia
-import io.bovel.smtlib.Sort
 
 /** A model of a `Sat` answer, taken from the engines before the solver unwound:
  *  values for the declared constants, and a finite graph per declared function
@@ -17,7 +16,7 @@ import io.bovel.smtlib.Sort
 final case class Model(
     constants: Map[String, Term],
     functions: Map[String, Model.Function],
-    datatypes: List[io.bovel.smtlib.Datatype] = Nil
+    datatypes: List[Datatype] = Nil
 ):
   /** A selector's constructor and position, a tester's constructor. */
   private lazy val constructors: Set[String] = datatypes.flatMap(_.constructors).map(_.name).toSet
@@ -91,13 +90,13 @@ final case class Model(
     case None => Term.App(Term.Const(name), values)
 
   /** Whether `value` is a value of `sort`, a sort as the solver knows it: a
-   *  number of a bit-vector sort lies in the sort's range, and so do the fields
+   *  number of a range of the integers lies in the range, and so do the fields
    *  of a constructor's value, the indices and the elements of an array's. No
    *  assertion says so (the sort does), hence no assertion found false shows a
    *  number out of its range: the check of a model asks here.
    */
   def ofSort(value: Term, sort: Sort): Boolean = (value, sort) match
-    case (Term.Num(v), Sort.BitVec(width)) => v.signum >= 0 && v.bitLength <= width
+    case (Term.Num(v), Sort.IntRange(lower, upper)) => lower <= v && v <= upper
     case (Term.App(Term.Const("store"), List(a, i, v)), Sort.Fun(index :: rest, result)) =>
       ofSort(a, sort) && ofSort(i, index) && ofSort(v, Sort.fun(rest, result))
     case (Term.App(Term.Const(name), List(d)), Sort.Fun(_ :: rest, result)) if name.startsWith("(as const ") =>
@@ -142,10 +141,11 @@ object Model:
    */
   final case class Function(parameters: List[Sort], result: Sort, rows: List[(List[Term], Term)], default: Term)
 
-  /** The array of sort `sort` (an array sort, as SMT-LIB writes it) holding
-   *  `default` everywhere: `((as const (Array I E)) d)`.
+  /** The array of sort `sort` (the function sort the solver knows it by)
+   *  holding `default` everywhere: `((as const (Array I E)) d)`.
    */
-  def constArray(sort: Sort, default: Term): Term = Term.App(Term.Const(s"(as const ${sort.text})"), List(default))
+  def constArray(sort: Sort, default: Term): Term =
+    Term.App(Term.Const(s"(as const ${sort.arrayText})"), List(default))
 
   /** `array` with `value` at `index`: `(store array index value)`. */
   def store(array: Term, index: Term, value: Term): Term = Term.App(Term.Const("store"), List(array, index, value))

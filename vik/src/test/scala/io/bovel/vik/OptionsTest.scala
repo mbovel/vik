@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.{Parser, Printer, Sort}
+import io.bovel.smtlib.{Parser, Printer}
 
 /** `:rlimit` (the fuel), `:timeout`, `:check-models`, and `:reason-unknown`. */
 class OptionsTest extends munit.FunSuite:
