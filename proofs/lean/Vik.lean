@@ -12,6 +12,7 @@ import Vik.Cert.RatCast
 import Vik.Cert.Lia
 import Vik.Cert.Uf
 import Vik.Lowered
+import Vik.Simp
 import Vik.Cert.Inputs
 import Vik.Cert.Witnesses
 import Vik.Cert.Proof

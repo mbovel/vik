@@ -38,6 +38,8 @@ installs it on first use.
   checks the terms it builds.
 - `Vik/Lowered.lean`: the lowered terms and formulas, one table of nodes, with
   their sorts and their meaning in a model.
+- `Vik/Simp.lean`: the check that a simplified formula holds in every model of
+  its original, and its soundness.
 - `Vik/Cert/Clausal.lean`: clausal proofs, checked by unit propagation.
 - `Vik/Cert/RatCast.lean`: rational constants in an ordered field.
 - `Vik/Cert/Lia.lean`: cutting-planes certificates.
@@ -125,13 +127,19 @@ splits large lists into compiled definitions (`vik.sexp.chunk`), and compiled
 code looks up `Tab.at` in the list, by a `csimp` lemma, rather than build the
 tree at each lookup.
 
-`e2e.txt` lists 28 scripts of the corpus that together cover its logics, the
-kinds of justifications and input reasons, the lowering rules and the surface
-operators, and check in the kernel in about two minutes; `check-exports.sh`
+`e2e.txt` lists 29 scripts of the corpus that together cover its logics, the
+kinds of justifications and input reasons (simplified inputs among them), the
+lowering rules and the surface operators, and check in the kernel in about two minutes; `check-exports.sh`
 checks a directory of exports in the kernel or with `native_decide`, and
 `export.sh` writes the exports of a list. CI checks the set in the kernel and
 `corpus.txt`, the 263 scripts of the corpus sample that export, with
 `native_decide`.
+
+Vik simplifies its assertions before solving them, eliminating a constant
+`c` from a conjunction `c = t ∧ φ` in a positive position. A simplified input
+has the reason `.simp o w H`: its original `o` holds by `w`, and
+`Low.simplifies` checks that it holds in every model of `o`, given the
+positions `H` of the equalities each conjunction lost (`Vik/Simp.lean`).
 
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their

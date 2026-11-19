@@ -681,9 +681,12 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
   have hM := lowModel_sound hc.sorts hc.sig hL hc.wf hc.typed hA.wf
   have hrngP := low_rng hc hA hL
   have hco := corr hc hA hL
-  unfold Low.holds
-  cases w with
+  induction w generalizing f with
+  | simp o w H ih =>
+    simp only [Trace.inputOk, Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact Low.simplifies_sound hA.wf hw.2 (ih hw.1.1 hw.1.2)
   | assert a =>
+    unfold Low.holds
     simp only [Trace.inputOk, Bool.and_eq_true, List.contains_iff_mem] at hw
     have ha := hin a hw.1
     have hal := lt_of_holds hc hA hL ha
@@ -691,6 +694,7 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
     unfold Surf.holds at ha
     rw [ha, truth_bool]
   | rule r j aux =>
+    unfold Low.holds
     simp only [Trace.inputOk, Bool.and_eq_true] at hw
     obtain ⟨hok, hfs⟩ := hw
     split at hfs
@@ -704,6 +708,7 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
       · cases hfs
     · cases hfs
   | real r j =>
+    unfold Low.holds
     simp only [Trace.inputOk, Bool.and_eq_true] at hw
     obtain ⟨hok, hfs⟩ := hw
     split at hfs
@@ -715,6 +720,7 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
       · cases hfs
     · cases hfs
   | range i =>
+    unfold Low.holds
     simp only [Trace.inputOk] at hw
     split at hw
     · rename_i wd hwd
@@ -735,6 +741,7 @@ theorem input_holds (hfloor : ∀ r : R, ∃ k : Int, IsFloor r k)
         _root_.decide_eq_true p1, _root_.decide_eq_true p2, Bool.and_self]
     · cases hw
   | iteThen k | iteElse k =>
+    unfold Low.holds
     simp only [Trace.inputOk] at hw
     split at hw
     · rename_i s hs

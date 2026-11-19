@@ -26,3 +26,4 @@ corpus/QF_UFDTLIRA/smt-lib/20200306-Kanig__spark2014bench__M604-044__overflow__m
 corpus/QF_UFIDL/smt-lib/TwoSquares__smtlib.877473.smt2
 corpus/QF_UFLIA/stainless/valid-Zero__1.smt2
 corpus/QF_UFLRA/vik/sorts__a_name_with_a_space.smt2
+corpus/QF_UF/smt-lib/eq_diamond__eq_diamond20.smt2
