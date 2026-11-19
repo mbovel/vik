@@ -190,7 +190,10 @@ final class Solver(val simplify: Boolean = true):
 
   /** The first assertion in force that the model of the `Sat` just found does
    *  not make true: found false, or not evaluable when the evaluation throws.
-   *  The ranges of the declared constants count among them.
+   *  The ranges of the declared constants count among them. Or else the first
+   *  declared symbol with a value that is none of its sort's
+   *  ([[Model.ofSort]]): what a sort says of the terms the solver makes is no
+   *  assertion.
    */
   private def modelFailure(): Option[String] = model() match
     case None => Some("no model")
@@ -207,7 +210,18 @@ final class Solver(val simplify: Boolean = true):
           s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
         }
       }
-      untrue.nextOption()
+      val unsorted = declarations.iterator.flatMap { case (name, (argSorts, sort)) =>
+        val values =
+          if argSorts.isEmpty then m.constants.get(name).iterator.map((_, sort))
+          else
+            m.functions.get(name).iterator.flatMap(f =>
+              (f.default, sort) :: f.rows.flatMap((args, result) => (result, sort) :: args.zip(argSorts))
+            )
+        values.collectFirst {
+          case (value, s) if !m.ofSort(value, s) => s"the value ${Printer.print(value)} of $name is none of ${s.text}"
+        }
+      }
+      untrue.nextOption().orElse(unsorted.nextOption())
 
   /** Forgets the model of the last `Sat`: for a caller whose own check of it
    *  failed (see [[Session]]).
@@ -407,6 +421,8 @@ final class Solver(val simplify: Boolean = true):
     val assumed = ArrayBuffer.from(selectors)
     assumed ++= activations.map(_._2)
     e.solve(assumed, keepGoing) match
+      // A `sat` found before the datatype terms had their fields of a finite sort: searched again with them.
+      case cdclt.Solver.Result.Sat(_) if e.boundFields() => decide(keepGoing)
       case cdclt.Solver.Result.Sat(_) =>
         lastCore = Nil
         if !checkModels then Result.Sat
@@ -429,10 +445,10 @@ final class Solver(val simplify: Boolean = true):
  *  variables of a LIA solver and `Le` atoms into bounds on them. Datatypes are
  *  rules of the e-graph ([[AdtRules]]): the encoder registers their symbols'
  *  classes. Every term gets what its sort says of it, whoever made the term:
- *  one of its testers holds for a term of a datatype sort (and, for a term of a
- *  finite datatype sort, for its selector terms, recursively, so that the
- *  search is complete on finite sorts), and a term of a bit-vector sort is an
- *  integer of the sort's range.
+ *  one of its testers holds for a term of a datatype sort, and a term of a
+ *  bit-vector sort is an integer of the sort's range. After a `sat`, the terms
+ *  of a datatype sort get their fields of a finite sort as terms too, and the
+ *  search goes on with them, so that it is complete on finite sorts.
  */
 object Solver:
   /** The kinds of work the fuel counts, with the cost of each in the units of
@@ -472,6 +488,12 @@ private object Encoder:
    *  constant, an application of one.
    */
   val unknown: Sort = Sort.Named("?")
+
+  /** How many values a sort has, as far as the search needs to know (see
+   *  [[Encoder.cardinality]]).
+   */
+  enum Cardinality:
+    case One, Finite, Infinite
 
   /** Whether the terms of `sort` are numbers, variables of the arithmetic
    *  solver: the integers, the reals, and the bit-vectors, which are the
@@ -565,20 +587,39 @@ private final class Encoder(
       if Encoder.numeric(sort) || sort.arrow.isDefined
     yield (Term.Const(selector), Term.Const(c.name), i)
 
-  /** The datatypes with finitely many values: no constructor field of an
-   *  uninterpreted sort or of an infinite (e.g. recursive) datatype, computed
-   *  as a least fixpoint.
+  /** How many values a sort has: one, finitely many, or infinitely many. A
+   *  bit-vector sort and `Bool` are finite; a datatype is when every field of
+   *  its constructors is, and has one value when it has one constructor whose
+   *  fields have one each; an array has one value when its elements do, and is
+   *  finite when its index and its elements are. The integers, the reals and
+   *  the uninterpreted sorts are infinite, and so is a datatype met again
+   *  inside its own values: a recursive one.
    */
-  private val finite: Set[Sort] =
-    var known = Set[Sort](Sort.Bool)
-    var changed = true
-    while changed do
-      val more = datatypes.filter(d =>
-        !known(Sort.Named(d.name)) && d.constructors.forall(_.selectors.forall((_, s) => known(s)))
-      ).map(d => Sort.Named(d.name): Sort)
-      changed = more.nonEmpty
-      known ++= more
-    known
+  private val cardinalities = HashMap.empty[Sort, Encoder.Cardinality]
+
+  private def cardinality(sort: Sort): Encoder.Cardinality =
+    import Encoder.Cardinality.*
+    cardinalities.get(sort) match
+      case Some(known) => known
+      case None =>
+        cardinalities(sort) = Infinite // what the sort is found to be if it is met again below
+        val found = sort match
+          case Sort.Bool | Sort.BitVec(_) => Finite
+          case Sort.Fun(args, result) =>
+            cardinality(result) match
+              case One => One
+              case Finite if args.forall(cardinality(_) != Infinite) => Finite
+              case _ => Infinite
+          case _ =>
+            datatypeOf(sort) match
+              case Some(datatype) =>
+                val fields = datatype.constructors.flatMap(_.selectors.map((_, s) => cardinality(s)))
+                if fields.contains(Infinite) then Infinite
+                else if datatype.constructors.length == 1 && fields.forall(_ == One) then One
+                else Finite
+              case None => Infinite
+        cardinalities(sort) = found
+        found
 
   /** The terms known to be `Int`-sorted from their use in arithmetic (a summand
    *  of a combination, a side of `Le`), for undeclared constants.
@@ -855,9 +896,8 @@ private final class Encoder(
   /** What a term's sort says of it, asserted once for every term the encoder
    *  knows, whoever made the term: an assertion of the script, a pass of the
    *  encoder, a witness of extensionality. A term of a datatype sort has one of
-   *  its testers hold; for a term of a finite sort, so do its selector terms,
-   *  recursively (see the class documentation). A term of a bit-vector sort is
-   *  an integer of the sort's range, `0 ≤ t < 2^n`.
+   *  its testers hold. A term of a bit-vector sort is an integer of the sort's
+   *  range, `0 ≤ t < 2^n`.
    *
    *  The sort says it, so no assertion of the script has to, and no level of
    *  the script can take it back: the lowering once asserted the range of the
@@ -885,9 +925,6 @@ private final class Encoder(
             Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
             null
           )
-          if finite(sortOf(t)) then
-            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeOf(sort).isDefined do
-              todo += Term.App(Term.Const(selector), List(t))
     assertRanges()
 
   /** The ranges of the terms of a bit-vector sort that arrived and have none
@@ -907,6 +944,82 @@ private final class Encoder(
               null
             )
           case _ => ()
+
+  private val anyFiniteField =
+    datatypes.exists(_.constructors.exists(_.selectors.exists((_, s) =>
+      cardinality(s) != Encoder.Cardinality.Infinite
+    )))
+
+  /** The fields of a finite sort that the model of a `sat` needs as terms and
+   *  that the encoder does not have: found by [[wantFields]] while the engines
+   *  hold the model, made by [[boundFields]] once they are back at level 0.
+   */
+  private val wantedFields = ArrayBuffer.empty[(Term, Sort)]
+
+  /** Whether [[boundFields]] has fields to make. */
+  def fieldsWanted: Boolean = wantedFields.nonEmpty
+
+  /** Finds the fields the model at hand needs (see [[boundFields]]). A class of
+   *  a datatype sort needs those of the constructor whose tester holds of it,
+   *  for one of its terms. It needs none when one of its terms is that
+   *  constructor's application, whose arguments are the fields, or already has
+   *  them all.
+   */
+  private def wantFields(): Unit =
+    wantedFields.clear()
+    if anyFiniteField then
+      val truth = eg.find(trueTerm)
+      val settled = HashSet.empty[EClassId] // the classes that need nothing
+      val wanting = scala.collection.mutable.LinkedHashMap.empty[EClassId, List[(Term, Sort)]]
+      for t <- terms; datatype <- datatypeOf(sortOf(t)) do
+        val root = eg.find(classes(t))
+        if !settled(root) then
+          val held = datatype.constructors.find(c =>
+            classes.get(Term.App(Term.Const(c.tester), List(t))).exists(eg.find(_) == truth)
+          )
+          for c <- held do
+            val built = t match
+              case Term.App(Term.Const(name), _) => name == c.name
+              case _ => false
+            val missing =
+              if built then Nil
+              else
+                for
+                  (selector, sort) <- c.selectors
+                  if cardinality(sort) != Encoder.Cardinality.Infinite
+                  field = Term.App(Term.Const(selector), List(t))
+                  // A Boolean field is known once it is one of the Booleans the search decides.
+                  if !classes.get(field).exists(cls => sort != Sort.Bool || booleanClasses(cls))
+                yield (field, sort)
+            if missing.isEmpty then
+              settled += root
+              wanting -= root
+            else if !wanting.contains(root) then wanting(root) = missing
+      for fields <- wanting.values do wantedFields ++= fields
+
+  /** Makes the fields of a finite sort that the model of the last `sat` needs
+   *  terms of the encoder, and tells whether there were any. As terms, they get
+   *  what their sorts say ([[assertSorts]]) and meet one another
+   *  ([[shareIntegers]]), so their values are among their sorts': a tester that
+   *  holds expands its term into the constructor over the term's fields,
+   *  whatever the term's own sort, and nothing else bounds them. Two terms
+   *  built by one constructor over a field of sort `Unit` stayed apart, against
+   *  the one value of `Unit` (issue 125), and three over a field of one bit
+   *  (issue 126).
+   *
+   *  The fields only take models away, so they are made after a `sat`, which is
+   *  then searched again with them, and an `unsat` found without them stands.
+   *  And only the ones the model needs: made from the start for every term and
+   *  every constructor of its sort, they cost a bounded model checking file of
+   *  the corpus fifteen times its steps, with a choice among thirteen blocks
+   *  for the top of every tower it names
+   *  (`blocksworld__from_0_9_4_to_3_3_7_bmc_5`).
+   */
+  def boundFields(): Boolean =
+    val made = wantedFields.nonEmpty
+    for (field, sort) <- wantedFields do if sort == Sort.Bool then boolean(field) else classOf(field)
+    wantedFields.clear()
+    made
 
   private val liaSolver = lia.Solver()
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
@@ -1313,7 +1426,10 @@ private final class Encoder(
     lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
     result match
-      case cdclt.Solver.Result.Sat(_) => if produceModels then lastModel = takeModel()
+      case cdclt.Solver.Result.Sat(_) =>
+        wantFields()
+        // Not the model of a `sat` that is searched again (see boundFields).
+        if produceModels && !fieldsWanted then lastModel = takeModel()
       case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
