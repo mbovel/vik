@@ -448,10 +448,53 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       i += 1
     best
 
+  /** The variable to decide for `wanted` when it is a definition variable,
+   *  taken down through its definition: rather than the variable of a
+   *  disjunction, the operand that makes it true (or false for a conjunction),
+   *  the way a justification walk goes down a formula. The variable then
+   *  follows by propagation, and nested connectives cost no decision of their
+   *  own: a disjunction of ten written as nine binary ones (`hash_sat`) was a
+   *  chain of decisions before. The operand is decided the way the definition
+   *  wants it, whatever its saved phase: with that phase, half the decisions
+   *  satisfied nothing (measured 3× slower on `hash_sat`).
+   */
+  private var descended = false
+  private def descend(v: Var): Var =
+    var u = v
+    var going = true
+    while going do
+      going = false
+      val own = if u < definitions.length then definitions(u) else null
+      if own != null then
+        val need = wanted.neg
+        var k = 0
+        while k < own.length && !going do
+          val clause = clauses(own(k))
+          if clause.contains(need) then
+            var best = -1
+            var pick = wanted
+            var i = 0
+            var satisfied = false
+            while i < clause.length && !satisfied do
+              val l = clause(i)
+              val x = value(l.index)
+              if x > 0 then satisfied = true
+              else if x == 0 && l.variable != u && (best < 0 || vmtfStamp(l.variable) > vmtfStamp(best)) then
+                best = l.variable
+                pick = l
+              i += 1
+            if !satisfied && best >= 0 then
+              descended = true
+              u = best
+              wanted = pick
+              going = true
+          k += 1
+    u
+
   private def nextRelevant(): Var =
     while rootsDone < roots.length do
       val v = unsatisfiedIn(clauses(roots(rootsDone)))
-      if v >= 0 then return v
+      if v >= 0 then return descend(v)
       rootsDone += 1
     while trailDone < trail.length do
       val u = trail(trailDone).variable
@@ -459,7 +502,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       if own != null then
         while definitionsDone < own.length do
           val v = unsatisfiedIn(clauses(own(definitionsDone)))
-          if v >= 0 then return v
+          if v >= 0 then return descend(v)
           definitionsDone += 1
       definitionsDone = 0
       trailDone += 1
@@ -486,7 +529,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     decisions += 1
     val first = wanted.positive
     openLevel()
-    val value = if seen(v) then phase(v) else theory.phase(v).getOrElse(first)
+    val value =
+      if descended then first
+      else if seen(v) then phase(v)
+      else theory.phase(v).getOrElse(first)
+    descended = false
     seen(v) = true
     enqueue(Lit(v, value), Decision)
 
