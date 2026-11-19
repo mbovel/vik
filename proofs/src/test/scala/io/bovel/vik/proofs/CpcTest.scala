@@ -7,7 +7,8 @@ import io.bovel.vik.{Cpc, Session, Solver}
 
 /** The CPC proofs of a few `Unsat`s, each written to `target/cpc-export` and,
  *  when the environment variable `ETHOS` names the Ethos checker and `CPC` the
- *  signature `Cpc.eo`, checked by Ethos with `proofs/cpc/Vik.eo`.
+ *  signature `Cpc.eo`, checked by Ethos with `proofs/cpc/Vik.eo`. The compact
+ *  proof is also written as a Lean file for `Vik.Cpc.Proof.check` (`CpcLean`).
  */
 class CpcTest extends munit.FunSuite:
   private val out = Files.createDirectories(Path.of("target", "cpc-export"))
@@ -33,6 +34,8 @@ class CpcTest extends munit.FunSuite:
         val text = String(p.getInputStream.readAllBytes())
         p.waitFor()
         assertEquals(text.trim.linesIterator.toList.lastOption, Some("correct"), s"$name$suffix: $text")
+    val cpc = session.cpcProof(true).fold(why => fail(s"no CPC proof: $why"), identity)
+    Files.writeString(out.resolve(s"$name.lean"), CpcLean(certificate, cpc, s"Vik.Cpc.Exported.$name"))
 
   test("propositional"):
     check(
