@@ -89,6 +89,13 @@ installs it on first use.
   checked by the kernel, and the same script with a `check-sat-assuming`,
   whose assumption Vik asserts under a level, and one with `let` and
   `define-fun`.
+- `Vik/Cpc/Check.lean`: a checker for Vik's CPC proofs (`Session.cpcProof`),
+  over the script's surface terms: each step names the node it concludes,
+  which the checker checks against the step's rule, from cvc5's `Cpc.eo`
+  or `../cpc/Vik.eo` (`vik_lower`, `vik_rup`, `vik_uf`).
+- `Vik/Cpc/Sound.lean`: its soundness: `Proof.unsat` says no model of the
+  script's sorts and definitions satisfies its assertions when the checker
+  accepts a proof.
 
 Each checker is a Boolean function that `decide +kernel` evaluates on concrete
 certificates, with a theorem that an accepted certificate is sound.
@@ -140,6 +147,23 @@ Vik simplifies its assertions before solving them, eliminating a constant
 has the reason `.simp o w H`: its original `o` holds by `w`, and
 `Low.simplifies` checks that it holds in every model of `o`, given the
 positions `H` of the equalities each conjunction lost (`Vik/Simp.lean`).
+
+## CPC proofs
+
+The same scripts have proofs in CPC, the proof format of cvc5, which Ethos
+checks (`../cpc`). `Vik/Cpc/Check.lean` checks them in Lean, over the
+script's surface terms rather than the lowered problem: the lowering is one
+step of the proof, `vik_lower`, and the checker relates the terms on both
+sides of it, and those of each `assume` and of each use of a definition, by
+equivalences that the proof lists and the checker checks child by child.
+
+A compact proof gives no conclusions; the driver `io.bovel.vik.proofs.CpcLean`
+in `../src` computes each as Ethos does and writes the proof as one Lean file:
+the script and the proof as `sexp%` data, `checked`, that `Proof.check`
+accepts the proof, by `decide +kernel` (or `native_decide` in `native/`), and
+`no_model`. For a corpus that `CpcCorpus` wrote with `CPC_CERTS` set:
+`proofs/runMain io.bovel.vik.proofs.CpcLean <dir> <out>`. The CPC checker
+covers Booleans and uninterpreted functions and sorts, as the CPC proofs do.
 
 Bit-vector semantics are Lean's `BitVec`, whose SMT-LIB operations are
 `smtUDiv`, `smtSDiv`, `srem`, `smod`, `sshiftRight'` and the rest under their
