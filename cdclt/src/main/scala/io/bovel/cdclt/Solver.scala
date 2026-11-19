@@ -363,11 +363,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   private def backtrack(to: Int): Unit =
     while decisionLevel > to do
       val start = trailLim.remove(trailLim.length - 1)
-      val mark = walkMarks.length - 4
+      val mark = walkMarks.length - 5
       rootsDone = walkMarks(mark)
-      trailDone = walkMarks(mark + 1)
-      definitionsDone = walkMarks(mark + 2)
-      requiredDone = walkMarks(mark + 3)
+      topDone = walkMarks(mark + 1)
+      trailDone = walkMarks(mark + 2)
+      definitionsDone = walkMarks(mark + 3)
+      requiredDone = walkMarks(mark + 4)
       walkMarks.takeInPlace(mark)
       while trail.length > start do
         val lit = trail.remove(trail.length - 1)
@@ -413,13 +414,32 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Has `v` decided even if nothing needs it: see [[relevantOnly]]. */
   def require(v: Var): Unit = required += v
 
+  /** The definitions of the variables true or false before any decision, in the
+   *  order the variables were made, which is the order the formula was written
+   *  in: they are roots as well, and the trail has them in the order of
+   *  propagation instead, which turns a conjunction of nested `and`s around
+   *  (`hash_sat_10_20` went from timing out to 0.2 s). Collected at the first
+   *  decision of each [[solve]].
+   */
+  private val topDefinitions = ArrayBuffer.empty[Int]
+  private var topCollected = false
+
+  private def collectTop(): Unit =
+    val end = if trailLim.isEmpty then trail.length else trailLim(0)
+    val defined = (0 until end).map(i => trail(i).variable).filter(u =>
+      u < definitions.length && definitions(u) != null
+    )
+    for u <- defined.sorted do topDefinitions ++= definitions(u).nn
+    topCollected = true
+
   /** How far the clauses to satisfy have been walked and found satisfied:
-   *  roots, the trail with the definitions of the current literal, the required
-   *  variables. All that stays true deeper in the search, so each level takes
-   *  over from the one before, and these are put back to their value at the
-   *  decision on backtracking.
+   *  roots, the definitions of [[topDefinitions]], the trail with the
+   *  definitions of the current literal, the required variables. All that stays
+   *  true deeper in the search, so each level takes over from the one before,
+   *  and these are put back to their value at the decision on backtracking.
    */
   private var rootsDone = 0
+  private var topDone = 0
   private var trailDone = 0
   private var definitionsDone = 0
   private var requiredDone = 0
@@ -427,7 +447,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   private def openLevel(): Unit =
     trailLim += trail.length
-    walkMarks += rootsDone += trailDone += definitionsDone += requiredDone
+    walkMarks += rootsDone += topDone += trailDone += definitionsDone += requiredDone
     theory.push()
 
   /** The unassigned variable most recently in a conflict of the clause, if it
@@ -496,6 +516,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       val v = unsatisfiedIn(clauses(roots(rootsDone)))
       if v >= 0 then return descend(v)
       rootsDone += 1
+    if !topCollected then collectTop()
+    while topDone < topDefinitions.length do
+      val v = unsatisfiedIn(clauses(topDefinitions(topDone)))
+      if v >= 0 then return descend(v)
+      topDone += 1
     while trailDone < trail.length do
       val u = trail(trailDone).variable
       val own = if u < definitions.length then definitions(u) else null
@@ -625,6 +650,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   def solve(assumptions: Array[Lit], keepGoing: () => Boolean): Result =
     backtrack(0)
     rootsDone = 0
+    topDone = 0
+    topDefinitions.clear()
+    topCollected = false
     trailDone = 0
     definitionsDone = 0
     requiredDone = 0
