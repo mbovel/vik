@@ -35,6 +35,18 @@ object Simplifier:
       kept: List[Formula] = Nil,
       step: () => Unit = () => ()
   ): (List[Formula], Map[String, Term]) =
+    val (out, defined) = simplifyEach(assertions, interpreted, kept, step)
+    (out.filter(_ != True), defined)
+
+  /** [[simplify]] with every assertion left at its place: `True` where one
+   *  simplified away, for a caller that goes by the places.
+   */
+  def simplifyEach(
+      assertions: List[Formula],
+      interpreted: Set[String] = Set.empty,
+      kept: List[Formula] = Nil,
+      step: () => Unit = () => ()
+  ): (List[Formula], Map[String, Term]) =
     // The occurrences of every constant over the whole set: one walk, taken the first time a
     // conjunction has an equality to eliminate — most sets have none, and pay nothing.
     lazy val total =
@@ -44,7 +56,7 @@ object Simplifier:
       for name <- interpreted do counts(name) = Int.MaxValue // never local to a conjunction
       counts
     val defined = HashMap.empty[String, Term]
-    val out = assertions.map(f => simplify(f, total, true, defined, step)).filter(_ != True)
+    val out = assertions.map(f => simplify(f, total, true, defined, step))
     (out, defined.toMap)
 
   private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match

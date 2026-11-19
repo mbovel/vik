@@ -184,6 +184,30 @@ class SolverTest extends munit.FunSuite:
       s"only $simplifiedSomething simplified"
     ) // elimination applies in positive positions only
 
+  test("a term of a bit-vector sort is an integer of the sort's range (issues 145 and 154)"):
+    val x = Const("x")
+    // A declared constant, from its declaration on and below every level: no `pop` takes the range back.
+    val s = Solver()
+    s.push()
+    s.declare("x", Nil, Sort.BitVec(2))
+    s.assert(x >= Num(4))
+    assertEquals(s.solve(), s.Result.Unsat)
+    s.pop()
+    s.assert(x >= Num(3))
+    assertEquals(s.solve(), s.Result.Sat)
+    assertEquals(s.model().get.constants("x"), Num(3))
+    // An application, when the solver first meets it.
+    s.declare("f", List(Sort.Int), Sort.BitVec(1))
+    s.push()
+    s.assert(App(Const("f"), List(x)) >= Num(2))
+    assertEquals(s.solve(), s.Result.Unsat)
+    s.pop()
+    // The range goes with the declaration: the same name at another sort is another constant.
+    s.undeclare("x")
+    s.declare("x", Nil, Sort.Int)
+    s.assert(x >= Num(4))
+    assertEquals(s.solve(), s.Result.Sat)
+
   test("unknown with a reason: the fuel, or the caller"):
     val s = Solver()
     for i <- 0 until 12 do s.declare(s"p$i", Nil, Sort.Bool)
