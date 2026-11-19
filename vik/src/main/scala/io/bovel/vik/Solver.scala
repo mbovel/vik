@@ -9,7 +9,7 @@ import io.bovel.cdclt
 import io.bovel.cdclt.{Lit, Theory}
 import io.bovel.egraph.{App, EClassId, EGraph, NoRules}
 import io.bovel.lia
-import io.bovel.smtlib.{Datatype, Sorts}
+import io.bovel.smtlib.{Datatype, Sort}
 
 /** An SMT solver for quantifier-free formulas over equality with uninterpreted
  *  functions and linear integer arithmetic: `assert` formulas, `push` and `pop`
@@ -72,10 +72,10 @@ final class Solver(val simplify: Boolean = true):
    *  Declarations are optional for uninterpreted functions and integers, and
    *  needed for datatypes: they tell which terms are of a datatype sort.
    */
-  private[vik] val declarations = HashMap.empty[String, (List[String], String)]
+  private[vik] val declarations = HashMap.empty[String, (List[Sort], Sort)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
 
-  def declare(name: String, argSorts: List[String], sort: String): Unit =
+  def declare(name: String, argSorts: List[Sort], sort: Sort): Unit =
     if encoder != null && encoder.nn.introducedName(name) then
       throw io.bovel.smtlib.Smt2Error(s"$name: a name the solver uses; pick another")
     // A name the live encoder knows at another sort — declared again after the pop of its level (issue
@@ -88,7 +88,7 @@ final class Solver(val simplify: Boolean = true):
   /** The declarations the live encoder was given, as given: what a declaration
    *  after a pop is held against.
    */
-  private val encoded = HashMap.empty[String, (List[String], String)]
+  private val encoded = HashMap.empty[String, (List[Sort], Sort)]
 
   /** Forgets a declaration: its level is popped (issue 40). */
   def undeclare(name: String): Unit = declarations -= name
@@ -121,9 +121,9 @@ final class Solver(val simplify: Boolean = true):
     if encoder != null then dirty = true // its rules and exhaustiveness need an encoder that knows it
     datatypes += datatype
     for c <- datatype.constructors do
-      declarations(c.name) = (c.selectors.map(_._2.text), datatype.name)
-      declarations(c.tester) = (List(datatype.name), "Bool")
-      for (selector, sort) <- c.selectors do declarations(selector) = (List(datatype.name), sort.text)
+      declarations(c.name) = (c.selectors.map(_._2), Sort.Named(datatype.name))
+      declarations(c.tester) = (List(Sort.Named(datatype.name)), Sort.Bool)
+      for (selector, sort) <- c.selectors do declarations(selector) = (List(Sort.Named(datatype.name)), sort)
 
   def push(): Unit =
     levels += ArrayBuffer.empty
@@ -433,13 +433,16 @@ object Solver:
   val loweredCost = 64L
 
 private object Encoder:
-  val bitVector = """\(_ BitVec (\d+)\)""".r
+  /** The sort of a term the declarations say nothing of: an undeclared
+   *  constant, an application of one.
+   */
+  val unknown: Sort = Sort.Named("?")
 
   /** Thrown by [[Encoder.step]] when the solve's `keepGoing` says to stop. */
   object Stopped extends scala.util.control.ControlThrowable
 
 private final class Encoder(
-    declarations: HashMap[String, (List[String], String)],
+    declarations: HashMap[String, (List[Sort], Sort)],
     datatypes: List[Datatype],
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
     keepGoing: () => Boolean // of the solve under way (see Solver.solve)
@@ -461,7 +464,7 @@ private final class Encoder(
   private val terms = ArrayBuffer.empty[Term] // the terms of `classes`, in the order they arrived: for the passes
   private val equalities = ArrayBuffer.empty[Formula] // the equality atoms, as they are encoded (see shareIntegers)
   private var anyArrayApplication = false // an application of a store
-  private val sorts = HashMap.empty[Term, String] // the sorts of terms, memoized: asked for every term, many times
+  private val sorts = HashMap.empty[Term, Sort] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
 
   private val eg = EGraph(adt.getOrElse(NoRules))
@@ -480,49 +483,55 @@ private final class Encoder(
   /** The constants this encoder introduces (the witnesses of extensionality),
    *  with their sorts.
    */
-  private val introduced = HashMap.empty[String, String]
+  private val introduced = HashMap.empty[String, Sort]
 
-  /** The sort of a term, from the declarations, a function sort for a function
-   *  symbol (see [[Sorts]]); `?` when unknown.
+  /** The sort of a term, from the declarations: a function sort for a function
+   *  symbol, an array being the function of its index; [[Encoder.unknown]] when
+   *  they do not say.
    */
-  private def sortOf(term: Term): String = sorts.getOrElseUpdate(
+  private def sortOf(term: Term): Sort = sorts.getOrElseUpdate(
     term,
     term match
       case Term.Const(name) =>
-        declarations.get(
-          name
-        ).map((args, sort) => Sorts.function(args, sort)).orElse(introduced.get(name)).getOrElse("?")
-      case Term.App(fun, args) => Sorts.applied(sortOf(fun), args.length)
-      case Term.Num(_) => "Int"
-      case Term.Linear(terms, _) => if terms.exists((_, t) => sortOf(t) == "Real") then "Real" else "Int"
-      case Term.Bool(_) => "Bool"
+        declarations.get(name).map(Sort.fun(_, _)).orElse(introduced.get(name)).getOrElse(Encoder.unknown)
+      case Term.App(fun, args) => applied(sortOf(fun), args.length)
+      case Term.Num(_) => Sort.Int
+      case Term.Linear(terms, _) => if terms.exists((_, t) => sortOf(t) == Sort.Real) then Sort.Real else Sort.Int
+      case Term.Bool(_) => Sort.Bool
   )
 
-  private val datatypeNames = datatypes.map(_.name).toSet
+  /** The sort of a term of `sort` applied to `n` arguments. */
+  private def applied(sort: Sort, n: Int): Sort = sort.after(n).getOrElse(Encoder.unknown)
+
+  private val datatypesByName = datatypes.map(d => d.name -> d).toMap
+
+  /** The datatype a sort names, if it names one. */
+  private def datatypeOf(sort: Sort): Option[Datatype] = sort match
+    case Sort.Named(name) => datatypesByName.get(name)
+    case _ => None
 
   /** The fields that [[shareIntegers]] pairs with their constructor's arguments
    *  (the selector rule): the arithmetic ones and the arrays, each as its
    *  selector, its constructor and its position. Found once: the pass runs at
-   *  every round of every check, and a sort's text is built at each asking.
+   *  every round of every check.
    */
   private val sharedFields: List[(Term, Term, Int)] =
     for
       d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
-      text = sort.text
-      if text == "Int" || text == "Real" || Sorts.arrow(text).isDefined
+      if sort == Sort.Int || sort == Sort.Real || sort.arrow.isDefined
     yield (Term.Const(selector), Term.Const(c.name), i)
 
   /** The datatypes with finitely many values: no constructor field of an
    *  uninterpreted sort or of an infinite (e.g. recursive) datatype, computed
    *  as a least fixpoint.
    */
-  private val finite: Set[String] =
-    var known = Set("Bool")
+  private val finite: Set[Sort] =
+    var known = Set[Sort](Sort.Bool)
     var changed = true
     while changed do
       val more = datatypes.filter(d =>
-        !known(d.name) && d.constructors.forall(_.selectors.forall((_, s) => known(s.text)))
-      ).map(_.name)
+        !known(Sort.Named(d.name)) && d.constructors.forall(_.selectors.forall((_, s) => known(s)))
+      ).map(d => Sort.Named(d.name): Sort)
       changed = more.nonEmpty
       known ++= more
     known
@@ -545,13 +554,13 @@ private final class Encoder(
   private def noteInt(t: Term): Unit =
     anyNoted = true
     val sort = sortOf(t)
-    if sort != "Int" && sort != "Real" then intTerms += t
+    if sort != Sort.Int && sort != Sort.Real then intTerms += t
 
   private def isInt(t: Term): Boolean = t match
     case Term.Num(_) | Term.Linear(_, _) => true
-    case _ => sortOf(t) == "Int" || sortOf(t) == "Real" || intTerms(t)
+    case _ => sortOf(t) == Sort.Int || sortOf(t) == Sort.Real || intTerms(t)
 
-  private def isFun(t: Term): Boolean = Sorts.arrow(sortOf(t)).isDefined
+  private def isFun(t: Term): Boolean = sortOf(t).arrow.isDefined
 
   /** Theory combination: an `Int` term gets an e-class only when it occurs
    *  under an uninterpreted function or a constructor, or is compared by `Eq`;
@@ -588,10 +597,10 @@ private final class Encoder(
     val selectorPairs = ArrayBuffer.empty[(Term, Term)] // a selector's application and a field: paired last
     def pair(a: Term, b: Term): Unit =
       step()
-      if a != b && isInt(a) && isInt(b) && Sorts.arrow(sortOf(a)).isEmpty && Sorts.arrow(sortOf(b)).isEmpty
+      if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
-      else if a != b && Sorts.arrow(sortOf(a)).isDefined && Sorts.arrow(sortOf(b)).isDefined
+      else if a != b && sortOf(a).arrow.isDefined && sortOf(b).arrow.isDefined
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then arrayPairs += ((a, b))
     if sharedNoted != intTerms.size then
@@ -644,7 +653,7 @@ private final class Encoder(
         equatableFuns += g
       val byFunctionSort = classes.keys.collect {
         case a: Term.App
-            if Sorts.arrow(sortOf(a.fun)).isDefined
+            if sortOf(a.fun).arrow.isDefined
               && (equatableFuns(a.fun) ||
                 (a.fun match
                   case Term.App(Term.Const(n), _) => n.startsWith("store!")
@@ -785,20 +794,20 @@ private final class Encoder(
       for case eq @ Formula.Eq(f, g) <- functionEqualities.toList if !done(eq) do
         done += eq
         if !assertedEqualities(eq) then
-          Sorts.arrow(sortOf(f)).orElse(Sorts.arrow(sortOf(g))) match
+          sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
               val witnesses = params.map { sort =>
                 val name = witnessName()
                 sort match
-                  case Encoder.bitVector(width) =>
+                  case Sort.BitVec(width) =>
                     // The lowering reads a bit-vector as an integer in its range; so is the witness
                     // index, or two arrays over `(_ BitVec 1)` agreeing at both indices could still
                     // differ at it (issue 20).
-                    introduced(name) = "Int"
+                    introduced(name) = Sort.Int
                     val w = Term.Const(name)
                     clauses += Array(lit(Formula.Le(Term.Num(0), w)))
-                    clauses += Array(lit(Formula.Le(w, Term.Num(BigInt(2).pow(width.nn.toInt) - 1))))
+                    clauses += Array(lit(Formula.Le(w, Term.Num(BigInt(2).pow(width) - 1))))
                     w
                   case _ =>
                     introduced(name) = sort
@@ -813,7 +822,6 @@ private final class Encoder(
    */
   private val exhaustivenessSeen = scala.collection.mutable.HashSet.empty[Term]
   private var exhaustivenessTerms = 0 // the terms of `terms` the pass has looked at
-  private val datatypesByName = datatypes.map(d => d.name -> d).toMap
 
   def assertExhaustiveness(): Unit =
     if datatypes.nonEmpty then
@@ -822,18 +830,18 @@ private final class Encoder(
       val todo = ArrayBuffer.empty[Term]
       while exhaustivenessTerms < terms.length do
         val t = terms(exhaustivenessTerms)
-        if datatypeNames(sortOf(t)) then todo += t
+        if datatypeOf(sortOf(t)).isDefined then todo += t
         exhaustivenessTerms += 1
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
         if seen.add(t) then
-          val datatype = datatypesByName(sortOf(t))
+          val datatype = datatypeOf(sortOf(t)).get
           assert(
             Formula.Or(datatype.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t))))),
             null
           )
-          if finite(datatype.name) then
-            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeNames(sort.text) do
+          if finite(sortOf(t)) then
+            for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeOf(sort).isDefined do
               todo += Term.App(Term.Const(selector), List(t))
 
   private val liaSolver = lia.Solver()
@@ -861,7 +869,7 @@ private final class Encoder(
   private val booleanClasses = scala.collection.mutable.HashSet.empty[EClassId]
 
   private def boolean(term: Term): Unit =
-    if sortOf(term) == "Bool" && booleanClasses.add(classOf(term)) then booleans += term
+    if sortOf(term) == Sort.Bool && booleanClasses.add(classOf(term)) then booleans += term
 
   /** Whether some term is an integer, some application takes or gives an array
    *  (two arrays under the same function are a pair to share, with or without
@@ -876,7 +884,7 @@ private final class Encoder(
   def classOf(term: Term): EClassId = classes.getOrElseUpdate(
     term, {
       sortOf(term) match
-        case "Int" | "Real" => anyInt = true
+        case Sort.Int | Sort.Real => anyInt = true
         case _ => ()
       term match
         case Term.App(Term.App(Term.Const(n), _), _) if n.startsWith("store!") => anyArrayApplication = true
@@ -936,20 +944,20 @@ private final class Encoder(
     val stores = classes.keys.collect {
       case s @ Term.App(Term.Const(name), List(_, _, _)) if name.startsWith("store!") => s
     }.toList
-    val indices = scala.collection.mutable.HashMap.empty[String, scala.collection.mutable.LinkedHashSet[Term]]
-    def index(sort: String, j: Term): Unit =
+    val indices = scala.collection.mutable.HashMap.empty[Sort, scala.collection.mutable.LinkedHashSet[Term]]
+    def index(sort: Sort, j: Term): Unit =
       indices.getOrElseUpdate(sort, scala.collection.mutable.LinkedHashSet.empty) += j
     for a <- classes.keys do
       a match
-        case Term.App(f, List(j)) if Sorts.arrow(sortOf(f)).isDefined => index(sortOf(f), j)
+        case Term.App(f, List(j)) if sortOf(f).arrow.isDefined => index(sortOf(f), j)
         case _ => ()
     for s <- stores do index(sortOf(s), s.args(1))
-    def equalAt(sort: String, l: Term, r: Term): Formula =
-      if sort == "Int" || sort == "Real" then Formula.IntEq(l, r) else Formula.Eq(l, r)
+    def equalAt(sort: Sort, l: Term, r: Term): Formula =
+      if sort == Sort.Int || sort == Sort.Real then Formula.IntEq(l, r) else Formula.Eq(l, r)
     for case s @ Term.App(_, List(a, i, v)) <- stores do
       val sort = sortOf(s)
-      val indexSort = Sorts.arrow(sort).get._1.head
-      val elementSort = Sorts.applied(sort, 1) // an array, for an array of arrays
+      val indexSort = sort.arrow.get._1.head
+      val elementSort = applied(sort, 1) // an array, for an array of arrays
       if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
       for j <- indices.getOrElse(sort, Nil) do
         step()
@@ -997,13 +1005,13 @@ private final class Encoder(
     term match
       case Term.App(_, _) => classOf(term)
       case _ => ()
-    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = sortOf(term) != "Real"))
+    intVars.getOrElseUpdate(term, liaSolver.newVar(integer = sortOf(term) != Sort.Real))
 
   /** The LIA variable standing for a linear combination of `Int` terms. */
   private def slack(terms: List[(BigInt, Term)]): lia.Var =
     slacks.getOrElseUpdate(
       terms,
-      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortOf(t) == "Real"))
+      liaSolver.newSlack(terms.map((a, t) => (a, intVar(t))), integer = !terms.exists((_, t) => sortOf(t) == Sort.Real))
     )
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
@@ -1034,7 +1042,7 @@ private final class Encoder(
           boolean(lhs)
           boolean(rhs)
           equalities += formula
-          if sortOf(lhs).startsWith("(->") || sortOf(rhs).startsWith("(->") then
+          if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           atom(classOf(lhs), classOf(rhs))
@@ -1191,12 +1199,12 @@ private final class Encoder(
    *  element per e-class; a datatype class becomes its constructor term.
    */
   private def takeModel(): Model =
-    val elements = HashMap.empty[(String, EClassId), Term] // sort and class to element
+    val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
     for (t, x) <- intVars do
       classes.get(t).foreach { c =>
-        if sortOf(t) == "Real" then realClassValues(eg.find(c)) = liaSolver.realValue(x)
+        if sortOf(t) == Sort.Real then realClassValues(eg.find(c)) = liaSolver.realValue(x)
         else classValues(eg.find(c)) = liaSolver.value(x)
       }
     // A numeral values its class too: a term equated with one by congruence alone (a constructor's
@@ -1204,10 +1212,12 @@ private final class Encoder(
     for case (n @ Term.Num(v), c) <- classes do
       classValues(eg.find(c)) = v
       realClassValues(eg.find(c)) = lia.Rational(v)
-    def elementOf(sort: String, cls: EClassId): Term =
+    def elementOf(sort: Sort, cls: EClassId): Term =
       val root = eg.find(cls)
       // The name is bare, `@a b!0` for the sort `|a b|`: the printer adds the bars a name needs.
-      val bare = sort.stripPrefix("|").stripSuffix("|")
+      val bare = sort match
+        case Sort.Named(name) => name
+        case other => other.text
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
     // A number the simplex never saw — a constructor's field invented by a tester's expansion, say — is
     // free of arithmetic but not of the e-graph's disequalities: its class gets a value of its own, past
@@ -1248,7 +1258,7 @@ private final class Encoder(
           .find(c => eg.find(classes(Term.Const(c.name))) == eg.find(node.fun))
           .map((_, node.args.toList))
       )
-    val lastFresh = HashMap.empty[String, Term] // per datatype, the last value of `freshOf`
+    val lastFresh = HashMap.empty[Sort, Term] // per datatype, the last value of `freshOf`
     // The class of a tester's or a selector's application to a term of the class `root`, by symbol and
     // class, the first the map of the classes gives: the terms are looked at once, not at every question.
     lazy val unaryApplications =
@@ -1261,10 +1271,10 @@ private final class Encoder(
     def testerOf(root: EClassId, tester: String): Option[Boolean] =
       applicationOf(tester, root).map(c => eg.find(c) == eg.find(trueTerm))
     def selectorOf(root: EClassId, selector: String): Option[EClassId] = applicationOf(selector, root)
-    def defaultOf(sort: String, seen: Set[String]): Term = datatypes.find(_.name == sort) match
+    def defaultOf(sort: Sort, seen: Set[Sort]): Term = datatypeOf(sort) match
       case Some(d) if !seen(sort) =>
         val c = d.constructors.find(_.selectors.isEmpty).getOrElse(d.constructors.head)
-        val args = c.selectors.map((_, s) => defaultOf(s.text, seen + sort))
+        val args = c.selectors.map((_, s) => defaultOf(s, seen + sort))
         if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
       case Some(_) => elementOf(sort, eg.newClass())
       case None => valueOfTerm(Term.Const("@default"), sort)
@@ -1274,22 +1284,22 @@ private final class Encoder(
     // spare: a new number, or a datatype value around a new value of one of its fields. A sort met
     // again inside its own value takes the last value made for it, so each value is deeper than the
     // one before.
-    def freshOf(sort: String, seen: Set[String]): Option[Term] = sort match
-      case "Int" => Some(Term.Num(freshInt(eg.newClass())))
-      case "Real" => Some(Model.rationalTerm(freshReal(eg.newClass())))
+    def freshOf(sort: Sort, seen: Set[Sort]): Option[Term] = sort match
+      case Sort.Int => Some(Term.Num(freshInt(eg.newClass())))
+      case Sort.Real => Some(Model.rationalTerm(freshReal(eg.newClass())))
       case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort, Set.empty)))
       case _ =>
         val fields =
           for
-            d <- datatypes.iterator if d.name == sort
+            d <- datatypeOf(sort).iterator
             c <- d.constructors.iterator
             ((_, s), i) <- c.selectors.iterator.zipWithIndex
-            inner <- freshOf(s.text, seen + sort)
+            inner <- freshOf(s, seen + sort)
           yield
             construct(
               c,
               c.selectors.zipWithIndex.map { case ((_, s), j) =>
-                if i == j then inner else defaultOf(s.text, Set.empty)
+                if i == j then inner else defaultOf(s, Set.empty)
               }
             )
         val value = fields.nextOption()
@@ -1299,10 +1309,10 @@ private final class Encoder(
       builtValues.getOrElseUpdate(
         root, {
           val candidates = datatype.constructors.filter(c => !testerOf(root, c.tester).contains(false))
-          val numeric = (s: String) => s == "Int" || s == "Real"
+          val numeric = (s: Sort) => s == Sort.Int || s == Sort.Real
           // A constructor with a number among its fields tells classes apart by that field; an
           // enumeration by taking its constructors in turn.
-          val c = candidates.find(_.selectors.exists((_, s) => numeric(s.text))).getOrElse {
+          val c = candidates.find(_.selectors.exists((_, s) => numeric(s))).getOrElse {
             val nullary = candidates.filter(_.selectors.isEmpty)
             if nullary.nonEmpty then nullary(builtValues.size % nullary.length)
             else candidates.headOption.getOrElse(datatype.constructors.head)
@@ -1314,11 +1324,11 @@ private final class Encoder(
               c,
               c.selectors.zipWithIndex.map { case ((selector, s), i) =>
                 selectorOf(root, selector) match
-                  case Some(field) => valueOfClass(field, s.text, seen + root)
+                  case Some(field) => valueOfClass(field, s, seen + root)
                   case None if free.exists(_._1 == i) => free.get._2
-                  case None if s.text == "Int" => Term.Num(freshInt(eg.newClass()))
-                  case None if s.text == "Real" => Model.rationalTerm(freshReal(eg.newClass()))
-                  case None => defaultOf(s.text, Set.empty)
+                  case None if s == Sort.Int => Term.Num(freshInt(eg.newClass()))
+                  case None if s == Sort.Real => Model.rationalTerm(freshReal(eg.newClass()))
+                  case None => defaultOf(s, Set.empty)
               }
             )
           val value = valueWith(c, None)
@@ -1331,7 +1341,7 @@ private final class Encoder(
               c <- candidates.iterator
               ((selector, s), i) <- c.selectors.iterator.zipWithIndex
               if selectorOf(root, selector).isEmpty
-              fresh <- freshOf(s.text, Set.empty)
+              fresh <- freshOf(s, Set.empty)
             yield valueWith(c, Some((i, fresh)))
           var distinct = value
           var more = true
@@ -1343,8 +1353,8 @@ private final class Encoder(
           distinct
         }
       )
-    def valueOfClass(cls: EClassId, sort: String, seen: Set[EClassId]): Term =
-      datatypes.find(_.name == sort) match
+    def valueOfClass(cls: EClassId, sort: Sort, seen: Set[EClassId]): Term =
+      datatypeOf(sort) match
         case Some(datatype) =>
           val root = eg.find(cls)
           if seen(root) then elementOf(sort, cls) // a cycle, which the rules never let through
@@ -1355,36 +1365,36 @@ private final class Encoder(
                 nodeValues.getOrElseUpdate(
                   root, {
                     val value =
-                      construct(c, args.zip(c.selectors).map((a, s) => valueOfClass(a, s._2.text, seen + root)))
+                      construct(c, args.zip(c.selectors).map((a, s) => valueOfClass(a, s._2, seen + root)))
                     record(value)
                     value
                   }
                 )
         case None =>
           sort match
-            case "Int" => Term.Num(freshInt(eg.find(cls)))
-            case "Real" => Model.rationalTerm(freshReal(eg.find(cls)))
-            case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
+            case Sort.Int => Term.Num(freshInt(eg.find(cls)))
+            case Sort.Real => Model.rationalTerm(freshReal(eg.find(cls)))
+            case Sort.Bool => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
             // no array to read or to compare (issue 139). A class reached again while it is valued is
             // inside its own value, through an array of the datatype: only there is it an element.
-            case _ if Sorts.arrow(sort).isDefined && !arraysBeingValued(eg.find(cls)) => arrayValue(cls, sort)
+            case _ if sort.arrow.isDefined && !arraysBeingValued(eg.find(cls)) => arrayValue(cls, sort)
             case _ => elementOf(sort, cls)
-    def valueOfTerm(t: Term, sort: String): Term =
+    def valueOfTerm(t: Term, sort: Sort): Term =
       (t, sort) match
         case (Term.Num(_), _) => t // a literal argument of an application
         case (Term.Linear(terms, c), _) => // a linear argument or index: computed from its terms (issue 24)
           Model.rationalTerm(terms.foldLeft(lia.Rational(c)) { case (sum, (a, u)) =>
             sum + lia.Rational(a) * asRational(valueOfTerm(u, sortOf(u)))
           })
-        case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
+        case (_, s) if s.arrow.isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
-          else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
-        case (_, "Int") =>
+          else Model.constArray(s.asArray, valueOfTerm(Term.Const("@default"), applied(s, 1)))
+        case (_, Sort.Int) =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
-        case (_, "Real") =>
+        case (_, Sort.Real) =>
           intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x)))
             .orElse(classes.get(t).map(c => Model.rationalTerm(freshReal(eg.find(c)))))
             .getOrElse(Term.Num(0))
@@ -1392,24 +1402,24 @@ private final class Encoder(
           classes.get(t) match
             case Some(cls) => valueOfClass(cls, sort, Set.empty)
             case None =>
-              if sort == "Bool" then Term.boolean(Formula.False)
+              if sort == Sort.Bool then Term.boolean(Formula.False)
               else
-                datatypes.find(_.name == sort) match
+                datatypeOf(sort) match
                   case Some(d) => builtValue(d, eg.newClass(), Set.empty) // never reached the e-graph: free
                   case None => elementOf(sort, eg.newClass())
     // An array's value, per e-class: its default and the indices its class was read at — its own
     // selects, the ones of every array equal to it, the write of a store it equals.
-    def arrayValue(array: EClassId, sort: String): Term =
+    def arrayValue(array: EClassId, sort: Sort): Term =
       val root = eg.find(array)
       arrayValues.getOrElseUpdate(
         root, {
-          // A bit-vector index sort keeps its text for its width (see assertExtensionality), and its
-          // terms are integers all the same: valued at that name, an index was an abstract element,
-          // which no read at a number finds (issue 138).
-          val indexSort = Sorts.arrow(sort).get._1.head match
-            case Encoder.bitVector(_) => "Int"
+          // A bit-vector index sort is kept for its width (see assertExtensionality), and its terms
+          // are integers all the same: valued at that sort, an index was an abstract element, which
+          // no read at a number finds (issue 138).
+          val indexSort = sort.arrow.get._1.head match
+            case Sort.BitVec(_) => Sort.Int
             case other => other
-          val elementSort = Sorts.applied(sort, 1) // itself an array, for an array of arrays
+          val elementSort = applied(sort, 1) // itself an array, for an array of arrays
           arraysBeingValued += root
           val rows = classes.keys.collect {
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
@@ -1428,7 +1438,7 @@ private final class Encoder(
           }
           arraysBeingValued -= root
           val start = written.getOrElse {
-            Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), elementSort))
+            Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), elementSort))
           }
           rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
         }
@@ -1437,21 +1447,21 @@ private final class Encoder(
     // takes a value no class has yet, so a class with one is valued as soon as its fields are: before
     // the next built value, which then goes around it. A later one holds a later built value, which
     // is inside none of the values before it.
-    val built = ArrayBuffer.empty[(EClassId, String)]
-    val constructed = ArrayBuffer.empty[(EClassId, String, List[EClassId])] // the fields' classes first
+    val built = ArrayBuffer.empty[(EClassId, Sort)]
+    val constructed = ArrayBuffer.empty[(EClassId, Sort, List[EClassId])] // the fields' classes first
     val met = HashSet.empty[EClassId]
-    def visit(cls: EClassId, sort: String): Unit =
-      for datatype <- datatypes.find(_.name == sort) if met.add(eg.find(cls)) do
+    def visit(cls: EClassId, sort: Sort): Unit =
+      for datatype <- datatypeOf(sort) if met.add(eg.find(cls)) do
         nodeOf(datatype, cls) match
           case None => built += ((eg.find(cls), sort))
           case Some((c, args)) =>
-            for (a, (_, s)) <- args.zip(c.selectors) do visit(a, s.text)
+            for (a, (_, s)) <- args.zip(c.selectors) do visit(a, s)
             constructed +=
               ((
                 eg.find(cls),
                 sort,
                 args.zip(c.selectors).collect {
-                  case (a, (_, s)) if datatypeNames(s.text) => eg.find(a)
+                  case (a, (_, s)) if datatypeOf(s).isDefined => eg.find(a)
                 }
               ))
     for (t, c) <- classes do visit(c, sortOf(t))
@@ -1467,26 +1477,26 @@ private final class Encoder(
     val functions = Map.newBuilder[String, Model.Function]
     for
       (name, (argSorts, sort)) <- declarations
-      if argSorts.isEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
+      if argSorts.isEmpty && sort.arrow.isDefined && !name.startsWith("store!")
     do
       // An array the assertions never read or wrote holds a default everywhere: a value all the same,
       // where `(select arr i)` was printed as itself (issue 48).
       constants += name -> (
         if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
-        else Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
+        else Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
       )
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
       (name, (argSorts, sort)) <- declarations
-      if argSorts.nonEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
+      if argSorts.nonEmpty && sort.arrow.isDefined && !name.startsWith("store!")
     do
       val rows = classes.keys.collect {
         case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
           (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
       }.toList
-      val default = Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
-      functions += name -> Model.Function(argSorts, Sorts.array(sort), rows, default)
-    for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
+      val default = Model.constArray(sort.asArray, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
+      functions += name -> Model.Function(argSorts, sort.asArray, rows, default)
+    for (name, (argSorts, sort)) <- declarations if sort.arrow.isEmpty do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else
         val rows = classes.keys.collect {

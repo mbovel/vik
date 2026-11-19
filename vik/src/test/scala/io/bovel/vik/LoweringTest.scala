@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.{Parser, Smt2Error, Unsupported}
+import io.bovel.smtlib.{Parser, Smt2Error, Sort, Unsupported}
 import Formula.*
 import Term.*
 
@@ -16,7 +16,7 @@ class LoweringTest extends munit.FunSuite:
     val commands = Lowering(Parser.parse(
       "(declare-const p Bool) (declare-const x Int) (declare-const y Int) (assert (= (ite p x y) 2))"
     )).commands
-    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, "Int") => true; case _ => false })
+    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, Sort.Int) => true; case _ => false })
     val asserts = commands.collect { case Command.Assert(f) => f }
     assertEquals(asserts(0), Implies(Pred(Const("p")), IntEq(Const("ite!1"), Const("x"))))
 
@@ -152,7 +152,7 @@ class LoweringTest extends munit.FunSuite:
     )).commands
     val asserts = commands.collect { case Command.Assert(f) => f }
     assertEquals(asserts(0), IntEq(Const("x"), Const("n"))) // to_real vanishes: sorts carry the difference
-    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, "Int") => true; case _ => false })
+    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, Sort.Int) => true; case _ => false })
     assertEquals(asserts(1), Le(Const("floor!1"), Const("x")))
     assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const("floor!1"))), 1)))
     assertEquals(asserts(3), IntEq(Const("floor!1"), Num(2)))
@@ -199,7 +199,10 @@ class LoweringTest extends munit.FunSuite:
 
   test("a lowered script writes a declared name with the bars it needs (issue 33)"):
     assertEquals(Printer.print(Command.DeclareSort("a b", 0)), "(declare-sort |a b| 0)")
-    assertEquals(Printer.print(Command.DeclareFun("f g", List("|a b|"), "Int")), "(declare-fun |f g| (|a b|) Int)")
+    assertEquals(
+      Printer.print(Command.DeclareFun("f g", List(Sort.Named("a b")), Sort.Int)),
+      "(declare-fun |f g| (|a b|) Int)"
+    )
 
   test("a witness's name declared by the script after the witness is refused (issue 21)"):
     val e = intercept[Smt2Error](Session.run(Parser.parse(

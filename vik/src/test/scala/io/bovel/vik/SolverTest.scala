@@ -2,6 +2,7 @@ package io.bovel.vik
 
 import Formula.*
 import Term.*
+import io.bovel.smtlib.Sort
 
 class SolverTest extends munit.FunSuite:
   val a = Const("a")
@@ -185,7 +186,7 @@ class SolverTest extends munit.FunSuite:
 
   test("unknown with a reason: the fuel, or the caller"):
     val s = Solver()
-    for i <- 0 until 12 do s.declare(s"p$i", Nil, "Bool")
+    for i <- 0 until 12 do s.declare(s"p$i", Nil, Sort.Bool)
     val ps = (0 until 12).map(i => Pred(Const(s"p$i"))).toList
     s.assert(Or(ps))
     for (a, i) <- ps.zipWithIndex; b <- ps.drop(i + 1) do s.assert(Or(List(Not(a), Not(b))))
@@ -204,8 +205,8 @@ class SolverTest extends munit.FunSuite:
     val xs = (0 until 48).map(i => Const(s"x$i")).toList
     def problem(): Solver =
       val s = Solver()
-      s.declare("f", List("Int"), "Int")
-      for i <- xs.indices do s.declare(s"x$i", Nil, "Int")
+      s.declare("f", List(Sort.Int), Sort.Int)
+      for i <- xs.indices do s.declare(s"x$i", Nil, Sort.Int)
       for (x, y) <- xs.zip(xs.tail :+ xs.head) do s.assert(Le(x, y))
       s.assert(Or(for (x, i) <- xs.zipWithIndex; y <- xs.drop(i + 1) yield fa(x) !== fa(y)))
       s

@@ -21,9 +21,9 @@ class AdtTest extends munit.FunSuite:
 
   def listSolver(): Solver =
     val s = Solver()
-    s.declare("U", Nil, "U")
-    for c <- List("a", "b", "c") do s.declare(c, Nil, "U")
-    for l <- List("l", "m", "n") do s.declare(l, Nil, "List")
+    s.declare("U", Nil, Sort.Named("U"))
+    for c <- List("a", "b", "c") do s.declare(c, Nil, Sort.Named("U"))
+    for l <- List("l", "m", "n") do s.declare(l, Nil, Sort.Named("List"))
     s.declare(list)
     s
 
@@ -87,7 +87,7 @@ class AdtTest extends munit.FunSuite:
       val s = Solver()
       s.declare(unit)
       s.declare(option)
-      for x <- List("x", "y", "z") do s.declare(x, Nil, "Opt")
+      for x <- List("x", "y", "z") do s.declare(x, Nil, Sort.Named("Opt"))
       s
     val (x, y, z) = (Const("x"), Const("y"), Const("z"))
     assert(sat(solver(), x !== y))
@@ -157,9 +157,9 @@ class AdtTest extends munit.FunSuite:
       val s = Solver()
       s.declare(color)
       s.declare(pair)
-      s.declare("p", Nil, "Pair")
-      s.declare("q", Nil, "Pair")
-      s.declare("c", Nil, "Color")
+      s.declare("p", Nil, Sort.Named("Pair"))
+      s.declare("q", Nil, Sort.Named("Pair"))
+      s.declare("c", Nil, Sort.Named("Color"))
       assertEquals(sat(s, f), expected, s"round $round: $f")
       if expected then sats += 1
     assert(sats > 30 && sats < 170, sats)

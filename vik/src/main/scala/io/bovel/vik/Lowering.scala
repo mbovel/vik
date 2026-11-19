@@ -83,7 +83,7 @@ private final class Lowerer:
   private def reserve(name: String): Unit =
     if minted(name) || name.startsWith("store!") then
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
-  private val introduced = ArrayBuffer.empty[(String, String)] // fresh constants, declared before the assertion
+  private val introduced = ArrayBuffer.empty[(String, Sort)] // fresh constants, declared before the assertion
   private val definitions = ArrayBuffer.empty[Formula] // the assertions defining them
 
   /** What the lowering minted, by what it was minted for. An entry stands for
@@ -152,7 +152,7 @@ private final class Lowerer:
     case s2.Term.Const(name) if functions.get(name).flatMap(_.arrow).exists(_._1.nonEmpty) =>
       // A function symbol: its graph as a lambda, as cvc5 answers (issue 50).
       val Some((argSorts, result)) = functions(name).arrow: @unchecked
-      val f = model.functions.getOrElse(name, Model.Function(argSorts.map(_.text), result.text, Nil, Const("@default")))
+      val f = model.functions.getOrElse(name, Model.Function(argSorts, result, Nil, Const("@default")))
       val (params, body) = graph(f, argSorts, result)
       s"(lambda ($params) $body)"
     case t: s2.Term => written(eval(t, model, Scope.empty), sortOf(t, Map.empty))
@@ -404,7 +404,6 @@ private final class Lowerer:
    */
   def declaredSort(name: String): Option[Sort] = if minted(name) then None else functions.get(name)
 
-  /** A sort as the solver writes it: a string, arrays as function sorts. */
   /** What a declaration of `name` at `sort` asserts about it, beyond the
    *  declaration itself: a bit-vector constant is an integer of its range, and
    *  nothing else says so. Said at the declaration and again after a
@@ -420,38 +419,26 @@ private final class Lowerer:
       List(if globalDeclarations then Command.AssertGlobal(fact) else Command.Assert(fact))
     case _ => Nil
 
-  /** A sort as the lowered script declares it: a bit-vector is an `Int`, in a
-   *  field, an argument, a result or an array as much as in a constant — the
-   *  solver ties a selector to its constructor's argument by the field's sort,
-   *  and every bit-vector term is an integer to it.
+  /** A sort as the lowered script declares it and as the solver knows it: a
+   *  bit-vector is an `Int`, in a field, an argument, a result or an array's
+   *  elements as much as in a constant, and an array is the function of its
+   *  index to its elements, which a `select` applies. An array field is so of
+   *  the sort its stores and its array constants have: the array lemmas pair a
+   *  read with the stores of its array's sort.
+   *
+   *  An index sort alone keeps a bit-vector, `(-> (_ BitVec 8) Int)`: the index
+   *  terms are integers either way, and the width is what ranges the witness of
+   *  two such arrays asserted different (issue 20).
    */
   private def lowered(s: Sort): Sort = s match
     case Sort.BitVec(_) => Sort.Int
-    case Sort.Fun(args, result) => Sort.Fun(args.map(lowered), lowered(result))
-    // An array field is of the function sort its stores and its array constants have ([[sortString]]): the
-    // array lemmas pair a read with the stores of its array's sort, and a field left as `(Array I E)` was
-    // of no store's sort, so a read through a selector got no read-over-write lemma and the search
-    // answered `sat` on an unsatisfiable script.
+    case Sort.Fun(args, result) => Sort.fun(args.map(lowered), lowered(result))
     case Sort.Array(index, element) =>
       val i = index match
-        case Sort.BitVec(_) => index // as [[indexString]] keeps it
+        case Sort.BitVec(_) => index
         case other => lowered(other)
       Sort.fun(List(i), lowered(element))
     case other => other
-
-  private def sortString(s: Sort): String = s match
-    case Sort.BitVec(_) => "Int"
-    case Sort.Fun(args, result) => s2.Sorts.function(args.map(sortString), sortString(result))
-    case Sort.Array(index, element) => s2.Sorts.function(List(indexString(index)), sortString(element))
-    case other => other.text
-
-  /** An index sort keeps a bit-vector's text, `(-> (_ BitVec 8) Int)`: the
-   *  index terms are integers either way, and the width is what ranges the
-   *  witness of two such arrays asserted different (issue 20).
-   */
-  private def indexString(s: Sort): String = s match
-    case Sort.BitVec(_) => s.text
-    case other => sortString(other)
 
   private def command(c: s2.Command): List[Command] = c match
     // The lowered script is in the corresponding integer logic.
@@ -462,7 +449,7 @@ private final class Lowerer:
       reserve(name)
       undoable(functions, name)
       functions(name) = Sort.BitVec(w)
-      Command.DeclareFun(name, Nil, "Int") +: facts(name, Sort.BitVec(w))
+      Command.DeclareFun(name, Nil, Sort.Int) +: facts(name, Sort.BitVec(w))
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       reserve(name)
       undoable(functions, name)
@@ -470,7 +457,7 @@ private final class Lowerer:
       // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
       // not flattened into a function symbol: the solver applies it either way, and the model knows an
       // array from a function by that.
-      List(Command.DeclareFun(name, argSorts.map(sortString), sortString(sort)))
+      List(Command.DeclareFun(name, argSorts.map(lowered), lowered(sort)))
     case s2.Command.DeclareDatatypes(datatypes) =>
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = Sort.Named(datatype.name)
@@ -748,9 +735,9 @@ private final class Lowerer:
           val k = Const(name)
           sort match
             case Sort.BitVec(w) => // introduced as the lowering of its declaration would
-              introduced += ((name, "Int"))
+              introduced += ((name, Sort.Int))
               definitions += range(k, w)
-            case _ => introduced += ((name, sortString(sort)))
+            case _ => introduced += ((name, lowered(sort)))
           functions(name) = sort
           definitions += Implies(c, equal(sort, k, t))
           definitions += Implies(Not(c), equal(sort, k, e))
@@ -826,7 +813,7 @@ private final class Lowerer:
    */
   private def floor(r: Term): Term =
     val name = freshName("floor")
-    introduced += ((name, "Int"))
+    introduced += ((name, Sort.Int))
     functions(name) = Sort.Int
     val k = Const(name)
     definitions += Le(k, r)
@@ -869,7 +856,7 @@ private final class Lowerer:
       rationals.getOrElseUpdate(
         (p, q), {
           val name = freshName("rat")
-          introduced += ((name, "Real"))
+          introduced += ((name, Sort.Real))
           functions(name) = Sort.Real
           val k = Const(name)
           definitions += IntEq(Term.linear(List((q, k))), Num(p))
@@ -890,7 +877,7 @@ private final class Lowerer:
       rationalProducts.getOrElseUpdate(
         (p, q, t), {
           val name = freshName("rat")
-          introduced += ((name, "Real"))
+          introduced += ((name, Sort.Real))
           functions(name) = Sort.Real
           val k = Const(name)
           definitions += IntEq(Term.linear(List((q, k))), Term.linear(List((p, t))))
@@ -904,18 +891,18 @@ private final class Lowerer:
    *  `store` is not a function of the tree, each array sort gets its own
    *  uninterpreted symbol, and the solver's array lemmas recognize the name.
    */
-  private val storeSymbols = HashMap.empty[String, String]
+  private val storeSymbols = HashMap.empty[Sort, String]
 
   private def storeSymbol(arraySort: Sort): Term =
-    val key = sortString(arraySort)
+    val key = lowered(arraySort)
     val name = storeSymbols.getOrElseUpdate(
       key, {
         // The array's function sort, flattened when its elements are arrays: the index is the first
         // parameter, the value sort what the array applied to one index has.
-        val (params, _) = s2.Sorts.arrow(key).getOrElse(throw s2.Smt2Error(s"store on $arraySort"))
+        val (params, _) = key.arrow.getOrElse(throw s2.Smt2Error(s"store on $arraySort"))
         val n = freshName("store")
-        val argSorts = key :: params.head :: List(s2.Sorts.applied(key, 1)) // the array, the index, the value
-        introduced += ((n, s2.Sorts.function(argSorts, key)))
+        val argSorts = key :: params.head :: List(key.after(1).get) // the array, the index, the value
+        introduced += ((n, Sort.fun(argSorts, key)))
         functions(n) = Sort.Named(n) // the solver reads the introduced declaration; the name is enough here
         n
       }
@@ -929,7 +916,7 @@ private final class Lowerer:
    */
   private def freshInt(prefix: String, lo: BigInt, hi: BigInt): Term =
     val name = freshName(prefix)
-    introduced += ((name, "Int"))
+    introduced += ((name, Sort.Int))
     val k = Const(name)
     definitions += Ge(k, Num(lo))
     definitions += Le(k, Num(hi))
@@ -1387,7 +1374,7 @@ private final class Lowerer:
         ("int_to_bv", List(t), List(width)), {
           val r = freshInt("bv", 0, modulus(width) - 1)
           val name = freshName("k")
-          introduced += ((name, "Int"))
+          introduced += ((name, Sort.Int))
           val k = Const(name)
           definitions += IntEq(t, r + k * modulus(width))
           r

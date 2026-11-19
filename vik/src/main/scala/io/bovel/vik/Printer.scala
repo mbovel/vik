@@ -27,13 +27,13 @@ object Printer:
     case Command.SetInfo(key, value) => s"(set-info $key $value)"
     case Command.DeclareSort(name, arity) => s"(declare-sort ${symbol(name)} $arity)"
     case Command.DeclareFun(name, argSorts, sort) =>
-      s"(declare-fun ${symbol(name)} (${argSorts.mkString(" ")}) $sort)"
+      s"(declare-fun ${symbol(name)} (${argSorts.map(_.text).mkString(" ")}) ${sort.text})"
     case Command.DeclareDatatypes(datatypes) => // every name as the script would write it (issue 33)
       val sorts = datatypes.map(d => s"(${symbol(d.name)} 0)").mkString(" ")
       val declarations = datatypes.map { d =>
         d.constructors.map { c =>
           if c.selectors.isEmpty then s"(${symbol(c.name)})"
-          else s"(${symbol(c.name)} ${c.selectors.map((s, sort) => s"(${symbol(s)} $sort)").mkString(" ")})"
+          else s"(${symbol(c.name)} ${c.selectors.map((s, sort) => s"(${symbol(s)} ${sort.text})").mkString(" ")})"
         }.mkString("(", " ", ")")
       }.mkString(" ")
       s"(declare-datatypes ($sorts) ($declarations))"

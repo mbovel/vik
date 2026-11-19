@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.{Parser, Printer}
+import io.bovel.smtlib.{Parser, Printer, Sort}
 
 /** `:rlimit` (the fuel), `:timeout`, `:check-models`, and `:reason-unknown`. */
 class OptionsTest extends munit.FunSuite:
@@ -61,7 +61,7 @@ class OptionsTest extends munit.FunSuite:
   test("check-models: the solver checks its own model"):
     val s = Solver()
     s.checkModels = true
-    s.declare("x", Nil, "Int")
+    s.declare("x", Nil, Sort.Int)
     s.assert(Formula.Less(Term.Const("x"), Term.Num(3)))
     assertEquals(s.solve(), s.Result.Sat)
     assert(s.model().exists(_.holds(Formula.Less(Term.Const("x"), Term.Num(3)))))
