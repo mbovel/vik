@@ -5,15 +5,16 @@ import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
 import io.bovel.smtlib.Parser
-import io.bovel.vik.{Session, Solver}
+import io.bovel.vik.{Cpc, Session, Solver}
 
 /** Writes the CPC proof of each script of a corpus whose last answer is
  *  `unsat`: `proofs/runMain io.bovel.vik.proofs.CpcCorpus <corpus> <out>
- *  [seconds] [plain]`, the corpus a directory or a file listing the scripts' paths,
- *  each script solved with proofs within `seconds` (10 by default). Each
- *  proof is written as `Cnnnnn.cpc`, compact unless `plain` is given, for `proofs/cpc/check.sh`. Prints a line
- *  per script: its path, the file written, and what came of it — `written`,
- *  why no proof was written, or the answer when it is not `unsat`.
+ *  [seconds] [plain]`, the corpus a directory or a file listing the scripts'
+ *  paths, each script solved with proofs within `seconds` (10 by default). Each
+ *  proof is written as `Cnnnnn.cpc`, compact unless `plain` is given, for
+ *  `proofs/cpc/check.sh`. Prints a line per script: its path, the file written,
+ *  and what came of it — `written`, why no proof was written, or the answer
+ *  when it is not `unsat`.
  */
 object CpcCorpus:
   def main(args: Array[String]): Unit =

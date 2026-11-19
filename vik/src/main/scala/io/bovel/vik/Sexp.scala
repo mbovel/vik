@@ -1,4 +1,4 @@
-package io.bovel.vik.proofs
+package io.bovel.vik
 
 import scala.collection.mutable.ArrayBuffer
 

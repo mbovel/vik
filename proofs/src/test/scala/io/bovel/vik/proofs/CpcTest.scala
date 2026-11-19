@@ -3,7 +3,7 @@ package io.bovel.vik.proofs
 import java.nio.file.{Files, Path}
 
 import io.bovel.smtlib.Parser
-import io.bovel.vik.{Session, Solver}
+import io.bovel.vik.{Cpc, Session, Solver}
 
 /** The CPC proofs of a few `Unsat`s, each written to `target/cpc-export` and,
  *  when the environment variable `ETHOS` names the Ethos checker and `CPC` the
@@ -23,7 +23,7 @@ class CpcTest extends munit.FunSuite:
     // The compact proof, and the plain one in CPC's rules only.
     for (suffix, compact) <- Seq("" -> true, "-plain" -> false) do
       val file = out.resolve(s"$name$suffix.cpc")
-      Files.writeString(file, Cpc(certificate, compact))
+      Files.writeString(file, session.cpcProof(compact).fold(why => fail(s"no CPC proof: $why"), identity))
       for ethos <- sys.env.get("ETHOS"); cpc <- sys.env.get("CPC") do
         // From the repository's root or from `proofs`, as sbt forks the tests.
         val vik = Seq(Path.of("proofs", "cpc", "Vik.eo"), Path.of("cpc", "Vik.eo")).find(Files.exists(_))
