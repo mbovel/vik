@@ -90,6 +90,25 @@ final case class Model(
         .getOrElse(f.default)
     case None => Term.App(Term.Const(name), values)
 
+  /** Whether `value` is a value of `sort`, a sort as the solver knows it: a
+   *  number of a bit-vector sort lies in the sort's range, and so do the fields
+   *  of a constructor's value, the indices and the elements of an array's. No
+   *  assertion says so (the sort does), hence no assertion found false shows a
+   *  number out of its range: the check of a model asks here.
+   */
+  def ofSort(value: Term, sort: Sort): Boolean = (value, sort) match
+    case (Term.Num(v), Sort.BitVec(width)) => v.signum >= 0 && v.bitLength <= width
+    case (Term.App(Term.Const("store"), List(a, i, v)), Sort.Fun(index :: rest, result)) =>
+      ofSort(a, sort) && ofSort(i, index) && ofSort(v, Sort.fun(rest, result))
+    case (Term.App(Term.Const(name), List(d)), Sort.Fun(_ :: rest, result)) if name.startsWith("(as const ") =>
+      ofSort(d, Sort.fun(rest, result))
+    case (Term.App(Term.Const(c), args), Sort.Named(_)) =>
+      fields.get(c).forall(sorts => sorts.length != args.length || args.zip(sorts).forall(ofSort))
+    case _ => true
+
+  private lazy val fields: Map[String, List[Sort]] =
+    (for d <- datatypes; c <- d.constructors yield c.name -> c.selectors.map(_._2)).toMap
+
   /** Whether a formula holds under this model. */
   def holds(formula: Formula): Boolean = formula match
     case Formula.True => true
