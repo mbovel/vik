@@ -1,6 +1,7 @@
 package io.bovel.vik
 
 import io.bovel.lia
+import io.bovel.smtlib.Sort
 
 /** A model of a `Sat` answer, taken from the engines before the solver unwound:
  *  values for the declared constants, and a finite graph per declared function
@@ -120,12 +121,12 @@ object Model:
    *  of its graph (argument values to result value) and the value everywhere
    *  else.
    */
-  final case class Function(parameters: List[String], result: String, rows: List[(List[Term], Term)], default: Term)
+  final case class Function(parameters: List[Sort], result: Sort, rows: List[(List[Term], Term)], default: Term)
 
-  /** The array of sort `sort` (as SMT-LIB writes it) holding `default`
-   *  everywhere: `((as const (Array I E)) d)`.
+  /** The array of sort `sort` (an array sort, as SMT-LIB writes it) holding
+   *  `default` everywhere: `((as const (Array I E)) d)`.
    */
-  def constArray(sort: String, default: Term): Term = Term.App(Term.Const(s"(as const $sort)"), List(default))
+  def constArray(sort: Sort, default: Term): Term = Term.App(Term.Const(s"(as const ${sort.text})"), List(default))
 
   /** `array` with `value` at `index`: `(store array index value)`. */
   def store(array: Term, index: Term, value: Term): Term = Term.App(Term.Const("store"), List(array, index, value))

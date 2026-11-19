@@ -67,14 +67,15 @@ three.
 The solver is a library first. Terms and formulas are built directly, and the answers come back as values:
 
 ```scala
+import io.bovel.smtlib.Sort
 import io.bovel.vik.*
 import io.bovel.vik.Formula.*
 import io.bovel.vik.Term.*
 
 val solver = Solver()
-solver.declare("f", List("Int"), "Int")
-solver.declare("x", Nil, "Int")
-solver.declare("y", Nil, "Int")
+solver.declare("f", List(Sort.Int), Sort.Int)
+solver.declare("x", Nil, Sort.Int)
+solver.declare("y", Nil, Sort.Int)
 
 val (x, y) = (Const("x"), Const("y"))
 def f(t: Term) = App(Const("f"), List(t))
@@ -110,8 +111,8 @@ s.assert("(not (= (f x) (f y)))")
 s.checkSat() // Some(false)
 ```
 
-Sorts are strings, as in SMT-LIB: `"Int"`, `"Bool"`, an uninterpreted sort you declared, a datatype you
-declared. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
+Sorts are values of `io.bovel.smtlib.Sort`: `Sort.Int`, `Sort.Bool`, and `Sort.Named("U")` for an
+uninterpreted sort or a datatype you declared. `Formula` has `Eq`, `Le`, `Pred`, the connectives and `Ite`;
 the companion adds `Lt`, `Ge`, `Gt`, `IntEq`, `Distinct`; the operators `===`, `!==`, `<=`, `<`, `>=`, `>`,
 `+`, `-`, `*` build terms and formulas as they read.
 

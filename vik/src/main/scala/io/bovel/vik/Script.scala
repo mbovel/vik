@@ -1,6 +1,6 @@
 package io.bovel.vik
 
-import io.bovel.smtlib.Datatype
+import io.bovel.smtlib.{Datatype, Sort}
 import io.bovel.smtlib.sexpr.SExpr
 
 /** A command of a lowered script: the player's instruction set, over the
@@ -11,7 +11,7 @@ enum Command:
   case SetLogic(logic: String)
   case SetInfo(key: String, value: String)
   case DeclareSort(name: String, arity: Int)
-  case DeclareFun(name: String, argSorts: List[String], sort: String)
+  case DeclareFun(name: String, argSorts: List[Sort], sort: Sort)
   case DeclareDatatypes(datatypes: List[Datatype])
   case Assert(formula: Formula)
 

@@ -44,6 +44,23 @@ enum Sort:
     case Fun(args, result) if n == args.length => Some(result)
     case _ => None
 
+  /** The sort of a term of this sort applied to its first `n` arguments, as the
+   *  solver applies a function symbol or reads an array of arrays: what is left
+   *  of the function sort, `(-> A B C)` after one argument is `(-> B C)`.
+   *  `None` when it is not a function sort of at least that many.
+   */
+  def after(n: scala.Int): Option[Sort] = this match
+    case Fun(args, result) if n <= args.length => Some(Sort.fun(args.drop(n), result))
+    case _ => None
+
+  /** The array sort that a function sort stands for in the solver: `(-> I E)`
+   *  is `(Array I E)`, `(-> I J E)` is `(Array I (Array J E))`; a value sort is
+   *  itself.
+   */
+  def asArray: Sort = this match
+    case Fun(args, result) => args.foldRight(result)(Array(_, _))
+    case _ => this
+
 object Sort:
   /** The function sort of `args` to `result` (`result` itself when there are
    *  none), nested arrows in the result flattened: `(-> A (-> B C))` is
