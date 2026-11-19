@@ -19,16 +19,20 @@ class CpcTest extends munit.FunSuite:
     val certificate = session.proof() match
       case Right(text) => text
       case Left(why) => fail(s"no proof: $why")
-    val file = out.resolve(s"$name.cpc")
     Files.writeString(out.resolve(s"$name.cert"), certificate)
-    Files.writeString(file, Cpc(certificate))
-    for ethos <- sys.env.get("ETHOS"); cpc <- sys.env.get("CPC") do
-      val vik = Path.of(sys.props.getOrElse("vik.root", "."), "proofs", "cpc", "Vik.eo").toAbsolutePath
-      val p = ProcessBuilder(ethos, s"--include=$cpc", s"--include=$vik", file.toAbsolutePath.toString)
-        .redirectErrorStream(true).start()
-      val text = String(p.getInputStream.readAllBytes())
-      p.waitFor()
-      assertEquals(text.trim.linesIterator.toList.lastOption, Some("correct"), text)
+    // The compact proof, and the plain one in CPC's rules only.
+    for (suffix, compact) <- Seq("" -> true, "-plain" -> false) do
+      val file = out.resolve(s"$name$suffix.cpc")
+      Files.writeString(file, Cpc(certificate, compact))
+      for ethos <- sys.env.get("ETHOS"); cpc <- sys.env.get("CPC") do
+        // From the repository's root or from `proofs`, as sbt forks the tests.
+        val vik = Seq(Path.of("proofs", "cpc", "Vik.eo"), Path.of("cpc", "Vik.eo")).find(Files.exists(_))
+          .getOrElse(fail("no proofs/cpc/Vik.eo")).toAbsolutePath
+        val p = ProcessBuilder(ethos, s"--include=$cpc", s"--include=$vik", file.toAbsolutePath.toString)
+          .redirectErrorStream(true).start()
+        val text = String(p.getInputStream.readAllBytes())
+        p.waitFor()
+        assertEquals(text.trim.linesIterator.toList.lastOption, Some("correct"), s"$name$suffix: $text")
 
   test("propositional"):
     check(

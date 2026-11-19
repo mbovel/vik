@@ -39,7 +39,12 @@ object Cpc:
   private final case class Lit(v: Int, pos: Boolean):
     def neg: Lit = Lit(v, !pos)
 
-  def apply(certificate: String): String = Writer(certificate).write()
+  /** The CPC proof of `certificate`. A compact proof derives each clause of
+   *  conflict analysis by the rule `vik_rup` of `Vik.eo`, from the clauses that
+   *  propagate; a plain one (`compact = false`) by the chain of resolutions it
+   *  stands for, in CPC's rules only, for checkers that know no `Vik.eo`.
+   */
+  def apply(certificate: String, compact: Boolean = true): String = Writer(certificate, compact).write()
 
   private def num(s: Sexp): BigInt = s match
     case Atom(t) => BigInt(t)
@@ -68,7 +73,7 @@ object Cpc:
       case Lst(Atom(name) +: args) => Some((name, args))
       case _ => None
 
-  private final class Writer(certificate: String):
+  private final class Writer(certificate: String, compact: Boolean):
     private val sections: Map[String, Map[String, Sexp]] = Sexp.parse(certificate) match
       case Lst(Atom("vik-proof") +: Atom("1") +: rest) =>
         rest.map {
@@ -176,11 +181,8 @@ object Cpc:
               i,
               surface(ns.lift(i).getOrElse(throw Malformed(s"no node $i in a definition")), body, t => t)
             )
-            val result = sSorts.lift(s) match
-              case Some(Ctor("fn", Vector(_, res))) if ps.nonEmpty => sort(int(res))
-              case _ => sort(s)
             val bindings = ps.map(p => s"(${symbol(p)} ${sort(sDecls(p))})").mkString(" ")
-            header ++= s"(define ${symbol(k)} ($bindings) ${body(r)} :type $result)\n"
+            header ++= s"(define ${symbol(k)} ($bindings) ${body(r)} :type ${sort(s)})\n"
 
     // ----------------------------------------------------------------------
     // Terms: each node with children is a `define` of its own.
@@ -309,13 +311,21 @@ object Cpc:
       case Seq(l) => litTerm(l)
       case _ => c.map(litTerm).mkString("(or ", " ", ")")
 
+    /** A step. A compact proof leaves out its conclusion, which Ethos computes
+     *  from the rule.
+     */
     private def step(conclusion: String, rule: String, premises: Seq[String] = Nil, args: Seq[String] = Nil): String =
       val p = id("p")
-      out ++= s"(step $p $conclusion :rule $rule"
+      out ++= (if compact then s"(step $p :rule $rule" else s"(step $p $conclusion :rule $rule")
       if premises.nonEmpty then out ++= premises.mkString(" :premises (", " ", ")")
       if args.nonEmpty then out ++= args.mkString(" :args (", " ", ")")
       out ++= ")\n"
       p
+
+    /** The `scope` that closes the innermost `assume-push`, as `p`. */
+    private def pop(p: String, conclusion: String, premise: String): Unit =
+      out ++= (if compact then s"(step-pop $p :rule scope :premises ($premise))\n"
+               else s"(step-pop $p $conclusion :rule scope :premises ($premise))\n")
 
     // ----------------------------------------------------------------------
     // Steps
@@ -430,7 +440,7 @@ object Cpc:
           Seq(eq, s"(@list false ${if thn then "false" else "true"})", s"(@list $axiom $c)")
         )
         val p = id("p")
-        out ++= s"(step-pop $p ${lTerm(f)} :rule scope :premises ($r))\n"
+        pop(p, s"${lTerm(f)}", r)
         p
       case Ctor("simp", Vector(o0, w, h)) =>
         val o = int(o0)
@@ -554,7 +564,7 @@ object Cpc:
                 out ++= s"(assume-push $h ${lTerm(x)})\n"
                 val q = build(ctx, x, y, h, d - 1)
                 val r = id("p")
-                out ++= s"(step-pop $r (=> ${lTerm(x)} ${lTerm(y)}) :rule scope :premises ($q))\n"
+                pop(r, s"(=> ${lTerm(x)} ${lTerm(y)})", q)
                 step(s"(or (not ${lTerm(x)}) ${lTerm(y)})", "implies_elim", Seq(r))
               }
               step(
@@ -572,7 +582,7 @@ object Cpc:
               val hb = step(lTerm(b), "chain_m_resolution", Seq(ab, ha), Seq(lTerm(b), "(@list false)", s"(@list ${lTerm(a)})"))
               val q = build(ctx, b, b2, hb, d - 1)
               val r = id("p")
-              out ++= s"(step-pop $r $ts :rule scope :premises ($q))\n"
+              pop(r, s"$ts", q)
               r
             case (Ctor("and", Vector(os)), _) =>
               val (inner, kept) = conj(ctx, o, ints(os), Some(p))
@@ -771,7 +781,7 @@ object Cpc:
       val h = id("h")
       out ++= s"(assume-push $h $f)\n"
       val p = id("p")
-      out ++= s"(step-pop $p (=> $f $f) :rule scope :premises ($h))\n"
+      pop(p, s"(=> $f $f)", h)
       step(s"(or (not $f) $f)", "implies_elim", Seq(p))
 
     // ----------------------------------------------------------------------
@@ -891,13 +901,14 @@ object Cpc:
               step("false", "contra", Seq(step(formula(l.v), "true_elim", Seq(q)), h))
         case Ctor(name, _) => throw Unsupported(s"$name certificate")
 
-      // Discharge the hypotheses, innermost first.
+      // Discharge the hypotheses, innermost first. Each implication is a
+      // `define` over the previous one, so that the scopes stay linear.
       var body = bottom
       var concl = "false"
       for (h, _) <- hypSteps.reverse do
-        concl = s"(=> ${litTerm(h)} $concl)"
+        if !compact then concl = define(id("i").drop(1), s"(=> ${litTerm(h)} $concl)")
         val p = id("p")
-        out ++= s"(step-pop $p $concl :rule scope :premises ($body))\n"
+        pop(p, s"$concl", body)
         body = p
       if hyps.isEmpty then return bottom
       val hypTerms = hyps.map(litTerm)
@@ -909,6 +920,9 @@ object Cpc:
         else step(hypTerms.map(h => s"(not $h)").mkString("(or ", " ", ")"), "not_and", Seq(scoped))
       val doubles = c.filter(_.pos)
       if doubles.isEmpty then split
+      else if compact then
+        // `vik_rup` reads `(not (not F))` as `F`.
+        step(clauseTerm(c), "vik_rup", Seq(split), Seq(clauseTerm(c)))
       else
         val premises = split +: doubles.map(l => excludedMiddle(formula(l.v)))
         // In the clause, `(not (not F))`: the pivot `(not F)` is negative.
@@ -969,6 +983,10 @@ object Cpc:
       val text = clauseTerm(c)
       // A long clause is a `define`: the step gives it twice.
       val concl = if c.length > 8 then define(id("c").drop(1), text) else text
+      if compact && premises.length > 1 then
+        // The clauses resolution uses, in the order they propagate: the
+        // reasons, then the conflict.
+        return step(concl, "vik_rup", premises.tail.reverse.toSeq :+ premises.head, Seq(concl))
       if premises.length == 1 then
         // The conflict clause is the clause itself, up to order.
         if clauseTerm(proved(conflict)._2) == text then premises.head
