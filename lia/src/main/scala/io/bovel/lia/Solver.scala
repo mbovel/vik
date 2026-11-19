@@ -848,7 +848,8 @@ final class Solver:
             // a 2^31 range when a bit-vector midpoint `(lo + hi) / 2` stays fractional
             // (`BinarySearch3`, over 20 s against 24 ms).
             val up = earlier match
-              case Some(b) => (b.left != null) == b.up // the earlier branch is on its second side
+              // The earlier branch is up when `b.up` on its first side (`left` unset), down on its second.
+              case Some(b) => (b.left == null) != b.up // the other way
               case None => v.floor.signum < 0
             Branch(x, v.floor, v.ceil, -branches, Set.empty, up = up)
         else
