@@ -194,6 +194,21 @@ final class Session(
     if keepProofs then lastProof.getOrElse(Left("no unsat"))
     else proofNow()
 
+  /** With proofs: the proof of the last `Unsat` in CPC, cvc5's Cooperating
+   *  Proof Calculus, with the rules of `proofs/cpc/Vik.eo` ([[Cpc]]), or why it
+   *  cannot be written: [[proof]]'s certificate, translated. Compact unless
+   *  `compact` is false, which writes plain CPC, the rules of cvc5's `Cpc.eo`
+   *  only but `vik_lower`. It covers Booleans and uninterpreted functions so
+   *  far.
+   */
+  def cpcProof(compact: Boolean = true): Either[String, String] =
+    proof().flatMap { certificate =>
+      try Right(Cpc(certificate, compact))
+      catch
+        case e: Cpc.Unsupported => Left(s"no CPC proof yet: ${e.getMessage}")
+        case e: Cpc.Malformed => Left(s"malformed certificate: ${e.getMessage}")
+    }
+
   private def proofNow(): Either[String, String] =
     if loweringCheck == null then Left("no proofs")
     else if loweringErrors.nonEmpty then Left(loweringErrors.head)

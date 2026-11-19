@@ -2,7 +2,8 @@ package io.bovel.vik.proofs
 
 import scala.collection.mutable.ArrayBuffer
 
-import Sexp.{Atom, Lst}
+import io.bovel.vik.Sexp
+import io.bovel.vik.Sexp.{Atom, Lst}
 
 /** Writes a certificate of Vik (`Session.proof`, see `ProofExport`) as a Lean
  *  file that `proofs/lean` checks: its sections as definitions read by `sexp%`,
