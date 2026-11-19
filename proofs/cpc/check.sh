@@ -8,7 +8,7 @@ set -e
 vik=$(cd "$(dirname "$0")" && pwd)/Vik.eo
 export ETHOS CPC vik
 ls "$1"/*.cpc | xargs -P "${2:-2}" -I{} sh -c '
-  r=$( (ulimit -v 4000000; timeout 300 "$ETHOS" --include="$CPC" --include="$vik" {} 2>&1) | tail -1)
+  r=$( (ulimit -v 4000000; timeout 300 "$ETHOS" --include="$CPC" --include="$vik" {} 2>&1) | grep -v "^$" | tail -1)
   if [ "$r" = correct ]; then echo "ok   {}"; else echo "FAIL {}: $(echo "$r" | cut -c1-300)"; fi' |
   tee "$1/check.log"
 total=$(grep -c . "$1/check.log")

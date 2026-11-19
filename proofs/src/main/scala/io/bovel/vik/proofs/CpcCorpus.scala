@@ -9,9 +9,9 @@ import io.bovel.vik.{Session, Solver}
 
 /** Writes the CPC proof of each script of a corpus whose last answer is
  *  `unsat`: `proofs/runMain io.bovel.vik.proofs.CpcCorpus <corpus> <out>
- *  [seconds]`, the corpus a directory or a file listing the scripts' paths,
+ *  [seconds] [plain]`, the corpus a directory or a file listing the scripts' paths,
  *  each script solved with proofs within `seconds` (10 by default). Each
- *  proof is written as `Cnnnnn.cpc`, for `proofs/cpc/check.sh`. Prints a line
+ *  proof is written as `Cnnnnn.cpc`, compact unless `plain` is given, for `proofs/cpc/check.sh`. Prints a line
  *  per script: its path, the file written, and what came of it — `written`,
  *  why no proof was written, or the answer when it is not `unsat`.
  */
@@ -20,6 +20,7 @@ object CpcCorpus:
     val root = Path.of(args(0))
     val out = Path.of(args(1))
     val seconds = args.lift(2).fold(10L)(_.toLong)
+    val compact = !args.lift(3).contains("plain")
     Files.createDirectories(out)
     val files =
       if Files.isDirectory(root) then
@@ -41,7 +42,8 @@ object CpcCorpus:
           else
             session.proof() match
               case Right(certificate) =>
-                Files.writeString(out.resolve(s"$name.cpc"), Cpc(certificate))
+                Files.writeString(out.resolve(s"$name.cpc"), Cpc(certificate, compact))
+                if sys.env.contains("CPC_CERTS") then Files.writeString(out.resolve(s"$name.cert"), certificate)
                 "written"
               case Left(why) => s"no proof: ${why.linesIterator.nextOption().getOrElse("").take(200)}"
         catch

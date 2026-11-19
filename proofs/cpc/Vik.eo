@@ -45,3 +45,152 @@
   :requires ((($vik_lower F) G))
   :conclusion G
 )
+
+; ----------------------------------------------------------------------------
+; Reverse unit propagation
+
+; program: $vik_norm
+; args:
+; - l Bool: A literal.
+; return: l without its double negations.
+(program $vik_norm ((x Bool))
+  :signature (Bool) Bool
+  (
+  (($vik_norm (not (not x))) ($vik_norm x))
+  (($vik_norm x) x)
+  )
+)
+
+; program: $vik_neg
+; args:
+; - l Bool: A literal without double negations.
+; return: Its complement: `x` for `(not x)`, `(not x)` otherwise.
+(program $vik_neg ((x Bool))
+  :signature (Bool) Bool
+  (
+  (($vik_neg (not x)) x)
+  (($vik_neg x) (not x))
+  )
+)
+
+; program: $vik_norms
+; args:
+; - C Bool: An or-list of literals.
+; return: The list of the literals without their double negations.
+(program $vik_norms ((l Bool) (ls Bool :list))
+  :signature (Bool) Bool
+  (
+  (($vik_norms false) false)
+  (($vik_norms (or l ls)) (eo::cons or ($vik_norm l) ($vik_norms ls)))
+  )
+)
+
+; program: $vik_clause
+; args:
+; - C Bool: A clause as CPC writes it: false, an or-list, or one literal.
+; return: The clause as an or-list.
+(program $vik_clause ((l Bool) (ls Bool :list) (C Bool))
+  :signature (Bool) Bool
+  (
+  (($vik_clause false) false)
+  (($vik_clause (or l ls)) (or l ls))
+  (($vik_clause C) (eo::cons or C false))
+  )
+)
+
+; program: $vik_in
+; args:
+; - l Bool: A literal without double negations.
+; - A Bool: The or-list of the literals that are false, without double negations.
+; return: Whether l is false.
+(define $vik_in ((l Bool) (A Bool)) (eo::not (eo::is_neg (eo::list_find or A l))))
+
+; program: $vik_open
+; args:
+; - C Bool: A clause, as an or-list.
+; - A Bool: The or-list of the literals that are false.
+; return: >
+;   true when a literal of C is true, otherwise the or-list of its literals
+;   that are not false.
+(program $vik_open ((l Bool) (ls Bool :list) (A Bool))
+  :signature (Bool Bool) Bool
+  (
+  (($vik_open false A) false)
+  (($vik_open (or l ls) A)
+    ; A literal false first: A holds a literal and its complement only when
+    ; the clause derived is a tautology, which needs no premise.
+    (eo::define ((m ($vik_norm l)))
+    (eo::define ((rest ($vik_open ls A)))
+    (eo::ite (eo::eq rest true)
+      true
+      (eo::ite ($vik_in m A)
+        rest
+        (eo::ite ($vik_in ($vik_neg m) A) true (eo::cons or m rest)))))))
+  )
+)
+
+; program: $vik_propagate
+; args:
+; - Cs Bool: The and-list of the clauses left, in order.
+; - A Bool: The or-list of the literals that are false.
+; return: >
+;   Whether unit propagation over Cs, in order, from A, reaches a clause whose
+;   literals are all false. Each clause either has a true literal, has all its
+;   literals false (the conflict), has one literal left (which becomes true),
+;   or is passed over. A clause that is itself a literal already false is a
+;   conflict too, and a clause that is an or-list also holds as a literal.
+(program $vik_propagate ((C Bool) (Cs Bool :list) (A Bool))
+  :signature (Bool Bool) Bool
+  (
+  (($vik_propagate true A) false)
+  (($vik_propagate (and C Cs) A)
+    (eo::ite ($vik_in ($vik_norm C) A)
+      true
+      (eo::define ((L ($vik_clause C)))
+      ; An or-list proved is also a literal that holds.
+      (eo::define ((A2 (eo::ite (eo::eq L C) (eo::cons or ($vik_neg ($vik_norm C)) A) A)))
+      (eo::define ((open ($vik_open L A2)))
+        (eo::ite (eo::eq open true)
+          ($vik_propagate Cs A2)
+          (eo::ite (eo::eq open false)
+            true
+            (eo::ite (eo::eq (eo::list_len or open) 1)
+              ($vik_propagate Cs (eo::cons or ($vik_neg (eo::list_nth or open 0)) A2))
+              ($vik_propagate Cs A2)))))))))
+  )
+)
+
+; program: $vik_rup
+; args:
+; - Cs Bool: The and-list of the premise clauses, in the order they propagate.
+; - D Bool: The clause derived.
+; return: >
+;   Whether D is a reverse unit propagation consequence of Cs: propagation from
+;   the negation of D's literals (and of D itself, when D is an or-list) reaches
+;   a conflict.
+(program $vik_rup ((Cs Bool) (D Bool))
+  :signature (Bool Bool) Bool
+  (
+  (($vik_rup Cs D)
+    (eo::define ((L ($vik_clause D)))
+      ($vik_propagate Cs ($vik_norms (eo::ite (eo::eq L D) (eo::cons or D L) L)))))
+  )
+)
+
+; rule: vik_rup
+; premises:
+; - Cs [:list]: The clauses that propagate, in order.
+; args:
+; - D Bool: The clause derived.
+; requires: That D follows from Cs by reverse unit propagation.
+; conclusion: D.
+; note: >
+;   It stands for the chain of resolutions that conflict analysis finds, which
+;   proofs/src/main/scala/io/bovel/vik/proofs/Cpc.scala writes out in plain CPC
+;   on request.
+(declare-rule vik_rup ((Cs Bool) (D Bool))
+  :premise-list Cs and
+  :args (D)
+  :requires ((($vik_rup Cs D) true))
+  :conclusion D
+)
