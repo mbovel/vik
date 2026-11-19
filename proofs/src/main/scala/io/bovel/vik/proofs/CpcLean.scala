@@ -486,7 +486,8 @@ object CpcLean:
           val ls = clause(ps(0)).distinct
           ("weaken", if ls.length == 1 then ls(0) else if ls.isEmpty then ff else or(ls))
         case "and_elim" => ("andElim", andOf(ps(0))(idx(0)))
-        case "and_intro" => ("andIntro", if ps.length == 1 then ps(0) else mk(N.Nary("and", ps)))
+        // One premise too makes a one-element `and`, as Ethos reads a premise list.
+        case "and_intro" => ("andIntro", mk(N.Nary("and", ps)))
         case "implies_elim" =>
           nodes(ps(0)) match
             case N.Nary("implies", Vector(x, y)) => ("impliesElim", or(Vector(not(x), y)))
