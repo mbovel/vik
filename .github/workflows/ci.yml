@@ -229,6 +229,36 @@ jobs:
         run: proofs/lean/export.sh proofs/lean/corpus.txt "$RUNNER_TEMP/corpus"
       - name: Check it with native_decide
         run: proofs/lean/check-exports.sh "$RUNNER_TEMP/corpus" native
+  cpc:
+    # The CPC proofs (proofs/cpc): Ethos, at the commit cvc5 pins, checks the proofs of CpcTest and of
+    # the corpus list (proofs/cpc/corpus.txt, the QF_UF scripts that get one) against cvc5's Cpc.eo and
+    # Vik.eo. Ethos is fast and unverified: this shows the proofs are valid CPC, and keeps them so.
+    if: github.ref_type != 'tag'
+    name: cpc (Ethos)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: GMP for Ethos
+        run: sudo apt-get install -y libgmp-dev
+      - name: Cache Ethos and Cpc.eo
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ethos
+          key: ethos-${{ runner.os }}-${{ hashFiles('proofs/cpc/get-ethos.sh') }}
+      - name: Ethos and Cpc.eo
+        run: proofs/cpc/get-ethos.sh "$RUNNER_TEMP/ethos" | tee -a "$GITHUB_ENV"
+      - name: CpcTest, with Ethos
+        run: sbt --server "proofs/testOnly io.bovel.vik.proofs.CpcTest"
+      - name: Export the corpus list
+        run: proofs/cpc/export.sh proofs/cpc/corpus.txt "$RUNNER_TEMP/cpc"
+      - name: Check it with Ethos
+        run: proofs/cpc/check.sh "$RUNNER_TEMP/cpc" 4
 
   publish:
     # Releases the tag's version (`vX.Y.Z` publishes X.Y.Z) to Maven Central: the six library modules,
