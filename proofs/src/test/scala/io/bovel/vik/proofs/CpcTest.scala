@@ -1,0 +1,65 @@
+package io.bovel.vik.proofs
+
+import java.nio.file.{Files, Path}
+
+import io.bovel.smtlib.Parser
+import io.bovel.vik.{Session, Solver}
+
+/** The CPC proofs of a few `Unsat`s, each written to `target/cpc-export` and,
+ *  when the environment variable `ETHOS` names the Ethos checker and `CPC` the
+ *  signature `Cpc.eo`, checked by Ethos with `proofs/cpc/Vik.eo`.
+ */
+class CpcTest extends munit.FunSuite:
+  private val out = Files.createDirectories(Path.of("target", "cpc-export"))
+
+  private def check(name: String, script: String): Unit =
+    val session = Session(Solver(proofs = true))
+    val answers = session.run(Parser.parse(script))
+    assertEquals(answers.lastOption, Some("unsat"))
+    val certificate = session.proof() match
+      case Right(text) => text
+      case Left(why) => fail(s"no proof: $why")
+    val file = out.resolve(s"$name.cpc")
+    Files.writeString(out.resolve(s"$name.cert"), certificate)
+    Files.writeString(file, Cpc(certificate))
+    for ethos <- sys.env.get("ETHOS"); cpc <- sys.env.get("CPC") do
+      val vik = Path.of(sys.props.getOrElse("vik.root", "."), "proofs", "cpc", "Vik.eo").toAbsolutePath
+      val p = ProcessBuilder(ethos, s"--include=$cpc", s"--include=$vik", file.toAbsolutePath.toString)
+        .redirectErrorStream(true).start()
+      val text = String(p.getInputStream.readAllBytes())
+      p.waitFor()
+      assertEquals(text.trim.linesIterator.toList.lastOption, Some("correct"), text)
+
+  test("propositional"):
+    check(
+      "Props",
+      "(declare-const p Bool) (declare-const q Bool) (assert (or p q)) (assert (not p)) (assert (not q)) (check-sat)"
+    )
+
+  test("congruence"):
+    check(
+      "Congruence",
+      "(declare-sort U 0) (declare-fun f (U) U) (declare-const a U) (declare-const b U) " +
+        "(assert (= a b)) (assert (not (= (f a) (f b)))) (check-sat)"
+    )
+
+  test("chains"):
+    check(
+      "Chains",
+      "(declare-sort U 0) (declare-fun f (U U) U) (declare-const a U) (declare-const b U) (declare-const c U) " +
+        "(assert (= a b c)) (assert (distinct (f a b) (f c a))) (check-sat)"
+    )
+
+  test("Boolean terms"):
+    check(
+      "BoolTerms",
+      "(declare-sort U 0) (declare-fun p (U) Bool) (declare-const a U) (declare-const b U) " +
+        "(assert (p a)) (assert (= a b)) (assert (not (p b))) (check-sat)"
+    )
+
+  test("connectives"):
+    check(
+      "Connectives",
+      "(declare-const p Bool) (declare-const q Bool) (declare-const r Bool) " +
+        "(assert (= p (and q r))) (assert (ite p q (not r))) (assert (=> q (not r))) (assert (or p r)) (check-sat)"
+    )

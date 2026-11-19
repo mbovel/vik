@@ -1,0 +1,47 @@
+; The extension of CPC (cvc5's Cooperating Proof Calculus, `Cpc.eo` in cvc5's
+; proofs/eo/cpc) with the rules Vik's proofs need beyond it. Ethos checks a
+; proof of Vik with both signatures:
+;
+;   ethos --include=<cvc5>/proofs/eo/cpc/Cpc.eo --include=proofs/cpc/Vik.eo proof.cpc
+;
+; Each rule here has its soundness proved in proofs/lean, against Vik's
+; semantics of the SMT-LIB terms.
+
+; program: $vik_lower
+; args:
+; - t T: A term or formula of the script.
+; return: >
+;   Its lowering, as Vik's solver reads it (`LoweringCheck`, and `expect` in
+;   proofs/lean/Vik/Lower/Trace.lean): `xor` as the negation of `=`, `distinct`
+;   as the conjunction of the disequalities of its pairs, each connective and
+;   Boolean equality over the lowering of its arguments, and other terms as
+;   they are. Chains of `=` and `=>` need no case: CPC reads them as Vik
+;   lowers them.
+(program $vik_lower ((T Type) (x T) (y T) (a Bool) (b Bool) (c Bool) (xs Bool :list) (ys (@TList T) :list))
+  :signature (T) T
+  (
+  (($vik_lower (not a)) (not ($vik_lower a)))
+  (($vik_lower (and a xs)) (eo::cons and ($vik_lower a) ($vik_lower xs)))
+  (($vik_lower (or a xs)) (eo::cons or ($vik_lower a) ($vik_lower xs)))
+  (($vik_lower (=> a b)) (=> ($vik_lower a) ($vik_lower b)))
+  (($vik_lower (xor a b)) (not (= ($vik_lower a) ($vik_lower b))))
+  (($vik_lower (ite c x y)) (ite ($vik_lower c) ($vik_lower x) ($vik_lower y)))
+  (($vik_lower (= x y)) (= ($vik_lower x) ($vik_lower y)))
+  (($vik_lower (distinct ys)) ($mk_distinct_elim (distinct ys)))
+  (($vik_lower x) x)
+  )
+)
+
+; rule: vik_lower
+; premises:
+; - F: An assertion of the script.
+; args:
+; - G Bool: The formula Vik lowers it to.
+; requires: That G is the lowering of F.
+; conclusion: G.
+(declare-rule vik_lower ((F Bool) (G Bool))
+  :premises (F)
+  :args (G)
+  :requires ((($vik_lower F) G))
+  :conclusion G
+)
