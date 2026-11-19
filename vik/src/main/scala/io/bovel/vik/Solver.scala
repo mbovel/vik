@@ -83,7 +83,33 @@ final class Solver(val simplify: Boolean = true):
     if encoder != null && encoded.get(name).exists(_ != (argSorts, sort)) then dirty = true
     declarations(name) = (argSorts, sort)
     if encoder != null then encoded(name) = (argSorts, sort)
+    facts -= name
+    sort match
+      case Sort.BitVec(width) if argSorts.isEmpty =>
+        val constant = Term.Const(name)
+        val range =
+          Formula.And(List(Formula.Le(Term.Num(0), constant), Formula.Le(constant, Term.Num(BigInt(2).pow(width) - 1))))
+        facts(name) = Fact(range, levels.length - 1, levels.last.length)
+        val e = encoder
+        if e != null && !dirty then e.assert(range, null)
+      case _ => ()
     if name.startsWith("store!") then anyStore = true
+
+  /** What the sort of a declared constant says of it: a constant of a
+   *  bit-vector sort is an integer of the sort's range, `0 ≤ c < 2^n`. A fact
+   *  of the declaration and not an assertion: it holds below every level, for
+   *  as long as the constant is declared, and no [[pop]] takes it back (issue
+   *  145). The terms that have no declaration of their own get theirs from the
+   *  encoder (`Encoder.assertSorts`).
+   *
+   *  Each fact with the place of its declaration among the assertions, its
+   *  level and the number of assertions the level had: an encoder built later
+   *  meets the fact there. The search follows the order of the encoding, and
+   *  the ranges met after the assertions that use their constants cost files of
+   *  the corpus ten times their time.
+   */
+  private final case class Fact(formula: Formula, level: Int, index: Int)
+  private val facts = scala.collection.mutable.LinkedHashMap.empty[String, Fact]
 
   /** The declarations the live encoder was given, as given: what a declaration
    *  after a pop is held against.
@@ -91,7 +117,9 @@ final class Solver(val simplify: Boolean = true):
   private val encoded = HashMap.empty[String, (List[Sort], Sort)]
 
   /** Forgets a declaration: its level is popped (issue 40). */
-  def undeclare(name: String): Unit = declarations -= name
+  def undeclare(name: String): Unit =
+    declarations -= name
+    facts -= name
 
   /** Forgets a datatype: its level is popped. The live encoder still holds its
    *  rules and the exhaustiveness of its sort, and would apply them to a sort
@@ -162,13 +190,15 @@ final class Solver(val simplify: Boolean = true):
 
   /** The first assertion in force that the model of the `Sat` just found does
    *  not make true: found false, or not evaluable when the evaluation throws.
+   *  The ranges of the declared constants count among them.
    */
   private def modelFailure(): Option[String] = model() match
     case None => Some("no model")
     case Some(m) =>
       val items = levels.iterator.flatten.zipWithIndex.map((f, i) => (s"assertion ${i + 1}", f)) ++
-        named.iterator.flatten.map((name, f) => (s"assertion $name", f))
-      items.flatMap { (what, f) =>
+        named.iterator.flatten.map((name, f) => (s"assertion $name", f)) ++
+        facts.iterator.map((name, fact) => (s"the range of $name", fact.formula))
+      val untrue = items.flatMap { (what, f) =>
         val value =
           try if m.holds(f) then "true" else "false"
           catch case e: Exception => s"not evaluable (${e.getClass.getSimpleName}: ${e.getMessage})"
@@ -176,7 +206,8 @@ final class Solver(val simplify: Boolean = true):
           val text = Printer.print(f)
           s"$what ${if text.length > 200 then text.take(200) + "..." else text} is $value"
         }
-      }.nextOption()
+      }
+      untrue.nextOption()
 
   /** Forgets the model of the last `Sat`: for a caller whose own check of it
    *  failed (see [[Session]]).
@@ -213,16 +244,6 @@ final class Solver(val simplify: Boolean = true):
     if mentionsEliminated(formula) then dirty = true
     else if e != null && !dirty then
       e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
-
-  /** Asserts `formula` below every open level: no [[pop]] takes it back. For
-   *  what is said of a symbol that outlives the levels (see
-   *  [[Command.AssertGlobal]]).
-   */
-  def assertGlobal(formula: Formula): Unit =
-    levels.head += formula
-    val e = encoder
-    if mentionsEliminated(formula) then dirty = true
-    else if e != null && !dirty then e.assert(formula, null)
 
   // The elimination assumed the constant stayed local; a mention breaks it: start over.
   private def mentionsEliminated(formula: Formula): Boolean = encoder != null && !dirty
@@ -324,19 +345,32 @@ final class Solver(val simplify: Boolean = true):
       dirty = false
       selectors.clear()
       val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
-      if levels.length == 1 && simplify then
+      // Each level's assertions in order, the facts of the declarations made in the level among them: a
+      // fact before the assertions that came after its declaration. A level's place may have gone with a
+      // `pop` since; its facts then come with the last level.
+      val placed = facts.values.toList.groupBy(_.level min (levels.length - 1))
+      val simplified = levels.length == 1 && simplify
+      def encode(level: Int, assertions: List[Formula], selector: Lit | Null): Unit =
+        var due = placed.getOrElse(level, Nil).sortBy(_.index)
+        for (formula, i) <- assertions.zipWithIndex do
+          while due.nonEmpty && due.head.index <= i do
+            e.assert(due.head.formula, null)
+            due = due.tail
+          if formula != Formula.True || !simplified then e.assert(formula, selector) // not one simplified away
+        for fact <- due do e.assert(fact.formula, null)
+      if simplified then
         // One level: the batch is the whole set, so the global simplification is sound to keep.
-        val (simplified, gone) =
-          Simplifier.simplify(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
+        val (assertions, gone) =
+          Simplifier.simplifyEach(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
         eliminated = gone
-        for formula <- simplified do e.assert(formula, null)
+        encode(0, assertions, null)
       else
         eliminated = Map.empty
         for (level, i) <- levels.zipWithIndex do
           val selector = if i == 0 then null
           else
             selectors += e.newSelector(); selectors.last
-          for formula <- level do e.assert(formula, selector)
+          encode(i, level.toList, selector)
     val e = encoder.nn
     e.produceModels = produceModels || checkModels
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
@@ -363,7 +397,7 @@ final class Solver(val simplify: Boolean = true):
       e.assertExtensionality()
       e.applicationLemmas()
       e.arrayLemmas()
-      e.assertExhaustiveness()
+      e.assertSorts()
       e.shareIntegers()
     if !settled then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
@@ -394,10 +428,11 @@ final class Solver(val simplify: Boolean = true):
  *  of an e-graph and equalities into atoms of the UF theory, `Int` terms into
  *  variables of a LIA solver and `Le` atoms into bounds on them. Datatypes are
  *  rules of the e-graph ([[AdtRules]]): the encoder registers their symbols'
- *  classes and asserts, for every term of a datatype sort, that one of its
- *  testers holds (and, for a term of a finite datatype sort, does the same for
- *  its selector terms, recursively, so that the search is complete on finite
- *  sorts).
+ *  classes. Every term gets what its sort says of it, whoever made the term:
+ *  one of its testers holds for a term of a datatype sort (and, for a term of a
+ *  finite datatype sort, for its selector terms, recursively, so that the
+ *  search is complete on finite sorts), and a term of a bit-vector sort is an
+ *  integer of the sort's range.
  */
 object Solver:
   /** The kinds of work the fuel counts, with the cost of each in the units of
@@ -438,6 +473,14 @@ private object Encoder:
    */
   val unknown: Sort = Sort.Named("?")
 
+  /** Whether the terms of `sort` are numbers, variables of the arithmetic
+   *  solver: the integers, the reals, and the bit-vectors, which are the
+   *  integers of a range (see [[Encoder.assertSorts]]).
+   */
+  def numeric(sort: Sort): Boolean = sort match
+    case Sort.Int | Sort.Real | Sort.BitVec(_) => true
+    case _ => false
+
   /** Thrown by [[Encoder.step]] when the solve's `keepGoing` says to stop. */
   object Stopped extends scala.util.control.ControlThrowable
 
@@ -462,6 +505,7 @@ private final class Encoder(
 
   private val classes = HashMap.empty[Term, EClassId]
   private val terms = ArrayBuffer.empty[Term] // the terms of `classes`, in the order they arrived: for the passes
+  private val unranged = ArrayBuffer.empty[Term] // the terms of a bit-vector sort, as they arrive (see assertSorts)
   private val equalities = ArrayBuffer.empty[Formula] // the equality atoms, as they are encoded (see shareIntegers)
   private var anyArrayApplication = false // an application of a store
   private val sorts = HashMap.empty[Term, Sort] // the sorts of terms, memoized: asked for every term, many times
@@ -518,7 +562,7 @@ private final class Encoder(
   private val sharedFields: List[(Term, Term, Int)] =
     for
       d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
-      if sort == Sort.Int || sort == Sort.Real || sort.arrow.isDefined
+      if Encoder.numeric(sort) || sort.arrow.isDefined
     yield (Term.Const(selector), Term.Const(c.name), i)
 
   /** The datatypes with finitely many values: no constructor field of an
@@ -554,11 +598,11 @@ private final class Encoder(
   private def noteInt(t: Term): Unit =
     anyNoted = true
     val sort = sortOf(t)
-    if sort != Sort.Int && sort != Sort.Real then intTerms += t
+    if !Encoder.numeric(sort) then intTerms += t
 
   private def isInt(t: Term): Boolean = t match
     case Term.Num(_) | Term.Linear(_, _) => true
-    case _ => sortOf(t) == Sort.Int || sortOf(t) == Sort.Real || intTerms(t)
+    case _ => Encoder.numeric(sortOf(t)) || intTerms(t)
 
   private def isFun(t: Term): Boolean = sortOf(t).arrow.isDefined
 
@@ -797,41 +841,42 @@ private final class Encoder(
           sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
+              // A witness is a constant of the index sort like any other: of a bit-vector sort, it gets
+              // the sort's range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
+              // indices could still differ at it (issue 20).
               val witnesses = params.map { sort =>
                 val name = witnessName()
-                sort match
-                  case Sort.BitVec(width) =>
-                    // The lowering reads a bit-vector as an integer in its range; so is the witness
-                    // index, or two arrays over `(_ BitVec 1)` agreeing at both indices could still
-                    // differ at it (issue 20).
-                    introduced(name) = Sort.Int
-                    val w = Term.Const(name)
-                    clauses += Array(lit(Formula.Le(Term.Num(0), w)))
-                    clauses += Array(lit(Formula.Le(w, Term.Num(BigInt(2).pow(width) - 1))))
-                    w
-                  case _ =>
-                    introduced(name) = sort
-                    Term.Const(name)
+                introduced(name) = sort
+                Term.Const(name)
               }
               clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
 
-  /** Asserts, for every term of a datatype sort seen so far, that one of its
-   *  testers holds; for a term of a finite sort, also for its selector terms,
-   *  recursively (see the class documentation).
+  /** What a term's sort says of it, asserted once for every term the encoder
+   *  knows, whoever made the term: an assertion of the script, a pass of the
+   *  encoder, a witness of extensionality. A term of a datatype sort has one of
+   *  its testers hold; for a term of a finite sort, so do its selector terms,
+   *  recursively (see the class documentation). A term of a bit-vector sort is
+   *  an integer of the sort's range, `0 ≤ t < 2^n`.
+   *
+   *  The sort says it, so no assertion of the script has to, and no level of
+   *  the script can take it back: the lowering once asserted the range of the
+   *  terms it met, which left out the ones made here (issues 126 and 154) and
+   *  went with the level of the assertion (issue 145).
    */
-  private val exhaustivenessSeen = scala.collection.mutable.HashSet.empty[Term]
-  private var exhaustivenessTerms = 0 // the terms of `terms` the pass has looked at
+  private val sortsAsserted = scala.collection.mutable.HashSet.empty[Term]
+  private var sortsTerms = 0 // the terms of `terms` the pass has looked at
+  private var sortsRanged = 0 // and those of `unranged`
 
-  def assertExhaustiveness(): Unit =
+  def assertSorts(): Unit =
+    val seen = sortsAsserted // across solves: one tester disjunction, one range per term
     if datatypes.nonEmpty then
-      val seen = exhaustivenessSeen // across solves: one tester disjunction per term
       // Only the terms that arrived since the last pass, the others are seen.
       val todo = ArrayBuffer.empty[Term]
-      while exhaustivenessTerms < terms.length do
-        val t = terms(exhaustivenessTerms)
+      while sortsTerms < terms.length do
+        val t = terms(sortsTerms)
         if datatypeOf(sortOf(t)).isDefined then todo += t
-        exhaustivenessTerms += 1
+        sortsTerms += 1
       while todo.nonEmpty do
         val t = todo.remove(todo.length - 1)
         if seen.add(t) then
@@ -843,6 +888,25 @@ private final class Encoder(
           if finite(sortOf(t)) then
             for c <- datatype.constructors; (selector, sort) <- c.selectors if datatypeOf(sort).isDefined do
               todo += Term.App(Term.Const(selector), List(t))
+    assertRanges()
+
+  /** The ranges of the terms of a bit-vector sort that arrived and have none
+   *  yet: of the applications of an assertion as [[meet]] finds them, and of
+   *  the terms the passes make at the next [[assertSorts]]. Not of a declared
+   *  constant, whose range the solver states at its declaration.
+   */
+  private def assertRanges(): Unit =
+    while sortsRanged < unranged.length do
+      val t = unranged(sortsRanged)
+      sortsRanged += 1
+      if sortsAsserted.add(t) then
+        sortOf(t) match
+          case Sort.BitVec(width) =>
+            assert(
+              Formula.And(List(Formula.Le(Term.Num(0), t), Formula.Le(t, Term.Num(BigInt(2).pow(width) - 1)))),
+              null
+            )
+          case _ => ()
 
   private val liaSolver = lia.Solver()
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
@@ -885,6 +949,11 @@ private final class Encoder(
     term, {
       sortOf(term) match
         case Sort.Int | Sort.Real => anyInt = true
+        case Sort.BitVec(_) =>
+          anyInt = true
+          term match
+            case Term.Const(name) if !introduced.contains(name) => () // declared: the solver states its range
+            case _ => unranged += term
         case _ => ()
       term match
         case Term.App(Term.App(Term.Const(n), _), _) if n.startsWith("store!") => anyArrayApplication = true
@@ -952,8 +1021,12 @@ private final class Encoder(
         case Term.App(f, List(j)) if sortOf(f).arrow.isDefined => index(sortOf(f), j)
         case _ => ()
     for s <- stores do index(sortOf(s), s.args(1))
+    // Two numbers are equal by two bounds; two indices of a bit-vector sort by an equality atom, as they
+    // were while the index sort alone told a bit-vector from an integer.
     def equalAt(sort: Sort, l: Term, r: Term): Formula =
-      if sort == Sort.Int || sort == Sort.Real then Formula.IntEq(l, r) else Formula.Eq(l, r)
+      if Encoder.numeric(sort) then Formula.IntEq(l, r) else Formula.Eq(l, r)
+    def equalIndex(sort: Sort, l: Term, r: Term): Formula =
+      if sort.isInstanceOf[Sort.BitVec] then Formula.Eq(l, r) else equalAt(sort, l, r)
     for case s @ Term.App(_, List(a, i, v)) <- stores do
       val sort = sortOf(s)
       val indexSort = sort.arrow.get._1.head
@@ -963,7 +1036,7 @@ private final class Encoder(
         step()
         if j != i && arrayReadsDone.add((s, j)) then
           clauses += Array(
-            lit(equalAt(indexSort, i, j)),
+            lit(equalIndex(indexSort, i, j)),
             lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
           )
 
@@ -1106,8 +1179,59 @@ private final class Encoder(
       // the level, and its negation then needs one like any other (issue 19).
       case Formula.Eq(_, _) if under == null => assertedEqualities += formula
       case _ => ()
+    meet(formula)
     val l = lit(formula)
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
+
+  /** Meets the applications of a bit-vector sort in a formula, innermost first,
+   *  before the formula is encoded: each gets its class, its variable and the
+   *  two rows of its range together, ahead of the rows of the formula that use
+   *  it. The encoder would find them while encoding the formula all the same,
+   *  and range them then; but the search follows the order in which things are
+   *  numbered, and this is the order the lowering stated the ranges in, before
+   *  the assertion. Met in the middle of it, the ranges took a session of the
+   *  corpus from 90 ms to no answer in a minute (`invalid-BinarySearch2__33`).
+   */
+  private val met = scala.collection.mutable.HashSet.empty[Term]
+
+  private def meet(formula: Formula): Unit = formula match
+    case Formula.True | Formula.False => ()
+    case Formula.Not(arg) => meet(arg)
+    case Formula.And(args) => args.foreach(meet)
+    case Formula.Or(args) => args.foreach(meet)
+    case Formula.Implies(lhs, rhs) =>
+      meet(lhs)
+      meet(rhs)
+    case Formula.Iff(lhs, rhs) =>
+      meet(lhs)
+      meet(rhs)
+    case Formula.Ite(cond, thn, els) =>
+      meet(cond)
+      meet(thn)
+      meet(els)
+    case Formula.Eq(lhs, rhs) =>
+      meet(lhs)
+      meet(rhs)
+    case Formula.Pred(term) => meet(term)
+    case Formula.Le(lhs, rhs) =>
+      meet(lhs)
+      meet(rhs)
+    case Formula.Less(lhs, rhs) =>
+      meet(lhs)
+      meet(rhs)
+
+  private def meet(term: Term): Unit =
+    if met.add(term) then // a subterm shared by many terms is walked once
+      term match
+        case Term.App(fun, args) =>
+          meet(fun)
+          args.foreach(meet)
+          if sortOf(term).isInstanceOf[Sort.BitVec] then
+            classOf(term)
+            assertRanges()
+        case Term.Linear(terms, _) => terms.foreach((_, t) => meet(t))
+        case Term.Bool(formula) => meet(formula)
+        case Term.Const(_) | Term.Num(_) => ()
 
   /** A fresh selector literal for a script level. */
   def newSelector(): Lit = freshVar()
@@ -1121,6 +1245,7 @@ private final class Encoder(
   def activate(formula: Formula): Lit =
     activations.getOrElseUpdate(
       formula, {
+        meet(formula)
         val a = freshVar()
         clauses += Array(a.neg, lit(formula))
         a
@@ -1372,7 +1497,7 @@ private final class Encoder(
                 )
         case None =>
           sort match
-            case Sort.Int => Term.Num(freshInt(eg.find(cls)))
+            case Sort.Int | Sort.BitVec(_) => Term.Num(freshInt(eg.find(cls)))
             case Sort.Real => Model.rationalTerm(freshReal(eg.find(cls)))
             case Sort.Bool => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
@@ -1390,7 +1515,7 @@ private final class Encoder(
         case (_, s) if s.arrow.isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
           else Model.constArray(s.asArray, valueOfTerm(Term.Const("@default"), applied(s, 1)))
-        case (_, Sort.Int) =>
+        case (_, Sort.Int | Sort.BitVec(_)) =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
@@ -1413,12 +1538,7 @@ private final class Encoder(
       val root = eg.find(array)
       arrayValues.getOrElseUpdate(
         root, {
-          // A bit-vector index sort is kept for its width (see assertExtensionality), and its terms
-          // are integers all the same: valued at that sort, an index was an abstract element, which
-          // no read at a number finds (issue 138).
-          val indexSort = sort.arrow.get._1.head match
-            case Sort.BitVec(_) => Sort.Int
-            case other => other
+          val indexSort = sort.arrow.get._1.head
           val elementSort = applied(sort, 1) // itself an array, for an array of arrays
           arraysBeingValued += root
           val rows = classes.keys.collect {

@@ -2,12 +2,10 @@
 QF_ABV/cvc5/regress0-aufbv__dubreva005ue.smtv1.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress0-aufbv__fifo32bc06k08.smtv1.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress0-aufbv__fifo32in06k08.smtv1.smt2	timeout (5 s limit)
-QF_ABV/cvc5/regress0-aufbv__fuzz04.smtv1.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress0-aufbv__wchains010ue.delta02.smtv1.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress1__issue9407-4.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress2__issue3687-check-models.smt2	timeout (5 s limit)
 QF_ABV/cvc5/regress3__aufbv-wchains010ue.smtv1.smt2	timeout (5 s limit)
-QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--net--irda--litelink-sir.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out_smt-query.0.smt2	timeout (5 s limit)
 QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__recursive_list_smt-query.1.smt2	timeout (5 s limit)
 QF_ABV/smt-lib-incremental/20190307-CPAchecker_kInduction-SoSy_Lab__test10_smt-query.0.smt2	timeout (5 s limit)
 QF_ABV/smt-lib/20230321-UltimateAutomizerSvcomp2023__s3_clnt.blast.01.i.cil-1.c_4.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
@@ -37,7 +35,6 @@ QF_ABV/smt-lib/platania__no_init_extract_sublist__no_init_extract_sublist9.smt2	
 QF_ABV/smt-lib/platania__no_init_simple_member__no_init_simple_member17.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/platania__selection_sort__selection_sort7.c.smt2	skip: the encoding runs past the suite's guard (the array lemmas), which the fuel does not bound
 QF_ABV/smt-lib/platania__strcmp__strcmp37.c.smt2	timeout (5 s limit)
-QF_ABV/smtinterpol/abv__ext01.smt2	wrong: sat, the reads of bit-vector elements at an extensionality witness unbounded (issue 154)
 QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__a.08-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)
 QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__array02-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)
 QF_ALIA/smt-lib-incremental/UltimateBuchiAutomizer__cstrncpy-alloca_true-termination.c.i.prefix40.smt2	timeout (5 s limit)

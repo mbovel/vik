@@ -31,39 +31,21 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(asserts(1), And(List(Lt(Num(0), x), Lt(x, y)))) // chained, pairwise
     assertEquals(asserts(2), IntDistinct(List(x, y, Num(7))))
 
-  test("reset-assertions keeps what the declarations assert"):
-    // The range of a bit-vector constant is an assertion, and reset-assertions drops the assertions:
-    // without it said again, the constants are integers of any size and an unsat script answers sat.
-    val commands = Lowering(Parser.parse(
-      "(declare-const a (_ BitVec 8)) (declare-const b (_ BitVec 8)) (reset-assertions) (assert (= a b))"
-    )).commands
-    val after = commands.dropWhile(_ != Command.ResetAssertions).tail
-    assertEquals(
-      after.takeWhile(_ != Command.Assert(IntEq(Const("a"), Const("b")))),
-      List(
-        Command.Assert(And(List(Le(Num(0), Const("a")), Le(Const("a"), Num(255))))),
-        Command.Assert(And(List(Le(Num(0), Const("b")), Le(Const("b"), Num(255)))))
-      )
-    )
+  test("a bit-vector constant keeps its range after reset-assertions"):
+    // The range is what the sort says, not an assertion: the lowering declares the constant at its sort and
+    // asserts nothing, and reset-assertions, which drops the assertions, leaves the constant a bit-vector.
+    // While the range was an assertion, it had to be said again there, or an unsat script answered sat.
+    val commands = Lowering(Parser.parse("(declare-const a (_ BitVec 8)) (reset-assertions)")).commands
+    assertEquals(commands, List(Command.DeclareFun("a", Nil, Sort.BitVec(8)), Command.ResetAssertions))
+    val script = "(declare-const a (_ BitVec 1)) (reset-assertions) (assert (bvugt a #b1)) (check-sat)"
+    assertEquals(Session.run(Parser.parse(script)).last, "unsat")
 
-  test("a pop keeps what a global declaration asserts (issue 145)"):
-    // Under `:global-declarations` the constant outlives its level, and its range, asserted there, did not:
-    // it is asserted below every level instead.
+  test("a pop keeps the range of a global declaration (issue 145)"):
+    // Under `:global-declarations` the constant outlives its level, and its range, once asserted there,
+    // did not. The range is the sort's now: it holds after one `pop`, after two levels popped at once,
+    // and when the option is turned off before the `pop`, which does not undo the declaration.
     val global = "(set-option :global-declarations true)"
     val x = "(declare-const x (_ BitVec 1))"
-    def assertions(script: String): List[Command] = Lowering(Parser.parse(script)).commands.filter {
-      case Command.Assert(_) | Command.AssertGlobal(_) => true
-      case _ => false
-    }
-    val range = And(List(Le(Num(0), Const("x")), Le(Const("x"), Num(1))))
-    assertEquals(assertions(s"$global(push 1)$x(pop 1)"), List(Command.AssertGlobal(range)))
-    assertEquals(assertions(s"$global$x"), List(Command.AssertGlobal(range)))
-    // The lowered script names it by a command of its own, which SMT-LIB does not have.
-    assertEquals(Printer.print(Command.AssertGlobal(range)), "(assert-global (and (<= 0 x) (<= x 1)))")
-    // Without the option the range is the level's, like the declaration.
-    assertEquals(assertions(s"(push 1)$x(pop 1)"), List(Command.Assert(range)))
-    // It holds after one `pop`, after two levels popped at once, and when the option is turned off
-    // before the `pop`, which does not undo the declaration.
     val wide = "(assert (bvugt x #b1))(check-sat)"
     for script <- List(
         s"$global(push 1)$x(pop 1)$wide",
@@ -73,11 +55,8 @@ class LoweringTest extends munit.FunSuite:
         s"$global(push 1)$x(check-sat)(pop 1)$wide"
       )
     do assertEquals(Session.run(Parser.parse(script)).last, "unsat", script)
-    // A `get-assertions` shows it once, at any depth.
-    assertEquals(
-      Session.run(Parser.parse(s"$global(push 1)$x(pop 1)(push 1)(pop 1)(get-assertions)")),
-      List("((and (<= 0 x) (<= x 1)))")
-    )
+    // It is no assertion of the script: a `get-assertions` does not show it.
+    assertEquals(Session.run(Parser.parse(s"$global(push 1)$x(pop 1)(push 1)(pop 1)(get-assertions)")), List("()"))
 
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
