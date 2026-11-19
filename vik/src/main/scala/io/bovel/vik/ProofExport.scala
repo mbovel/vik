@@ -8,9 +8,22 @@ import io.bovel.egraph.{App, EClassId, EConflict, EqProof}
 import io.bovel.lia
 import io.bovel.smtlib.{Datatype, Sorts}
 
-/** Writes the proof of an `Unsat` as Lean terms that `proofs/lean` checks: the
- *  lowered problem (`Vik.Low.Problem`), the answer (`Vik.Low.Answer`) and the
- *  theorem that `Problem.accepts` accepts it, by `decide +kernel`.
+/** Writes the certificate of an `Unsat`: the data that `proofs/lean` checks, as
+ *  one S-expression, with no Lean code. The lowered problem (`Vik.Low.Problem`)
+ *  and the answer (`Vik.Low.Answer`), each a section
+ *  `(problem (field value) …)` whose fields `sexp%` reads in order:
+ *
+ *  {{{
+ *  (vik-proof 1
+ *    (script sig nodes sortOf asserts datatypes defs)
+ *    (trace node mints inputs levels insts)
+ *    (problem sig nodes sortOf inputs datatypes stores bvIndex)
+ *    (answer meaning trueLit levels assumed ufAtoms trueClass falseClass ufCtors
+ *      ufTesters liaAtoms liaForms steps justs conclusion exts witnesses))
+ *  }}}
+ *
+ *  `proofs` turns it into Lean files, with the theorems that `Problem.accepts`
+ *  accepts the answer and that the trace checks the script against it.
  *
  *  Terms and formulas become one table of nodes, each after its children,
  *  shared when equal. An e-class is the node of its term: a leaf the node of
@@ -19,12 +32,12 @@ import io.bovel.smtlib.{Datatype, Sorts}
  *  variable the expression it stands for over them.
  *
  *  With the script the check saw ([[Surface]]), it also writes the script
- *  (`Vik.Lower.SProblem`), the trace of its lowering (`Vik.Lower.Trace`), and
- *  the theorem that no model of the script satisfies its assertions. The table
- *  then starts with the script's sorts and symbols, then the minted ones, as
+ *  (`Vik.Lower.SProblem`) and the trace of its lowering (`Vik.Lower.Trace`),
+ *  from which no model of the script satisfies its assertions. The table then
+ *  starts with the script's sorts and symbols, then the minted ones, as
  *  `Trace.check` requires.
  */
-private[vik] object LeanExport:
+private[vik] object ProofExport:
 
   /** What the encoder knows of a proof. */
   final case class Input(
@@ -103,7 +116,7 @@ private[vik] object LeanExport:
     case Ite(node: Int, sort: Int)
     case Store(sort: Int, index: Int, element: Int)
     case Real(rule: RRule)
-    case Rule(rule: LeanExport.Rule, j: Int)
+    case Rule(rule: ProofExport.Rule, j: Int)
 
   /** Why a lowered input holds (`Vik.Lower.InputWhy`). */
   enum Reason:
@@ -112,16 +125,14 @@ private[vik] object LeanExport:
     case IteElse(symbol: String)
     case Range(node: Int)
     case Real(rule: RRule, fact: Int)
-    case Rule(rule: LeanExport.Rule, fact: Int, aux: Option[Term])
+    case Rule(rule: ProofExport.Rule, fact: Int, aux: Option[Term])
+
+  /** The version of the certificate's format, its second atom. */
+  val version = 1
 
   def apply(in: Input, surface: Option[Surface] = None): Either[String, String] =
     try Right(Writer(in, surface).write())
     catch case e: Unsupported => Left(e.getMessage)
-
-  /** Large proofs, their terms and the kernel's checks, run past the
-   *  elaborator's default limits.
-   */
-  private val options = "set_option maxRecDepth 100000\nset_option maxHeartbeats 0\n\n"
 
   private def lit(l: Lit): String = s"⟨${l.variable}, ${l.positive}⟩"
   private def litOfIndex(i: Int): String = lit(Lit.fromIndex(i))
@@ -132,46 +143,6 @@ private[vik] object LeanExport:
   private def ratT(r: Rational): String =
     if r.isInteger then s"(${r.num} : Rat)" else s"((${r.num} : Rat) / ${r.den})"
   private def list(xs: Iterable[String]): String = xs.mkString("[", ", ", "]")
-
-  // The kernel checks the derived steps, their justifications, the nodes of
-  // the script and the inputs of the lowering in slices of these sizes, each a theorem of its own: it keeps
-  // the values it computes within a declaration, which on a large proof take
-  // more memory and stack than one check can have.
-  private val stepSlice = 250
-  private val nodeSlice = 500
-  private val inputSlice = 100
-
-  /** `[0, total)` in slices of `size`: their starts and lengths. */
-  private def slices(total: Int, size: Int): List[(Int, Int)] = (0 until total by size).map(a =>
-    (a, size min (total - a))
-  ).toList
-
-  /** The steps of the certificates of a slice of justifications: the kernel
-   *  keeps about 5 MB per step until the end of a slice, so this bounds the
-   *  memory of one.
-   */
-  private val justBudget = 400
-
-  /** The literals a slice of derived steps visits, those of the steps and of
-   *  their hints: the kernel takes about 4 ms and 0.5 MB for each.
-   */
-  private val rupBudget = 5000
-
-  /** Consecutive slices of items of the costs `costs`, each of at most
-   *  `budget`, unless one item alone costs more, and of at most `size` items.
-   */
-  private def weightedSlices(costs: collection.IndexedSeq[Int], budget: Int, size: Int): List[(Int, Int)] =
-    val out = ArrayBuffer.empty[(Int, Int)]
-    var a = 0
-    while a < costs.length do
-      var n = 1
-      var w = costs(a)
-      while a + n < costs.length && n < size && w + costs(a + n) <= budget do
-        w += costs(a + n)
-        n += 1
-      out += ((a, n))
-      a += n
-    out.toList
 
   private final class Writer(in: Input, surface: Option[Surface]):
     import in.*
@@ -476,10 +447,6 @@ private[vik] object LeanExport:
         .sortBy(_._1)
     )
 
-    /** The cost of checking each justification, in steps of its certificate. */
-    private val justCosts = ArrayBuffer.empty[Int]
-    private val rupCosts = ArrayBuffer.empty[Int]
-
     private def liaJust(c: lia.Certificate): String =
       import lia.Certificate.*
       val out = ArrayBuffer.empty[String]
@@ -526,7 +493,6 @@ private[vik] object LeanExport:
           seen.put(c, out.length - 1)
           out.length - 1
       go(c)
-      justCosts(justCosts.length - 1) = out.length
       s".lia ${list(out)}"
 
     private def meaningOf(l: Lit): Formula | Null =
@@ -633,9 +599,8 @@ private[vik] object LeanExport:
       val levelReasons = assumed.map(v => list(levels.find(_._1 == v).fold(Nil)(_._2).map(reason(sf, _))))
       val datatypes =
         sf.datatypes.map((d, cs) => s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})")
-      LeanSexp.structure(
+      LeanSexp.section(
         "script",
-        "Vik.Lower.SProblem",
         List(
           "sig" -> s"⟨${list(sf.sorts.map(_.text))}, ${list(sf.decls.map(_._2.toString))}⟩",
           "nodes" -> list(sf.nodes),
@@ -644,9 +609,8 @@ private[vik] object LeanExport:
           "datatypes" -> list(datatypes),
           "defs" -> list(sf.defs)
         )
-      ) + "\n" + LeanSexp.structure(
+      ) + "\n" + LeanSexp.section(
         "trace",
-        "Vik.Lower.Trace",
         List(
           "node" -> list(node.map(_.toString)),
           "mints" -> list(mints),
@@ -654,55 +618,7 @@ private[vik] object LeanExport:
           "levels" -> list(levelReasons),
           "insts" -> list(sf.insts.map((i, ms) => s"($i, ${list(ms.map(_.toString))})"))
         )
-      ) + "\n" + surfaceTheorems(sf.nodes.length, reasons.length)
-
-    private def surfaceTheorems(nodes: Int, inputs: Int): String =
-      val ns = slices(nodes, nodeSlice)
-      val is = slices(inputs, inputSlice)
-      val b = StringBuilder()
-      b ++= "theorem checkedBase : trace.checkBase script problem answer = true := by decide +kernel\n"
-      for (a, n) <- ns do
-        b ++= s"theorem checkedNodes$a : trace.nodesSlice script problem $a $n = true := by decide +kernel\n"
-      for (a, n) <- is do
-        b ++= s"theorem checkedInputs$a : trace.inputsSlice script problem $a $n = true := by decide +kernel\n"
-      val nodeChain =
-        ns.foldRight("(Vik.Lower.Trace.nodesFrom_end script problem trace (by decide +kernel))")((an, rest) =>
-          s"(Vik.Lower.Trace.nodesFrom_slice script problem trace checkedNodes${an._1}\n    $rest)"
-        )
-      val inputChain =
-        is.foldRight("(Vik.Lower.Trace.inputsFrom_end script problem trace (by decide +kernel))")((an, rest) =>
-          s"(Vik.Lower.Trace.inputsFrom_slice script problem trace checkedInputs${an._1}\n    $rest)"
-        )
-      b ++= "\ntheorem checked : trace.check script problem answer = true :=\n"
-      b ++= s"  Vik.Lower.Trace.check_of_slices script problem trace checkedBase\n    $nodeChain\n    $inputChain\n"
-      b ++= """|
-         |/-- No model of the script satisfies its assertions. -/
-         |theorem no_model {R U : Type} [Lean.Grind.Field R] [LE R] [LT R] [Std.IsLinearOrder R]
-         |    [Std.LawfulOrderLT R] [Lean.Grind.OrderedRing R] [Lean.Grind.IsCharP R 0] (M : Vik.Surf.Model R U)
-         |    (size : Val R U → Nat) (hL : script.Laws M size) (hfl : ∀ r : R, ∃ k : Int, Vik.Real.IsFloor r k)
-         |    (h : ∀ a ∈ script.asserts, Vik.Surf.holds M.toInterp script.nodes a) : False :=
-         |  Vik.Lower.Trace.unsat checked accepted M size hL hfl h
-         |""".stripMargin
-      b.toString
-
-    private def acceptedTheorems(steps: Int): String =
-      val ss = weightedSlices(rupCosts, rupBudget, stepSlice)
-      val js = weightedSlices(justCosts, justBudget, stepSlice)
-      val b = StringBuilder()
-      b ++= "theorem acceptedBase : problem.acceptsBase answer = true := by decide +kernel\n"
-      for (a, n) <- js do
-        b ++= s"theorem acceptedJusts$a : problem.justsSlice answer $a $n = true := by decide +kernel\n"
-      for (a, n) <- ss do
-        b ++= s"theorem acceptedSteps$a : answer.rupSlice $a $n = true := by decide +kernel\n"
-      val justs = js.foldRight("(Problem.justsFrom_end problem answer (by decide +kernel))")((an, rest) =>
-        s"(Problem.justsFrom_slice problem answer acceptedJusts${an._1}\n    $rest)"
       )
-      val rup = ss.foldRight("(Answer.rupFrom_end answer (by decide +kernel))")((an, rest) =>
-        s"(Answer.rupFrom_slice answer acceptedSteps${an._1}\n    $rest)"
-      )
-      b ++=
-        s"\ntheorem accepted : problem.accepts answer = true :=\n  Problem.accepts_of_slices problem answer acceptedBase\n    $justs\n    $rup\n"
-      b.toString
 
     def write(): String =
       val steps = ArrayBuffer.empty[String]
@@ -719,7 +635,6 @@ private[vik] object LeanExport:
       val used = scala.collection.mutable.HashSet(trueLit.variable)
       used ++= levels.map(_._1)
       val last = kept.length - 1
-      val width = kept.map(i => proof.steps(i).clause.length)
       for i <- kept do
         val step = proof.steps(i)
         step match
@@ -729,13 +644,9 @@ private[vik] object LeanExport:
         step match
           case cdclt.Proof.Step.Input(clause, o) =>
             steps += s".input ${list(clause.map(lit))}"
-            rupCosts += 0
-            justCosts += 1
             justs += s".input (${origin(clause, o)})"
           case cdclt.Proof.Step.Lemma(clause, c) =>
             steps += s".lemma ${list(clause.map(lit))}"
-            rupCosts += 0
-            justCosts += 1
             justs +=
               (c match
                 case c: UfTheory.Certified => ufJust(c)
@@ -743,8 +654,6 @@ private[vik] object LeanExport:
                 case _ => throw Unsupported("a lemma without a certificate"))
           case cdclt.Proof.Step.Derived(clause, hints) =>
             steps += s".derived ${list(clause.map(lit))} ${list(hints.map(index(_).toString))}"
-            rupCosts += clause.length + hints.map(h => width(index(h))).sum
-            justCosts += 0
             justs += ".derived"
       // the formulas and atoms of the variables
       val vars = math.max(meanings.length, atoms.length)
@@ -798,15 +707,15 @@ private[vik] object LeanExport:
       fixSorts()
       val declList = decls.keysIterator.map(declSorts(_).toString).toList
       val stores = decls.keysIterator.filter(_.startsWith("store!")).map(decls(_).toString).toList
-      val b = StringBuilder(options)
+      val b = StringBuilder(s"(vik-proof $version\n")
+      for text <- surfaceDefs do b ++= text + "\n"
       val dtsText = surface.fold(list(dts))(sf =>
         list(sf.datatypes.map((d, cs) =>
           s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})"
         ))
       )
-      b ++= LeanSexp.structure(
+      b ++= LeanSexp.section(
         "problem",
-        "Problem",
         List(
           "sig" -> s"⟨${list(sorts)}, ${list(declList)}⟩",
           "nodes" -> list(nodes),
@@ -818,9 +727,8 @@ private[vik] object LeanExport:
         )
       )
       b ++= "\n"
-      b ++= LeanSexp.structure(
+      b ++= LeanSexp.section(
         "answer",
-        "Answer",
         List(
           "meaning" -> list(meaning),
           "trueLit" -> lit(trueLit),
@@ -840,8 +748,5 @@ private[vik] object LeanExport:
           "witnesses" -> list(witnessSyms.map(_.toString))
         )
       )
-      b ++= "\n"
-      b ++= acceptedTheorems(steps.length)
-      for text <- surfaceDefs do
-        b ++= "\n" + text
+      b ++= ")\n"
       b.toString

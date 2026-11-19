@@ -1,4 +1,4 @@
-package io.bovel.vik
+package io.bovel.vik.proofs
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -12,7 +12,7 @@ import scala.collection.mutable.ArrayBuffer
  *  `native_decide`. `proofs/lean/check-native.sh` checks the file against the
  *  compiled library.
  */
-private[vik] object LeanNative:
+object LeanNative:
 
   private val chunk = 1000
 

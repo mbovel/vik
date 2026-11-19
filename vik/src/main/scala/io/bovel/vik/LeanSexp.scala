@@ -2,7 +2,7 @@ package io.bovel.vik
 
 import scala.collection.mutable.ArrayBuffer
 
-/** Turns the Lean terms [[LeanExport]] writes into the S-expressions that
+/** Turns the Lean terms [[ProofExport]] writes into the S-expressions that
  *  `sexp%` (`proofs/lean/Vik/Sexp.lean`) reads back, as Lean's parser and
  *  elaborator are slow on large literals.
  *
@@ -107,10 +107,8 @@ private[vik] object LeanSexp:
     if !p.done then throw Malformed(s"trailing text in a Lean term: $term")
     s
 
-  /** A definition of a structure from the Lean terms of its fields, read by
-   *  `sexp%`.
+  /** A section of a certificate, `(name (field value) …)`, from the Lean terms
+   *  of a structure's fields: `sexp%` reads the part after `name`.
    */
-  def structure(name: String, tpe: String, fields: Seq[(String, String)]): String =
-    fields
-      .map((f, v) => s"($f ${apply(v)})")
-      .mkString(s"noncomputable def $name : $tpe := sexp% \"(", "\n  ", ")\"\n")
+  def section(name: String, fields: Seq[(String, String)]): String =
+    fields.map((f, v) => s"($f ${apply(v)})").mkString(s"($name\n  ", "\n  ", ")")

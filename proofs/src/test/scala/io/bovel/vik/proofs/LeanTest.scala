@@ -1,12 +1,13 @@
-package io.bovel.vik
+package io.bovel.vik.proofs
 
 import io.bovel.smtlib.Parser
+import io.bovel.vik.{Session, Solver}
 
-/** The proofs of a few `Unsat`s, from the script to its lowering and the
- *  solver's proof, written as Lean terms, each to a file of
- *  `target/lean-export` for `proofs/lean` to check (`proofs/lean/exported.sh`).
+/** The certificates of a few `Unsat`s, from the script to its lowering and the
+ *  solver's proof, each written as a Lean file of `target/lean-export` for
+ *  `proofs/lean` to check (`proofs/lean/exported.sh`).
  */
-class LeanExportTest extends munit.FunSuite:
+class ProofExportTest extends munit.FunSuite:
   private val out =
     val dir = java.nio.file.Path.of("target", "lean-export")
     java.nio.file.Files.createDirectories(dir)
@@ -16,14 +17,13 @@ class LeanExportTest extends munit.FunSuite:
     val session = Session(Solver(proofs = true))
     val answers = session.run(Parser.parse(script))
     assertEquals(answers.lastOption, Some("unsat"))
-    val lean = session.leanProof() match
+    val certificate = session.proof() match
       case Right(text) => text
-      case Left(why) => fail(s"no Lean proof: $why")
+      case Left(why) => fail(s"no proof: $why")
     for dir <- out do
-      val header = s"import Vik\n\nnamespace Vik.Low.Exported.$name\n\nopen Vik.Low Vik.Surf Vik.Clausal\n\n"
       java.nio.file.Files.writeString(
         java.nio.file.Path.of(dir, s"$name.lean"),
-        header + lean + s"\nend Vik.Low.Exported.$name\n"
+        Lean(certificate, s"Vik.Low.Exported.$name")
       )
 
   test("bounds"):

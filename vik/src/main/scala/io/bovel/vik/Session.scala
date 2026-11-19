@@ -116,15 +116,15 @@ final class Session(
     case s2.Command.CheckSatAssuming(assumptions) => checked(kept(play(lowering(c))), assumptions)
     case _ => play(lowering(c))
 
-  /** With proofs: whether each `unsat` writes its Lean proof at once, for
-   *  [[leanProof]] to return after later commands (a `pop` drops what the
-   *  proof's script is made of).
+  /** With proofs: whether each `unsat` writes its certificate at once, for
+   *  [[proof]] to return after later commands (a `pop` drops what the proof's
+   *  script is made of).
    */
-  var keepLeanProofs = false
-  private var lastLeanProof: Option[Either[String, String]] = None
+  var keepProofs = false
+  private var lastProof: Option[Either[String, String]] = None
 
   private def kept(out: List[String]): List[String] =
-    if keepLeanProofs && out.contains("unsat") then lastLeanProof = Some(leanProofNow())
+    if keepProofs && out.contains("unsat") then lastProof = Some(proofNow())
     out
 
   private def asserting(c: s2.Command, formula: s2.Formula): List[String] =
@@ -185,19 +185,19 @@ final class Session(
    */
   def checkProof(): List[String] = loweringErrors.toList ++ current.checkProof()
 
-  /** With proofs: the proof of the last `Unsat` as Lean terms, from the script
-   *  the check saw to its lowering and the solver's proof of it (see
-   *  [[LeanExport]]), or why it cannot be written. Right after the check, or at
-   *  any time with [[keepLeanProofs]].
+  /** With proofs: the certificate of the last `Unsat`, an S-expression from the
+   *  script the check saw to its lowering and the solver's proof of it (see
+   *  [[ProofExport]]), or why it cannot be written. Right after the check, or
+   *  at any time with [[keepProofs]]. `proofs` writes it as Lean files.
    */
-  def leanProof(): Either[String, String] =
-    if keepLeanProofs then lastLeanProof.getOrElse(Left("no unsat"))
-    else leanProofNow()
+  def proof(): Either[String, String] =
+    if keepProofs then lastProof.getOrElse(Left("no unsat"))
+    else proofNow()
 
-  private def leanProofNow(): Either[String, String] =
+  private def proofNow(): Either[String, String] =
     if loweringCheck == null then Left("no proofs")
     else if loweringErrors.nonEmpty then Left(loweringErrors.head)
-    else loweringCheck.surface().flatMap(sf => current.leanProof(Some(sf)))
+    else loweringCheck.surface().flatMap(sf => current.certificate(Some(sf)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
