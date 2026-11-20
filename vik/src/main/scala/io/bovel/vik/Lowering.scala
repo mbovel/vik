@@ -131,6 +131,8 @@ private final class Lowerer:
   private val loweredOperations = Memo[(String, List[Term], List[BigInt]), Term]()
   private val loweredDivisions = Memo[(Term, BigInt, BigInt), (Term, Term)]()
   private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
+  private val integerQuotients =
+    Memo[(Term, Term), Unit]() // the divisor and quotient of a division kept in the integers
   private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
   private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
   /** A rearrangement of bits kept in the integers (an extract, an extension, a
@@ -159,6 +161,7 @@ private final class Lowerer:
     loweredOperations.clear()
     loweredDivisions.clear()
     loweredSignedDivisions.clear()
+    integerQuotients.clear()
     loweredBits.clear()
     bitConstants.clear()
     rearrangements.clear()
@@ -987,7 +990,13 @@ private final class Lowerer:
       val linear = op match
         case BvOp.Add | BvOp.Sub | BvOp.Neg => true
         // A product of two unknowns is not linear: a multiplier.
-        case BvOp.Mul => ts.count(!_.isInstanceOf[Num]) <= 1
+        // The product of an integer division's quotient and divisor is the one that defines the
+        // quotient (`a = b·q + r`), which a multiplier over their bits would compute a second time.
+        case BvOp.Mul =>
+          ts.count(!_.isInstanceOf[Num]) <= 1 ||
+          (ts match
+            case List(a, b) => integerQuotients.contains((a, b)) || integerQuotients.contains((b, a))
+            case _ => false)
         // A division in the integers, a few rows where a circuit drags its operands into bits (a
         // divider is rows of adders); bits once an operand's are known.
         case BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod =>
@@ -1006,9 +1015,10 @@ private final class Lowerer:
         case _ => false
       // A multiplier or a divider is `w` rows of `w`-bit adders: beyond 128 bits it stays in the integers,
       // whatever its operands (a 512-bit product is a quarter of a million adders).
-      val tooWide = w > 128 && (op match
-        case BvOp.Mul | BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod => true
-        case _ => false)
+      val tooWide = w > 128 &&
+        (op match
+          case BvOp.Mul | BvOp.Udiv | BvOp.Urem | BvOp.Sdiv | BvOp.Srem | BvOp.Smod => true
+          case _ => false)
       if linear && structural(op) && !ts.exists(isCircuit) then
         rearranged(structuralBv(op, ts, ws), op, ts, ws)
       else if tooWide || linear && !ts.exists(isCircuit) then
@@ -1410,6 +1420,7 @@ private final class Lowerer:
         val q = freshInt("q", 0, m - 1)
         val r = freshInt("r", 0, m - 1)
         val zero = IntEq(b, Num(0))
+        integerQuotients((b, q)) = ()
         define(Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a)))))
         define(Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, width) + r), Less(r, b)))))
         (q, r)
