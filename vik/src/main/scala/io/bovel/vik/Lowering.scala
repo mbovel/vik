@@ -22,7 +22,7 @@ import Term.*
  *    - a term-level `ite` becomes a fresh constant with two defining assertions
  *      placed before the assertion using it;
  *    - `select` is application, `store` an application of the array sort's
- *      `store!N` symbol, which the solver's array lemmas recognize;
+ *      `.store!N` symbol, which the solver's array lemmas recognize;
  *    - bit-vectors go to linear integer arithmetic: an `n`-bit term is an
  *      integer in `[0, 2^n)`, a sort `(_ BitVec n)` the sort of that range
  *      ([[Sort.IntRange]], whose terms the solver holds to it: no range is
@@ -64,26 +64,26 @@ private final class Lowerer:
       scopes.last += (() => previous.fold(map -= key)(v => map(key) = v))
 
   private var fresh = 0
-  val minted = scala.collection.mutable.HashSet.empty[String] // the names of the lowering's own, a test for the session
 
-  /** A name of the lowering's own, `prefix!N`: past the script's symbols, so
-   *  that a script's `bit!1` is never taken for the lowering's, and remembered,
-   *  so that a later declaration of it is refused rather than merged with it
-   *  (issue 21).
+  /** Whether a name is one of the lowering's own (or the solver's): a test for
+   *  the session.
+   */
+  def minted(name: String): Boolean = Names.isOurs(name)
+
+  /** A name of the lowering's own, `.prefix!N` ([[Names]]): no script symbol is
+   *  one.
    */
   private def freshName(prefix: String): String =
     fresh += 1
-    while functions.contains(s"$prefix!$fresh") || macros.contains(s"$prefix!$fresh") do fresh += 1
-    val name = s"$prefix!$fresh"
-    minted += name
-    name
+    Names.minted(prefix, fresh)
 
-  /** Refuses a script's symbol that is one of the lowering's, or that the
-   *  solver would take for a store by its prefix.
+  /** Refuses a script's declaration of a symbol that SMT-LIB reserves for the
+   *  solver, and VIK takes for its own ([[Names]]): one starting with `.`. A
+   *  `let` may bind such a name, which it does not declare.
    */
   private def reserve(name: String): Unit =
-    if minted(name) || name.startsWith("store!") then
-      throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
+    if Names.isOurs(name) then
+      throw s2.Smt2Error(s"$name: SMT-LIB reserves the symbols starting with `.` for the solver")
   // The fresh constants and the assertions defining them, which go out before the assertion they were made
   // for, in the order they were made: each constant is declared right before its definitions. The solver
   // meets a bit-vector constant's range at its declaration, and the search follows the order it meets things in.
@@ -443,11 +443,13 @@ private final class Lowerer:
     case s2.Command.DeclareDatatypes(datatypes) =>
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = s2.Sort.Named(datatype.name)
+        reserve(constructor.name)
         undoable(functions, constructor.name)
         functions(constructor.name) = s2.Sort.fun(constructor.selectors.map(_._2), d)
         undoable(functions, constructor.tester)
         functions(constructor.tester) = s2.Sort.fun(List(d), s2.Sort.Bool)
         for (selector, s) <- constructor.selectors do
+          reserve(selector)
           undoable(functions, selector)
           functions(selector) = s2.Sort.fun(List(d), s)
       List(Command.DeclareDatatypes(datatypes.map(d =>
@@ -500,7 +502,7 @@ private final class Lowerer:
         )
       )
       val defined = pending.toList.collect { case Command.Assert(definition) => definition }
-      // The symbols minted here are declared for good: a `store!N` stays in `storeSymbols`, and a later
+      // The symbols minted here are declared for good: a `.store!N` stays in `storeSymbols`, and a later
       // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
       // asserted after a check and go with the command instead.
       val declared = pending.toList.collect { case declaration: Command.DeclareFun => declaration }
@@ -861,8 +863,8 @@ private final class Lowerer:
 
   private val rationalProducts = Memo[(BigInt, BigInt, Term), Term]()
 
-  /** The `store!N` function symbol for arrays of `sort`, declared on first use:
-   *  `store` is not a function of the tree, each array sort gets its own
+  /** The `.store!N` function symbol for arrays of `sort`, declared on first
+   *  use: `store` is not a function of the tree, each array sort gets its own
    *  uninterpreted symbol, and the solver's array lemmas recognize the name.
    */
   private val storeSymbols = HashMap.empty[Sort, String]

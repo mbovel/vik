@@ -40,7 +40,7 @@ final case class Model(
       functions.get(name) match
         case Some(f) if f.parameters.isEmpty => f.default
         case _ => constants.getOrElse(name, term)
-    case Term.App(Term.Const(name), List(a, i, v)) if name.startsWith("store!") =>
+    case Term.App(Term.Const(name), List(a, i, v)) if Names.isStore(name) =>
       Model.store(value(a), value(i), value(v))
     case Term.App(Term.Const(name), List(arg)) if selectors.contains(name) => // a selector on a constructor value
       val (constructor, i) = selectors(name)
