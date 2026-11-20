@@ -159,3 +159,10 @@ and a use that does neither — a constant of sort `X` on its own — is refused
 `as`. The standard reads an assertion that still mentions a sort parameter as one assertion per
 monomorphic sort in the context; VIK does not, since the instances of a quantifier-free assertion would
 have nothing to say about one another, and there may be infinitely many.
+
+A parametric datatype must be regular. One whose instance needs an instance of itself at a larger sort,
+such as a `(N T)` with a field of sort `(N (Pair T T))`, has an instance per such sort, without end: it is
+refused where it is first instantiated. Such datatypes are the nested datatypes of Bird and Meertens
+([Nested Datatypes](https://doi.org/10.1007/BFb0054285), MPC 1998). The check is the one the .NET runtime
+makes on generic types: ECMA-335, Partition II, section 9.2, "Generics and recursive inheritance graphs",
+where the instances are finite exactly when a graph of the parameters has no cycle with an expanding edge.

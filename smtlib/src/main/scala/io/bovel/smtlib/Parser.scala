@@ -417,6 +417,7 @@ final class Parser:
     if args.length != params.length then throw Smt2Error(s"$name takes ${params.length} sort arguments")
     val text = s"($name ${args.map(_.text).mkString(" ")})"
     if !instantiated(text) then
+      regular(name)
       undoable(instantiated, text)
       instantiated += text
       val saved = sortSubst
@@ -448,6 +449,63 @@ final class Parser:
         pending += Command.DeclareDatatypes(List(datatype))
       finally sortSubst = saved
     Sort.Named(text)
+
+  /** Refuses to instantiate a non-regular datatype (issue 151): one whose
+   *  instance needs an instance of itself at a larger sort, as `(N T)` with a
+   *  field `(N (Pair T T))` does, and which has instances without end. The
+   *  parameters flow from datatype to datatype through the fields: where a
+   *  field of `a` mentions `(b s1 … sn)`, a parameter of `a` that occurs in
+   *  `si` flows to the i-th parameter of `b`, and it grows on the way when `si`
+   *  is more than the parameter itself. The instances that `name` needs are
+   *  without end exactly when one of its parameters reaches a flow that grows
+   *  and that leads back to where it starts. A field at an instance written in
+   *  full, `(N (Pair Int Int))`, or at the parameters in another order, grows
+   *  nothing and is regular.
+   *
+   *  The check is the one of the .NET runtime on generic types: ECMA-335,
+   *  Common Language Infrastructure, Partition II, section 9.2, "Generics and
+   *  recursive inheritance graphs". Its instantiation closure is finite exactly
+   *  when its graph has no cycle with an expanding edge; the flows here are its
+   *  edges, a growing flow its expanding edge. Kennedy and Pierce call such
+   *  types expansive ("On Decidability of Nominal Subtyping with Variance",
+   *  FOOL/WOOD 2007). The datatypes it refuses are the nested datatypes of Bird
+   *  and Meertens ("Nested Datatypes", MPC 1998, LNCS 1422,
+   *  doi:10.1007/BFb0054285).
+   */
+  private def regular(name: String): Unit =
+    type Parameter = (String, Int) // of a parametric datatype, by its position
+    val flows: List[(Parameter, Parameter, Boolean)] =
+      for
+        (a, (params, constructors)) <- templates.toList
+        case SList(_ :: selectors) <- constructors
+        case SList(_ :: s :: Nil) <- selectors
+        case SList(SSymbol(b) :: args) <- parts(unfolded(s)) if templates.contains(b)
+        (arg, i) <- args.zipWithIndex
+        (p, j) <- params.zipWithIndex if mentions(arg, p)
+      yield ((a, j), (b, i), arg != SSymbol(p))
+    def reached(from: Set[Parameter]): Set[Parameter] =
+      val more = from ++ flows.collect { case (source, target, _) if from(source) => target }
+      if more == from then from else reached(more)
+    val mine = reached(templates(name)._1.indices.map((name, _)).toSet)
+    for case (source, target, true) <- flows if mine(source) && reached(Set(target))(source) do
+      throw Smt2Error(
+        s"${source._1}: a non-regular datatype, which needs itself at ever larger sorts, is not supported"
+      )
+
+  /** A sort as written, and the sorts written inside it. */
+  private def parts(s: SExpr): List[SExpr] = s match
+    case SList(items) => s :: items.flatMap(parts)
+    case _ => List(s)
+
+  /** A sort as written, with its `define-sort` abbreviations of some parameters
+   *  replaced by what they stand for.
+   */
+  private def unfolded(s: SExpr): SExpr = s match
+    case SList(SSymbol(name) :: args) if sortDefinitions.get(name).exists(_._1.length == args.length) =>
+      val (params, body) = sortDefinitions(name)
+      unfolded(substitute(body, params.zip(args).toMap))
+    case SList(items) => SList(items.map(unfolded))
+    case _ => s
 
   /** Declares datatypes: their constructors, selectors and testers become
    *  function symbols (a constructor `C` of datatype `D` with selectors
