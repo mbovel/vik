@@ -255,3 +255,300 @@ class SolverTest extends munit.FunSuite:
       List("sat", "unsat")
     )
   }
+
+  test("constant arrays") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(script))
+    val decls = "(declare-const a (Array Int Int)) (declare-const b (Array Int Int)) (declare-const i Int)"
+    // The value at every index
+    assertEquals(
+      play(s"$decls (assert (= a ((as const (Array Int Int)) 0))) (assert (= (select a i) 1)) (check-sat)"),
+      List("unsat")
+    )
+    // Under a store: the written index alone differs
+    assertEquals(
+      play(
+        s"$decls (assert (= a (store ((as const (Array Int Int)) 0) 3 1))) (assert (= (select a i) 1)) (assert (distinct i 3)) (check-sat)"
+      ),
+      List("unsat")
+    )
+    assertEquals(
+      play(s"$decls (assert (= a (store ((as const (Array Int Int)) 0) 3 1))) (assert (= (select a i) 1)) (check-sat)"),
+      List("sat")
+    )
+    // Two constant arrays are equal when their values are, with no index read
+    assertEquals(
+      play(
+        s"$decls (assert (= a ((as const (Array Int Int)) 0))) (assert (= b ((as const (Array Int Int)) 1))) (assert (= a b)) (check-sat)"
+      ),
+      List("unsat")
+    )
+    // and finitely many stores do not make one of the other
+    assertEquals(
+      play(
+        s"$decls (assert (= ((as const (Array Int Int)) 1) (store ((as const (Array Int Int)) 0) i 1))) (check-sat)"
+      ),
+      List("unsat")
+    )
+    // A set, as Stainless writes it
+    assertEquals(
+      play(
+        "(declare-const s (Array Int Bool)) (declare-const x Int) (assert (= s (store ((as const (Array Int Bool)) false) 1 true))) (assert (select s x)) (assert (distinct x 1)) (check-sat)"
+      ),
+      List("unsat")
+    )
+    // Over a finite sort: an index beyond the writes while the stores leave one, every value once they
+    // may fill the sort. Two writes cover `Bool`; four cover a `(_ BitVec 2)`, three do not; and two
+    // constant arrays of different values differ at an index two writes leave (z3test's
+    // const_array_store_chain_unsat).
+    assertEquals(
+      play(
+        "(declare-const s (Array Bool Int)) (assert (= s (store (store ((as const (Array Bool Int)) 0) true 1) false 1))) (assert (= s ((as const (Array Bool Int)) 1))) (check-sat)"
+      ),
+      List("sat")
+    )
+    assertEquals(
+      play(
+        "(declare-const s (Array Bool Int)) (assert (= s (store ((as const (Array Bool Int)) 0) true 1))) (assert (= s ((as const (Array Bool Int)) 1))) (check-sat)"
+      ),
+      List("unsat")
+    )
+    def filled(n: Int, width: Int) = (0 until n).foldLeft(s"((as const (Array (_ BitVec $width) Int)) 0)")((a, k) =>
+      s"(store $a (_ bv$k $width) 1)"
+    )
+    assertEquals(
+      play(s"(assert (= ${filled(3, 2)} ((as const (Array (_ BitVec 2) Int)) 1))) (check-sat)"),
+      List("unsat")
+    )
+    assertEquals(play(s"(assert (= ${filled(4, 2)} ((as const (Array (_ BitVec 2) Int)) 1))) (check-sat)"), List("sat"))
+    // Indices the search may make equal leave room for the index beyond them
+    assertEquals(
+      play(
+        "(declare-const i (_ BitVec 2)) (declare-const j (_ BitVec 2)) (declare-const k (_ BitVec 2)) (declare-const l (_ BitVec 2)) " +
+          "(assert (= (store (store (store (store ((as const (Array (_ BitVec 2) Int)) 0) i 1) j 1) k 1) l 1) ((as const (Array (_ BitVec 2) Int)) 1))) " +
+          "(check-sat) (assert (= i j)) (check-sat)"
+      ),
+      List("sat", "unsat")
+    )
+    assertEquals(
+      play(
+        "(declare-const x (_ BitVec 8)) (declare-const y (_ BitVec 8)) (declare-const i (_ BitVec 2)) (declare-const j (_ BitVec 2)) " +
+          "(assert (distinct x y)) (assert (= (store ((as const (Array (_ BitVec 2) (_ BitVec 8))) x) i x) (store ((as const (Array (_ BitVec 2) (_ BitVec 8))) y) j y))) (check-sat)"
+      ),
+      List("unsat")
+    )
+    // A 12-bit sort, which was refused: neither small nor large enough for one of the two alone
+    assertEquals(
+      play(s"(assert (= ${filled(5, 12)} ((as const (Array (_ BitVec 12) Int)) 1))) (check-sat)"),
+      List("unsat")
+    )
+  }
+
+  test("integer division and remainder by a numeral, and the absolute value") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(
+      "(declare-fun x () Int) (declare-fun y () Int) " + script
+    ))
+    assertEquals(
+      play(
+        "(assert (= y (div x 2))) (assert (= (mod x 2) 1)) (assert (= (abs x) 7)) (assert (< x 0)) (check-sat) " +
+          "(get-value (x y (div x (- 2)) (mod x (- 2)) (abs y)))"
+      ),
+      List("sat", "((x (- 7)) (y (- 4)) ((div x (- 2)) 4) ((mod x (- 2)) 1) ((abs y) 4))")
+    )
+    assertEquals(play("(assert (not (= x (+ (* 3 (div x 3)) (mod x 3))))) (check-sat)"), List("unsat"))
+    assertEquals(play("(assert (or (< (mod x (- 3)) 0) (> (mod x (- 3)) 2))) (check-sat)"), List("unsat"))
+    assertEquals(play("(assert (not (= (abs x) (abs (- x))))) (check-sat)"), List("unsat"))
+    assertEquals(play("(assert (= (div x 2) (div (+ x 1) 2))) (assert (= (mod x 2) 1)) (check-sat)"), List("unsat"))
+  }
+
+  test("the maps of arrays, of any operator") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(
+      "(define-sort B () (Array Int Int)) (declare-fun a () B) (declare-fun b () B) (declare-fun c () B) " +
+        "(declare-fun i () Int) (declare-fun f (Int Int) Int) " +
+        "(define-fun mx ((x Int) (y Int)) Int (ite (< x y) y x)) " + script
+    ))
+    // The sum of bags, with z3's sorted operator; the value is the model's.
+    assertEquals(
+      play(
+        "(assert (= c ((_ map (+ (Int Int) Int)) a b))) (assert (= (select a 3) 2)) (assert (= (select b 3) 5)) " +
+          "(check-sat) (get-value ((select c 3))) (assert (not (= (select c 3) 7))) (check-sat)"
+      ),
+      List("sat", "(((select c 3) 7))", "unsat")
+    )
+    assertEquals(play("(assert (not (= ((_ map +) a b) ((_ map +) b a)))) (check-sat)"), List("unsat"))
+    assertEquals(play("(assert (not (= ((_ map +) a ((as const B) 0)) a))) (check-sat)"), List("unsat"))
+    assertEquals(play("(assert (not (= ((_ map -) a a) ((as const B) 0)))) (check-sat)"), List("unsat"))
+    // To another element sort, of a declared function, of a defined one.
+    assertEquals(
+      play("(assert (select ((_ map <=) a b) i)) (assert (> (select a i) (select b i))) (check-sat)"),
+      List("unsat")
+    )
+    assertEquals(
+      play("(assert (not (= (select ((_ map f) a b) i) (f (select a i) (select b i))))) (check-sat)"),
+      List("unsat")
+    )
+    assertEquals(play("(assert (< (select ((_ map mx) a b) i) (select a i))) (check-sat)"), List("unsat"))
+    assertEquals(
+      play("(assert (= ((_ map mx) a b) a)) (assert (> (select b i) (select a i))) (check-sat)"),
+      List("unsat")
+    )
+    assertEquals(
+      play("(assert (= ((_ map mx) a b) a)) (assert (= (select b i) (select a i))) (check-sat)"),
+      List("sat")
+    )
+    // Arrays of different element sorts, and bit-vector elements.
+    assertEquals(
+      play(
+        "(declare-fun s () (Array Int Bool)) (assert (select s i)) " +
+          "(assert (not (= (select ((_ map ite) s a b) i) (select a i)))) (check-sat)"
+      ),
+      List("unsat")
+    )
+    assertEquals(
+      play(
+        "(declare-fun v () (Array Int (_ BitVec 8))) (declare-fun w () (Array Int (_ BitVec 8))) " +
+          "(assert (= (select ((_ map bvadd) v w) i) #x00)) (assert (= (select v i) #xff)) (check-sat) " +
+          "(assert (not (= (select w i) #x01))) (check-sat)"
+      ),
+      List("sat", "unsat")
+    )
+  }
+
+  test("the difference of bags, as Inox writes it") {
+    // `max(0, a - b)` at every index: `(d + |d|) div 2` for the difference `d`, the 2 a constant array.
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(
+      "(define-sort B () (Array Int Int)) (declare-fun a () B) (declare-fun b () B) (declare-fun i () Int) " +
+        "(define-fun diff ((x B) (y B)) B (let ((d ((_ map (- (Int Int) Int)) x y))) " +
+        "((_ map (div (Int Int) Int)) ((_ map (+ (Int Int) Int)) d ((_ map (abs (Int) Int)) d)) ((as const B) 2)))) " +
+        script
+    ))
+    assertEquals(
+      play(
+        "(push 1) (assert (< (select (diff a b) i) 0)) (check-sat) (pop 1) " +
+          "(push 1) (assert (>= (select a i) (select b i))) " +
+          "(assert (not (= (select (diff a b) i) (- (select a i) (select b i))))) (check-sat) (pop 1) " +
+          "(assert (= (select a i) 5)) (assert (= (select b i) 2)) (assert (= (select (diff a b) i) 3)) (check-sat) " +
+          "(get-value ((select (diff a b) i) (select (diff b a) i)))"
+      ),
+      List("unsat", "unsat", "sat", "(((select (diff a b) i) 3) ((select (diff b a) i) 0))")
+    )
+    assertEquals(play("(assert (not (= (diff a a) ((as const B) 0)))) (check-sat)"), List("unsat"))
+  }
+
+  test("the Boolean maps of arrays") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(
+      "(define-sort S () (Array Int Bool)) (declare-fun a () S) (declare-fun b () S) (declare-fun c () S) " +
+        "(declare-fun x () Int) (define-fun empty () S ((as const S) false)) " + script + " (check-sat)"
+    ))
+    assertEquals(
+      play("(assert (= c ((_ map or) a b))) (assert (select a x)) (assert (not (select c x)))"),
+      List("unsat")
+    )
+    assertEquals(play("(assert (not (= ((_ map or) a b) ((_ map or) b a))))"), List("unsat"))
+    assertEquals(play("(assert (= ((_ map or) a b) empty)) (assert (not (= a empty)))"), List("unsat"))
+    assertEquals(play("(assert (= ((_ map and) a ((_ map not) a)) c)) (assert (not (= c empty)))"), List("unsat"))
+    assertEquals(
+      play("(assert (= ((_ map implies) a b) ((as const S) true))) (assert (select a x)) (assert (not (select b x)))"),
+      List("unsat")
+    )
+    assertEquals(
+      play(
+        "(assert (= c ((_ map or) a (store empty 3 true)))) (assert (not (select a 3))) (assert (= b ((_ map and) c ((_ map not) a))))"
+      ),
+      List("sat")
+    )
+  }
+
+  test("a constant array or a map over any finite sort is read at its every value once the writes may fill it") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(script))
+    val record = "(declare-datatypes ((R 0)) (((mk (fld (_ BitVec 1)))))) "
+    val colors = "(declare-datatypes ((C 0)) (((r) (g) (b)))) "
+    val f = "(define-fun f () (Array Bool Bool) ((as const (Array Bool Bool)) false)) "
+    def filled(sort: String, indices: List[String]) =
+      indices.foldLeft(s"((as const (Array $sort Int)) 0)")((a, i) => s"(store $a $i 1)")
+    def isOne(sort: String, indices: List[String]) =
+      s"(assert (= ${filled(sort, indices)} ((as const (Array $sort Int)) 1))) (check-sat)"
+    val boolArrays = List("f", "((as const (Array Bool Bool)) true)", "(store f true true)", "(store f false true)")
+    // Writes at every value: satisfiable (cvc5), and were answered `unsat` while these sorts passed for
+    // infinite. A value left: unsatisfiable (cvc5; z3 4.15.1 answers `sat`).
+    assertEquals(play(record + isOne("R", List("(mk #b0)", "(mk #b1)"))), List("sat"))
+    assertEquals(play(record + isOne("R", List("(mk #b0)"))), List("unsat"))
+    assertEquals(play(f + isOne("(Array Bool Bool)", boolArrays)), List("sat"))
+    assertEquals(play(f + isOne("(Array Bool Bool)", boolArrays.take(3))), List("unsat"))
+    assertEquals(play(colors + isOne("C", List("r", "g", "b"))), List("sat"))
+    assertEquals(play(colors + isOne("C", List("r", "g"))), List("unsat"))
+    assertEquals(
+      play(
+        "(declare-datatypes ((U 0)) (((u)))) (assert (= (store ((as const (Array (Array Int U) Int)) 0) ((as const (Array Int U)) u) 1) " +
+          "((as const (Array (Array Int U) Int)) 1))) (check-sat)"
+      ),
+      List("sat")
+    )
+    // Values of several constructors: 1 + 2 + 2 of them
+    val mixed = "(declare-datatypes ((D 0)) (((a) (b (p Bool)) (c (q (_ BitVec 1)))))) "
+    val ds = List("a", "(b true)", "(b false)", "(c #b0)", "(c #b1)")
+    assertEquals(play(mixed + isOne("D", ds)), List("sat"))
+    assertEquals(play(mixed + isOne("D", ds.init)), List("unsat"))
+    // Indices the search may make equal, and a read at another index of the sort
+    assertEquals(
+      play(
+        record + "(declare-const i R) (declare-const j R) " + isOne("R", List("i", "j")) +
+          " (push 1) (assert (= i j)) (check-sat) (pop 1) (assert (distinct i j)) (check-sat)"
+      ),
+      List("sat", "unsat", "sat")
+    )
+    assertEquals(
+      play(
+        colors + "(declare-const a (Array C Int)) (declare-const x C) " +
+          "(assert (= a (store (store (store ((as const (Array C Int)) 0) r 1) g 2) b 3))) (assert (> (select a x) 3)) (check-sat)"
+      ),
+      List("unsat")
+    )
+    // A map
+    assertEquals(
+      play(
+        colors + "(declare-const s (Array C Bool)) (declare-const t (Array C Bool)) " +
+          "(assert (= ((_ map or) s t) ((as const (Array C Bool)) true))) (assert (not (select s r))) (assert (not (select t g))) " +
+          "(check-sat) (assert (not (select s b))) (assert (not (select t b))) (check-sat)"
+      ),
+      List("sat", "unsat")
+    )
+    assertEquals(
+      play(
+        f + "(declare-const a (Array (Array Bool Bool) Int)) " +
+          s"(assert (= a ${filled("(Array Bool Bool)", boolArrays)})) " +
+          "(assert (= ((_ map (+ (Int Int) Int)) a ((as const (Array (Array Bool Bool) Int)) 1)) ((as const (Array (Array Bool Bool) Int)) 2))) (check-sat)"
+      ),
+      List("sat")
+    )
+    // A recursive datatype and an uninterpreted sort have room beyond any writes
+    assertEquals(
+      play(
+        "(declare-datatypes ((L 0)) (((nil) (cons (hd Bool) (tl L))))) " + isOne("L", List("nil", "(cons true nil)"))
+      ),
+      List("unsat")
+    )
+    assertEquals(play("(declare-sort U 0) (declare-const u U) " + isOne("U", List("u"))), List("unsat"))
+  }
+
+  test("a map over a Boolean index is read at both values") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(script))
+    assertEquals(play("(declare-const a (Array Bool Bool)) (assert (= a ((_ map not) a))) (check-sat)"), List("unsat"))
+    assertEquals(
+      play(
+        "(declare-const a (Array Bool Bool)) (declare-const b (Array Bool Bool)) (assert (= b ((_ map not) a))) (assert (select a true)) (assert (select b false)) (check-sat)"
+      ),
+      List("sat")
+    )
+  }
+
+  test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {
+    // Stainless writes an identifier `map` or `const` this way.
+    assertEquals(
+      Session.run(io.bovel.smtlib.Parser.parse(
+        """(declare-fun map!1 () (Array Int Bool)) (declare-fun const!2 () (Array Int Bool))
+          |(assert (= map!1 ((_ map not) const!2))) (assert (= const!2 ((as const (Array Int Bool)) true)))
+          |(assert (select map!1 0)) (check-sat)""".stripMargin
+      )),
+      List("unsat")
+    )
+  }
