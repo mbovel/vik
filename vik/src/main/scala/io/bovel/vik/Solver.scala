@@ -102,7 +102,7 @@ final class Solver(val simplify: Boolean = true):
         val e = encoder
         if e != null && !dirty then e.assert(range, null)
       case _ => ()
-    if name.startsWith("store!") then anyStore = true
+    if Names.isStore(name) then anyStore = true
 
   /** What the sort of a declared constant says of it: a constant of a range of
    *  the integers ([[Sort.IntRange]], what a bit-vector sort is to the solver)
@@ -772,7 +772,7 @@ private final class Encoder(
             if sortOf(a.fun).arrow.isDefined
               && (equatableFuns(a.fun) ||
                 (a.fun match
-                  case Term.App(Term.Const(n), _) => n.startsWith("store!")
+                  case Term.App(Term.Const(n), _) => Names.isStore(n)
                   case _ => false)) =>
           a
       }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
@@ -884,18 +884,13 @@ private final class Encoder(
 
   def functionEqualityCount: Int = functionEqualities.length
 
-  /** A witness index's name, `ext!N`, past the script's symbols: a script
-   *  constant `ext!0` was the witness, and a later declaration of a witness's
-   *  name is refused by [[Solver.declare]].
+  /** A witness index's name, `.witness!N` ([[Names]]): no script symbol is one,
+   *  nor any of the lowering's.
    */
   private var witnesses = 0
   private def witnessName(): String =
-    var name = s"ext!$witnesses"
-    while declarations.contains(name) do
-      witnesses += 1
-      name = s"ext!$witnesses"
     witnesses += 1
-    name
+    Names.witness(witnesses - 1)
 
   def introducedName(name: String): Boolean = introduced.contains(name)
 
@@ -1100,14 +1095,14 @@ private final class Encoder(
             case _ => unranged += term
         case _ => ()
       term match
-        case Term.App(Term.App(Term.Const(n), _), _) if n.startsWith("store!") => anyArrayApplication = true
+        case Term.App(Term.App(Term.Const(n), _), _) if Names.isStore(n) => anyArrayApplication = true
         case _ => ()
       terms += term
       term match
         case a: Term.App =>
           applications.getOrElseUpdate(a.fun, ArrayBuffer.empty) += a
           a match
-            case Term.App(Term.Const(name), List(_, _, _)) if name.startsWith("store!") => storeTerms += a
+            case Term.App(Term.Const(name), List(_, _, _)) if Names.isStore(name) => storeTerms += a
             case _ => ()
         case _ => ()
       classOfNew(term)
@@ -1133,7 +1128,7 @@ private final class Encoder(
    *  iff its formula does. A predicate application only used as an atom needs
    *  neither: its disequality with `true` is enough.
    */
-  /** The array axioms, as lemmas over the finite product of the `store!`
+  /** The array axioms, as lemmas over the finite product of the `.store!`
    *  applications and the index terms of their array sort (`store` symbols come
    *  from the parser, one per array sort): for `s = store(a, i, v)`, the write
    *  is read back — `select(s, i) = v` — and for every index `j` of the sort,
@@ -1154,7 +1149,7 @@ private final class Encoder(
   def litOf(f: Formula): Option[Lit] = lits.get(f)
 
   private def selectTerm(array: Term, index: Term): Term = array match
-    case Term.App(Term.Const(n), _) if n.startsWith("store!") => Term.App(array, List(index))
+    case Term.App(Term.Const(n), _) if Names.isStore(n) => Term.App(array, List(index))
     case _ => Term.App(array, List(index))
 
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
@@ -1720,7 +1715,7 @@ private final class Encoder(
           // its reads.
           val written = classes.keys.collectFirst {
             case s @ Term.App(Term.Const(n), List(base, i, v))
-                if n.startsWith("store!") && classes.get(s).exists(c => eg.find(c) == root)
+                if Names.isStore(n) && classes.get(s).exists(c => eg.find(c) == root)
                   && !arraysBeingValued(eg.find(classOf(base))) =>
               Model.store(arrayValue(classOf(base), sort), valueOfTerm(i, indexSort), valueOfTerm(v, elementSort))
           }
@@ -1765,7 +1760,7 @@ private final class Encoder(
     val functions = Map.newBuilder[String, Model.Function]
     for
       (name, (argSorts, sort)) <- declarations
-      if argSorts.isEmpty && sort.arrow.isDefined && !name.startsWith("store!")
+      if argSorts.isEmpty && sort.arrow.isDefined && !Names.isStore(name)
     do
       // An array the assertions never read or wrote holds a default everywhere: a value all the same,
       // where `(select arr i)` was printed as itself (issue 48).
@@ -1776,7 +1771,7 @@ private final class Encoder(
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
       (name, (argSorts, sort)) <- declarations
-      if argSorts.nonEmpty && sort.arrow.isDefined && !name.startsWith("store!")
+      if argSorts.nonEmpty && sort.arrow.isDefined && !Names.isStore(name)
     do
       val rows = classes.keys.collect {
         case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>

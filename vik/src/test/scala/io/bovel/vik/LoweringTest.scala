@@ -16,9 +16,9 @@ class LoweringTest extends munit.FunSuite:
     val commands = Lowering(Parser.parse(
       "(declare-const p Bool) (declare-const x Int) (declare-const y Int) (assert (= (ite p x y) 2))"
     )).commands
-    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, Sort.Int, _) => true; case _ => false })
+    assert(commands.exists { case Command.DeclareFun(".ite!1", Nil, Sort.Int, _) => true; case _ => false })
     val asserts = commands.collect { case Command.Assert(f) => f }
-    assertEquals(asserts(0), Implies(Pred(Const("p")), IntEq(Const("ite!1"), Const("x"))))
+    assertEquals(asserts(0), Implies(Pred(Const("p")), IntEq(Const(".ite!1"), Const("x"))))
 
   test("the integer normal form: chains, linear combinations"):
     val asserts = lowered("""
@@ -60,7 +60,7 @@ class LoweringTest extends munit.FunSuite:
 
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
-      case Command.DeclareFun(name, _, _, _) => name.startsWith(prefix + "!")
+      case Command.DeclareFun(name, _, _, _) => name.startsWith(s".$prefix!")
       case _ => false
     }
   private val rational = "(assert (>= a 0.5))"
@@ -131,10 +131,10 @@ class LoweringTest extends munit.FunSuite:
     )).commands
     val asserts = commands.collect { case Command.Assert(f) => f }
     assertEquals(asserts(0), IntEq(Const("x"), Const("n"))) // to_real vanishes: sorts carry the difference
-    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, Sort.Int, _) => true; case _ => false })
-    assertEquals(asserts(1), Le(Const("floor!1"), Const("x")))
-    assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const("floor!1"))), 1)))
-    assertEquals(asserts(3), IntEq(Const("floor!1"), Num(2)))
+    assert(commands.exists { case Command.DeclareFun(".floor!1", Nil, Sort.Int, _) => true; case _ => false })
+    assertEquals(asserts(1), Le(Const(".floor!1"), Const("x")))
+    assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const(".floor!1"))), 1)))
+    assertEquals(asserts(3), IntEq(Const(".floor!1"), Num(2)))
 
   test("the casts fold on literals"):
     assertEquals(lowered("(assert (is_int 2.0))"), List(True))
@@ -153,25 +153,45 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, IntEq(Num(44), Num(44)))
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, IntEq(Num(255), Num(255)))
     val asserts = lowered("(declare-const n Int) (assert (= ((_ int_to_bv 8) n) #x2A))")
-    assertEquals(asserts.last, IntEq(Const("bv!1"), Num(42)))
-    assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const("bv!1")), (256, Const("k!2"))), 0))), asserts)
+    assertEquals(asserts.last, IntEq(Const(".bv!1"), Num(42)))
+    assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const(".bv!1")), (256, Const(".k!2"))), 0))), asserts)
 
-  test("a script's symbol named like the lowering's own is refused, not merged (issue 21)"):
-    val e =
-      intercept[Smt2Error](Session.run(Parser.parse("(declare-fun store!1 ((Array Int Int) Int Int) (Array Int Int))")))
-    assert(e.getMessage.contains("store!1"), e.getMessage)
+  test("a script's symbol starting with `.` is refused: SMT-LIB reserves it for the solver (issue 194)"):
+    for script <- List(
+        "(declare-fun .store!1 ((Array Int Int) Int Int) (Array Int Int))",
+        "(declare-const .x Int)",
+        "(define-fun .f () Int 0)",
+        "(declare-datatype P ((.mk (f Int))))",
+        "(declare-datatype P ((mk (.f Int))))"
+      )
+    do
+      val e = intercept[Smt2Error](Session.run(Parser.parse(script)))
+      assert(e.getMessage.contains("reserves"), e.getMessage)
+    // A `let` declares nothing: its name is a script's own, which the lowering substitutes (MathSAT's `.def_5`).
+    assertEquals(
+      Session.run(Parser.parse("(declare-const x Int)(assert (let ((.d (+ x 1))) (= .d 2)))(check-sat)")),
+      List("sat")
+    )
     val f = intercept[Smt2Error](Session.run(Parser.parse(
       "(declare-datatypes ((Lst 1)) ((par (T) ((nil) (cons (hd T) (tl (Lst T)))))))" +
         "(declare-fun nil@Int () (Lst Int))"
     )))
     assert(f.getMessage.contains("nil@Int"), f.getMessage)
 
-  test("the lowering's names pass over the script's own (issue 21)"):
+  test("the lowering's names are not the script's (issues 21, 143 and 158)"):
     // `bit!1` is the script's constant; the bits of `bvand` get other names and its value stays free.
     assertEquals(
       Session.run(Parser.parse(
         "(declare-fun x () (_ BitVec 4))(declare-fun y () (_ BitVec 4))(declare-fun |bit!1| () Int)" +
           "(assert (= |bit!1| 7))(assert (= (bvand x y) #x0))(check-sat)"
+      )),
+      List("sat")
+    )
+    // A script may name its own `store!1`, `q!1` or `ext!0`: none is a symbol of VIK's.
+    assertEquals(
+      Session.run(Parser.parse(
+        "(declare-fun store!1 ((Array Int Int) Int Int) (Array Int Int))(declare-const a (Array Int Int))" +
+          "(assert (= (select (store a 0 1) 0) 1))(assert (= (select (store!1 a 0 2) 0) 2))(check-sat)"
       )),
       List("sat")
     )
@@ -183,12 +203,14 @@ class LoweringTest extends munit.FunSuite:
       "(declare-fun |f g| (|a b|) Int)"
     )
 
-  test("a witness's name declared by the script after the witness is refused (issue 21)"):
-    val e = intercept[Smt2Error](Session.run(Parser.parse(
-      "(declare-const a (Array Int Int))(declare-const b (Array Int Int))(assert (not (= a b)))(check-sat)" +
-        "(declare-const ext!0 Int)(assert (= ext!0 0))(check-sat)"
-    )))
-    assert(e.getMessage.contains("ext!0"), e.getMessage)
+  test("a script's constant named like an old witness is its own (issue 21)"):
+    assertEquals(
+      Session.run(Parser.parse(
+        "(declare-const a (Array Int Int))(declare-const b (Array Int Int))(assert (not (= a b)))(check-sat)" +
+          "(declare-const ext!0 Int)(declare-const witness!0 Int)(assert (= ext!0 0))(assert (= witness!0 1))(check-sat)"
+      )),
+      List("sat", "sat")
+    )
 
   test("a lowered script writes a datatype's names with the bars they need (issue 33)"):
     val lowered = Printer.print(Lowering(Parser.parse(
