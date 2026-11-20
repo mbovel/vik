@@ -1142,6 +1142,9 @@ private final class Lowerer:
           case (command, (k, a, d)) => (command :: k, a, d)
         }
         val pointwise = Pointwise(elements, auxiliaries, value, definitions, resultKey)
+        val locals = elements.collect { case Const(n) => n }.toSet ++ auxiliaries.map(_._1)
+        if (value :: definitions.flatMap(_.terms)).exists(readsAt(_, locals)) then
+          throw s2.Unsupported(s"(_ map $op): an operator that reads or writes an array at an element is not supported")
         (kept, pointwise)
       finally
         pending.clear()
@@ -1157,6 +1160,30 @@ private final class Lowerer:
       }
     )
     Const(name)
+
+  /** Whether `t` reads or writes an array at an index that one of `locals` (the
+   *  elements of a map's operator, its auxiliaries) is in: the map's lemmas
+   *  would make an index of each element, and read every array of its sort
+   *  there, the map among them, whose elements there are indices in turn,
+   *  without end — `c = ((_ map g) a)` with `g(x) = (select c x)` says
+   *  `c[j] = c[a[j]]` at every index `j`. A read or a write at a fixed index,
+   *  of an element that is itself an array as much as of another array, is
+   *  fine, and so is an application of a declared function.
+   */
+  private def readsAt(t: Term, locals: Set[String]): Boolean =
+    def mentions(u: Term) = Term.constants(u).exists(locals)
+    t match
+      case App(Const(n), List(a, i, v)) if Names.isStore(n) =>
+        mentions(i) || readsAt(a, locals) || readsAt(i, locals) || readsAt(v, locals)
+      case App(Const(n), args) if Names.isConstArray(n) || Names.isMap(n) => args.exists(readsAt(_, locals))
+      case App(fun, args) =>
+        val array = fun match
+          case Const(n) => locals(n) || functions.get(n).exists(_.isInstanceOf[s2.Sort.Array])
+          case _ => true // an array that is itself a read or a write
+        (array && args.exists(mentions)) || readsAt(fun, locals) || args.exists(readsAt(_, locals))
+      case Term.Linear(terms, _) => terms.exists((_, u) => readsAt(u, locals))
+      case Term.Bool(formula) => formula.terms.exists(readsAt(_, locals))
+      case _ => false
 
   private val rationalProducts = Memo[(BigInt, BigInt, Term), Term]()
 

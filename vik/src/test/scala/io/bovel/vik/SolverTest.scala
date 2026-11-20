@@ -582,6 +582,24 @@ class SolverTest extends munit.FunSuite:
       ),
       List("sat", "unsat")
     )
+    // A write at a fixed index of an element that is an array.
+    assertEquals(
+      play(
+        """(declare-const f (Array Int (Array Int Int))) (declare-const c (Array Int (Array Int Int)))
+          |(define-fun g ((x (Array Int Int))) (Array Int Int) (store x 0 1))
+          |(assert (= c ((_ map g) f))) (assert (= (select (select c 3) 0) 2)) (check-sat)""".stripMargin
+      ),
+      List("unsat")
+    )
+    // A read at an element is refused: its instances would make indices without end.
+    for operator <- List("g", "(select ((Array Int Int) Int) Int)") do
+      intercept[io.bovel.smtlib.Unsupported](play(
+        s"""(declare-const f (Array Int (Array Int Int))) (declare-const a (Array Int Int))
+           |(declare-const b (Array Int Int)) (declare-const c (Array Int Int))
+           |(define-fun g ((x Int)) Int (select b x))
+           |(assert (= c ${if operator == "g" then "((_ map g) a)" else s"((_ map $operator) f a)"}))
+           |(assert (= (select c 0) 5)) (check-sat)""".stripMargin
+      ))
   }
 
   test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {
