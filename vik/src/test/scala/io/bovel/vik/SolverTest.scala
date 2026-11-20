@@ -573,6 +573,15 @@ class SolverTest extends munit.FunSuite:
       ),
       List("unsat")
     )
+    // Over constant arrays of numerals only, the operator's own constants are constants.
+    assertEquals(
+      play(
+        """(declare-const p Bool) (declare-const c (Array Int Int)) (define-fun g ((x Int)) Int (ite p x 0))
+          |(assert (= c ((_ map g) ((as const (Array Int Int)) 1)))) (assert (= (select c 0) 1)) (check-sat)
+          |(assert (not p)) (check-sat)""".stripMargin
+      ),
+      List("sat", "unsat")
+    )
   }
 
   test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {

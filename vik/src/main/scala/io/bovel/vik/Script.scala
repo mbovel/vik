@@ -101,8 +101,11 @@ final case class Pointwise(
     val formals = params.zip(elements).collect { case (x: Term.Const, e) => x -> e }
     val (bound, actuals) = (formals.toMap[Term, Term], formals.map(_._2))
     val minted = auxiliaries.map(_._1).toSet
+    // With no element left to vary (every array a constant array of a numeral), an auxiliary is a
+    // constant: the same everywhere.
     def substitute(t: Term): Term = t match
-      case c @ Term.Const(name) => bound.getOrElse(c, if minted(name) then auxiliary(c, actuals) else c)
+      case c @ Term.Const(name) =>
+        bound.getOrElse(c, if minted(name) && actuals.nonEmpty then auxiliary(c, actuals) else c)
       case Term.App(fun, args) => Term.App(substitute(fun), args.map(substitute))
       case Term.Num(_) => t
       case Term.Linear(terms, constant) => Term.linear(terms.map((a, u) => (a, substitute(u))), constant)
