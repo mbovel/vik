@@ -352,7 +352,17 @@ final class Solver:
    *  [[check]], a concrete positive δ small enough for every bound exists, and
    *  this is the value at it.
    */
-  def realValue(x: Var): Rational = values(x) + (if anyReal then valuesD(x) else Rational.zero) * delta0()
+  def realValue(x: Var): Rational = realValueAt(x, if anyReal then delta0() else Rational.zero)
+
+  /** Uses one concrete δ for all reads of the current solution. The returned
+   *  evaluator is valid until the solver's state changes.
+   */
+  def realModelValues(): Var => Rational =
+    val delta = if anyReal then delta0() else Rational.zero
+    x => realValueAt(x, delta)
+
+  private def realValueAt(x: Var, delta: Rational): Rational =
+    if anyReal then values(x) + valuesD(x) * delta else values(x)
 
   /** A δ that satisfies every asserted bound strictly enough: for each bound
    *  whose infinitesimal part demands room, the rational gap divided by the
