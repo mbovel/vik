@@ -37,16 +37,18 @@ class OptionsTest extends munit.FunSuite:
     assertEquals(Session(checkModels = true).play(lowered), List("sat", "sat"))
 
   test("check-models: a model that fails its check answers unknown, with the error and the reason"):
-    // Issue 137: the class of `(+ a 1)` gets a value of its own in the model. To replace by another model
-    // that fails, once that is fixed.
+    // Issue 179: the fresh real field of `y` equals the simplex's value of `r`, the field of `x`. To replace
+    // by another model that fails, once that is fixed.
     val script = """
       (set-option :check-models true)
-      (declare-datatype P ((mk (f Int))))
-      (declare-const a Int)
+      (declare-datatype P ((mk (f Real))))
       (declare-const x P)
-      (assert (= x (mk (+ a 1))))
-      (assert (= a 5))
-      (assert ((_ is mk) x))
+      (declare-const y P)
+      (declare-const r Real)
+      (assert (= x (mk r)))
+      (assert (> r 0.5))
+      (assert (< r 1.5))
+      (assert (distinct x y))
       (check-sat)
       (get-info :reason-unknown)
       (get-model)"""
