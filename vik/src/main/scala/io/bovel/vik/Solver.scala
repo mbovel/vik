@@ -1227,6 +1227,11 @@ private final class Encoder(
    *  breaks a model, and the simplex gives most of them the value 0.
    */
   private def neededEquality(): cdclt.Var =
+    // With no integer term, the e-graph's model is the model: two terms are equal in it iff they share a class,
+    // so an atom left undecided takes a value consistent with the clauses the search satisfied, and there is no
+    // integer to collide. Building and checking the model at each sat answer was most of the time on the CLEARSY
+    // incremental files (0018_00081: 120 ms against 28 on main, 24 with this).
+    if !anyInt && intVars.isEmpty then return Theory.nothingNeeded
     val needed =
       if liaSolver.branchedOut then Theory.everythingNeeded
       else
