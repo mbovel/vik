@@ -553,6 +553,26 @@ class SolverTest extends munit.FunSuite:
       ),
       List("unsat")
     )
+    // A macro defined anew after a `pop` is a new operator.
+    assertEquals(
+      play(
+        """(declare-const a (Array Int Int))
+          |(push 1) (define-fun h ((x Int)) Int (+ x 1)) (define-fun g ((x Int)) Int (h x))
+          |(assert (= (select ((_ map g) a) 0) 0)) (pop 1)
+          |(define-fun h ((x Int)) Int (+ x 2)) (define-fun g ((x Int)) Int (h x))
+          |(assert (not (= (select ((_ map g) a) 0) (+ (select a 0) 2)))) (check-sat)""".stripMargin
+      ),
+      List("unsat")
+    )
+    // A bit-vector operation of each width is its own.
+    assertEquals(
+      play(
+        """(declare-const a (Array Int (_ BitVec 8))) (declare-const b (Array Int (_ BitVec 16)))
+          |(assert (= (select ((_ map bvnot) a) 0) #x00)) (assert (= (select b 0) #x0001))
+          |(assert (= (select ((_ map bvnot) b) 0) #x00fe)) (check-sat)""".stripMargin
+      ),
+      List("unsat")
+    )
   }
 
   test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {

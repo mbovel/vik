@@ -1085,13 +1085,15 @@ private final class Lowerer:
   /** The `.array.map!N` function symbol for the map of an operator over arrays,
    *  declared on first use like a [[storeSymbol]], with the [[Pointwise]]
    *  template that says what the map holds at an index: the solver's array
-   *  lemmas instantiate it there. Keyed on the operator as written and what it
-   *  stands for then (a macro's definition, a function's sort), the sorts of
-   *  the arrays, and the numerals of the constant arrays among them, which the
-   *  template has folded in: `div` by `((as const (Array I Int)) 2)` is linear
-   *  that way.
+   *  lemmas instantiate it there. Keyed on the template itself, its names aside
+   *  ([[Pointwise.canonical]]), and on the sorts of the arrays and of the map:
+   *  the operator as it stands where the map is, a macro defined anew after a
+   *  `pop` making another template, and the bit-vector operations of each width
+   *  theirs. The numerals of the constant arrays among the arrays are folded
+   *  into the template: `div` by `((as const (Array I Int)) 2)` is linear that
+   *  way.
    */
-  private val mapSymbols = HashMap.empty[Any, String]
+  private val mapSymbols = HashMap.empty[(Pointwise, List[Sort], Sort), String]
 
   /** The parameters of a map's operator as an environment, for [[sortOf]]. */
   private def elementsEnv(params: List[(String, s2.Sort)]): Env =
@@ -1114,47 +1116,42 @@ private final class Lowerer:
       case App(Const(c), List(v @ Num(_))) if Names.isConstArray(c) => Some(v)
       case _ => None
     }
-    val name = mapSymbols.getOrElseUpdate(
-      (op, macros.get(op), functions.get(op), keys, resultKey, literals), {
-        val f = freshName("array.map")
-        // The operator is lowered on its own, over placeholders for the elements: what that mints
-        // belongs to the template, and nothing of the assertion around the map is to be found in it.
-        val around = pending.toList
+    // The operator is lowered on its own, over placeholders for the elements: what that mints belongs to
+    // the template, and nothing of the assertion around the map is to be found in it.
+    val around = pending.toList
+    pending.clear()
+    clearMemos()
+    val (kept, pointwise) =
+      try
+        val elements = params.zip(literals).map {
+          case (_, Some(v)) => v
+          case ((_, _), None) => Const(freshName("element"))
+        }
+        val inner: Env = params.zip(elements).map { case ((p, sort), x) =>
+          p -> (if sort == s2.Sort.Bool then Value.F(Formula.pred(x)) else Value.T(x, sort))
+        }.toMap
+        val value = term(body, inner)
+        val formals = params.zip(elements).collect { case ((_, sort), Const(_)) => lowered(sort) }
+        // An array operation of the operator's is declared like any other; the rest is the template's.
+        val (kept, auxiliaries, definitions) = pending.toList.foldRight(
+          (List.empty[Command], List.empty[(String, List[Sort], Sort)], List.empty[Formula])
+        ) {
+          case (Command.DeclareFun(n, Nil, sort, _), (k, a, d)) if !Names.isArrayOperation(n) =>
+            (k, (n, formals, sort) :: a, d)
+          case (Command.Assert(definition), (k, a, d)) => (k, a, definition :: d)
+          case (command, (k, a, d)) => (command :: k, a, d)
+        }
+        val pointwise = Pointwise(elements, auxiliaries, value, definitions, resultKey)
+        (kept, pointwise)
+      finally
         pending.clear()
+        pending ++= around
         clearMemos()
-        try
-          val elements = params.zip(literals).map {
-            case (_, Some(v)) => v
-            case ((_, _), None) => Const(freshName("element"))
-          }
-          val inner: Env = params.zip(elements).map { case ((p, sort), x) =>
-            p -> (if sort == s2.Sort.Bool then Value.F(Formula.pred(x)) else Value.T(x, sort))
-          }.toMap
-          val value = term(body, inner)
-          val formals = params.zip(elements).collect { case ((_, sort), Const(_)) => lowered(sort) }
-          // An array operation of the operator's is declared like any other; the rest is the template's.
-          val (kept, auxiliaries, definitions) = pending.toList.foldRight(
-            (List.empty[Command], List.empty[(String, List[Sort], Sort)], List.empty[Formula])
-          ) {
-            case (Command.DeclareFun(n, Nil, sort, _), (k, a, d)) if !Names.isArrayOperation(n) =>
-              (k, (n, formals, sort) :: a, d)
-            case (Command.Assert(definition), (k, a, d)) => (k, a, definition :: d)
-            case (command, (k, a, d)) => (command :: k, a, d)
-          }
-          pending.clear()
-          pending ++= around
-          pending ++= kept
-          pending += Command.DeclareMap(
-            f,
-            Sort.fun(keys, resultKey),
-            Pointwise(elements, auxiliaries, value, definitions, resultKey)
-          )
-        catch
-          case e: Throwable =>
-            pending.clear()
-            pending ++= around
-            throw e
-        finally clearMemos()
+    pending ++= kept
+    val name = mapSymbols.getOrElseUpdate(
+      (pointwise.canonical, keys, resultKey), {
+        val f = freshName("array.map")
+        pending += Command.DeclareMap(f, Sort.fun(keys, resultKey), pointwise)
         functions(f) = s2.Sort.Named(f)
         f
       }

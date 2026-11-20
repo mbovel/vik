@@ -109,4 +109,26 @@ final case class Pointwise(
       case Term.Bool(formula) => Term.boolean(formula.mapTerms(substitute))
     (definitions.map(_.mapTerms(substitute)), substitute(value))
 
+  /** The template with its parameters and auxiliaries renamed by their
+   *  position: the same for two operators that make the same template, whatever
+   *  the names the lowering gave them.
+   */
+  def canonical: Pointwise =
+    val renaming =
+      (params.collect { case Term.Const(name) => name }.zipWithIndex.map((n, i) => n -> s"#$i") ++
+        auxiliaries.map(_._1).zipWithIndex.map((n, j) => n -> s"#a$j")).toMap
+    def rename(t: Term): Term = t match
+      case Term.Const(name) => renaming.get(name).fold(t)(Term.Const(_))
+      case Term.App(fun, args) => Term.App(rename(fun), args.map(rename))
+      case Term.Num(_) => t
+      case Term.Linear(terms, constant) => Term.linear(terms.map((a, u) => (a, rename(u))), constant)
+      case Term.Bool(formula) => Term.boolean(formula.mapTerms(rename))
+    Pointwise(
+      params.map(rename),
+      auxiliaries.map((n, args, result) => (renaming(n), args, result)),
+      rename(value),
+      definitions.map(_.mapTerms(rename)),
+      sort
+    )
+
 final case class Script(commands: List[Command])
