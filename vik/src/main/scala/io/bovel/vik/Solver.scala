@@ -21,11 +21,11 @@ import io.bovel.lia
  *  numeric terms — the ones under uninterpreted functions or compared by
  *  equality: every pair of shared terms that can meet gets its equality as an
  *  atom of both theories, and the SAT solver decides the arrangement (Nelson
- *  and Oppen; see `Encoder.shareIntegers`). With `modelBasedArithmetic` on,
- *  typed first-order integer problems instead add pairs when a candidate model
- *  disagrees. Other inputs use eager pairing.
+ *  and Oppen; see `Encoder.shareIntegers`). Typed first-order integer problems
+ *  add pairs when a candidate model disagrees. Eager pairing handles the other
+ *  inputs.
  */
-final class Solver(val simplify: Boolean = true, val modelBasedArithmetic: Boolean = false):
+final class Solver(val simplify: Boolean = true):
   enum Result:
     case Sat
     case Unsat
@@ -76,7 +76,7 @@ final class Solver(val simplify: Boolean = true, val modelBasedArithmetic: Boole
   private[vik] val declarations = HashMap.empty[String, (List[Sort], Sort)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
   private val auxiliaries = HashSet.empty[String] // the declared constants that only define an operation (see declare)
-  private var tryModelBasedArithmetic = modelBasedArithmetic
+  private var untypedInput = false
 
   /** `auxiliary`: a constant that only defines an operation of the problem (a
    *  bit of the bit-vector lowering). The search decides the bounds on such
@@ -377,7 +377,7 @@ final class Solver(val simplify: Boolean = true, val modelBasedArithmetic: Boole
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val modelBased = tryModelBasedArithmetic && datatypes.isEmpty && !anyStore &&
+      val modelBased = !untypedInput && datatypes.isEmpty && !anyStore &&
         declarations.valuesIterator.forall(Encoder.supportsIntegerSignature)
       val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked(), modelBased)
       encoder = e
@@ -418,7 +418,7 @@ final class Solver(val simplify: Boolean = true, val modelBasedArithmetic: Boole
     if e.modelBasedArithmetic && !e.typedIntegerInput then
       // The programmatic API also accepts terms without declarations. Replay in the eager encoder
       // so the theories see their full atom meanings from the first assignment at level zero.
-      tryModelBasedArithmetic = false
+      untypedInput = true
       dirty = true
       return decide(keepGoing)
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
@@ -1611,7 +1611,7 @@ private final class Encoder(
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    if modelBasedArithmetic then registerSharedIntegers()
+    if modelBasedArithmetic && anyInt then registerSharedIntegers()
     lastModel = null
     val assumed = assumptions.toArray
 
@@ -1630,7 +1630,7 @@ private final class Encoder(
           val candidate = sat.solve(assumed, keepGoing)
           candidate match
             case cdclt.Solver.Result.Sat(_) =>
-              if modelBasedArithmetic then disagreements = arithmeticDisagreements()
+              if sharedIntegers.nonEmpty then disagreements = arithmeticDisagreements()
               if disagreements.isEmpty then
                 wantFields()
                 if produceModels && !fieldsWanted then lastModel = takeModel()

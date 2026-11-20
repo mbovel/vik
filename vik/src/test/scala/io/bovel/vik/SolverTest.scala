@@ -104,7 +104,7 @@ class SolverTest extends munit.FunSuite:
     intercept[IllegalArgumentException](s.pop())
 
   test("model-based arithmetic equates the numeric results of congruent applications"):
-    val s = Session(Solver(simplify = false, modelBasedArithmetic = true))
+    val s = Session(Solver(simplify = false))
     assertEquals(
       s.run("""
         (declare-sort U 0)
@@ -119,7 +119,7 @@ class SolverTest extends munit.FunSuite:
     )
 
   test("model-based arithmetic compares linear arguments and numerals with model output off"):
-    val s = Session(Solver(simplify = false, modelBasedArithmetic = true))
+    val s = Session(Solver(simplify = false))
     assertEquals(
       s.run("""
         (declare-sort U 0)
@@ -134,7 +134,7 @@ class SolverTest extends munit.FunSuite:
     assert(!s.solver.produceModels)
 
   test("model-based arithmetic can choose disequality and keep its definition across checks"):
-    val s = Session(Solver(simplify = false, modelBasedArithmetic = true), checkModels = true)
+    val s = Session(Solver(simplify = false), checkModels = true)
     assertEquals(
       s.run("""
         (declare-sort U 0)
@@ -153,7 +153,7 @@ class SolverTest extends munit.FunSuite:
     )
 
   test("model-based arithmetic encodes explicit equality before it reaches level zero"):
-    val s = Solver(simplify = false, modelBasedArithmetic = true)
+    val s = Solver(simplify = false)
     s.declare("a", Nil, Sort.Int)
     s.declare("b", Nil, Sort.Int)
     s.assert(a === b)
@@ -167,7 +167,7 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve(), s.Result.Sat)
 
   test("model-based arithmetic falls back when an array is introduced between checks"):
-    val s = Session(Solver(simplify = false, modelBasedArithmetic = true))
+    val s = Session(Solver(simplify = false))
     assertEquals(
       s.run("""
         (declare-const x Int)
@@ -184,7 +184,7 @@ class SolverTest extends munit.FunSuite:
     )
 
   test("model-based arithmetic falls back for undeclared terms in the Solver API"):
-    val s = Solver(simplify = false, modelBasedArithmetic = true)
+    val s = Solver(simplify = false)
     assertEquals(s.solve(), s.Result.Sat)
     s.assert(a === b)
     s.assert(a <= Num(0))
