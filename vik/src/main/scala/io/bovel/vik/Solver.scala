@@ -1528,7 +1528,8 @@ private final class Encoder(
   private val preferEqual = HashSet.empty[cdclt.Var]
 
   private val ufTheory = UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses)
-  private val theories = List(ufTheory, LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false)))
+  private val liaTheory = LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false))
+  private val theories = List(ufTheory, liaTheory)
 
   /** Adds the work of the encoding and of the engines to `counts`, in the order
    *  of `Solver.kinds`; the steps of the search and the arithmetic are the
@@ -1565,6 +1566,7 @@ private final class Encoder(
   var produceModels: Boolean = true
 
   private val sharedIntegers = ArrayBuffer.empty[Term]
+  private val integerApplications = ArrayBuffer.empty[Term.App]
   private var registeredTerms = 0
 
   private def registerSharedIntegers(): Unit =
@@ -1576,6 +1578,9 @@ private final class Encoder(
           case Term.Num(_) | Term.Linear(_, _) => () // numerals are values, linear operands already have variables
           case _ => intVar(term)
         sharedIntegers += term
+      term match
+        case app: Term.App if app.args.exists(arg => sortOf(arg) == Sort.Int) => integerApplications += app
+        case _ => ()
       registeredTerms += 1
 
   /** The simplex's value of a registered shared term in its current integer
@@ -1589,29 +1594,63 @@ private final class Encoder(
       }
     case _ => liaSolver.value(intVars(term))
 
-  /** Agreement makes the simplex's values an injective interpretation of the
-   *  integer e-classes. Congruence then makes the observed function tables
-   *  consistent with those values. Compare each term to the first term of its
-   *  class and of its value, giving at most one new pair per term per round.
+  private final case class ArithmeticSplit(left: Term, right: Term, equalFirst: Boolean)
+
+  /** Every integer e-class needs one value. Distinct integer classes can share
+   *  a value as long as the observed function tables are still well-defined.
+   *  Explicit integer disequalities already have arithmetic bounds, so this
+   *  check only needs to find collisions in the tables.
    */
-  private def arithmeticDisagreements(): List[(Term, Term)] =
+  private def arithmeticDisagreements(): List[ArithmeticSplit] =
     val byClass = HashMap.empty[EClassId, (Term, BigInt)]
-    val byValue = HashMap.empty[BigInt, (Term, EClassId)]
-    val disagreements = List.newBuilder[(Term, Term)]
+    val integers = HashMap.empty[Term, BigInt]
+    val disagreements = List.newBuilder[ArithmeticSplit]
     for term <- sharedIntegers do
       step()
       val cls = eg.find(classes(term))
       val value = integerValue(term)
+      integers(term) = value
       val (firstInClass, classValue) = byClass.getOrElseUpdate(cls, (term, value))
-      val (firstWithValue, valueClass) = byValue.getOrElseUpdate(value, (term, cls))
-      if classValue != value then disagreements += ((firstInClass, term))
-      else if valueClass != cls then disagreements += ((firstWithValue, term))
-    disagreements.result()
+      if classValue != value then disagreements += ArithmeticSplit(firstInClass, term, equalFirst = true)
+    val sameClass = disagreements.result()
+    if sameClass.nonEmpty then return sameClass
+
+    // Interpret integers in the simplex, Booleans by their truth values, and
+    // the uninterpreted sorts by their e-classes, as takeModel does.
+    type Value = Either[EClassId, BigInt]
+    val truth = eg.find(trueTerm)
+    val falsity = eg.find(falseTerm)
+    def valueOf(term: Term): Value =
+      integers.get(term) match
+        case Some(value) => Right(value)
+        case None =>
+          val root = eg.find(classes(term))
+          Left(if sortOf(term) == Sort.Bool && root != truth then falsity else root)
+
+    val rows = HashMap.empty[(Term, List[Value]), (Term.App, Value)]
+    val splits = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    for app <- integerApplications if applications(app.fun).size > 1 do
+      step()
+      val key = (app.fun, app.args.map(valueOf))
+      val result = valueOf(app)
+      val (first, expected) = rows.getOrElseUpdate(key, (app, result))
+      if expected != result then
+        // If all arguments had the same e-class, congruence would already
+        // identify the results. Noninteger arguments have matching classes.
+        val (a, b) = first.args.zip(app.args).find { (a, b) =>
+          integers.contains(a) && eg.find(classes(a)) != eg.find(classes(b))
+        }.get
+        if !splits((b, a)) then splits += ((a, b))
+    // Try separating the inputs first: that repairs the candidate collision
+    // without changing the function's current results.
+    splits.iterator.map((a, b) => ArithmeticSplit(a, b, equalFirst = false)).toList
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    if modelBasedArithmetic && anyInt then registerSharedIntegers()
+    if modelBasedArithmetic && anyInt then
+      registerSharedIntegers()
+      liaTheory.guideBoundsFromModel ||= integerApplications.exists(app => applications(app.fun).size > 1)
     lastModel = null
     val assumed = assumptions.toArray
 
@@ -1624,7 +1663,7 @@ private final class Encoder(
       while clauseCursor < clauses.length do
         sat.addClause(clauses(clauseCursor))
         clauseCursor += 1
-      var disagreements = List.empty[(Term, Term)]
+      var disagreements = List.empty[ArithmeticSplit]
       val result =
         try
           val candidate = sat.solve(assumed, keepGoing)
@@ -1641,12 +1680,12 @@ private final class Encoder(
       else if !keepGoing() then cdclt.Solver.Result.Unknown
       else
         // Add definitions between searches. Each atom has both meanings before
-        // SAT assigns it, and equality is only the preferred decision phase.
-        for (a, b) <- disagreements do
+        // SAT assigns it. The decision phase leaves both polarities open.
+        for ArithmeticSplit(a, b, equalFirst) <- disagreements do
           val next = atoms.length
           val eq = lit(Formula.Eq(a, b))
           require(eq.variable == next, s"candidate disagrees on an encoded equality: $a = $b")
-          preferEqual += eq.variable
+          if equalFirst then preferEqual += eq.variable
         search()
 
     search()

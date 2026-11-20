@@ -133,6 +133,28 @@ class SolverTest extends munit.FunSuite:
     )
     assert(!s.solver.produceModels)
 
+  test("model-based arithmetic checks nested calls with mixed Boolean and integer arguments"):
+    val s = Session(Solver(simplify = false), checkModels = true)
+    assertEquals(
+      s.run("""
+        (declare-const x Int) (declare-const y Int)
+        (declare-fun f (Int) Int)
+        (declare-fun p (Bool Int) Bool)
+        (assert (distinct x y))
+        (assert (= (f x) 7))
+        (assert (= (f y) 7))
+        (assert (p true (f x)))
+        (assert (not (p false (f y))))
+        (check-sat)
+        (push 1)
+        (assert (not (p true (f y))))
+        (check-sat)
+        (pop 1)
+        (check-sat)
+      """),
+      List("sat", "unsat", "sat")
+    )
+
   test("model-based arithmetic can choose disequality and keep its definition across checks"):
     val s = Session(Solver(simplify = false), checkModels = true)
     assertEquals(
