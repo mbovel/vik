@@ -942,6 +942,34 @@ private final class Encoder(
             assert(Formula.And(List(Formula.Le(Term.Num(lower), t), Formula.Le(t, Term.Num(upper)))), null)
           case _ => ()
 
+  /** How many values `sort` has, counted up to `cap`: `cap + 1` stands for
+   *  more, infinitely many included.
+   */
+  private def valuesUpTo(sort: Sort, cap: BigInt): BigInt =
+    val more = cap + 1
+    def go(s: Sort, seen: Set[Sort]): BigInt = s match
+      case Sort.Bool => BigInt(2).min(more)
+      case Sort.IntRange(lower, upper) => (upper - lower + 1).min(more)
+      case Sort.Fun(args, result) =>
+        val r = go(result, seen)
+        if r <= 1 then r
+        else
+          val n = args.foldLeft(BigInt(1))((a, arg) => (a * go(arg, seen)).min(more))
+          var values = BigInt(1)
+          var i = BigInt(0)
+          while i < n && values <= cap do
+            values *= r
+            i += 1
+          values.min(more)
+      case _ =>
+        datatypeOf(s) match
+          case Some(datatype) if !seen(s) =>
+            datatype.constructors.foldLeft(BigInt(0)) { (sum, c) =>
+              (sum + c.selectors.foldLeft(BigInt(1))((a, f) => (a * go(f._2, seen + s)).min(more))).min(more)
+            }
+          case _ => more
+    go(sort, Set.empty)
+
   private val anyFiniteField =
     datatypes.exists(_.constructors.exists(_.selectors.exists((_, s) =>
       cardinality(s) != Encoder.Cardinality.Infinite
@@ -961,6 +989,13 @@ private final class Encoder(
    *  for one of its terms. It needs none when one of its terms is that
    *  constructor's application, whose arguments are the fields, or already has
    *  them all.
+   *
+   *  Nor the fields of a sort with more values than the encoder has terms: the
+   *  classes cannot use them all, and the model gives such a field a value no
+   *  class has. A field of 32 bits needs no term. Made a term, it was paired
+   *  with every other field of its constructor ([[shareIntegers]]), and the
+   *  equality atoms of the pairs made the e-graph's propagation walk long lists
+   *  at every merge: `invalid-BraunTree__4` took 30% longer for it.
    */
   private def wantFields(): Unit =
     wantedFields.clear()
@@ -984,6 +1019,7 @@ private final class Encoder(
                 for
                   (selector, sort) <- c.selectors
                   if cardinality(sort) != Encoder.Cardinality.Infinite
+                  if valuesUpTo(sort, terms.length) <= terms.length // a sort that can run out of values
                   field = Term.App(Term.Const(selector), List(t))
                   // A Boolean field is known once it is one of the Booleans the search decides.
                   if !classes.get(field).exists(cls => sort != Sort.Bool || booleanClasses(cls))
@@ -1468,6 +1504,19 @@ private final class Encoder(
           nextFresh - 1
         }
       )
+    // A value of a range of the integers that no class has, for a field the encoder has no term for, of a
+    // sort with more values than terms (see wantFields). Counted past every known value, as `freshInt` does,
+    // it could leave the range: a field of 8 bits was 256 when another one held 255.
+    val taken = HashSet.from(classValues.values)
+    val nextIn = HashMap.empty[(BigInt, BigInt), BigInt]
+    def freshIn(lower: BigInt, upper: BigInt): Option[BigInt] =
+      var v = nextIn.getOrElse((lower, upper), lower)
+      while v <= upper && taken(v) do v += 1
+      Option.when(v <= upper) {
+        taken += v
+        nextIn((lower, upper)) = v + 1
+        v
+      }
     def freshReal(root: EClassId): lia.Rational =
       realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
     def asRational(value: Term): lia.Rational = value match
@@ -1524,6 +1573,7 @@ private final class Encoder(
     // one before.
     def freshOf(sort: Sort, seen: Set[Sort]): Option[Term] = sort match
       case Sort.Int => Some(Term.Num(freshInt(eg.newClass())))
+      case Sort.IntRange(lower, upper) => freshIn(lower, upper).map(Term.Num(_))
       case Sort.Real => Some(Model.rationalTerm(freshReal(eg.newClass())))
       case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort, Set.empty)))
       case _ =>
@@ -1564,9 +1614,12 @@ private final class Encoder(
                 selectorOf(root, selector) match
                   case Some(field) => valueOfClass(field, s, seen + root)
                   case None if free.exists(_._1 == i) => free.get._2
-                  case None if s == Sort.Int => Term.Num(freshInt(eg.newClass()))
-                  case None if s == Sort.Real => Model.rationalTerm(freshReal(eg.newClass()))
-                  case None => defaultOf(s, Set.empty)
+                  case None =>
+                    s match
+                      case Sort.Int => Term.Num(freshInt(eg.newClass()))
+                      case Sort.Real => Model.rationalTerm(freshReal(eg.newClass()))
+                      case Sort.IntRange(lower, upper) => Term.Num(freshIn(lower, upper).getOrElse(lower))
+                      case _ => defaultOf(s, Set.empty)
               }
             )
           val value = valueWith(c, None)
@@ -1610,7 +1663,9 @@ private final class Encoder(
                 )
         case None =>
           sort match
-            case Sort.Int | Sort.IntRange(_, _) => Term.Num(freshInt(eg.find(cls)))
+            case Sort.Int => Term.Num(freshInt(eg.find(cls)))
+            case Sort.IntRange(lower, upper) =>
+              Term.Num(classValues.getOrElseUpdate(eg.find(cls), freshIn(lower, upper).getOrElse(lower)))
             case Sort.Real => Model.rationalTerm(freshReal(eg.find(cls)))
             case Sort.Bool => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
