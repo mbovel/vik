@@ -190,11 +190,12 @@ final class Solver(val simplify: Boolean = true):
    *  [[Model]]).
    */
   def model(): Option[Model] =
-    Option(encoder).flatMap(e => Option(e.lastModel)).map { m =>
-      // The constants the simplification defined away get their definitions' values: the
-      // definitions mention only constants the model already has.
-      m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
-    }
+    Option(encoder).flatMap(e => Option(e.lastModel)).map(complete)
+
+  // The constants the simplification defined away get their definitions' values: the
+  // definitions mention only constants the model already has.
+  private def complete(m: Model): Model =
+    m.copy(constants = m.constants ++ eliminated.map((name, d) => name -> m.value(d)))
 
   /** The named assertions among the causes of the last [[solve]]'s `Unsat`:
    *  re-asserting just these (with the unnamed assertions) stays `Unsat`. Empty
@@ -339,6 +340,13 @@ final class Solver(val simplify: Boolean = true):
           for formula <- level do e.assert(formula, selector)
     val e = encoder.nn
     e.produceModels = produceModels || checkModels
+    e.modelHolds = m =>
+      val full = complete(m)
+      // A formula the model cannot evaluate does not hold (see `modelFailure`): the search decides everything.
+      def holds(f: Formula) =
+        try full.holds(f)
+        catch case _: Exception => false
+      levels.forall(_.forall(holds)) && named.forall(_.forall((_, formula) => holds(formula)))
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
@@ -679,7 +687,7 @@ private final class Encoder(
         // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
         val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
         val above = bound(x, c, false)
-        clauses += Array(e, below, above.neg)
+        define(e, Array(e, below, above.neg))
         // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
         // here, the search does not have to reach the theory to find that out.
         if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
@@ -849,6 +857,15 @@ private final class Encoder(
   clauses += Array(trueLit)
   eg.disequate(trueTerm, falseTerm, trueLit.index)
 
+  /** The clauses that only say what a variable means (see
+   *  `cdclt.Solver.relevantOnly`), by position in `clauses`.
+   */
+  private val definedBy = HashMap.empty[Int, cdclt.Var]
+
+  private def define(v: Lit, clause: Array[Lit]): Unit =
+    definedBy(clauses.length) = v.variable
+    clauses += clause
+
   private def freshVar(): Lit =
     atoms += null
     liaAtoms += null
@@ -872,6 +889,7 @@ private final class Encoder(
   private var anyInt = false
   private var anyArray = false
   private var anyFunctionEquality = false
+  private var anyApplication = false
 
   def classOf(term: Term): EClassId = classes.getOrElseUpdate(
     term, {
@@ -890,6 +908,7 @@ private final class Encoder(
     term match
       case Term.Const(_) => eg.newClass()
       case Term.App(fun, args) =>
+        anyApplication = true
         args.foreach(boolean)
         // Looked at until the first one: once set, the flag stays.
         if !anyArray && (isFun(term) || args.exists(isFun)) then anyArray = true
@@ -1047,8 +1066,8 @@ private final class Encoder(
         term match
           case Term.Bool(inner) => // `t = true` iff the formula holds
             val l = lit(inner)
-            clauses += Array(e.neg, l)
-            clauses += Array(l.neg, e)
+            define(e, Array(e.neg, l))
+            define(e, Array(l.neg, e))
           case _ => ()
         e
       case Le(lhs, rhs) => comparison(lhs, rhs, strict = false)
@@ -1057,30 +1076,30 @@ private final class Encoder(
       case And(args) =>
         val v = freshVar()
         val as = args.map(lit)
-        for a <- as do clauses += Array(v.neg, a)
-        clauses += (v +: as.map(_.neg)).toArray
+        for a <- as do define(v, Array(v.neg, a))
+        define(v, (v +: as.map(_.neg)).toArray)
         v
       case Or(args) =>
         val v = freshVar()
         val as = args.map(lit)
-        for a <- as do clauses += Array(v, a.neg)
-        clauses += (v.neg +: as).toArray
+        for a <- as do define(v, Array(v, a.neg))
+        define(v, (v.neg +: as).toArray)
         v
       case Iff(lhs, rhs) =>
         val v = freshVar()
         val (a, b) = (lit(lhs), lit(rhs))
-        clauses += Array(v.neg, a.neg, b)
-        clauses += Array(v.neg, a, b.neg)
-        clauses += Array(v, a, b)
-        clauses += Array(v, a.neg, b.neg)
+        define(v, Array(v.neg, a.neg, b))
+        define(v, Array(v.neg, a, b.neg))
+        define(v, Array(v, a, b))
+        define(v, Array(v, a.neg, b.neg))
         v
       case Ite(cond, thn, els) =>
         val v = freshVar()
         val (c, t, e) = (lit(cond), lit(thn), lit(els))
-        clauses += Array(v.neg, c.neg, t)
-        clauses += Array(v.neg, c, e)
-        clauses += Array(v, c.neg, t.neg)
-        clauses += Array(v, c, e.neg)
+        define(v, Array(v.neg, c.neg, t))
+        define(v, Array(v.neg, c, e))
+        define(v, Array(v, c.neg, t.neg))
+        define(v, Array(v, c, e.neg))
         v
 
   /** The assertions that are equality atoms: facts, which need no witness of
@@ -1159,7 +1178,8 @@ private final class Encoder(
       theories,
       v => if atoms(v) != null then theories.head else theories.last,
       v => atoms(v) != null && liaAtoms(v) != null, // only a shared equality needs its implier remembered
-      () => anySharedAtom
+      () => anySharedAtom,
+      () => neededEquality()
     )
   )
   private var clauseCursor = 0
@@ -1169,14 +1189,25 @@ private final class Encoder(
    */
   var lastModel: Model | Null = null
   var produceModels: Boolean = true
+  var modelHolds: Model => Boolean = _ => true
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
-    while clauseCursor < clauses.length do
-      sat.addClause(clauses(clauseCursor))
-      clauseCursor += 1
+    def addNew(): Unit =
+      while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
+      while clauseCursor < clauses.length do
+        sat.addClause(clauses(clauseCursor), definedBy.getOrElse(clauseCursor, -1))
+        clauseCursor += 1
+      while booleansRequired < booleans.length do
+        sat.require(lit(Formula.Pred(booleans(booleansRequired))).variable)
+        booleansRequired += 1
+    addNew()
+    // What relevancy saves is the atoms of function bodies behind a false guard: with no application, every atom
+    // is in a clause to satisfy, and only the order of the decisions changes, for the worse on the bit-vector
+    // lowerings (`spear__samba`, 2.5 s against over 30 s).
+    sat.relevantOnly = anyApplication && !anyFunctionEquality && !anyStore() && !liaSolver.hasReals
+    liaSolver.branchBudget = if sat.relevantOnly then branchesWhileRelevant else Int.MaxValue
     lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
     result match
@@ -1185,6 +1216,72 @@ private final class Encoder(
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
 
+  private var booleansRequired = 0
+  private val branchesWhileRelevant = 100
+
+  /** A pair of applications of one function that a model would have to give the
+   *  same arguments and different values, when the search did not decide all it
+   *  could: the equality of integer arguments to decide then, which either
+   *  merges the applications or takes the arguments apart. Two integers that
+   *  meet nowhere else may have the same value and different classes: only this
+   *  breaks a model, and the simplex gives most of them the value 0.
+   */
+  private def neededEquality(): cdclt.Var =
+    val needed =
+      if liaSolver.branchedOut then Theory.everythingNeeded
+      else
+        val pair = unsettledPair()
+        // `unsettledPair` looks at integer arguments only, and an atom left undecided leaves the values free: a
+        // datatype holding two integers of one value makes one row of two (`LawTypeArgsElim`). The model says so,
+        // and the search goes on from where it is, deciding everything.
+        if pair == Theory.nothingNeeded && !modelHolds(takeModel()) then Theory.everythingNeeded else pair
+    // A check that gave up on its branches answers nothing: with every atom to decide, it branches to the end.
+    if needed == Theory.everythingNeeded then liaSolver.branchBudget = Int.MaxValue
+    needed
+
+  private def unsettledPair(): cdclt.Var =
+    def key(t: Term): Any = if isInt(t) then simplexValue(t).getOrElse(eg.find(classOf(t))) else eg.find(classOf(t))
+    val rows = HashMap.empty[(EClassId, List[Any]), Term.App]
+    var needed = Theory.nothingNeeded
+    // Two integers of one class and two values: congruence met them, and the atom that tells the simplex is open.
+    val valued = HashMap.empty[EClassId, (Term, BigInt)]
+    val integers = classes.keysIterator.filter(isInt)
+    while needed == Theory.nothingNeeded && integers.hasNext do
+      val t = integers.next()
+      simplexValue(t).foreach { v =>
+        val root = eg.find(classes(t))
+        valued.get(root) match
+          case None => valued(root) = (t, v)
+          case Some((u, w)) =>
+            if v != w then
+              lits.get(Formula.Eq(t, u)).orElse(lits.get(Formula.Eq(u, t))) match
+                case Some(e) if sat.isUnassigned(e) => needed = e.variable
+                case _ => ()
+      }
+    val applications = classes.keysIterator.collect { case a: Term.App if a.args.exists(isInt) => a }
+    while needed == Theory.nothingNeeded && applications.hasNext do
+      val a = applications.next()
+      val row = (eg.find(classOf(a.fun)), a.args.map(key))
+      rows.get(row) match
+        case None => rows(row) = a
+        case Some(b) =>
+          if key(a) != key(b) then
+            a.args.zip(b.args).find((x, y) => eg.find(classOf(x)) != eg.find(classOf(y))) match
+              case Some((x, y)) =>
+                lits.get(Formula.Eq(x, y)).orElse(lits.get(Formula.Eq(y, x))) match
+                  case Some(e) if sat.isUnassigned(e) => needed = e.variable
+                  case _ => needed = Theory.everythingNeeded
+              case None => needed = Theory.everythingNeeded
+    needed
+
+  private def simplexValue(t: Term): Option[BigInt] = t match
+    case Term.Num(v) => Some(v)
+    case Term.Linear(terms, c) =>
+      terms.foldLeft(Option(c))((sum, term) =>
+        for s <- sum; v <- simplexValue(term._2) yield s + term._1 * v
+      )
+    case _ => intVars.get(t).map(liaSolver.value)
+
   /** Builds the [[Model]] from the live engines: the value of every declared
    *  constant, and the graph of every declared first-order function from the
    *  applications the problem mentions. Uninterpreted sorts get an abstract
@@ -1192,6 +1289,7 @@ private final class Encoder(
    */
   private def takeModel(): Model =
     val elements = HashMap.empty[(String, EClassId), Term] // sort and class to element
+    val elementCounts = HashMap.empty[String, Int] // the elements of each sort so far, which name the next one
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
     for (t, x) <- intVars do
@@ -1204,11 +1302,20 @@ private final class Encoder(
     for case (n @ Term.Num(v), c) <- classes do
       classValues(eg.find(c)) = v
       realClassValues(eg.find(c)) = lia.Rational(v)
+    // A sum too, which a constructor's field can be: its class has no variable either.
+    for case (t: Term.Linear, c) <- classes if !liaSolver.hasReals do
+      simplexValue(t).foreach(classValues(eg.find(c)) = _)
     def elementOf(sort: String, cls: EClassId): Term =
       val root = eg.find(cls)
       // The name is bare, `@a b!0` for the sort `|a b|`: the printer adds the bars a name needs.
       val bare = sort.stripPrefix("|").stripSuffix("|")
-      elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
+      elements.getOrElseUpdate(
+        (sort, root), {
+          val n = elementCounts.getOrElse(sort, 0)
+          elementCounts(sort) = n + 1
+          Term.Const(s"@$bare!$n")
+        }
+      )
     // A number the simplex never saw — a constructor's field invented by a tester's expansion, say — is
     // free of arithmetic but not of the e-graph's disequalities: its class gets a value of its own, past
     // every value known, and not the 0 that `(not (= x (mk 0)))` forbids (issue 26).
@@ -1222,6 +1329,8 @@ private final class Encoder(
       )
     def freshReal(root: EClassId): lia.Rational =
       realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
+    // A bit-vector index of an array keeps its sort's text (see `Lowering.indexString`): an integer all the same.
+    def integral(sort: String): Boolean = sort == "Int" || sort.startsWith("(_ BitVec")
     def asRational(value: Term): lia.Rational = value match
       case Term.Num(v) => lia.Rational(v)
       case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
@@ -1362,7 +1471,7 @@ private final class Encoder(
                 )
         case None =>
           sort match
-            case "Int" => Term.Num(freshInt(eg.find(cls)))
+            case s if integral(s) => Term.Num(freshInt(eg.find(cls)))
             case "Real" => Model.rationalTerm(freshReal(eg.find(cls)))
             case "Bool" => Term.boolean(if eg.find(cls) == eg.find(trueTerm) then Formula.True else Formula.False)
             // An array, as a constructor's field: its value as an array, where an abstract element was
@@ -1380,7 +1489,7 @@ private final class Encoder(
         case (_, s) if Sorts.arrow(s).isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
           else Model.constArray(Sorts.array(s), valueOfTerm(Term.Const("@default"), Sorts.applied(s, 1)))
-        case (_, "Int") =>
+        case (_, s) if integral(s) =>
           intVars.get(t).map(x => Term.Num(liaSolver.value(x)))
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
@@ -1475,24 +1584,27 @@ private final class Encoder(
         if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
         else Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       )
+    // The applications of each function, in the order of `classes`: one pass over it, not one per function.
+    val applications =
+      classes.keys.toList.collect { case a @ Term.App(Term.Const(n), _) => n -> a }.groupMap(_._1)(_._2)
+    // The rows of a function's graph, one per value of its arguments and result (a set, as `classes.keys` makes).
+    def rowsOf(name: String, arity: Int)(row: Term.App => (List[Term], Term)): List[(List[Term], Term)] =
+      val apps = applications.getOrElse(name, Nil).iterator.filter(_.args.length == arity)
+      classes.keys.iterableFactory.from(apps.map(row)).toList
     // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
     for
       (name, (argSorts, sort)) <- declarations
       if argSorts.nonEmpty && Sorts.arrow(sort).isDefined && !name.startsWith("store!")
     do
-      val rows = classes.keys.collect {
-        case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-          (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
-      }.toList
+      val rows =
+        rowsOf(name, argSorts.length)(a => (a.args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort)))
       val default = Model.constArray(Sorts.array(sort), valueOfTerm(Term.Const("@default"), Sorts.applied(sort, 1)))
       functions += name -> Model.Function(argSorts, Sorts.array(sort), rows, default)
     for (name, (argSorts, sort)) <- declarations if !sort.startsWith("(->") do
       if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
       else
-        val rows = classes.keys.collect {
-          case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-            (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
-        }.toList
+        val rows =
+          rowsOf(name, argSorts.length)(a => (a.args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort)))
         val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
         functions += name -> Model.Function(argSorts, sort, rows, default)
     Model(constants.result(), functions.result(), datatypes)
@@ -1505,7 +1617,8 @@ private final class Theories(
     theories: List[Theory],
     owner: cdclt.Var => Theory,
     shared: cdclt.Var => Boolean,
-    anyShared: () => Boolean
+    anyShared: () => Boolean,
+    needed: () => cdclt.Var
 ) extends Theory:
   /** The theory that implied a literal: the atom of a shared equality belongs
    *  to both, and only the one that implied it can explain it. Only shared
@@ -1518,6 +1631,7 @@ private final class Theories(
   override def finalCheck(): Theory.Result = combine(_.finalCheck())
   def explain(lit: Lit): ArrayBuffer[Lit] = implier.getOrElse(lit.variable, owner(lit.variable)).explain(lit)
   override def phase(v: cdclt.Var): Option[Boolean] = owner(v).phase(v)
+  override def neededDecision(): cdclt.Var = needed()
   def push(): Unit = theories.foreach(_.push())
   def pop(): Unit = theories.foreach(_.pop())
 

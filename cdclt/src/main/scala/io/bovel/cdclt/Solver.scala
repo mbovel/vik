@@ -185,6 +185,8 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
 
   def decisionLevel: Int = trailLim.length
 
+  def isUnassigned(l: Lit): Boolean = value(l.index) == 0
+
   /** Unwinds the search to level 0, the theories included: called between
    *  solves, so that what is added next lands in the persistent state, never on
    *  the trail.
@@ -194,7 +196,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** Adds a clause; only before the search. */
   def addClause(lits: Lit*): Unit = addClause(lits.toArray)
 
-  def addClause(lits: Array[Lit]): Unit =
+  def addClause(lits: Array[Lit]): Unit = addClause(lits, -1)
+
+  /** Adds a clause; with `definedBy` a variable, one of its definition: see
+   *  [[relevantOnly]].
+   */
+  def addClause(lits: Array[Lit], definedBy: Var): Unit =
     backtrack(0) // a clause added between two solves leaves the previous model
     val c = lits.distinct
     if c.exists(l => c.contains(l.neg)) then return // a tautology
@@ -214,6 +221,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       i += 1
     val index = clauses.length
     clauses += c
+    if definedBy < 0 then roots += index
+    else
+      while definitions.length <= definedBy do definitions += null
+      if definitions(definedBy) == null then definitions(definedBy) = ArrayBuffer.empty
+      definitions(definedBy).nn += index
     if alive == 1 && value(c(0).index) == 0 then enqueue(c(0), index)
     if c.length >= 2 then
       watches(c(0).index) += index
@@ -351,6 +363,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   private def backtrack(to: Int): Unit =
     while decisionLevel > to do
       val start = trailLim.remove(trailLim.length - 1)
+      val mark = walkMarks.length - 4
+      firstDone = walkMarks(mark)
+      trailDone = walkMarks(mark + 1)
+      definitionsDone = walkMarks(mark + 2)
+      requiredDone = walkMarks(mark + 3)
+      walkMarks.takeInPlace(mark)
       while trail.length > start do
         val lit = trail.remove(trail.length - 1)
         value(lit.index) = 0
@@ -377,18 +395,155 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     vmtfStamp(v) = vmtfTime
     if value(Lit(v).index) == 0 then vmtfSearch = v
 
-  /** The first unassigned variable of the move-to-front list, `-1` if none. */
-  private def nextDecision(): Var =
-    while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)
-    vmtfSearch
+  /** Whether a `Sat` may leave variables unassigned: the search stops when the
+   *  clauses that are not definitions, the definitions of the variables
+   *  assigned and the [[require]]d variables are satisfied. Whatever is left is
+   *  then extended by the theories' model: an atom takes its value there, and a
+   *  variable its definition's. Each decision that nothing needs costs a round
+   *  of the theories, and most of the atoms of an unrolling are behind a guard
+   *  that is false. `theory.neededDecision` says what the theories' model
+   *  cannot do without.
+   */
+  var relevantOnly = false
 
-  private def decide(v: Var): Unit =
-    decisions += 1
+  private val roots = ArrayBuffer.empty[Int]
+  private val definitions = ArrayBuffer.empty[ArrayBuffer[Int] | Null]
+  private val required = ArrayBuffer.empty[Var]
+
+  /** Has `v` decided even if nothing needs it: see [[relevantOnly]]. */
+  def require(v: Var): Unit = required += v
+
+  /** The clauses the walk starts with: the roots, then the definitions of the
+   *  variables true or false before any decision, in the order the variables
+   *  were made, which is the order the formula was written in. Those are roots
+   *  as well, and the trail has them in the order of propagation instead, which
+   *  turns a conjunction of nested `and`s around (`hash_sat_10_20` went from
+   *  timing out to 0.2 s). Collected at the first decision of each [[solve]].
+   */
+  private val firstClauses = ArrayBuffer.empty[Int]
+  private var firstCollected = false
+
+  private def collectFirst(): Unit =
+    firstClauses ++= roots
+    val end = if trailLim.isEmpty then trail.length else trailLim(0)
+    val defined = (0 until end).map(i => trail(i).variable).filter(u =>
+      u < definitions.length && definitions(u) != null
+    )
+    for u <- defined.sorted do firstClauses ++= definitions(u).nn
+    firstCollected = true
+
+  /** How far the clauses to satisfy have been walked and found satisfied:
+   *  [[firstClauses]], the trail with the definitions of the current literal,
+   *  the required variables. All that stays true deeper in the search, so each
+   *  level takes over from the one before, and these are put back to their
+   *  value at the decision on backtracking.
+   */
+  private var firstDone = 0
+  private var trailDone = 0
+  private var definitionsDone = 0
+  private var requiredDone = 0
+  private val walkMarks = ArrayBuffer.empty[Int]
+
+  private def openLevel(): Unit =
     trailLim += trail.length
+    walkMarks += firstDone += trailDone += definitionsDone += requiredDone
     theory.push()
-    val value = if seen(v) then phase(v) else theory.phase(v).getOrElse(phase(v))
-    seen(v) = true
-    enqueue(Lit(v, value), Decision)
+
+  private val noLit: Lit = Lit.fromIndex(-1)
+
+  /** The unassigned literal of the clause whose variable was most recently in a
+   *  conflict, other than one of `except`, if the clause is not satisfied,
+   *  otherwise [[noLit]].
+   */
+  private def unsatisfiedIn(clause: Array[Lit], except: Var = -1): Lit =
+    var best = noLit
+    var i = 0
+    while i < clause.length do
+      val l = clause(i)
+      val x = value(l.index)
+      if x > 0 then return noLit
+      if x == 0 && l.variable != except && (best.index < 0 || vmtfStamp(l.variable) > vmtfStamp(best.variable)) then
+        best = l
+      i += 1
+    best
+
+  /** The literal to decide for `l`, a literal that would satisfy a clause: when
+   *  its variable is a definition variable, taken down through its definition.
+   *  Rather than the variable of a disjunction, the operand that makes it true
+   *  (or false for a conjunction), the way a justification walk goes down a
+   *  formula. The variable then follows by propagation, and nested connectives
+   *  cost no decision of their own: a disjunction of ten written as nine binary
+   *  ones (`hash_sat`) was a chain of decisions before. The operand is decided
+   *  the way the definition wants it, whatever its saved phase: with that
+   *  phase, half the decisions satisfied nothing (measured 3× slower on
+   *  `hash_sat`). A literal not taken down gets the phase of its variable (see
+   *  [[withPhase]]).
+   */
+  private def descend(l: Lit): Lit =
+    var at = l
+    var going = true
+    while going do
+      going = false
+      val u = at.variable
+      val own = if u < definitions.length then definitions(u) else null
+      if own != null then
+        val need = at.neg
+        var k = 0
+        while k < own.length && !going do
+          val clause = clauses(own(k))
+          if clause.contains(need) then
+            val operand = unsatisfiedIn(clause, except = u)
+            if operand.index >= 0 then
+              at = operand
+              going = true
+          k += 1
+    if at == l then withPhase(l) else at
+
+  /** `l`'s variable, with the value it had last, or else the one its theory
+   *  prefers, or else `l`'s.
+   */
+  private def withPhase(l: Lit): Lit =
+    val v = l.variable
+    if seen(v) then Lit(v, phase(v)) else Lit(v, theory.phase(v).getOrElse(l.positive))
+
+  private def nextRelevant(): Lit =
+    if !firstCollected then collectFirst()
+    while firstDone < firstClauses.length do
+      val l = unsatisfiedIn(clauses(firstClauses(firstDone)))
+      if l.index >= 0 then return descend(l)
+      firstDone += 1
+    while trailDone < trail.length do
+      val u = trail(trailDone).variable
+      val own = if u < definitions.length then definitions(u) else null
+      if own != null then
+        while definitionsDone < own.length do
+          val l = unsatisfiedIn(clauses(own(definitionsDone)))
+          if l.index >= 0 then return descend(l)
+          definitionsDone += 1
+      definitionsDone = 0
+      trailDone += 1
+    while requiredDone < required.length do
+      val v = required(requiredDone)
+      if value(Lit(v).index) == 0 then return withPhase(Lit(v, phase(v)))
+      requiredDone += 1
+    noLit
+
+  /** The literal to decide next, [[noLit]] if none: the first unassigned
+   *  variable of the move-to-front list; or when only what is relevant is
+   *  decided, one that has been in a conflict if there is one, and else what
+   *  the clauses need.
+   */
+  private def nextDecision(): Lit =
+    while vmtfSearch >= 0 && value(Lit(vmtfSearch).index) != 0 do vmtfSearch = vmtfNext(vmtfSearch)
+    if !relevantOnly || (vmtfSearch >= 0 && vmtfStamp(vmtfSearch) > 0) then
+      if vmtfSearch >= 0 then withPhase(Lit(vmtfSearch, phase(vmtfSearch))) else noLit
+    else nextRelevant()
+
+  private def decide(l: Lit): Unit =
+    decisions += 1
+    openLevel()
+    seen(l.variable) = true
+    enqueue(l, Decision)
 
   /** Learns the clause of a conflict and backjumps, or reports level 0. Returns
    *  whether the search can go on. A theory conflict may involve no literal of
@@ -477,6 +632,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
    */
   def solve(assumptions: Array[Lit], keepGoing: () => Boolean): Result =
     backtrack(0)
+    firstDone = 0
+    firstClauses.clear()
+    firstCollected = false
+    trailDone = 0
+    definitionsDone = 0
+    requiredDone = 0
     gaveUp = false
     lastCore = Array.empty
     if unsat then return Result.Unsat
@@ -492,19 +653,17 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
           lastCore = analyzeCore(a)
           return Result.Unsat // false under the assumptions before it
         else if value(a.index) > 0 then
-          trailLim += trail.length // already implied: an empty level keeps the level-to-assumption count
-          theory.push()
+          openLevel() // already implied: an empty level keeps the level-to-assumption count
         else
           if !keepGoing() then return Result.Unknown
           decisions += 1
-          trailLim += trail.length
-          theory.push()
+          openLevel()
           enqueue(a, Decision)
       else
-        val v = nextDecision()
-        if v >= 0 then
+        val l = nextDecision()
+        if l.index >= 0 then
           if !keepGoing() then return Result.Unknown
-          decide(v)
+          decide(l)
         else
           theory.finalCheck() match
             case Theory.Result.Unknown => return Result.Unknown
@@ -513,10 +672,9 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
             case Theory.Result.Split(lit) =>
               if !keepGoing() then return Result.Unknown
               while varCount <= lit.variable do newVar()
-              require(value(lit.index) == 0, s"split on the assigned literal $lit")
+              Predef.require(value(lit.index) == 0, s"split on the assigned literal $lit")
               decisions += 1
-              trailLim += trail.length
-              theory.push()
+              openLevel()
               seen(lit.variable) = true
               enqueue(lit, Decision)
             case Theory.Result.Ok(implied) if implied.exists(l => value(l.index) == 0) =>
@@ -524,5 +682,10 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
             case Theory.Result.Ok(implied) =>
               implied.find(l => value(l.index) < 0) match
                 case Some(l) => if !resolve(theoryClause(l)) then return Result.Unsat
-                case None => return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
+                case None =>
+                  val needed = if relevantOnly then theory.neededDecision() else Theory.nothingNeeded
+                  if needed == Theory.everythingNeeded then relevantOnly = false
+                  else if needed >= 0 then
+                    decide(withPhase(Lit(needed, phase(needed))))
+                  else return Result.Sat(Array.tabulate(varCount)(v => value(Lit(v).index) > 0))
     Result.Unsat

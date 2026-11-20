@@ -183,6 +183,11 @@ final class Session(
   def model(): Option[Model] = current.model()
   def unsatCore: List[String] = current.unsatCore
 
+  /** The lowered assertions of the open levels, which a model of a sat answer
+   *  satisfies.
+   */
+  def assertions: List[Formula] = asserted.flatten.toList
+
   // What the last check-sat answered: a core is asked for after an unsat one, and before anything that
   // changes the problem — an assertion, a declaration, a level, a reset — which SMT-LIB makes an error
   // and VIK answered with the stale core (issue 51).

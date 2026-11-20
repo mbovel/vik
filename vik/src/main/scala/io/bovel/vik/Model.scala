@@ -84,6 +84,8 @@ final case class Model(
    */
   private def lookup(name: String, values: List[Term]): Term = functions.get(name) match
     // Array arguments are compared extensionally: a row keyed by a store read back is one (issue 49).
+    // Arguments with no array in them match a row by equality alone: the first row of those arguments.
+    case Some(f) if !values.exists(Model.isArray) => f.firstRows.getOrElse(values, f.default)
     case Some(f) =>
       f.rows.collectFirst { case (a, r) if a.length == values.length && a.zip(values).forall(Model.same) => r }
         .getOrElse(f.default)
@@ -120,7 +122,12 @@ object Model:
    *  of its graph (argument values to result value) and the value everywhere
    *  else.
    */
-  final case class Function(parameters: List[String], result: String, rows: List[(List[Term], Term)], default: Term)
+  final case class Function(parameters: List[String], result: String, rows: List[(List[Term], Term)], default: Term):
+    /** The result of the first row of each list of arguments, for a lookup by
+     *  equality.
+     */
+    lazy val firstRows: Map[List[Term], Term] =
+      rows.foldLeft(Map.empty[List[Term], Term]) { case (m, (a, r)) => if m.contains(a) then m else m.updated(a, r) }
 
   /** The array of sort `sort` (as SMT-LIB writes it) holding `default`
    *  everywhere: `((as const (Array I E)) d)`.
