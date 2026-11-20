@@ -25,5 +25,11 @@ private[vik] object Names:
    */
   def isStore(name: String): Boolean = name.startsWith(storePrefix)
 
+  /** Whether a symbol is a gate of a bit-vector circuit, a Boolean the SAT
+   *  solver alone decides.
+   */
+  def isGate(name: String): Boolean = name.startsWith(gatePrefix)
+
+  private val gatePrefix = ".gate!"
   private val witnessTag = "witness"
   private val storePrefix = ".store!"

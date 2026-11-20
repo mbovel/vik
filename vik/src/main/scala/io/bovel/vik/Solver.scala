@@ -1319,6 +1319,7 @@ private final class Encoder(
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           atom(classOf(lhs), classOf(rhs))
+      case Pred(Term.Const(name)) if Names.isGate(name) => freshVar() // a circuit's gate: the SAT solver's alone
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
         // terms it knows as Boolean, and a term known only from a later solve keeps the assignment
@@ -1516,10 +1517,10 @@ private final class Encoder(
     lastModel = null
     val result = sat.solve(assumptions.toArray, keepGoing)
     result match
-      case cdclt.Solver.Result.Sat(_) =>
+      case cdclt.Solver.Result.Sat(m) =>
         wantFields()
         // Not the model of a `sat` that is searched again (see boundFields).
-        if produceModels && !fieldsWanted then lastModel = takeModel()
+        if produceModels && !fieldsWanted then lastModel = takeModel(m)
       case _ => ()
     sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
     result
@@ -1529,7 +1530,7 @@ private final class Encoder(
    *  applications the problem mentions. Uninterpreted sorts get an abstract
    *  element per e-class; a datatype class becomes its constructor term.
    */
-  private def takeModel(): Model =
+  private def takeModel(assignment: Array[Boolean]): Model =
     val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
@@ -1833,7 +1834,12 @@ private final class Encoder(
       val default = Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
       functions += name -> Model.Function(argSorts, sort, rows, default)
     for (name, (argSorts, sort)) <- declarations if sort.arrow.isEmpty do
-      if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
+      if argSorts.isEmpty then
+        // A circuit's gate is the SAT solver's alone (see `encode`): its value is its variable's.
+        val gate = if Names.isGate(name) then lits.get(Formula.Pred(Term.Const(name))) else None
+        constants += name -> gate.fold(valueOfTerm(Term.Const(name), sort)) { l =>
+          Term.boolean(if assignment(l.variable) == l.positive then Formula.True else Formula.False)
+        }
       else
         val rows = classes.keys.collect {
           case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
