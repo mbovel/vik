@@ -1,6 +1,6 @@
 ; From princess: adt/datatype6b.smt2 (BSD, LICENSES/princess.txt)
 ; EXPECT: sat
-; EXPECT: ((define-fun a () List (cons 4 (cons 3 nil))) (define-fun b () List (cons 2 (cons 1 nil))))
+; EXPECT: ((define-fun a () List (cons 2 (cons 1 nil))) (define-fun b () List nil))
 
 
 (declare-datatype List ( (nil) (cons (head Int) (tail List)) ))
