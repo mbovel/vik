@@ -49,6 +49,7 @@ class ModelsTest extends munit.FunSuite:
         command match
           case Command.DeclareFun(name, argSorts, sort) => solver.declare(name, argSorts, sort)
           case Command.DeclareDatatypes(ds) => ds.foreach(solver.declare)
+          case Command.Mint(name, sort) => solver.declare(name, Nil, sort)
           case Command.Assert(f) =>
             solver.assert(f)
             asserted += f

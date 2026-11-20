@@ -35,6 +35,7 @@ object Printer:
         }.mkString("(", " ", ")")
       }.mkString(" ")
       s"(declare-datatypes ($sorts) ($declarations))"
+    case Command.Mint(name, sort) => s"(declare-fun ${symbol(name)} () ${sort.text})"
     case Command.Assert(formula) => s"(assert ${print(formula)})"
     case Command.AssertNamed(name, formula) => s"(assert (! ${print(formula)} :named $name))"
     case Command.CheckSat => "(check-sat)"

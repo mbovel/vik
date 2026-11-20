@@ -84,46 +84,162 @@ private final class Lowerer:
   private def reserve(name: String): Unit =
     if minted(name) || name.startsWith("store!") then
       throw s2.Smt2Error(s"$name: a name the lowering uses; pick another")
-  // The fresh constants and the assertions defining them, which go out before the assertion they were made
-  // for, in the order they were made: each constant is declared right before its definitions. The solver
-  // meets a bit-vector constant's range at its declaration, and the search follows the order it meets things in.
+  // The fresh constants and their definitions, which go out before the command they were made for, in the
+  // order they were made: each constant is minted right before its definitions. The solver meets a bit-vector
+  // constant's range at its declaration, and the search follows the order it meets things in.
   private val pending = ArrayBuffer.empty[Command]
-  private def introduce(name: String, sort: Sort): Unit = pending += Command.DeclareFun(name, Nil, sort)
-  private def define(definition: Formula): Unit = pending += Command.Assert(definition)
+  private val pendingDefinitions = scala.collection.mutable.HashSet.empty[Formula]
 
-  /** What the lowering minted, by what it was minted for. An entry stands for
-   *  constants whose defining assertions went out at its level, and that
-   *  level's `pop` retires them: found here after it, a constant would be
-   *  unconstrained, and `(= a 0.5)` would accept any `a`. So an entry goes with
-   *  the level that made it, under `:global-declarations` too (the constants
-   *  stay declared then, their definitions do not), and the entries of the
-   *  outer levels stay. Dropping one is always sound, the next use minting and
-   *  defining again, and an entry is never replaced: a `pop` only ever has
-   *  entries to drop, nothing to restore.
+  /** The constants minted by the memo entries being computed, innermost last,
+   *  and first those minted by the command outside any: a definition defines
+   *  the constants its own computation minted, not those of the operations
+   *  inside it, which their own definitions define.
+   */
+  private val frames = ArrayBuffer(ArrayBuffer.empty[String])
+
+  private def introduce(name: String, sort: Sort): Unit =
+    pending += Command.Mint(name, sort)
+    frames.last += name
+
+  /** The definitions of each minted constant: those made when it was minted.
+   *  They are assertions, in force while the level they were asserted in is
+   *  open, and asserted again, at the level of the use, by a later use of the
+   *  constant ([[inForceAll]]). So an operation lowered again after a `pop` is
+   *  not minted and defined again with new constants, which the solver met as
+   *  new terms, each time (issue 83); and a definition is not in force where
+   *  nothing uses its constants.
+   */
+  private val definitionsOf = HashMap.empty[String, ArrayBuffer[Formula]]
+
+  /** Asserts a definition of minted constants, before the command they were
+   *  made for, the definitions of the older constants it mentions in force.
+   *
+   *  Over a symbol declared in a level, the constants it defines are declared
+   *  in the level too, and forgotten with it (see [[Memo]]): kept after the
+   *  `pop`, such a definition would hold of a symbol of the same name declared
+   *  later, of another width maybe, and a definition of 8 bits would bound one
+   *  of 16.
+   */
+  private def define(definition: Formula): Unit =
+    val constants = definition.terms.flatMap(Term.constants).filter(minted).distinct
+    val own = constants.filter(frames.last.contains)
+    // One that mentions none of its computation's own defines them all, to be safe: asserted with any.
+    val defined = if own.nonEmpty then own else constants
+    inForceAll(constants.filterNot(own.contains))
+    if !lasting(definition) then
+      for (command, i) <- pending.zipWithIndex do
+        command match
+          case Command.Mint(name, sort) if defined.contains(name) =>
+            transient += name
+            pending(i) = Command.DeclareFun(name, Nil, sort)
+          case _ => ()
+    for name <- defined do definitionsOf.getOrElseUpdate(name, ArrayBuffer.empty) += definition
+    assertDefinition(definition)
+
+  private def assertDefinition(definition: Formula): Unit =
+    if pendingDefinitions.add(definition) then pending += Command.Assert(definition)
+
+  /** Asserts again the definitions of `constants` that are no longer in force,
+   *  and of the constants those mention, at the level of the use. A definition
+   *  in force was asserted in a level still open, when the definitions of the
+   *  constants it mentions were in force too: the walk stops there.
+   */
+  private def inForceAll(constants: Iterable[String]): Unit =
+    val todo = ArrayBuffer.from(constants)
+    val seen = scala.collection.mutable.HashSet.empty[String]
+    while todo.nonEmpty do
+      val name = todo.remove(todo.length - 1)
+      if seen.add(name) then
+        for definitions <- definitionsOf.get(name); d <- definitions do
+          if !inForce(d) && !pendingDefinitions(d) then
+            assertDefinition(d)
+            todo ++= d.terms.flatMap(Term.constants).filter(minted)
+
+  // The script's symbols that a `pop` takes back (declared in a level, without `:global-declarations`), and the
+  // minted constants defined over them: what a memo entry goes with.
+  private val scoped = scala.collection.mutable.HashSet.empty[String]
+  private val transient = scala.collection.mutable.HashSet.empty[String]
+
+  private def declared(name: String): Unit =
+    if scopes.nonEmpty && !globalDeclarations && scoped.add(name) then scopes.last += (() => scoped -= name)
+
+  /** Whether every constant of `x` outlives the levels: none is a symbol a
+   *  `pop` takes back, nor a constant defined over one. `x` is a term, a
+   *  formula, or a tuple or a sequence of them, as the memos key on.
+   */
+  private def lasting(x: Any): Boolean = x match
+    case t: Term => Term.constants(t).forall(n => !scoped(n) && !transient(n))
+    case f: Formula => f.terms.forall(lasting)
+    case xs: Iterable[?] => xs.forall(lasting)
+    case p: Product => p.productIterator.forall(lasting)
+    case _ => true
+
+  /** The open levels, each by a number of its own, the first level's first; and
+   *  the level each definition was last asserted in. A definition is in force
+   *  while its level is open.
+   */
+  private val levelIds = ArrayBuffer(0)
+  private var levelCount = 0
+  private val assertedIn = HashMap.empty[Formula, Int]
+  private def inForce(definition: Formula): Boolean = assertedIn.get(definition).exists(levelIds.contains)
+
+  /** The undos of the memo entries that go with each open level. */
+  private val memoScopes = ArrayBuffer.empty[ArrayBuffer[() => Unit]]
+
+  /** What the lowering minted, by what it was minted for: the next use of the
+   *  same operation finds its constants, whose definitions the command that
+   *  uses them puts in force ([[definitionsOf]]). An entry over a symbol a
+   *  `pop` takes back goes with the level that made it, as its constants do.
+   *  Dropping one is always sound, the next use minting and defining again, and
+   *  an entry is never replaced: `update` keeps the first value.
    */
   private final class Memo[K, V]:
     private val entries = HashMap.empty[K, V]
-    def get(key: K): Option[V] = entries.get(key)
+    def get(key: K): Option[V] = entries.get(key).map(used)
     def contains(key: K): Boolean = entries.contains(key)
-    def apply(key: K): V = entries(key)
+    def apply(key: K): V = used(entries(key))
     def getOrElseUpdate(key: K, value: => V): V =
-      entries.getOrElseUpdate(
-        key, {
-          if scopes.nonEmpty then scopes.last += (() => entries -= key)
-          value
-        }
-      )
+      entries.get(key) match
+        case Some(v) => used(v)
+        case None =>
+          frames += ArrayBuffer.empty
+          val v =
+            try value
+            finally frames.remove(frames.length - 1)
+          entries(key) = v
+          if (!lasting(key) || !lasting(v)) && memoScopes.nonEmpty then memoScopes.last += (() => forget(key))
+          v
     def update(key: K, value: V): Unit = getOrElseUpdate(key, value)
     def clear(): Unit = entries.clear()
+    private def forget(key: K): Unit = entries -= key
 
-  /** The lowering of a bit-vector operation, once per level: the second
-   *  occurrence of `bvmul 4 (bvadd 1 x)` in an assertion gets the constants of
-   *  the first, not fresh ones defined the same way. Two chains of fresh
-   *  constants are the same value only by an integer argument over `2^n` (`x +
-   *  1 = r + 2^32 k` with `r` in `[0, 2^32)` pins `r`, but the solver has to
-   *  see it), which branch and bound walked for minutes on
-   *  `x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`; one chain makes the equality syntactic. Keyed
-   *  on the operation and its lowered operands.
+    /** A value found, its constants' definitions put in force here, where a
+     *  fresh lowering would have defined them: before what uses them. Put at
+     *  the end of the command, they cost the search as ranges did (see
+     *  `Solver`).
+     */
+    private def used(v: V): V =
+      inForceAll(mintedIn(v))
+      v
+
+  /** The minted constants of a memo's value: a term, a formula, or a tuple or a
+   *  sequence of them.
+   */
+  private def mintedIn(x: Any): List[String] = x match
+    case t: Term => Term.constants(t).filter(minted).toList
+    case f: Formula => f.terms.flatMap(mintedIn)
+    case xs: Iterable[?] => xs.iterator.flatMap(mintedIn).toList
+    case p: Product => p.productIterator.flatMap(mintedIn).toList
+    case _ => Nil
+
+  /** The lowering of a bit-vector operation, once: the second occurrence of
+   *  `bvmul 4 (bvadd 1 x)` in an assertion gets the constants of the first, not
+   *  fresh ones defined the same way. Two chains of fresh constants are the
+   *  same value only by an integer argument over `2^n` (`x + 1 = r + 2^32 k`
+   *  with `r` in `[0, 2^32)` pins `r`, but the solver has to see it), which
+   *  branch and bound walked for minutes on `x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`; one
+   *  chain makes the equality syntactic. Keyed on the operation and its lowered
+   *  operands.
    */
   private val loweredOperations = Memo[(String, List[Term], List[BigInt]), Term]()
   private val loweredDivisions = Memo[(Term, BigInt, BigInt), (Term, Term)]()
@@ -433,6 +549,7 @@ private final class Lowerer:
     case s2.Command.DeclareFun(name, argSorts, sort) =>
       reserve(name)
       undoable(functions, name)
+      declared(name)
       functions(name) = s2.Sort.fun(argSorts, sort)
       // An array constant is declared as a constant of its function sort — `(declare-fun a () (-> I E))` —
       // not flattened into a function symbol: the solver applies it either way, and the model knows an
@@ -442,11 +559,14 @@ private final class Lowerer:
       for datatype <- datatypes; constructor <- datatype.constructors do
         val d = s2.Sort.Named(datatype.name)
         undoable(functions, constructor.name)
+        declared(constructor.name)
         functions(constructor.name) = s2.Sort.fun(constructor.selectors.map(_._2), d)
         undoable(functions, constructor.tester)
+        declared(constructor.tester)
         functions(constructor.tester) = s2.Sort.fun(List(d), s2.Sort.Bool)
         for (selector, s) <- constructor.selectors do
           undoable(functions, selector)
+          declared(selector)
           functions(selector) = s2.Sort.fun(List(d), s)
       List(Command.DeclareDatatypes(datatypes.map(d =>
         Datatype(d.name, d.constructors.map(c => Constructor(c.name, c.selectors.map((n, s) => (n, lowered(s))))))
@@ -462,18 +582,34 @@ private final class Lowerer:
     case s2.Command.CheckSatAssuming(assumptions) =>
       flush(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))
     case s2.Command.Push(levels) =>
-      for _ <- 1 to levels do scopes += ArrayBuffer.empty
-      // What a command that failed halfway minted goes out before the level opens: its entries are below it.
-      flush(Command.Push(levels))
+      // What a command that failed halfway minted goes out with this one, below the new levels.
+      val out = flush(Command.Push(levels))
+      for _ <- 1 to levels do
+        scopes += ArrayBuffer.empty
+        memoScopes += ArrayBuffer.empty
+        levelCount += 1
+        levelIds += levelCount
+      out
     case s2.Command.Pop(levels) =>
       // More levels than are open: the session refuses the `pop` whole (issue 178), and nothing is undone.
       if levels <= scopes.length then
-        for _ <- 1 to levels do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+        for _ <- 1 to levels do
+          memoScopes.remove(memoScopes.length - 1).foreach(_())
+          scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
+          levelIds.remove(levelIds.length - 1)
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
-      // The levels go, and the declarations made in them stay, as the session keeps them (issue 178).
+      // The levels go, and the declarations made in them stay, as the session keeps them (issue 178). So do the
+      // minted constants of the lasting entries; their definitions went with the assertions, and are asserted
+      // again at their next use. The other entries go.
+      memoScopes.foreach(_.foreach(_()))
+      memoScopes.clear()
       scopes.clear()
-      clearMemos()
+      scoped.clear()
+      transient.clear()
+      levelCount += 1
+      levelIds.clear()
+      levelIds += levelCount
       List(Command.ResetAssertions)
     case s2.Command.Reset =>
       scopes.clear()
@@ -483,11 +619,21 @@ private final class Lowerer:
       rationalValues.clear()
       storeSymbols.clear()
       clearMemos()
+      pending.clear()
+      pendingDefinitions.clear()
+      memoScopes.clear()
+      scoped.clear()
+      transient.clear()
+      assertedIn.clear()
+      definitionsOf.clear()
+      frames.clear()
+      frames += ArrayBuffer.empty
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
-      // A compound operation's defining assertions (a term-level `ite`'s) cannot be asserted after a
-      // check: they go with the command, for the session to evaluate under the model.
+      // The constants minted here have no value in the model of the last check: their definitions go with the
+      // command, for the session to evaluate under the model, and not out, a query asserting nothing. Their
+      // next use asserts them, not being in force.
       val lowered = items.map((source, item) =>
         (
           source,
@@ -497,14 +643,12 @@ private final class Lowerer:
           ): Formula | Term
         )
       )
-      val defined = pending.toList.collect { case Command.Assert(definition) => definition }
-      // The symbols minted here are declared for good: a `store!N` stays in `storeSymbols`, and a later
-      // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
-      // asserted after a check and go with the command instead.
-      val declared = pending.toList.collect { case declaration: Command.DeclareFun => declaration }
+      val defined = pending.toList.collect { case Command.Assert(d) => d }
+      val out = pending.toList.filter(!_.isInstanceOf[Command.Assert]) :+ Command.GetValue(lowered, defined)
       pending.clear()
-      clearMemos() // a constant minted here has no definition: later uses must not find it
-      declared :+ Command.GetValue(lowered, defined)
+      pendingDefinitions.clear()
+      frames.last.clear()
+      out
     case s2.Command.GetUnsatCore => List(Command.GetUnsatCore)
     case s2.Command.GetAssertions => List(Command.GetAssertions)
     case s2.Command.Exit => List(Command.Exit)
@@ -518,8 +662,18 @@ private final class Lowerer:
    *  command.
    */
   private def flush(command: Command): List[Command] =
+    // The minted constants the command mentions, found through the memos, with their definitions in force.
+    val formulas = command match
+      case Command.Assert(f) => List(f)
+      case Command.AssertNamed(_, f) => List(f)
+      case Command.CheckSatAssuming(fs) => fs
+      case _ => Nil
+    inForceAll(formulas.flatMap(_.terms.flatMap(Term.constants)).filter(minted))
+    for case Command.Assert(definition) <- pending do assertedIn(definition) = levelIds.last
     val out = pending.toList :+ command
     pending.clear()
+    pendingDefinitions.clear()
+    frames.last.clear()
     out
 
   /** The sort of a surface term, for the sort-directed encodings: which `=` a
@@ -970,7 +1124,13 @@ private final class Lowerer:
    *  reduced once, its overflow count an unknown.
    */
   private def product(a: Term, b: Term, width: Int): Term =
-    val (kept, blasted) = if knownBits(a, width).isDefined && knownBits(b, width).isEmpty then (b, a) else (a, b)
+    // A product lowered before, in either order, is that one: its operands' bits may all be known by now, and
+    // `a × b` and `b × a` lowered the other way are a commutation the solver has to find (seconds at 8 bits).
+    val (kept, blasted) =
+      if loweredOperations.contains(("bvmul", List(a, b), List(width))) then (a, b)
+      else if loweredOperations.contains(("bvmul", List(b, a), List(width))) then (b, a)
+      else if knownBits(a, width).isDefined && knownBits(b, width).isEmpty then (b, a)
+      else (a, b)
     loweredOperations.getOrElseUpdate(
       ("bvmul", List(kept, blasted), List(width)), {
         val m = modulus(width)
@@ -1105,8 +1265,8 @@ private final class Lowerer:
 
   /** The bits of a `width`-bit term, lowest first: a literal's are literal, a
    *  complement's (`bvnot`) are negations, a bitwise result keeps its own; any
-   *  other term is decomposed once at a level — fresh constants `b_i` in
-   *  `{0, 1}` with `t = Σ 2^i b_i`, bit `i` the atom `b_i ≥ 1`.
+   *  other term is decomposed once — fresh constants `b_i` in `{0, 1}` with
+   *  `t = Σ 2^i b_i`, bit `i` the atom `b_i ≥ 1`.
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
     knownBits(t, width).getOrElse {
@@ -1230,7 +1390,7 @@ private final class Lowerer:
     case _ => Ge(t, Num(modulus(width - 1)))
 
   /** A constant defined by cases: `thn` when `cond`, `els` otherwise, within
-   *  `[lo, hi]`; once per distinct case split at a level.
+   *  `[lo, hi]`; once per distinct case split.
    */
   private def cases(tag: String, cond: Formula, thn: Term, els: Term, lo: BigInt, hi: BigInt): Term =
     loweredOperations.getOrElseUpdate(

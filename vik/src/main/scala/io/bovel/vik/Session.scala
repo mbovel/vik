@@ -223,6 +223,7 @@ final class Session(
   private def declare(command: Command): Unit = command match
     case Command.DeclareFun(name, argSorts, sort) => current.declare(name, argSorts, sort)
     case Command.DeclareDatatypes(datatypes) => datatypes.foreach(current.declare)
+    case Command.Mint(name, sort) => current.declare(name, Nil, sort)
     case _ => ()
 
   private def undeclare(command: Command): Unit =
@@ -294,6 +295,11 @@ final class Session(
           lastCheck = ""
           declarations += command
           if declaredAt.length > 1 && !globalDeclarations then declaredAt.last += command
+          declare(command)
+        // A constant the lowering minted, for good: kept for a `reset-assertions`, never undone by a `pop`. A
+        // declaration changes no answer, the last check's core included.
+        case Command.Mint(_, _) =>
+          declarations += command
           declare(command)
         case Command.Assert(formula) =>
           lastCheck = ""

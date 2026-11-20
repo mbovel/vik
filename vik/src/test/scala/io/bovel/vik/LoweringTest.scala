@@ -9,16 +9,15 @@ import Term.*
  *  speak — drawn with a message.
  */
 class LoweringTest extends munit.FunSuite:
-  def lowered(script: String): List[Formula] =
-    Lowering(Parser.parse(script)).commands.collect { case Command.Assert(f) => f }
+  def lowered(script: String): List[Formula] = formulas(Lowering(Parser.parse(script)).commands)
+  def formulas(commands: List[Command]): List[Formula] = commands.collect { case Command.Assert(f) => f }
 
   test("a term-level ite becomes a defined constant before its assertion"):
     val commands = Lowering(Parser.parse(
       "(declare-const p Bool) (declare-const x Int) (declare-const y Int) (assert (= (ite p x y) 2))"
     )).commands
-    assert(commands.exists { case Command.DeclareFun("ite!1", Nil, Sort.Int) => true; case _ => false })
-    val asserts = commands.collect { case Command.Assert(f) => f }
-    assertEquals(asserts(0), Implies(Pred(Const("p")), IntEq(Const("ite!1"), Const("x"))))
+    assert(commands.contains(Command.Mint("ite!1", Sort.Int)), commands)
+    assertEquals(formulas(commands)(0), Implies(Pred(Const("p")), IntEq(Const("ite!1"), Const("x"))))
 
   test("the integer normal form: chains, linear combinations"):
     val asserts = lowered("""
@@ -60,34 +59,40 @@ class LoweringTest extends munit.FunSuite:
 
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
-      case Command.DeclareFun(name, _, _) => name.startsWith(prefix + "!")
+      case Command.Mint(name, _) => name.startsWith(prefix + "!")
+      case Command.DeclareFun(name, _, _) => name.startsWith(prefix + "!") // one defined in a level
       case _ => false
     }
   private val rational = "(assert (>= a 0.5))"
   private val operation = "(assert (= y (bvadd x #x01)))"
   private val declared = "(declare-const a Real)(declare-const x (_ BitVec 8))(declare-const y (_ BitVec 8))"
 
-  test("what a level minted is minted again after its pop (issue 83)"):
-    assertEquals(minted(s"$declared(push 1)$rational(pop 1)$rational", "rat"), 2)
-    assertEquals(minted(s"$declared(push 1)$operation(pop 1)$operation", "bv"), 2)
-
-  test("what an outer level minted outlives the pops above it (issue 83)"):
+  test("what a level minted outlives its pop, and the next use finds it (issue 83)"):
+    // Over symbols no `pop` takes back, the constants stay, and nothing is minted again.
+    assertEquals(minted(s"$declared(push 1)$rational(pop 1)$rational", "rat"), 1)
+    assertEquals(minted(s"$declared(push 1)$operation(pop 1)$operation", "bv"), 1)
     assertEquals(minted(s"$declared$rational(push 1)(pop 1)$rational", "rat"), 1)
     assertEquals(minted(s"$declared$operation(push 1)(pop 1)$operation", "bv"), 1)
-    // Level by level: the second use finds the first's, and only the popped level's go.
-    assertEquals(minted(s"$declared(push 1)$rational(push 1)$rational(pop 1)$rational(pop 1)$rational", "rat"), 2)
+    assertEquals(minted(s"$declared(push 1)$rational(push 1)$rational(pop 1)$rational(pop 1)$rational", "rat"), 1)
     assertEquals(
       minted(s"$declared$rational(push 1)$rational(assert (<= a 0.25))(pop 1)(assert (<= a 0.25))", "rat"),
-      3
+      2
     )
+    // And `reset-assertions` keeps them, as it keeps the declarations.
+    assertEquals(minted(s"$declared$operation(reset-assertions)$operation", "bv"), 1)
+    // The definitions went with the level, and the next use asserts them again; within it, once.
+    val definition = IntEq(Linear(List((2, Const("rat!1"))), 0), Num(1))
+    assertEquals(lowered(s"$declared(push 1)$rational(pop 1)$rational").count(_ == definition), 2)
+    assertEquals(lowered(s"$declared(push 1)$rational$rational(pop 1)").count(_ == definition), 1)
+    assertEquals(lowered(s"$declared$rational(push 1)$rational(pop 1)").count(_ == definition), 1)
 
-  test("a definition popped is a definition stated again (issue 83)"):
+  test("a constant used again after the pop of its level is defined again (issue 83)"):
     def answer(script: String): List[String] = Session.run(Parser.parse(script))
     val rationalAgain = "(assert (= a 0.5))(assert (= a 0.25))(check-sat)"
     assertEquals(answer(s"$declared(push 1)(assert (= a 0.5))(pop 1)$rationalAgain"), List("unsat"))
     val operationAgain = s"$operation(assert (= x #x00))(assert (= y #x02))(check-sat)"
     assertEquals(answer(s"$declared(push 1)$operation(pop 1)$operationAgain"), List("unsat"))
-    // The range of an application, asserted at its first use.
+    // The range of an application, met at its first use.
     assertEquals(
       answer(
         "(declare-fun f (Int) (_ BitVec 8))(push 1)(assert (= (f 0) #x00))(pop 1)" +
@@ -96,8 +101,7 @@ class LoweringTest extends munit.FunSuite:
       List("unsat")
     )
 
-  test("the definitions die with their level under :global-declarations too (issue 83)"):
-    // The constants stay declared there, and so a memo that followed the declarations would keep them.
+  test("a constant used again after the pop of its level is defined again under :global-declarations (issue 83)"):
     assertEquals(
       Session.run(Parser.parse(
         "(set-option :global-declarations true)(declare-const a Real)" +
@@ -105,6 +109,44 @@ class LoweringTest extends munit.FunSuite:
       )),
       List("unsat")
     )
+
+  test("a definition over a symbol declared in a level goes with the level"):
+    def answer(script: String): List[String] = Session.run(Parser.parse(script))
+    // Kept, the definition of the 8-bit sum would bound the 16-bit `x` declared after the pop to 510.
+    assertEquals(
+      answer(
+        "(push 1)(declare-const x (_ BitVec 8))(assert (= (bvadd x #x01) #x00))(check-sat)(pop 1)" +
+          "(declare-const x (_ BitVec 16))(assert (= ((_ extract 7 0) x) #xFF))(assert (bvugt x #x0200))(check-sat)"
+      ),
+      List("sat", "sat")
+    )
+    assertEquals(minted("(push 1)(declare-const x (_ BitVec 8))(assert (= (bvadd x #x01) #x00))(pop 1)", "bv"), 1)
+    // Declared in a level under `:global-declarations`, it outlives the level, and so do the constants.
+    val global = "(set-option :global-declarations true)(push 1)(declare-const x (_ BitVec 8))"
+    assertEquals(minted(s"$global$operation(pop 1)$operation".replace("y", "x"), "bv"), 1)
+
+  test("what a query mints is defined at its next use"):
+    // A query asserts nothing: the next assertion that uses its constants asserts their definitions.
+    def answer(script: String): List[String] = Session.run(Parser.parse(script))
+    val first = "(declare-const x (_ BitVec 8))(assert (= x #x01))(check-sat)(get-value ((bvadd x #x01)))"
+    assertEquals(
+      answer(s"$first(assert (= (bvadd x #x01) #x05))(check-sat)"),
+      List("sat", "(((bvadd x #x01) #b00000010))", "unsat")
+    )
+    assertEquals(minted(s"$first(assert (= (bvadd x #x01) #x05))", "bv"), 1)
+    // Over a symbol of a level too, within the level.
+    val level = "(push 1)(declare-const y (_ BitVec 8))(assert (= y #x01))(check-sat)(get-value ((bvadd y #x01)))"
+    assertEquals(
+      answer(s"$level(assert (= (bvadd y #x01) #x05))(check-sat)"),
+      List("sat", "(((bvadd y #x01) #b00000010))", "unsat")
+    )
+    assertEquals(minted(s"$level(assert (= (bvadd y #x01) #x05))", "bv"), 1)
+
+  test("a constant a definition mentions is not simplified away"):
+    // `x` is in the conjunction and in the definition `p ⇒ ite!1 = x`: it is not local to the conjunction.
+    val script = """(declare-sort U 0)(declare-const p Bool)(declare-const x U)(declare-const y U)(declare-const z U)
+      (declare-const w U)(assert p)(assert (= w (ite p x y)))(assert (and (= x z) (not (= z w))))(check-sat)"""
+    assertEquals(Session.run(Parser.parse(script)), List("unsat"))
 
   test("what a failed command minted is defined below the next level (issue 83)"):
     val s = Session()
@@ -129,9 +171,9 @@ class LoweringTest extends munit.FunSuite:
     val commands = Lowering(Parser.parse(
       "(declare-const n Int) (declare-const x Real) (assert (= x (to_real n))) (assert (= (to_int x) 2))"
     )).commands
-    val asserts = commands.collect { case Command.Assert(f) => f }
+    val asserts = formulas(commands)
     assertEquals(asserts(0), IntEq(Const("x"), Const("n"))) // to_real vanishes: sorts carry the difference
-    assert(commands.exists { case Command.DeclareFun("floor!1", Nil, Sort.Int) => true; case _ => false })
+    assert(commands.contains(Command.Mint("floor!1", Sort.Int)), commands)
     assertEquals(asserts(1), Le(Const("floor!1"), Const("x")))
     assertEquals(asserts(2), Less(Const("x"), Linear(List((BigInt(1), Const("floor!1"))), 1)))
     assertEquals(asserts(3), IntEq(Const("floor!1"), Num(2)))

@@ -16,6 +16,7 @@ import io.bovel.vik.{Command, Lowering, Solver}
     command match
       case Command.DeclareFun(name, argSorts, sort) => solver.declare(name, argSorts, sort)
       case Command.DeclareDatatypes(datatypes) => datatypes.foreach(solver.declare)
+      case Command.Mint(name, sort) => solver.declare(name, Nil, sort)
       case Command.Assert(formula) => solver.assert(formula)
       case Command.Push(n) => for _ <- 0 until n do solver.push()
       case Command.Pop(n) => for _ <- 0 until n do solver.pop()

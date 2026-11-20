@@ -12,6 +12,14 @@ enum Command:
   case DeclareSort(name: String, arity: Int)
   case DeclareFun(name: String, argSorts: List[Sort], sort: Sort)
   case DeclareDatatypes(datatypes: List[Datatype])
+
+  /** A constant of the lowering's own: an overflow count, the quotient of a
+   *  division, a term-level `ite`, a rational literal, a store symbol. Declared
+   *  for good, which no `pop` undoes, at a name no script can declare. Its
+   *  definitions are assertions, asserted again in a level that uses it after
+   *  the `pop` of theirs (see `Lowerer`).
+   */
+  case Mint(name: String, sort: Sort)
   case Assert(formula: Formula)
 
   /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can

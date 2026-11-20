@@ -64,8 +64,9 @@ application, a field or a read of an array when it first meets the term, the ter
 them (the reads at the index where two arrays differ, the fields of a datatype value). The range is what
 the sort says, not an assertion: no `pop` takes it back. The operations get fresh bounded constants where
 the modulus or a division needs them — each fresh constant is declared and defined by one linear
-equation before the assertion that uses it, and once per distinct operation at a level: the second
-`bvmul 4 (bvadd 1 x)` of a script reuses the constants of the first (two chains of constants for one
+equation before the assertion that uses it, and once per distinct operation: the second
+`bvmul 4 (bvadd 1 x)` of a script reuses the constants of the first, in a later level too, which asserts
+their definitions again when the `pop` of theirs took them back (two chains of constants for one
 term are equal only by an integer argument over `2ⁿ`, which branch and bound walked for minutes on
 `x0 = 4(x+1) ∧ x0 ≠ 4(x+1)`). Constant arguments fold in the lowering. For an `n`-bit term, `2ⁿ` is written
 `m` below:
