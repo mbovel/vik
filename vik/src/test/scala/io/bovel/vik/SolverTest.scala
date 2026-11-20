@@ -602,6 +602,23 @@ class SolverTest extends munit.FunSuite:
       ))
   }
 
+  test("a store or a constant array of a popped level, again after the pop") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(script))
+    for (inside, after) <- List(
+        ("(select ((as const (Array Int Int)) 1) 0)", "((as const (Array Int Int)) 2)"),
+        ("(select (store a 1 2) 1)", "(store a 1 2)")
+      )
+    do
+      assertEquals(
+        play(
+          s"""(declare-const a (Array Int Int)) (declare-const b (Array Int Int))
+             |(push 1) (assert (= $inside 1)) (pop 1)
+             |(assert (= b $after)) (assert (= (select b 1) 2)) (check-sat)""".stripMargin
+        ),
+        List("sat")
+      )
+  }
+
   test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {
     // Stainless writes an identifier `map` or `const` this way.
     assertEquals(

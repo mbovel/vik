@@ -292,6 +292,12 @@ final class Session(
     then current.produceModels = true
     for command <- commands do
       command match
+        case Command.DeclareFun(name, _, _, _) if Names.isArrayOperation(name) =>
+          // A `.store!N` or `.array.const!N`, kept past the pop of its level: the lowering keeps the
+          // symbol for its array sort, and a later level that uses it needs the solver to know it.
+          lastCheck = ""
+          declarations += command
+          declare(command)
         case Command.DeclareFun(_, _, _, _) | Command.DeclareDatatypes(_) =>
           lastCheck = ""
           declarations += command
