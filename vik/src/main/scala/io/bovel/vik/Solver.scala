@@ -1117,7 +1117,13 @@ private final class Encoder(
         // Looked at until the first one: once set, the flag stays.
         if !anyArray && (isFun(term) || args.exists(isFun)) then anyArray = true
         eg.add(App(classOf(fun), ArraySeq.from(args.map(classOf))))
-      case Term.Num(_) | Term.Linear(_, _) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
+      case Term.Num(_) => eg.newClass() // a leaf for the e-graph, a variable for LIA (shared)
+      case Term.Linear(terms, _) =>
+        // Its terms get their variables of the simplex, and an application among them its class, here: a
+        // selector application that occurs only in `(cons (+ 1 (car x)) nil)` had neither, the e-graph
+        // never met it, and `x = (cons (+ 1 (car x)) nil)` was sat (issue 136). Nor did the model value it.
+        terms.foreach((_, u) => intVar(u))
+        eg.newClass()
       case Term.Bool(_) => eg.newClass() // a leaf, tied to its formula by `Pred` (see `encode`)
 
   /** A Boolean-sorted term that is an argument or a side of an equality is true
@@ -1695,6 +1701,15 @@ private final class Encoder(
                 datatypeOf(sort) match
                   case Some(d) => builtValue(d, eg.newClass(), Set.empty) // never reached the e-graph: free
                   case None => elementOf(sort, eg.newClass())
+    // A linear term values its class too, from the values of its terms: an argument `(+ a 1)` of a
+    // constructor is a leaf of the e-graph without a variable of the simplex, and alone in its class
+    // when nothing else reads the field, where a fresh number made `x = (mk (+ a 1))` false (issue 137).
+    // The fresh numbers drawn from here on are past these values as well.
+    for case (t @ Term.Linear(_, _), c) <- classes do
+      val v = asRational(valueOfTerm(t, sortOf(t)))
+      if sortOf(t) == Sort.Real then realClassValues.getOrElseUpdate(eg.find(c), v)
+      else classValues.getOrElseUpdate(eg.find(c), v.num)
+      nextFresh = nextFresh.max(v.floor + 1)
     // An array's value, per e-class: its default and the indices its class was read at — its own
     // selects, the ones of every array equal to it, the write of a store it equals.
     def arrayValue(array: EClassId, sort: Sort): Term =
