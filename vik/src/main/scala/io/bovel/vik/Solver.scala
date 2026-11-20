@@ -1629,6 +1629,7 @@ private final class Encoder(
 
     val rows = HashMap.empty[(Term, List[Value]), (Term.App, Value)]
     val splits = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    val outputs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
     for app <- integerApplications if applications(app.fun).size > 1 do
       step()
       val key = (app.fun, app.args.map(valueOf))
@@ -1641,9 +1642,14 @@ private final class Encoder(
           integers.contains(a) && eg.find(classes(a)) != eg.find(classes(b))
         }.get
         if !splits((b, a)) then splits += ((a, b))
+        // If the inputs are later equated, congruence can propagate this result
+        // equality into arithmetic during the next search.
+        if integers.contains(app) && !outputs((app, first)) &&
+          !lits.contains(Formula.Eq(first, app)) && !lits.contains(Formula.Eq(app, first))
+        then outputs += ((first, app))
     // Try separating the inputs first: that repairs the candidate collision
     // without changing the function's current results.
-    splits.iterator.map((a, b) => ArithmeticSplit(a, b, equalFirst = false)).toList
+    (splits.iterator ++ outputs.iterator).map((a, b) => ArithmeticSplit(a, b, equalFirst = false)).toList
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
