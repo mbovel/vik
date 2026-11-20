@@ -53,6 +53,41 @@ class ValuesTest extends munit.FunSuite:
       List("unsat")
     )
 
+  test("a fresh real field is distinct from the simplex's values (issue 179)"):
+    assertEquals(
+      run("""
+        (set-option :check-models true)
+        (declare-datatype P ((mk (f Real))))
+        (declare-const x P)
+        (declare-const y P)
+        (declare-const r Real)
+        (assert (= x (mk r)))
+        (assert (> r 0.5))
+        (assert (< r 1.5))
+        (assert (distinct x y))
+        (check-sat)
+        (get-value ((distinct x y)))
+      """),
+      List("sat", "(((distinct x y) true))")
+    )
+
+  test("a constructor's mixed linear argument retains its exact value"):
+    assertEquals(
+      run("""
+        (set-option :check-models true)
+        (declare-datatype P ((mk (f Real))))
+        (declare-const i Int)
+        (declare-const r Real)
+        (declare-const x P)
+        (assert (= i 2))
+        (assert (= r 0.5))
+        (assert (= x (mk (- r (to_real i)))))
+        (check-sat)
+        (get-value ((= (f x) (- 1.5))))
+      """),
+      List("sat", "(((= (f x) (- 1.5)) true))")
+    )
+
   test("bit-vectors inside datatypes and arrays are written as bit-vectors"):
     // At their fields' sorts, and over a constant array of the script's sort (issue 47).
     assertEquals(
