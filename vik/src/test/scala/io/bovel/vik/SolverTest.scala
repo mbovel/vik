@@ -541,6 +541,20 @@ class SolverTest extends munit.FunSuite:
     )
   }
 
+  test("a map's operator as it stands where the map is") {
+    def play(script: String) = Session.run(io.bovel.smtlib.Parser.parse(script))
+    // A constant that only the operator mentions is not the simplifier's to eliminate.
+    assertEquals(
+      play(
+        """(declare-const t (Array Int Bool)) (declare-const u (Array Int Bool)) (declare-const a (Array Int Bool))
+          |(define-fun g ((x Bool)) Bool (and x (select t 7)))
+          |(assert (and (= t u) (select u 7))) (assert (select a 0)) (assert (not (select ((_ map g) a) 0)))
+          |(check-sat)""".stripMargin
+      ),
+      List("unsat")
+    )
+  }
+
   test("a script's own map!N and const!N are its own, beside the maps and constant arrays") {
     // Stainless writes an identifier `map` or `const` this way.
     assertEquals(

@@ -133,6 +133,13 @@ final class Solver(val simplify: Boolean = true):
   /** Their counts, by their text, which the model's arrays carry. */
   private[vik] val finiteSizes = HashMap.empty[String, BigInt]
 
+  /** The constants a map's template mentions, other than its own parameters and
+   *  auxiliaries.
+   */
+  private def templateConstants(pointwise: Pointwise): Set[String] =
+    (pointwise.value :: pointwise.definitions.flatMap(_.terms)).flatMap(Term.constants).toSet --
+      pointwise.params.collect { case Term.Const(n) => n } -- pointwise.auxiliaries.map(_._1)
+
   def declareFinite(sort: Sort, size: BigInt, value: BigInt => Term): Unit =
     if finiteSorts.contains(sort) then dirty = true // a sort of its name declared anew, after a pop
     finiteSorts(sort) = (size, value)
@@ -142,6 +149,9 @@ final class Solver(val simplify: Boolean = true):
    *  at an index, each a function of the elements there.
    */
   def declare(name: String, sort: Sort, pointwise: Pointwise): Unit =
+    // A template that mentions a constant the simplification eliminated is a mention of it, like an
+    // assertion's (see mentionsEliminated): the template is not substituted into.
+    if encoder != null && !dirty && templateConstants(pointwise).exists(eliminated.contains) then dirty = true
     maps(name) = pointwise
     for (auxiliary, argSorts, result) <- pointwise.auxiliaries do declare(auxiliary, argSorts, result)
     declare(name, Nil, sort)
@@ -428,7 +438,9 @@ final class Solver(val simplify: Boolean = true):
       if simplified then
         // One level: the batch is the whole set, so the global simplification is sound to keep.
         val (assertions, gone) =
-          Simplifier.simplifyEach(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
+          // The constants the maps' templates mention are never eliminated: the templates are left as they are.
+          val kept = constructors ++ maps.values.flatMap(templateConstants)
+          Simplifier.simplifyEach(levels.head.toList, kept, named.head.map(_._2).toList, e.step)
         eliminated = gone
         encode(0, assertions, null)
       else
