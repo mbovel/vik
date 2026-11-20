@@ -21,7 +21,9 @@ import io.bovel.lia
  *  numeric terms — the ones under uninterpreted functions or compared by
  *  equality: every pair of shared terms that can meet gets its equality as an
  *  atom of both theories, and the SAT solver decides the arrangement (Nelson
- *  and Oppen; see `Encoder.shareIntegers`).
+ *  and Oppen; see `Encoder.shareIntegers`). Typed first-order integer problems
+ *  add pairs when a candidate model disagrees. Eager pairing handles the other
+ *  inputs.
  */
 final class Solver(val simplify: Boolean = true):
   enum Result:
@@ -74,6 +76,7 @@ final class Solver(val simplify: Boolean = true):
   private[vik] val declarations = HashMap.empty[String, (List[Sort], Sort)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
   private val auxiliaries = HashSet.empty[String] // the declared constants that only define an operation (see declare)
+  private var untypedInput = false
 
   /** `auxiliary`: a constant that only defines an operation of the problem (a
    *  bit of the bit-vector lowering). The search decides the bounds on such
@@ -90,6 +93,9 @@ final class Solver(val simplify: Boolean = true):
     // A name the live encoder knows at another sort — declared again after the pop of its level (issue
     // 40): the encoder's sort, class and variable for it are the old symbol's, so it is rebuilt.
     if encoder != null && encoded.get(name).exists(_ != (argSorts, sort)) then dirty = true
+    if encoder != null && encoder.nn.modelBasedArithmetic &&
+      (Names.isStore(name) || !Encoder.supportsIntegerSignature(argSorts, sort))
+    then dirty = true
     declarations(name) = (argSorts, sort)
     if auxiliary then auxiliaries += name else auxiliaries -= name
     if encoder != null then encoded(name) = (argSorts, sort)
@@ -371,7 +377,9 @@ final class Solver(val simplify: Boolean = true):
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked())
+      val modelBased = !untypedInput && datatypes.isEmpty && !anyStore &&
+        declarations.valuesIterator.forall(Encoder.supportsIntegerSignature)
+      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked(), modelBased)
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -407,6 +415,12 @@ final class Solver(val simplify: Boolean = true):
     val e = encoder.nn
     e.produceModels = produceModels || checkModels
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
+    if e.modelBasedArithmetic && !e.typedIntegerInput then
+      // The programmatic API also accepts terms without declarations. Replay in the eager encoder
+      // so the theories see their full atom meanings from the first assignment at level zero.
+      untypedInput = true
+      dirty = true
+      return decide(keepGoing)
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
     // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
@@ -431,7 +445,7 @@ final class Solver(val simplify: Boolean = true):
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertSorts()
-      e.shareIntegers()
+      if !e.modelBasedArithmetic then e.shareIntegers()
     if !settled then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
       // sat without them (issue 38).
@@ -508,6 +522,14 @@ private object Encoder:
    */
   val unknown: Sort = Sort.Named("?")
 
+  def supportsIntegerValue(sort: Sort): Boolean = sort match
+    case Sort.Int | Sort.Bool => true
+    case Sort.Named(_) => sort != unknown
+    case _ => false
+
+  def supportsIntegerSignature(args: List[Sort], result: Sort): Boolean =
+    supportsIntegerValue(result) && args.forall(supportsIntegerValue)
+
   /** How many values a sort has, as far as the search needs to know (see
    *  [[Encoder.cardinality]]).
    */
@@ -530,7 +552,8 @@ private final class Encoder(
     datatypes: List[Datatype],
     auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
-    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
+    keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
+    val modelBasedArithmetic: Boolean
 ):
   private var steps = 0L
 
@@ -828,29 +851,7 @@ private final class Encoder(
       sharedEqualities += 1
     for (s, x) <- selectorPairs do pair(s, x)
     for (a, b) <- pairs do
-      val e = lit(Formula.Eq(a, b))
-      // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
-      // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
-      // disequality the LIA solver decides by branching, without learning, at every value the
-      // relaxation lands on (hundreds of them on `wisas`).
-      def equalOrApart(x: lia.Var, c: BigInt): Unit =
-        liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
-        // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
-        // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
-        // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
-        val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
-        val above = bound(x, c, false)
-        clauses += Array(e, below, above.neg)
-        // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
-        // here, the search does not have to reach the theory to find that out.
-        if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
-        guidedAtoms += below.variable
-        guidedAtoms += above.variable
-        anySharedAtom = true
-      Term.linear(List((1, a), (-1, b))) match
-        case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
-        case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
-        case difference => equalOrApart(intVar(difference), 0)
+      linkArithmeticEquality(lit(Formula.Eq(a, b)), a, b)
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
     // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
@@ -859,6 +860,30 @@ private final class Encoder(
     for (a, b) <- arrayPairs do
       val eq = Formula.Eq(a, b)
       lits.getOrElseUpdate(eq, encode(eq))
+
+  private def linkArithmeticEquality(e: Lit, a: Term, b: Term): Unit =
+    // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
+    // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
+    // disequality the LIA solver decides by branching, without learning, at every value the
+    // relaxation lands on (hundreds of them on `wisas`).
+    def equalOrApart(x: lia.Var, c: BigInt): Unit =
+      liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
+      // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
+      // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
+      // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
+      val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
+      val above = bound(x, c, false)
+      clauses += Array(e, below, above.neg)
+      // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
+      // here, the search does not have to reach the theory to find that out.
+      if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
+      guidedAtoms += below.variable
+      guidedAtoms += above.variable
+      anySharedAtom = true
+    Term.linear(List((1, a), (-1, b))) match
+      case Term.Num(v) => clauses += Array(if v.signum == 0 then e else e.neg) // two numerals
+      case Term.Linear(terms, c) => equalOrApart(slack(terms), -c)
+      case difference => equalOrApart(intVar(difference), 0)
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
@@ -1295,7 +1320,16 @@ private final class Encoder(
     if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(formula) then
       functionEqualities += formula
       equalities += formula
-    lits.getOrElseUpdate(formula, encode(formula))
+    formula match
+      case Formula.Eq(a, b) if modelBasedArithmetic && integerPair(a, b) =>
+        lits.get(formula).orElse(lits.get(Formula.Eq(b, a))).getOrElse {
+          val e = encode(formula)
+          lits(formula) = e
+          e
+        }
+      case _ => lits.getOrElseUpdate(formula, encode(formula))
+
+  private def integerPair(a: Term, b: Term): Boolean = sortOf(a) == Sort.Int && sortOf(b) == Sort.Int
 
   /** The function equalities encoded for the application lemmas alone, which
    *  get no witness (see [[applicationLemmas]]) until the problem states them.
@@ -1318,7 +1352,9 @@ private final class Encoder(
           if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
-          atom(classOf(lhs), classOf(rhs))
+          val e = atom(classOf(lhs), classOf(rhs))
+          if modelBasedArithmetic && integerPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
+          e
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
         // terms it knows as Boolean, and a term known only from a later solve keeps the assignment
@@ -1393,6 +1429,13 @@ private final class Encoder(
    *  corpus from 90 ms to no answer in a minute (`invalid-BinarySearch2__33`).
    */
   private val met = scala.collection.mutable.HashSet.empty[Term]
+  private var typedInteger = true
+  def typedIntegerInput: Boolean = typedInteger
+
+  // The legacy API permits undeclared or function-valued terms. Check the fragment
+  // as formulas arrive, including ones added after the first solve.
+  private def checkIntegerInput(valid: => Boolean): Unit =
+    if modelBasedArithmetic && typedInteger && !valid then typedInteger = false
 
   private def meet(formula: Formula): Unit = formula match
     case Formula.True | Formula.False => ()
@@ -1410,13 +1453,18 @@ private final class Encoder(
       meet(thn)
       meet(els)
     case Formula.Eq(lhs, rhs) =>
+      checkIntegerInput(Encoder.supportsIntegerValue(sortOf(lhs)) && sortOf(lhs) == sortOf(rhs))
       meet(lhs)
       meet(rhs)
-    case Formula.Pred(term) => meet(term)
+    case Formula.Pred(term) =>
+      checkIntegerInput(sortOf(term) == Sort.Bool)
+      meet(term)
     case Formula.Le(lhs, rhs) =>
+      checkIntegerInput(integerPair(lhs, rhs))
       meet(lhs)
       meet(rhs)
     case Formula.Less(lhs, rhs) =>
+      checkIntegerInput(integerPair(lhs, rhs))
       meet(lhs)
       meet(rhs)
 
@@ -1424,12 +1472,23 @@ private final class Encoder(
     if met.add(term) then // a subterm shared by many terms is walked once
       term match
         case Term.App(fun, args) =>
+          checkIntegerInput {
+            fun match
+              case Term.Const(name) =>
+                args.nonEmpty && declarations.get(name).exists(_._1 == args.map(sortOf))
+              case _ => false
+          }
           meet(fun)
           args.foreach(meet)
           if sortOf(term).isInstanceOf[Sort.IntRange] then
             classOf(term)
             assertRanges()
-        case Term.Linear(terms, _) => terms.foreach((_, t) => meet(t))
+        case Term.Linear(terms, _) =>
+          checkIntegerInput(terms.forall {
+            case (_, t @ (Term.Const(_) | Term.App(_, _))) => sortOf(t) == Sort.Int
+            case _ => false
+          })
+          terms.foreach((_, t) => meet(t))
         case Term.Bool(formula) => meet(formula)
         case Term.Const(_) | Term.Num(_) => ()
 
@@ -1466,9 +1525,11 @@ private final class Encoder(
    *  only then does the combination need to remember impliers.
    */
   private var anySharedAtom = false
+  private val preferEqual = HashSet.empty[cdclt.Var]
 
   private val ufTheory = UfTheory(eg, atoms, trueTerm, falseTerm, booleanClasses)
-  private val theories = List(ufTheory, LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false)))
+  private val liaTheory = LiaTheory(liaSolver, liaAtoms, guidedAtoms, bound(_, _, strict = false))
+  private val theories = List(ufTheory, liaTheory)
 
   /** Adds the work of the encoding and of the engines to `counts`, in the order
    *  of `Solver.kinds`; the steps of the search and the arithmetic are the
@@ -1492,7 +1553,8 @@ private final class Encoder(
       theories,
       v => if atoms(v) != null then theories.head else theories.last,
       v => atoms(v) != null && liaAtoms(v) != null, // only a shared equality needs its implier remembered
-      () => anySharedAtom
+      () => anySharedAtom,
+      preferEqual
     )
   )
   private var clauseCursor = 0
@@ -1503,26 +1565,136 @@ private final class Encoder(
   var lastModel: Model | Null = null
   var produceModels: Boolean = true
 
+  private val sharedIntegers = ArrayBuffer.empty[Term]
+  private val integerApplications = ArrayBuffer.empty[Term.App]
+  private var registeredTerms = 0
+
+  private def registerSharedIntegers(): Unit =
+    while registeredTerms < terms.length do
+      step()
+      val term = terms(registeredTerms)
+      if sortOf(term) == Sort.Int then
+        term match
+          case Term.Num(_) | Term.Linear(_, _) => () // numerals are values, linear operands already have variables
+          case _ => intVar(term)
+        sharedIntegers += term
+      term match
+        case app: Term.App if app.args.exists(arg => sortOf(arg) == Sort.Int) => integerApplications += app
+        case _ => ()
+      registeredTerms += 1
+
+  /** The simplex's value of a registered shared term in its current integer
+   *  solution.
+   */
+  private def integerValue(term: Term): BigInt = term match
+    case Term.Num(value) => value
+    case Term.Linear(operands, constant) =>
+      operands.foldLeft(constant) { case (sum, (coefficient, operand)) =>
+        sum + coefficient * liaSolver.value(intVars(operand))
+      }
+    case _ => liaSolver.value(intVars(term))
+
+  private final case class ArithmeticSplit(left: Term, right: Term, equalFirst: Boolean)
+
+  /** Every integer e-class needs one value. Distinct integer classes can share
+   *  a value as long as the observed function tables are still well-defined.
+   *  Explicit integer disequalities already have arithmetic bounds, so this
+   *  check only needs to find collisions in the tables.
+   */
+  private def arithmeticDisagreements(): List[ArithmeticSplit] =
+    val byClass = HashMap.empty[EClassId, (Term, BigInt)]
+    val integers = HashMap.empty[Term, BigInt]
+    val disagreements = List.newBuilder[ArithmeticSplit]
+    for term <- sharedIntegers do
+      step()
+      val cls = eg.find(classes(term))
+      val value = integerValue(term)
+      integers(term) = value
+      val (firstInClass, classValue) = byClass.getOrElseUpdate(cls, (term, value))
+      if classValue != value then disagreements += ArithmeticSplit(firstInClass, term, equalFirst = true)
+    val sameClass = disagreements.result()
+    if sameClass.nonEmpty then return sameClass
+
+    // Interpret integers in the simplex, Booleans by their truth values, and
+    // the uninterpreted sorts by their e-classes, as takeModel does.
+    type Value = Either[EClassId, BigInt]
+    val truth = eg.find(trueTerm)
+    val falsity = eg.find(falseTerm)
+    def valueOf(term: Term): Value =
+      integers.get(term) match
+        case Some(value) => Right(value)
+        case None =>
+          val root = eg.find(classes(term))
+          Left(if sortOf(term) == Sort.Bool && root != truth then falsity else root)
+
+    val rows = HashMap.empty[(Term, List[Value]), (Term.App, Value)]
+    val splits = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    val outputs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    for app <- integerApplications if applications(app.fun).size > 1 do
+      step()
+      val key = (app.fun, app.args.map(valueOf))
+      val result = valueOf(app)
+      val (first, expected) = rows.getOrElseUpdate(key, (app, result))
+      if expected != result then
+        // If all arguments had the same e-class, congruence would already
+        // identify the results. Noninteger arguments have matching classes.
+        val (a, b) = first.args.zip(app.args).find { (a, b) =>
+          integers.contains(a) && eg.find(classes(a)) != eg.find(classes(b))
+        }.get
+        if !splits((b, a)) then splits += ((a, b))
+        // If the inputs are later equated, congruence can propagate this result
+        // equality into arithmetic during the next search.
+        if integers.contains(app) && !outputs((app, first)) &&
+          !lits.contains(Formula.Eq(first, app)) && !lits.contains(Formula.Eq(app, first))
+        then outputs += ((first, app))
+    // Try separating the inputs first: that repairs the candidate collision
+    // without changing the function's current results.
+    (splits.iterator ++ outputs.iterator).map((a, b) => ArithmeticSplit(a, b, equalFirst = false)).toList
+
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
-    while deferredCursor < deferred.length do
-      sat.defer(deferred(deferredCursor))
-      deferredCursor += 1
-    while clauseCursor < clauses.length do
-      sat.addClause(clauses(clauseCursor))
-      clauseCursor += 1
+    if modelBasedArithmetic && anyInt then
+      registerSharedIntegers()
+      liaTheory.guideBoundsFromModel ||= integerApplications.exists(app => applications(app.fun).size > 1)
     lastModel = null
-    val result = sat.solve(assumptions.toArray, keepGoing)
-    result match
-      case cdclt.Solver.Result.Sat(_) =>
-        wantFields()
-        // Not the model of a `sat` that is searched again (see boundFields).
-        if produceModels && !fieldsWanted then lastModel = takeModel()
-      case _ => ()
-    sat.unwind() // the next assert must find the engines at level 0, not on the trail of this search
-    result
+    val assumed = assumptions.toArray
+
+    @scala.annotation.tailrec
+    def search(): cdclt.Solver.Result =
+      while sat.vars < atoms.length do sat.newVar() // `atoms` is the source of truth
+      while deferredCursor < deferred.length do
+        sat.defer(deferred(deferredCursor))
+        deferredCursor += 1
+      while clauseCursor < clauses.length do
+        sat.addClause(clauses(clauseCursor))
+        clauseCursor += 1
+      var disagreements = List.empty[ArithmeticSplit]
+      val result =
+        try
+          val candidate = sat.solve(assumed, keepGoing)
+          candidate match
+            case cdclt.Solver.Result.Sat(_) =>
+              if sharedIntegers.nonEmpty then disagreements = arithmeticDisagreements()
+              if disagreements.isEmpty then
+                wantFields()
+                if produceModels && !fieldsWanted then lastModel = takeModel()
+            case _ => ()
+          candidate
+        finally sat.unwind()
+      if disagreements.isEmpty then result
+      else if !keepGoing() then cdclt.Solver.Result.Unknown
+      else
+        // Add definitions between searches. Each atom has both meanings before
+        // SAT assigns it. The decision phase leaves both polarities open.
+        for ArithmeticSplit(a, b, equalFirst) <- disagreements do
+          val next = atoms.length
+          val eq = lit(Formula.Eq(a, b))
+          require(eq.variable == next, s"candidate disagrees on an encoded equality: $a = $b")
+          if equalFirst then preferEqual += eq.variable
+        search()
+
+    search()
 
   /** Builds the [[Model]] from the live engines: the value of every declared
    *  constant, and the graph of every declared first-order function from the
@@ -1851,7 +2023,8 @@ private final class Theories(
     theories: List[Theory],
     owner: cdclt.Var => Theory,
     shared: cdclt.Var => Boolean,
-    anyShared: () => Boolean
+    anyShared: () => Boolean,
+    preferEqual: collection.Set[cdclt.Var]
 ) extends Theory:
   /** The theory that implied a literal: the atom of a shared equality belongs
    *  to both, and only the one that implied it can explain it. Only shared
@@ -1863,7 +2036,8 @@ private final class Theories(
   def propagate(): Theory.Result = combine(_.propagate())
   override def finalCheck(): Theory.Result = combine(_.finalCheck())
   def explain(lit: Lit): ArrayBuffer[Lit] = implier.getOrElse(lit.variable, owner(lit.variable)).explain(lit)
-  override def phase(v: cdclt.Var): Option[Boolean] = owner(v).phase(v)
+  override def phase(v: cdclt.Var): Option[Boolean] =
+    if preferEqual(v) then Some(true) else owner(v).phase(v)
   def push(): Unit = theories.foreach(_.push())
   def pop(): Unit = theories.foreach(_.pop())
 
