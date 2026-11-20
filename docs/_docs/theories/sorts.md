@@ -66,7 +66,10 @@ a variable pattern catches everything after it.
 A datatype must be well-founded, as the standard asks: one of its constructors takes only fields that have
 values without it. `(declare-datatype T ((c (next T))))` has no value and is refused, as is a group of
 datatypes that only have values through one another. An array field counts for its indices and its
-elements, and a parametric datatype is judged at each instance.
+elements, and a parametric datatype is judged at each instance. The solver relies on it: the default values
+of a model, for a datatype term that nothing constrains, are built from a constructor whose fields all have
+values, and every datatype has one. A datatype given to `io.bovel.vik.Solver` directly, without the parser,
+is not checked and must be well-founded too.
 
 A parametric datatype — `(declare-datatype List (par (T) ...))` — is a datatype per instance, `(List Int)`,
 `(List Bool)`: see [sort parameters](#sort-parameters) below.

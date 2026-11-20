@@ -122,6 +122,26 @@ class ValuesTest extends munit.FunSuite:
       )
     )
 
+  test("a default datatype value is ground"):
+    // The first constructor leads back to its sort, where the default ended in an abstract element:
+    // `y` was `(rec (rec @D!2))` (issue 140). The classes of `y` and of its fields take distinct values (issue
+    // 127), and the default ends each of them.
+    assertEquals(
+      run("""(declare-datatype D ((rec (next D)) (base (n Bool)))) (declare-const y D)
+             (check-sat) (get-model) (get-value ((next y) (next (next y))))"""),
+      List(
+        "sat",
+        "((define-fun y () D (rec (rec (rec (base false))))))",
+        "(((next y) (rec (rec (base false)))) ((next (next y)) (rec (base false))))"
+      )
+    )
+    // Two sorts that recur through each other: `u` was `(a1 (b1 (a1 @B!1)))`.
+    assertEquals(
+      run("""(declare-datatypes ((A 0) (B 0)) (((a1 (ab B))) ((b1 (ba A)) (b2 (bz Bool))))) (declare-const u A)
+             (check-sat) (get-model)"""),
+      List("sat", "((define-fun u () A (a1 (b1 (a1 (b1 (a1 (b2 false))))))))")
+    )
+
   test("a function symbol is answered as a lambda over its graph"):
     // It was echoed as its own value, `((f f))` (issue 50).
     assertEquals(
