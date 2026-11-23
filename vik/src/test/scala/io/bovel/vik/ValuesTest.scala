@@ -71,6 +71,37 @@ class ValuesTest extends munit.FunSuite:
       List("sat", "(((= (f x) (- 1.5)) true))")
     )
 
+  test("an array inside a datatype value is compared by its elements (issue 141)"):
+    // By structure, `(C a)` and `(C (store a 0 1))` were apart where `a` and the store are equal.
+    assertEquals(
+      run("""(declare-datatype D ((C (arr (Array Int Int))))) (declare-const a (Array Int Int))
+             (assert (= (select a 0) 1)) (check-sat)
+             (get-value ((= a (store a 0 1)) (= (C a) (C (store a 0 1))) (= (C a) (C (store a 0 2)))))"""),
+      List("sat", "(((= a (store a 0 1)) true) ((= (C a) (C (store a 0 1))) true) ((= (C a) (C (store a 0 2))) false))")
+    )
+
+  test("arrays written at two equal datatype values are equal (issue 180)"):
+    assertEquals(
+      run("""(declare-datatype D ((C (arr (Array Int Int))))) (declare-const a (Array Int Int))
+             (declare-const m (Array D Int)) (assert (= (select a 0) 1)) (check-sat)
+             (get-value ((= (store m (C a) 5) (store m (C (store a 0 1)) 5))))"""),
+      List("sat", "(((= (store m (C a) 5) (store m (C (store a 0 1)) 5)) true))")
+    )
+
+  test("over a finite index sort, an array is the function it is at every index"):
+    // "0 with `true` at 1" and "1 with `false` at 0" are one array over `Bool`; over 0..1 likewise.
+    def array(index: Sort, default: Int, writes: (Term, Int)*): Term =
+      writes.foldLeft(Model.constArray(Sort.Fun(List(index), Sort.Int), Term.Num(default))) { case (a, (i, v)) =>
+        Model.store(a, i, Term.Num(v))
+      }
+    val (f, t) = (Term.Bool(Formula.False), Term.Bool(Formula.True))
+    assert(Model.same(array(Sort.Bool, 0, t -> 1), array(Sort.Bool, 1, f -> 0)))
+    assert(!Model.same(array(Sort.Bool, 0, t -> 1), array(Sort.Bool, 1, f -> 1)))
+    val bit = Sort.IntRange(0, 1)
+    assert(Model.same(array(bit, 7, Term.Num(0) -> 3, Term.Num(1) -> 4), array(bit, 3, Term.Num(1) -> 4)))
+    // Over the integers an index is always left at the default.
+    assert(!Model.same(array(Sort.Int, 0, Term.Num(1) -> 1), array(Sort.Int, 1, Term.Num(0) -> 0)))
+
   test("bit-vectors inside datatypes and arrays are written as bit-vectors"):
     // At their fields' sorts, and over a constant array of the script's sort (issue 47).
     assertEquals(

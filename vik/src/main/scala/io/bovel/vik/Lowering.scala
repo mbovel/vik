@@ -257,10 +257,10 @@ private final class Lowerer:
       values.forall(_ == values.head)
     case s2.Formula.Eq(as) =>
       val values = as.map(eval(_, model, scope))
-      values.zip(values.tail).forall(Model.same)
+      values.zip(values.tail).forall(model.same)
     case s2.Formula.Distinct(as) =>
       val values = as.map(eval(_, model, scope))
-      values.zipWithIndex.forall((a, i) => values.drop(i + 1).forall(b => !Model.same(a, b)))
+      values.zipWithIndex.forall((a, i) => values.drop(i + 1).forall(b => !model.same(a, b)))
     case s2.Formula.Cmp(op, as) =>
       val values = as.map(a => rational(eval(a, model, scope)))
       values.zip(values.tail).forall((a, b) =>
