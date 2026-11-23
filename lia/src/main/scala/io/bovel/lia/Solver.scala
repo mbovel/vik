@@ -354,6 +354,13 @@ final class Solver:
    */
   def realValue(x: Var): Rational = values(x) + (if anyReal then valuesD(x) else Rational.zero) * delta0()
 
+  /** [[realValue]] for many variables: the δ is worked out once, for the
+   *  solution as it stands.
+   */
+  def realValues(): Var => Rational =
+    val delta = if anyReal then delta0() else Rational.zero
+    x => if anyReal then values(x) + valuesD(x) * delta else values(x)
+
   /** A δ that satisfies every asserted bound strictly enough: for each bound
    *  whose infinitesimal part demands room, the rational gap divided by the
    *  infinitesimal gap bounds δ from above; 1 works when nothing does.
