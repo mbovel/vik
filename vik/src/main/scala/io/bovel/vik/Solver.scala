@@ -76,7 +76,6 @@ final class Solver(val simplify: Boolean = true):
   private[vik] val declarations = HashMap.empty[String, (List[Sort], Sort)]
   private[vik] val datatypes = ArrayBuffer.empty[Datatype]
   private val auxiliaries = HashSet.empty[String] // the declared constants that only define an operation (see declare)
-  private var untypedInput = false
 
   /** `auxiliary`: a constant that only defines an operation of the problem (a
    *  bit of the bit-vector lowering). The search decides the bounds on such
@@ -93,9 +92,6 @@ final class Solver(val simplify: Boolean = true):
     // A name the live encoder knows at another sort — declared again after the pop of its level (issue
     // 40): the encoder's sort, class and variable for it are the old symbol's, so it is rebuilt.
     if encoder != null && encoded.get(name).exists(_ != (argSorts, sort)) then dirty = true
-    if encoder != null && encoder.nn.modelBasedArithmetic &&
-      (Names.isStore(name) || !Encoder.supportsIntegerSignature(argSorts, sort))
-    then dirty = true
     declarations(name) = (argSorts, sort)
     if auxiliary then auxiliaries += name else auxiliaries -= name
     if encoder != null then encoded(name) = (argSorts, sort)
@@ -377,9 +373,7 @@ final class Solver(val simplify: Boolean = true):
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val modelBased = !untypedInput && datatypes.isEmpty && !anyStore &&
-        declarations.valuesIterator.forall(Encoder.supportsIntegerSignature)
-      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked(), modelBased)
+      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked())
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -415,12 +409,6 @@ final class Solver(val simplify: Boolean = true):
     val e = encoder.nn
     e.produceModels = produceModels || checkModels
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
-    if e.modelBasedArithmetic && !e.typedIntegerInput then
-      // The programmatic API also accepts terms without declarations. Replay in the eager encoder
-      // so the theories see their full atom meanings from the first assignment at level zero.
-      untypedInput = true
-      dirty = true
-      return decide(keepGoing)
     // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
     // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
     // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
@@ -445,7 +433,7 @@ final class Solver(val simplify: Boolean = true):
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertSorts()
-      if !e.modelBasedArithmetic then e.shareIntegers()
+      e.shareIntegers()
     if !settled then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
       // sat without them (issue 38).
@@ -522,14 +510,6 @@ private object Encoder:
    */
   val unknown: Sort = Sort.Named("?")
 
-  def supportsIntegerValue(sort: Sort): Boolean = sort match
-    case Sort.Int | Sort.Bool => true
-    case Sort.Named(_) => sort != unknown
-    case _ => false
-
-  def supportsIntegerSignature(args: List[Sort], result: Sort): Boolean =
-    supportsIntegerValue(result) && args.forall(supportsIntegerValue)
-
   /** How many values a sort has, as far as the search needs to know (see
    *  [[Encoder.cardinality]]).
    */
@@ -552,8 +532,7 @@ private final class Encoder(
     datatypes: List[Datatype],
     auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
-    keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
-    val modelBasedArithmetic: Boolean
+    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
 ):
   private var steps = 0L
 
@@ -622,6 +601,12 @@ private final class Encoder(
   private def datatypeOf(sort: Sort): Option[Datatype] = sort match
     case Sort.Named(name) => datatypesByName.get(name)
     case _ => None
+
+  /** The constructors and the selectors: their applications' integer pairs stay
+   *  with [[shareIntegers]] (see its `pair`).
+   */
+  private val fieldFunctions: Set[String] =
+    datatypes.flatMap(_.constructors.flatMap(c => c.name :: c.selectors.map(_._1))).toSet
 
   /** The fields that [[shareIntegers]] pairs with their constructor's arguments
    *  (the selector rule): the arithmetic ones and the arrays, each as its
@@ -758,9 +743,14 @@ private final class Encoder(
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
     val selectorPairs = ArrayBuffer.empty[(Term, Term)] // a selector's application and a field: paired last
-    def pair(a: Term, b: Term): Unit =
+    // An integer pair is left to the final check (see arithmeticDisagreements), but for the fields of
+    // datatype values: their values make the datatype's, and two terms with equal fields are one value,
+    // which the final check does not see. `(f2 x)` and `(f2 y)` equal in arithmetic only, with `x ≠ y`
+    // and equal `(f1 x)`, `(f1 y)`, left `x ≠ y` true in a model where `x` and `y` are one value.
+    def pair(a: Term, b: Term, fields: Boolean = false): Unit =
       step()
-      if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
+      if integerPair(a, b) && !fields then ()
+      else if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
       else if a != b && sortOf(a).arrow.isDefined && sortOf(b).arrow.isDefined
@@ -786,8 +776,11 @@ private final class Encoder(
     // gives: equal by extensionality, their applications are equal by congruence (issue 39).
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
     def pairApplications(a: Term.App, b: Term.App): Unit =
-      pair(a, b)
-      for (x, y) <- a.args.zip(b.args) do pair(x, y)
+      val fields = a.fun match
+        case Term.Const(name) => fieldFunctions(name)
+        case _ => false
+      pair(a, b, fields)
+      for (x, y) <- a.args.zip(b.args) do pair(x, y, fields)
     def meetNewPairs(
         relevant: Array[Term.App],
         arrived: Array[Int],
@@ -858,7 +851,7 @@ private final class Encoder(
         case eq @ Formula.Eq(a, b) if !lemmaEqualities(eq) => pair(a, b)
         case _ => ()
       sharedEqualities += 1
-    for (s, x) <- selectorPairs do pair(s, x)
+    for (s, x) <- selectorPairs do pair(s, x, fields = true)
     for (a, b) <- pairs do
       linkArithmeticEquality(lit(Formula.Eq(a, b)), a, b)
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
@@ -1387,7 +1380,7 @@ private final class Encoder(
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           val e = atom(classOf(lhs), classOf(rhs))
-          if modelBasedArithmetic && integerPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
+          if integerPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
           e
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
@@ -1463,13 +1456,6 @@ private final class Encoder(
    *  corpus from 90 ms to no answer in a minute (`invalid-BinarySearch2__33`).
    */
   private val met = scala.collection.mutable.HashSet.empty[Term]
-  private var typedInteger = true
-  def typedIntegerInput: Boolean = typedInteger
-
-  // The legacy API permits undeclared or function-valued terms. Check the fragment
-  // as formulas arrive, including ones added after the first solve.
-  private def checkIntegerInput(valid: => Boolean): Unit =
-    if modelBasedArithmetic && typedInteger && !valid then typedInteger = false
 
   private def meet(formula: Formula): Unit = formula match
     case Formula.True | Formula.False => ()
@@ -1487,18 +1473,13 @@ private final class Encoder(
       meet(thn)
       meet(els)
     case Formula.Eq(lhs, rhs) =>
-      checkIntegerInput(Encoder.supportsIntegerValue(sortOf(lhs)) && sortOf(lhs) == sortOf(rhs))
       meet(lhs)
       meet(rhs)
-    case Formula.Pred(term) =>
-      checkIntegerInput(sortOf(term) == Sort.Bool)
-      meet(term)
+    case Formula.Pred(term) => meet(term)
     case Formula.Le(lhs, rhs) =>
-      checkIntegerInput(integerPair(lhs, rhs))
       meet(lhs)
       meet(rhs)
     case Formula.Less(lhs, rhs) =>
-      checkIntegerInput(integerPair(lhs, rhs))
       meet(lhs)
       meet(rhs)
 
@@ -1506,23 +1487,12 @@ private final class Encoder(
     if met.add(term) then // a subterm shared by many terms is walked once
       term match
         case Term.App(fun, args) =>
-          checkIntegerInput {
-            fun match
-              case Term.Const(name) =>
-                args.nonEmpty && declarations.get(name).exists(_._1 == args.map(sortOf))
-              case _ => false
-          }
           meet(fun)
           args.foreach(meet)
           if sortOf(term).isInstanceOf[Sort.IntRange] then
             classOf(term)
             assertRanges()
-        case Term.Linear(terms, _) =>
-          checkIntegerInput(terms.forall {
-            case (_, t @ (Term.Const(_) | Term.App(_, _))) => sortOf(t) == Sort.Int
-            case _ => false
-          })
-          terms.foreach((_, t) => meet(t))
+        case Term.Linear(terms, _) => terms.foreach((_, t) => meet(t))
         case Term.Bool(formula) => meet(formula)
         case Term.Const(_) | Term.Num(_) => ()
 
@@ -1661,12 +1631,14 @@ private final class Encoder(
           val root = eg.find(classes(term))
           Left(if sortOf(term) == Sort.Bool && root != truth then falsity else root)
 
-    val rows = HashMap.empty[(Term, List[Value]), (Term.App, Value)]
+    val rows = HashMap.empty[(EClassId, List[Value]), (Term.App, Value)]
     val splits = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
     val outputs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
-    for app <- integerApplications if applications(app.fun).size > 1 do
+    for app <- integerApplications do
       step()
-      val key = (app.fun, app.args.map(valueOf))
+      // By the head's class, not its syntax: `(select a i)` and `(select b j)` share a row once the e-graph
+      // knows `a = b`, and must agree when `i` and `j` take one value.
+      val key = (eg.find(classes(app.fun)), app.args.map(valueOf))
       val result = valueOf(app)
       val (first, expected) = rows.getOrElseUpdate(key, (app, result))
       if expected != result then
@@ -1688,7 +1660,7 @@ private final class Encoder(
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    if modelBasedArithmetic && anyInt then
+    if anyInt then
       registerSharedIntegers()
       liaTheory.guideBoundsFromModel ||= integerApplications.exists(app => applications(app.fun).size > 1)
     lastModel = null
