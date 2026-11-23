@@ -729,6 +729,7 @@ private final class Encoder(
   private var sharedTerms = 0 // the terms of `terms` seen
   private var sharedEqualities = 0 // the equalities of `equalities` seen
   private var sharedNoted = 0 // the size of `intTerms` then
+  private val sharedArrayReads = HashSet.empty[Term.App]
 
   def shareIntegers(): Unit = if anyInt || anyArray || anyNoted || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
@@ -746,6 +747,7 @@ private final class Encoder(
       sharedNoted = intTerms.size
       sharedTerms = 0
       sharedEqualities = 0
+      sharedArrayReads.clear()
     val fresh = scala.collection.mutable.HashSet.empty[Term] // the terms that arrived since the last pass
     val freshFuns =
       scala.collection.mutable.LinkedHashSet.empty[Term] // and the functions of the applications among them
@@ -760,28 +762,35 @@ private final class Encoder(
     // others have nothing to. Two arrays under the same function meet here too, whatever the function
     // gives: equal by extensionality, their applications are equal by congruence (issue 39).
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
+    def pairApplications(a: Term.App, b: Term.App): Unit =
+      pair(a, b)
+      for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    def meetNewPairs(
+        relevant: Array[Term.App],
+        arrived: Array[Int],
+        meet: (Term.App, Term.App) => Unit
+    ): Unit =
+      var from = 0
+      var i = 0
+      while i < relevant.length && from < arrived.length do
+        val a = relevant(i)
+        if arrived(from) == i then
+          from += 1
+          var j = i + 1
+          while j < relevant.length do
+            meet(a, relevant(j))
+            j += 1
+        else
+          var k = from
+          while k < arrived.length do
+            meet(a, relevant(arrived(k)))
+            k += 1
+        i += 1
     if fresh.nonEmpty then
       for fun <- freshFuns do
-        val group = applications(fun)
-        val relevant = group.iterator.filter(shares).toArray
+        val relevant = applications(fun).iterator.filter(shares).toArray
         val arrived = relevant.indices.filter(i => fresh(relevant(i))).toArray // increasing
-        var from = 0 // the first of `arrived` after `i`
-        for i <- relevant.indices do
-          val a = relevant(i)
-          while from < arrived.length && arrived(from) <= i do from += 1
-          def meet(b: Term.App): Unit =
-            pair(a, b)
-            for (x, y) <- a.args.zip(b.args) do pair(x, y)
-          if fresh(a) then
-            var j = i + 1
-            while j < relevant.length do
-              meet(relevant(j))
-              j += 1
-          else
-            var k = from
-            while k < arrived.length do
-              meet(relevant(arrived(k)))
-              k += 1
+        meetNewPairs(relevant, arrived, pairApplications)
       // A selector's applications meet the arguments of its constructor at its position (the selector
       // rule). An arithmetic field, integer or real: a real one shared only through the e-graph left
       // the simplex without its equalities (issue 18). And an array field: the e-graph equates the
@@ -814,10 +823,10 @@ private final class Encoder(
           a
       }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
       for (_, group) <- byFunctionSort do
-        val relevant = group.filter(shares)
-        for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
-          pair(a, b)
-          for (x, y) <- a.args.zip(b.args) do pair(x, y)
+        val relevant = group.iterator.filter(shares).toArray
+        // An existing read can first become relevant when its array gets an equality.
+        val arrived = relevant.indices.filter(i => sharedArrayReads.add(relevant(i))).toArray
+        meetNewPairs(relevant, arrived, (a, b) => if a.fun != b.fun then pairApplications(a, b))
     // Not the equalities of the application lemmas: paired, they would be the problem's, each with
     // a witness, the map and the arrays read there, and the integers there shared in turn. One the
     // problem states later arrives again (see `lit`).
@@ -854,11 +863,8 @@ private final class Encoder(
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
     // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
-    // An equality an application lemma made already stays the lemma's, without a witness: only the
-    // problem stating it makes it one of its own (see `lit`).
-    for (a, b) <- arrayPairs do
-      val eq = Formula.Eq(a, b)
-      lits.getOrElseUpdate(eq, encode(eq))
+    // Sharing needs the witness even if an application lemma introduced the atom first (issue 135).
+    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
@@ -913,8 +919,8 @@ private final class Encoder(
    */
   private val extensionalityDone = scala.collection.mutable.HashSet.empty[Formula]
 
-  /** The function equalities of the encoded formulas: the ones that may need a
-   *  witness — never the ones the application lemmas make.
+  /** The function equalities used outside application lemmas, in the order they
+   *  first need an extensionality witness.
    */
   private val functionEqualities = ArrayBuffer.empty[Formula]
   private var recordFunctionEqualities = true
@@ -931,6 +937,15 @@ private final class Encoder(
 
   def introducedName(name: String): Boolean = introduced.contains(name)
 
+  /** An array's base and the indices written by the surrounding stores. */
+  private def storeWrites(array: Term): (Term, List[Term]) =
+    @annotation.tailrec
+    def collect(term: Term, indices: List[Term]): (Term, List[Term]) = term match
+      case Term.App(Term.Const(name), List(base, index, _)) if Names.isStore(name) =>
+        collect(base, index :: indices)
+      case _ => (term, indices)
+    collect(array, Nil)
+
   def assertExtensionality(): Unit = if anyFunctionEquality then
     val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
@@ -942,15 +957,25 @@ private final class Encoder(
           sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
-              // A witness is a constant of the index sort like any other: of a range of the integers, it
-              // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
-              // indices could still differ at it (issue 20).
-              val witnesses = params.map { sort =>
-                val name = witnessName()
-                introduced(name) = sort
-                Term.Const(name)
-              }
-              clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
+              val (fBase, fWrites) = storeWrites(f)
+              val (gBase, gWrites) = storeWrites(g)
+              if fBase == gBase then
+                // Arrays built from the same base can differ only at a written index. Using these
+                // indices keeps the new reads and sharing from growing with each fresh witness.
+                val differences = (fWrites ::: gWrites).distinct.map(i =>
+                  lit(Formula.Eq(selectTerm(f, i), selectTerm(g, i))).neg
+                )
+                clauses += (lit(eq) :: differences).toArray
+              else
+                // A witness is a constant of the index sort like any other: of a range of the integers, it
+                // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
+                // indices could still differ at it (issue 20).
+                val witnesses = params.map { sort =>
+                  val name = witnessName()
+                  introduced(name) = sort
+                  Term.Const(name)
+                }
+                clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
 
   /** What a term's sort says of it, asserted once for every term the encoder
@@ -1189,7 +1214,7 @@ private final class Encoder(
 
   def clauseCount: Int = clauses.length
 
-  def litOf(f: Formula): Option[Lit] = lits.get(f)
+  def litOf(f: Formula): Option[Lit] = lits.get(literalKey(f))
 
   private def selectTerm(array: Term, index: Term): Term = array match
     case Term.App(Term.Const(n), _) if Names.isStore(n) => Term.App(array, List(index))
@@ -1218,7 +1243,12 @@ private final class Encoder(
       val sort = sortOf(s)
       val indexSort = sort.arrow.get._1.head
       val elementSort = applied(sort, 1) // an array, for an array of arrays
-      if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
+      if arrayWritesDone.add(s) then
+        val written = equalAt(elementSort, selectTerm(s, i), v)
+        val l = lit(written)
+        // The write is a permanent fact, including when the value written is an array.
+        if elementSort.arrow.isDefined then assertedEqualities += literalKey(written)
+        clauses += Array(l)
       for j <- indices.getOrElse(sort, Nil) do
         step()
         if j != i && arrayReadsDone.add((s, j)) then
@@ -1287,18 +1317,25 @@ private final class Encoder(
       }
     )
 
+  private val reversedFunctionEqualities = HashMap.empty[Formula.Eq, Formula.Eq]
+
+  // A function equality keeps the orientation in which it first got its atom.
+  private def literalKey(formula: Formula): Formula = formula match
+    case eq: Formula.Eq if anyFunctionEquality => reversedFunctionEqualities.getOrElse(eq, eq)
+    case _ => formula
+
   /** The literal standing for `formula`, defining it by clauses if needed. */
   private def lit(formula: Formula): Lit =
-    // An equality first encoded for an application lemma, met again in a formula of the problem,
-    // is one of the problem's from then on: its negation needs a witness like any other, and it
-    // arrives again for `shareIntegers`, which left it aside as the lemma's.
-    if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(formula) then
-      functionEqualities += formula
-      equalities += formula
-    lits.getOrElseUpdate(formula, encode(formula))
+    val key = literalKey(formula)
+    // An equality first encoded for an application lemma needs a witness once an assertion or
+    // theory sharing uses it. It also arrives again for the sharing pass, which skipped it before.
+    if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(key) then
+      functionEqualities += key
+      equalities += key
+    lits.getOrElseUpdate(key, encode(key))
 
   /** The function equalities encoded for the application lemmas alone, which
-   *  get no witness (see [[applicationLemmas]]) until the problem states them.
+   *  get no witness (see [[applicationLemmas]]) until another use needs one.
    */
   private val lemmaEqualities = scala.collection.mutable.HashSet.empty[Formula]
 
@@ -1309,7 +1346,7 @@ private final class Encoder(
       case True => trueLit
       case False => trueLit.neg
       case Not(arg) => lit(arg).neg
-      case Eq(lhs, rhs) =>
+      case eq @ Eq(lhs, rhs) =>
         if lhs == rhs then trueLit
         else
           boolean(lhs)
@@ -1317,6 +1354,7 @@ private final class Encoder(
           equalities += formula
           if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
+            reversedFunctionEqualities(Eq(rhs, lhs)) = eq
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
@@ -1374,13 +1412,13 @@ private final class Encoder(
    *  assertion (see [[Solver.push]]).
    */
   def assert(formula: Formula, under: Lit | Null): Unit =
+    meet(formula)
+    val l = lit(formula)
     formula match
       // An equality asserted for good needs no witness; one under a level's selector is gone with
       // the level, and its negation then needs one like any other (issue 19).
-      case Formula.Eq(_, _) if under == null => assertedEqualities += formula
+      case Formula.Eq(_, _) if under == null => assertedEqualities += literalKey(formula)
       case _ => ()
-    meet(formula)
-    val l = lit(formula)
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
 
   /** Meets the applications of an integer range in a formula, innermost first,

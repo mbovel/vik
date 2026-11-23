@@ -93,6 +93,80 @@ class SolverTest extends munit.FunSuite:
     )
     assertEquals(run(s"$f (assert (distinct (f a1) (f a2) (f a3) (f a4)))"), List("sat"))
 
+  test("theory sharing gives an array equality first used in a lemma its witness"):
+    val constructor = "(declare-datatype D ((C (arr (Array Int Int)))))"
+    val function = "(declare-sort U 0) (declare-fun f ((Array Int Int)) U) (declare-const i Int)"
+    val cases = List(
+      (constructor, "C", "(store a 0 (select a 0))"),
+      (function, "f", "(store a i (select a i))"),
+      (s"$constructor (declare-const v Int) (assert (= v (select a 1)))", "C", "(store a 1 v)")
+    )
+    for
+      (setup, symbol, store) <- cases
+      (left, right) <- List(("a", store), (store, "a"))
+    do
+      val script = s"""
+        (declare-const a (Array Int Int))
+        $setup
+        (assert (not (= ($symbol $left) ($symbol $right))))
+        (check-sat)"""
+      assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("unsat"), script)
+
+  test("shared array equalities get witnesses after push and remain valid after pop"):
+    val store = "(store a i (select a i))"
+    val script = s"""
+      (declare-sort U 0)
+      (declare-const a (Array Int Bool))
+      (declare-const i Int)
+      (declare-fun f ((Array Int Bool)) U)
+      (assert (select a 0))
+      (assert (select $store 0))
+      (check-sat)
+      (push 1)
+      (assert (not (= (f $store) (f a))))
+      (check-sat)
+      (pop 1)
+      (push 1)
+      (assert (not (= (f a) (f $store))))
+      (check-sat)
+      (pop 1)
+      (assert (not (= (f a) (f (store a 0 false)))))
+      (check-sat)"""
+    assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("sat", "unsat", "unsat", "sat"))
+
+  test("store chains over the same base differ only at their write indices"):
+    val script = """
+      (declare-const a (Array Int (Array Bool Bool)))
+      (declare-const x (Array Bool Bool))
+      (declare-const y (Array Bool Bool))
+      (assert (select x true))
+      (assert (not (select y true)))
+      (push 1)
+      (assert (distinct (store (store a 0 x) 1 y) (store (store a 1 y) 0 x)))
+      (check-sat)
+      (pop 1)
+      (assert (distinct (store (store a 0 x) 1 y) (store (store a 0 x) 1 x)))
+      (check-sat)"""
+    assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("unsat", "sat"))
+
+  test("an array equality shares reads that arrived in an earlier check"):
+    val script = """
+      (declare-const a (Array Int Int))
+      (declare-const b (Array Int Int))
+      (declare-const i Int)
+      (declare-const j Int)
+      (push 1)
+      (assert (<= i j))
+      (assert (<= j i))
+      (assert (distinct (select a i) (select b j)))
+      (check-sat)
+      (push 1)
+      (assert (= a b))
+      (check-sat)
+      (pop 1)
+      (check-sat)"""
+    assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("sat", "unsat", "sat"))
+
   test("push and pop"):
     val s = Solver()
     s.assert(a === b)
