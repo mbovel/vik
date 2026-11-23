@@ -279,12 +279,30 @@ class SolverTest extends munit.FunSuite:
       List("sat", "unsat", "sat")
     )
 
-  test("model-based arithmetic leaves undeclared terms of the Solver API to the eager pairs"):
+  test("model-based arithmetic checks the undeclared integer terms of the Solver API"):
     val s = Solver(simplify = false)
     assertEquals(s.solve(), s.Result.Sat)
     s.assert(a === b)
     s.assert(a <= Num(0))
     s.assert(b >= Num(1))
+    assertEquals(s.solve(), s.Result.Unsat)
+
+  test("an equality of undeclared terms decided before they are known as integers (issue 221)"):
+    // The first check decides `a = b` for good, as an equality of the e-graph only. Its arithmetic meaning,
+    // which arrives with `a ≤ 0`, has to reach the simplex all the same: as an atom's meaning it did not.
+    val s = Solver(simplify = false)
+    s.assert(a === b)
+    assertEquals(s.solve(), s.Result.Sat)
+    s.assert(a <= Num(0))
+    s.assert(b >= Num(1))
+    assertEquals(s.solve(), s.Result.Unsat)
+
+  test("model-based arithmetic compares the undeclared integer arguments of an undeclared function"):
+    val s = Solver(simplify = false)
+    s.assert(Not(fa(a) === fa(b)))
+    assertEquals(s.solve(), s.Result.Sat)
+    s.assert(a <= b)
+    s.assert(b <= a)
     assertEquals(s.solve(), s.Result.Unsat)
 
   test("model-based arithmetic compares integer arguments of a function into the reals"):
