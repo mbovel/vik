@@ -177,6 +177,116 @@ class SolverTest extends munit.FunSuite:
     assertEquals(s.solve().toString, "Sat")
     intercept[IllegalArgumentException](s.pop())
 
+  test("model-based arithmetic equates the numeric results of congruent applications"):
+    val s = Session(Solver(simplify = false))
+    assertEquals(
+      s.run("""
+        (declare-sort U 0)
+        (declare-const a U) (declare-const b U)
+        (declare-fun f (U) Int)
+        (assert (= a b))
+        (assert (= (f a) 0))
+        (assert (= (f b) 1))
+        (check-sat)
+      """),
+      List("unsat")
+    )
+
+  test("model-based arithmetic compares linear arguments and numerals with model output off"):
+    val s = Session(Solver(simplify = false))
+    assertEquals(
+      s.run("""
+        (declare-sort U 0)
+        (declare-const x Int)
+        (declare-fun f (Int) U)
+        (assert (= x 0))
+        (assert (distinct (f (+ x 1)) (f 1)))
+        (check-sat)
+      """),
+      List("unsat")
+    )
+    assert(!s.solver.produceModels)
+
+  test("model-based arithmetic checks nested calls with mixed Boolean and integer arguments"):
+    val s = Session(Solver(simplify = false), checkModels = true)
+    assertEquals(
+      s.run("""
+        (declare-const x Int) (declare-const y Int)
+        (declare-fun f (Int) Int)
+        (declare-fun p (Bool Int) Bool)
+        (assert (distinct x y))
+        (assert (= (f x) 7))
+        (assert (= (f y) 7))
+        (assert (p true (f x)))
+        (assert (not (p false (f y))))
+        (check-sat)
+        (push 1)
+        (assert (not (p true (f y))))
+        (check-sat)
+        (pop 1)
+        (check-sat)
+      """),
+      List("sat", "unsat", "sat")
+    )
+
+  test("model-based arithmetic can choose disequality and keep its definition across checks"):
+    val s = Session(Solver(simplify = false), checkModels = true)
+    assertEquals(
+      s.run("""
+        (declare-sort U 0)
+        (declare-const a Int) (declare-const b Int)
+        (declare-fun f (Int) U)
+        (assert (distinct (f a) (f b)))
+        (check-sat)
+        (push 1)
+        (assert (! (= a b) :named same))
+        (check-sat)
+        (get-unsat-core)
+        (pop 1)
+        (check-sat)
+      """),
+      List("sat", "unsat", "(same)", "sat")
+    )
+
+  test("model-based arithmetic encodes explicit equality before it reaches level zero"):
+    val s = Solver(simplify = false)
+    s.declare("a", Nil, Sort.Int)
+    s.declare("b", Nil, Sort.Int)
+    s.assert(a === b)
+    assertEquals(s.solve(), s.Result.Sat)
+    s.push()
+    s.assert(b === a)
+    s.assert(a <= Num(0))
+    s.assert(b >= Num(1))
+    assertEquals(s.solve(), s.Result.Unsat)
+    s.pop()
+    assertEquals(s.solve(), s.Result.Sat)
+
+  test("model-based arithmetic falls back when an array is introduced between checks"):
+    val s = Session(Solver(simplify = false))
+    assertEquals(
+      s.run("""
+        (declare-const x Int)
+        (assert (= x 0))
+        (check-sat)
+        (push 1)
+        (declare-const a (Array Int Int))
+        (assert (distinct (select (store a x 1) 0) 1))
+        (check-sat)
+        (pop 1)
+        (check-sat)
+      """),
+      List("sat", "unsat", "sat")
+    )
+
+  test("model-based arithmetic falls back for undeclared terms in the Solver API"):
+    val s = Solver(simplify = false)
+    assertEquals(s.solve(), s.Result.Sat)
+    s.assert(a === b)
+    s.assert(a <= Num(0))
+    s.assert(b >= Num(1))
+    assertEquals(s.solve(), s.Result.Unsat)
+
   test("random formulas over predicates agree with brute force"):
     val rnd = scala.util.Random(9)
     val ps = Array.tabulate(5)(i => Pred(Const(s"q$i")))

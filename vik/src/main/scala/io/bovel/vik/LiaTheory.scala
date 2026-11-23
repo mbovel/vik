@@ -103,17 +103,19 @@ final class LiaTheory(
 
   override def finalCheck(): Theory.Result = report(solver.check())
 
+  // Model-based combination can need a split before there are any disequality clauses.
+  private[vik] var guideBoundsFromModel = false
+
   /** A bound atom as the relaxation stands to it, for its first decision, on a
-   *  problem whose search is an arrangement of shared terms (`guided` holds the
-   *  sides of its disequality clauses): the side of a clause the search takes
-   *  is the one already true, and the other bounds start where the relaxation
-   *  is. Nothing on a problem without shared terms, where the conflicts of an
-   *  unsat search would then all wait for the final check (measured 200× slower
-   *  on a bit-vector file); nothing past the first decision, where phase
-   *  saving's locality matters more (measured on `Hash`).
+   *  problem that can need an arrangement of shared terms. The side of a clause
+   *  the search takes is the one already true, and the other bounds start where
+   *  the relaxation is. Nothing on a problem without shared terms, where the
+   *  conflicts of an unsat search would then all wait for the final check
+   *  (measured 200× slower on a bit-vector file); nothing past the first
+   *  decision, where phase saving's locality matters more (measured on `Hash`).
    */
   override def phase(v: Var): Option[Boolean] =
-    if guided.nonEmpty && v < atoms.length then
+    if (guided.nonEmpty || guideBoundsFromModel) && v < atoms.length then
       atoms(v) match
         case LiaTheory.Atom.Bound(x, c, strict) =>
           val value = solver.value(x)
