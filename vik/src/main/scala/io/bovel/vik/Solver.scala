@@ -1342,11 +1342,14 @@ private final class Encoder(
       }
     )
 
-  private val reversedFunctionEqualities = HashMap.empty[Formula.Eq, Formula.Eq]
+  /** Each equality encoded, by its other orientation: `(= b a)` is `(= a b)` if
+   *  that came first. An equality has one atom in either orientation, so its
+   *  meanings, the arithmetic one and an array's witness, are given once.
+   */
+  private val orientations = HashMap.empty[Formula.Eq, Formula.Eq]
 
-  // A function equality keeps the orientation in which it first got its atom.
   private def literalKey(formula: Formula): Formula = formula match
-    case eq: Formula.Eq if anyFunctionEquality => reversedFunctionEqualities.getOrElse(eq, eq)
+    case eq: Formula.Eq => orientations.getOrElse(eq, eq)
     case _ => formula
 
   /** The literal standing for `formula`, defining it by clauses if needed. */
@@ -1357,14 +1360,7 @@ private final class Encoder(
     if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(key) then
       functionEqualities += key
       equalities += key
-    key match
-      case Formula.Eq(a, b) if modelBasedArithmetic && integerPair(a, b) =>
-        lits.get(key).orElse(lits.get(Formula.Eq(b, a))).getOrElse {
-          val e = encode(key)
-          lits(key) = e
-          e
-        }
-      case _ => lits.getOrElseUpdate(key, encode(key))
+    lits.getOrElseUpdate(key, encode(key))
 
   private def integerPair(a: Term, b: Term): Boolean = sortOf(a) == Sort.Int && sortOf(b) == Sort.Int
 
@@ -1386,9 +1382,9 @@ private final class Encoder(
           boolean(lhs)
           boolean(rhs)
           equalities += formula
+          orientations(Eq(rhs, lhs)) = eq
           if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
-            reversedFunctionEqualities(Eq(rhs, lhs)) = eq
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           val e = atom(classOf(lhs), classOf(rhs))
           if modelBasedArithmetic && integerPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
