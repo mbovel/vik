@@ -1588,13 +1588,19 @@ private final class Encoder(
         case Sort.Named(name) => name
         case other => other.text
       elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
-    // A number the simplex never saw — a constructor's field invented by a tester's expansion, say — is
-    // free of arithmetic but not of the e-graph's disequalities: its class gets a value of its own, past
-    // every value known, and not the 0 that `(not (= x (mk 0)))` forbids (issue 26).
+    // A simplex value can appear in the model even if its term has no e-class.
+    lazy val usedRealIntegers =
+      val withoutClass = intVars.iterator.collect {
+        case (t, x) if !classes.contains(t) && sortOf(t) == Sort.Real => liaSolver.realValue(x)
+      }
+      HashSet.from((realClassValues.valuesIterator ++ withoutClass).filter(_.isInteger).map(_.num))
+    // Give free numeric classes distinct values. Start past the known integers and 0 (issue 26),
+    // and skip the integers used by assigned real values (issue 179).
     var nextFresh = classValues.values.maxOption.getOrElse(BigInt(0)).max(BigInt(0)) + 1
     def freshInt(root: EClassId): BigInt =
       classValues.getOrElseUpdate(
         root, {
+          while usedRealIntegers(nextFresh) do nextFresh += 1
           nextFresh += 1
           nextFresh - 1
         }
