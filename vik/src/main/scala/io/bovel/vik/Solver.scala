@@ -749,7 +749,7 @@ private final class Encoder(
     // and equal `(f1 x)`, `(f1 y)`, left `x ≠ y` true in a model where `x` and `y` are one value.
     def pair(a: Term, b: Term, fields: Boolean = false): Unit =
       step()
-      if integerPair(a, b) && !fields then ()
+      if checkedPair(a, b) && !fields then ()
       else if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
@@ -1355,7 +1355,15 @@ private final class Encoder(
       equalities += key
     lits.getOrElseUpdate(key, encode(key))
 
-  private def integerPair(a: Term, b: Term): Boolean = sortOf(a) == Sort.Int && sortOf(b) == Sort.Int
+  /** The sorts whose shared terms the final check compares by their values (see
+   *  [[arithmeticDisagreements]]), and not the eager pairs.
+   */
+  private def checkedSort(sort: Sort): Boolean = sort == Sort.Int || sort == Sort.Real
+
+  /** Two terms of checked sorts, an integer and a real among them: their
+   *  equality is the final check's, with its arithmetic meaning from the start.
+   */
+  private def checkedPair(a: Term, b: Term): Boolean = checkedSort(sortOf(a)) && checkedSort(sortOf(b))
 
   /** The function equalities encoded for the application lemmas alone, which
    *  get no witness (see [[applicationLemmas]]) until another use needs one.
@@ -1380,7 +1388,7 @@ private final class Encoder(
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           val e = atom(classOf(lhs), classOf(rhs))
-          if integerPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
+          if checkedPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
           e
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
@@ -1569,63 +1577,67 @@ private final class Encoder(
   var lastModel: Model | Null = null
   var produceModels: Boolean = true
 
-  private val sharedIntegers = ArrayBuffer.empty[Term]
-  private val integerApplications = ArrayBuffer.empty[Term.App]
+  private val sharedNumbers = ArrayBuffer.empty[Term] // the terms of checked sorts, in arrival order
+  private val numericApplications = ArrayBuffer.empty[Term.App] // the applications with such an argument
   private var registeredTerms = 0
 
-  private def registerSharedIntegers(): Unit =
+  private def registerShared(): Unit =
     while registeredTerms < terms.length do
       step()
       val term = terms(registeredTerms)
-      if sortOf(term) == Sort.Int then
+      if checkedSort(sortOf(term)) then
         term match
           case Term.Num(_) | Term.Linear(_, _) => () // numerals are values, linear operands already have variables
           case _ => intVar(term)
-        sharedIntegers += term
+        sharedNumbers += term
       term match
-        case app: Term.App if app.args.exists(arg => sortOf(arg) == Sort.Int) => integerApplications += app
+        case app: Term.App if app.args.exists(arg => checkedSort(sortOf(arg))) => numericApplications += app
         case _ => ()
       registeredTerms += 1
 
-  /** The simplex's value of a registered shared term in its current integer
-   *  solution.
+  /** The simplex's value of a registered shared term in its current solution:
+   *  an integer, or a real at the δ of `real`.
    */
-  private def integerValue(term: Term): BigInt = term match
-    case Term.Num(value) => value
+  private def numericValue(term: Term, real: lia.Var => lia.Rational): lia.Rational = term match
+    case Term.Num(value) => lia.Rational(value)
     case Term.Linear(operands, constant) =>
-      operands.foldLeft(constant) { case (sum, (coefficient, operand)) =>
-        sum + coefficient * liaSolver.value(intVars(operand))
+      operands.foldLeft(lia.Rational(constant)) { case (sum, (coefficient, operand)) =>
+        sum + lia.Rational(coefficient) * numericValue(operand, real)
       }
-    case _ => liaSolver.value(intVars(term))
+    case _ =>
+      val x = intVars(term)
+      if sortOf(term) == Sort.Real then real(x) else lia.Rational(liaSolver.value(x))
 
   private final case class ArithmeticSplit(left: Term, right: Term, equalFirst: Boolean)
 
-  /** Every integer e-class needs one value. Distinct integer classes can share
+  /** Every numeric e-class needs one value. Distinct numeric classes can share
    *  a value as long as the observed function tables are still well-defined.
-   *  Explicit integer disequalities already have arithmetic bounds, so this
-   *  check only needs to find collisions in the tables.
+   *  Explicit numeric disequalities already have arithmetic bounds, so this
+   *  check only needs to find collisions in the tables. A real is compared at
+   *  the δ the model takes it at, so the model agrees with what is checked.
    */
   private def arithmeticDisagreements(): List[ArithmeticSplit] =
-    val byClass = HashMap.empty[EClassId, (Term, BigInt)]
-    val integers = HashMap.empty[Term, BigInt]
+    val real = liaSolver.realValues()
+    val byClass = HashMap.empty[EClassId, (Term, lia.Rational)]
+    val numbers = HashMap.empty[Term, lia.Rational]
     val disagreements = List.newBuilder[ArithmeticSplit]
-    for term <- sharedIntegers do
+    for term <- sharedNumbers do
       step()
       val cls = eg.find(classes(term))
-      val value = integerValue(term)
-      integers(term) = value
+      val value = numericValue(term, real)
+      numbers(term) = value
       val (firstInClass, classValue) = byClass.getOrElseUpdate(cls, (term, value))
       if classValue != value then disagreements += ArithmeticSplit(firstInClass, term, equalFirst = true)
     val sameClass = disagreements.result()
     if sameClass.nonEmpty then return sameClass
 
-    // Interpret integers in the simplex, Booleans by their truth values, and
-    // the uninterpreted sorts by their e-classes, as takeModel does.
-    type Value = Either[EClassId, BigInt]
+    // Interpret numbers in the simplex, Booleans by their truth values, and
+    // the other sorts by their e-classes, as takeModel does.
+    type Value = Either[EClassId, lia.Rational]
     val truth = eg.find(trueTerm)
     val falsity = eg.find(falseTerm)
     def valueOf(term: Term): Value =
-      integers.get(term) match
+      numbers.get(term) match
         case Some(value) => Right(value)
         case None =>
           val root = eg.find(classes(term))
@@ -1634,7 +1646,7 @@ private final class Encoder(
     val rows = HashMap.empty[(EClassId, List[Value]), (Term.App, Value)]
     val splits = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
     val outputs = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
-    for app <- integerApplications do
+    for app <- numericApplications do
       step()
       // By the head's class, not its syntax: `(select a i)` and `(select b j)` share a row once the e-graph
       // knows `a = b`, and must agree when `i` and `j` take one value.
@@ -1643,15 +1655,14 @@ private final class Encoder(
       val (first, expected) = rows.getOrElseUpdate(key, (app, result))
       if expected != result then
         // If all arguments had the same e-class, congruence would already
-        // identify the results. Noninteger arguments have matching classes.
+        // identify the results. Nonnumeric arguments have matching classes.
         val (a, b) = first.args.zip(app.args).find { (a, b) =>
-          integers.contains(a) && eg.find(classes(a)) != eg.find(classes(b))
+          numbers.contains(a) && eg.find(classes(a)) != eg.find(classes(b))
         }.get
         if !splits((b, a)) then splits += ((a, b))
         // If the inputs are later equated, congruence can propagate this result
         // equality into arithmetic during the next search.
-        if integers.contains(app) && !outputs((app, first)) &&
-          !lits.contains(Formula.Eq(first, app)) && !lits.contains(Formula.Eq(app, first))
+        if numbers.contains(app) && !outputs((app, first)) && !lits.contains(literalKey(Formula.Eq(first, app)))
         then outputs += ((first, app))
     // Try separating the inputs first: that repairs the candidate collision
     // without changing the function's current results.
@@ -1661,8 +1672,8 @@ private final class Encoder(
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     if anyInt then
-      registerSharedIntegers()
-      liaTheory.guideBoundsFromModel ||= integerApplications.exists(app => applications(app.fun).size > 1)
+      registerShared()
+      liaTheory.guideBoundsFromModel ||= numericApplications.exists(app => applications(app.fun).size > 1)
     lastModel = null
     val assumed = assumptions.toArray
 
@@ -1681,7 +1692,7 @@ private final class Encoder(
           val candidate = sat.solve(assumed, keepGoing)
           candidate match
             case cdclt.Solver.Result.Sat(_) =>
-              if sharedIntegers.nonEmpty then disagreements = arithmeticDisagreements()
+              if sharedNumbers.nonEmpty then disagreements = arithmeticDisagreements()
               if disagreements.isEmpty then
                 wantFields()
                 if produceModels && !fieldsWanted then lastModel = takeModel()
