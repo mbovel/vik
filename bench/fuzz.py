@@ -39,12 +39,10 @@ CVC5 = ["cvc5", "--tlimit=%d" % (SECONDS * 1000), "--incremental", "--lang=smt2"
 # is kept out of the scripts or its findings are reported under the issue, without failing the run. `--lift N`
 # brings one back, to check a fix; once it is merged, delete the issue's line here and the code that reads it.
 KNOWN = {
-    127: "BADMODEL on a script with a datatype VIK counts as infinite: reported under the issue",
     133: "arrays without an Int, Real or store term: a script with arrays gets an unrelated Int term",
     138: "BADMODEL whose model has an abstract bit-vector (an array index): reported under the issue",
 }
-# A datatype is infinite when it is recursive or has an Int or declared-sort field below (has_infinite_datatype).
-# Not generated either, and not liftable: datatype fields of an array sort (#135 and #141 are open on them). A
+# Not generated, and not liftable: datatype fields of an array sort (#135 and #141 were open on them). A
 # model with a parametric constructor is printed by its internal name (#142), which z3 cannot read: such models
 # are counted, not checked.
 
@@ -78,58 +76,6 @@ def atoms(x):
     else:
         for y in x:
             yield from atoms(y)
-
-
-# ---- sorts
-
-def datatype_defs(decls):
-    """The datatypes declared: name -> (sort parameters, [(constructor, [(selector, sort)])]), sorts as parsed."""
-    defs = {}
-    def ctors(body):
-        params = []
-        if body and body[0] == "par":
-            params, body = body[1], body[2]
-        return params, [(c[0], [(f[0], f[1]) for f in c[1:]]) if isinstance(c, list) else (c, []) for c in body]
-    for d in map(parse, decls):
-        d = d[0]
-        if d[0] == "declare-datatypes":
-            for (name, _), body in zip(d[1], d[2]):
-                defs[name] = ctors(body)
-        elif d[0] == "declare-datatype":
-            defs[d[1]] = ctors(d[2])
-    return defs
-
-
-def substitute(sort, sub):
-    return sub.get(sort, sort) if isinstance(sort, str) else [substitute(s, sub) for s in sort]
-
-
-def finite(sort, defs, seen=()):
-    """Whether a sort has finitely many values; a recursive datatype, Int, Real and declared sorts do not."""
-    if sort == "Bool" or (isinstance(sort, list) and sort[:2] == ["_", "BitVec"]):
-        return True
-    if isinstance(sort, list) and sort[0] == "Array":
-        return finite(sort[1], defs, seen) and finite(sort[2], defs, seen)
-    name, args = (sort, []) if isinstance(sort, str) else (sort[0], sort[1:])
-    if name not in defs or show(sort) in seen:
-        return False
-    params, ctors = defs[name]
-    sub = dict(zip(params, args))
-    return all(finite(substitute(t, sub), defs, seen + (show(sort),)) for _, fields in ctors for _, t in fields)
-
-
-def has_infinite_datatype(decls):
-    """Whether a datatype sort of the declarations (a datatype, or one a constant or function names) is infinite:
-    recursive, or with an Int or declared-sort field somewhere below."""
-    defs = datatype_defs(decls)
-    sorts = [name for name, (params, _) in defs.items() if not params]
-    for d in map(parse, decls):
-        d = d[0]
-        if d[0] == "declare-const":
-            sorts.append(d[2])
-        elif d[0] == "declare-fun":
-            sorts += d[2] + [d[3]]
-    return any((s if isinstance(s, str) else s[0]) in defs and not finite(s, defs) for s in sorts)
 
 
 # ---- the generator
@@ -490,8 +436,6 @@ def model_check(check, model):
 
 def known(kind, check, model, lifted):
     """The open issue a finding is a shape of, or None."""
-    if kind == "BADMODEL" and 127 not in lifted and has_infinite_datatype(check["decls"]):
-        return 127
     if kind == "BADMODEL" and 138 not in lifted and re.search(r"@\(_ BitVec", model or ""):
         return 138
     return None

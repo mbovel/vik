@@ -102,6 +102,18 @@ class ValuesTest extends munit.FunSuite:
     // Over the integers an index is always left at the default.
     assert(!Model.same(array(Sort.Int, 0, Term.Num(1) -> 1), array(Sort.Int, 1, Term.Num(0) -> 0)))
 
+  test("distinct values of a datatype can be around a new element of an uninterpreted sort (issue 127)"):
+    // `c1_2`'s values to spare are around one of `U`: there was no new element to give, and `k12` and `k14`
+    // were both `(c1_2 c0_0)`.
+    assertEquals(
+      run("""(declare-sort U 0)
+             (declare-datatypes ((D0 0) (D1 0)) (((c0_0) (c0_1 (s0_1_0 U))) ((c1_0) (c1_2 (s1_2_0 D0)))))
+             (declare-const x D1) (declare-const y D1)
+             (assert ((_ is c1_2) x)) (assert ((_ is c1_2) y)) (assert (distinct x y))
+             (check-sat) (get-value ((distinct x y)))"""),
+      List("sat", "(((distinct x y) true))")
+    )
+
   test("bit-vectors inside datatypes and arrays are written as bit-vectors"):
     // At their fields' sorts, and over a constant array of the script's sort (issue 47).
     assertEquals(

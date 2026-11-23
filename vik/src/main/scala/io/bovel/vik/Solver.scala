@@ -1808,12 +1808,16 @@ private final class Encoder(
     def construct(c: Constructor, args: List[Term]): Term =
       if args.isEmpty then Term.Const(c.name) else Term.App(Term.Const(c.name), args)
     // A value of the sort that differs from the ones made before, where the sort has values to
-    // spare: a new number, or a datatype value around a new value of one of its fields. A sort met
-    // again inside its own value takes the last value made for it, so each value is deeper than the
-    // one before.
+    // spare: a new number, a new element of an uninterpreted sort, an array of a new element, or a
+    // datatype value around a new value of one of its fields. A sort met again inside its own value
+    // takes the last value made for it, so each value is deeper than the one before. Without the
+    // elements, a datatype whose values to spare are around one, `(c0_1 @U!3)`, gave two distinct
+    // constants one value (issue 127).
     def freshOf(sort: Sort, seen: Set[Sort]): Option[Term] = sort match
       case Sort.Int => Some(Term.Num(freshInt(eg.newClass())))
       case Sort.Real => Some(Model.rationalTerm(freshReal(eg.newClass())))
+      case Sort.Named(_) if datatypeOf(sort).isEmpty && sort != Encoder.unknown => Some(elementOf(sort, eg.newClass()))
+      case _ if sort.arrow.isDefined => freshOf(applied(sort, 1), seen).map(Model.constArray(sort, _))
       case _ if seen(sort) => Some(lastFresh.getOrElse(sort, defaultOf(sort)))
       case _ =>
         val fields =
