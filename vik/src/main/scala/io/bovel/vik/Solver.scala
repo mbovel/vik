@@ -729,6 +729,7 @@ private final class Encoder(
   private var sharedTerms = 0 // the terms of `terms` seen
   private var sharedEqualities = 0 // the equalities of `equalities` seen
   private var sharedNoted = 0 // the size of `intTerms` then
+  private val sharedArrayReads = HashSet.empty[Term.App]
 
   def shareIntegers(): Unit = if anyInt || anyArray || anyNoted || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
@@ -746,6 +747,7 @@ private final class Encoder(
       sharedNoted = intTerms.size
       sharedTerms = 0
       sharedEqualities = 0
+      sharedArrayReads.clear()
     val fresh = scala.collection.mutable.HashSet.empty[Term] // the terms that arrived since the last pass
     val freshFuns =
       scala.collection.mutable.LinkedHashSet.empty[Term] // and the functions of the applications among them
@@ -760,28 +762,35 @@ private final class Encoder(
     // others have nothing to. Two arrays under the same function meet here too, whatever the function
     // gives: equal by extensionality, their applications are equal by congruence (issue 39).
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
+    def pairApplications(a: Term.App, b: Term.App): Unit =
+      pair(a, b)
+      for (x, y) <- a.args.zip(b.args) do pair(x, y)
+    def meetNewPairs(
+        relevant: Array[Term.App],
+        arrived: Array[Int],
+        meet: (Term.App, Term.App) => Unit
+    ): Unit =
+      var from = 0
+      var i = 0
+      while i < relevant.length && from < arrived.length do
+        val a = relevant(i)
+        if arrived(from) == i then
+          from += 1
+          var j = i + 1
+          while j < relevant.length do
+            meet(a, relevant(j))
+            j += 1
+        else
+          var k = from
+          while k < arrived.length do
+            meet(a, relevant(arrived(k)))
+            k += 1
+        i += 1
     if fresh.nonEmpty then
       for fun <- freshFuns do
-        val group = applications(fun)
-        val relevant = group.iterator.filter(shares).toArray
+        val relevant = applications(fun).iterator.filter(shares).toArray
         val arrived = relevant.indices.filter(i => fresh(relevant(i))).toArray // increasing
-        var from = 0 // the first of `arrived` after `i`
-        for i <- relevant.indices do
-          val a = relevant(i)
-          while from < arrived.length && arrived(from) <= i do from += 1
-          def meet(b: Term.App): Unit =
-            pair(a, b)
-            for (x, y) <- a.args.zip(b.args) do pair(x, y)
-          if fresh(a) then
-            var j = i + 1
-            while j < relevant.length do
-              meet(relevant(j))
-              j += 1
-          else
-            var k = from
-            while k < arrived.length do
-              meet(relevant(arrived(k)))
-              k += 1
+        meetNewPairs(relevant, arrived, pairApplications)
       // A selector's applications meet the arguments of its constructor at its position (the selector
       // rule). An arithmetic field, integer or real: a real one shared only through the e-graph left
       // the simplex without its equalities (issue 18). And an array field: the e-graph equates the
@@ -814,10 +823,10 @@ private final class Encoder(
           a
       }.toList.groupBy(a => (sortOf(a.fun), a.args.length))
       for (_, group) <- byFunctionSort do
-        val relevant = group.filter(shares)
-        for (a, i) <- relevant.zipWithIndex; b <- relevant.drop(i + 1) if a.fun != b.fun do
-          pair(a, b)
-          for (x, y) <- a.args.zip(b.args) do pair(x, y)
+        val relevant = group.iterator.filter(shares).toArray
+        // An existing read can first become relevant when its array gets an equality.
+        val arrived = relevant.indices.filter(i => sharedArrayReads.add(relevant(i))).toArray
+        meetNewPairs(relevant, arrived, (a, b) => if a.fun != b.fun then pairApplications(a, b))
     // Not the equalities of the application lemmas: paired, they would be the problem's, each with
     // a witness, the map and the arrays read there, and the integers there shared in turn. One the
     // problem states later arrives again (see `lit`).
@@ -1234,7 +1243,12 @@ private final class Encoder(
       val sort = sortOf(s)
       val indexSort = sort.arrow.get._1.head
       val elementSort = applied(sort, 1) // an array, for an array of arrays
-      if arrayWritesDone.add(s) then clauses += Array(lit(equalAt(elementSort, selectTerm(s, i), v)))
+      if arrayWritesDone.add(s) then
+        val written = equalAt(elementSort, selectTerm(s, i), v)
+        val l = lit(written)
+        // The write is a permanent fact, including when the value written is an array.
+        if elementSort.arrow.isDefined then assertedEqualities += literalKey(written)
+        clauses += Array(l)
       for j <- indices.getOrElse(sort, Nil) do
         step()
         if j != i && arrayReadsDone.add((s, j)) then

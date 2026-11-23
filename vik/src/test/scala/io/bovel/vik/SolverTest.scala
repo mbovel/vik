@@ -149,6 +149,24 @@ class SolverTest extends munit.FunSuite:
       (check-sat)"""
     assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("unsat", "sat"))
 
+  test("an array equality shares reads that arrived in an earlier check"):
+    val script = """
+      (declare-const a (Array Int Int))
+      (declare-const b (Array Int Int))
+      (declare-const i Int)
+      (declare-const j Int)
+      (push 1)
+      (assert (<= i j))
+      (assert (<= j i))
+      (assert (distinct (select a i) (select b j)))
+      (check-sat)
+      (push 1)
+      (assert (= a b))
+      (check-sat)
+      (pop 1)
+      (check-sat)"""
+    assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("sat", "unsat", "sat"))
+
   test("push and pop"):
     val s = Solver()
     s.assert(a === b)
