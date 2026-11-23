@@ -262,7 +262,7 @@ class SolverTest extends munit.FunSuite:
     s.pop()
     assertEquals(s.solve(), s.Result.Sat)
 
-  test("model-based arithmetic falls back when an array is introduced between checks"):
+  test("model-based arithmetic combines with an array introduced between checks"):
     val s = Session(Solver(simplify = false))
     assertEquals(
       s.run("""
@@ -279,13 +279,44 @@ class SolverTest extends munit.FunSuite:
       List("sat", "unsat", "sat")
     )
 
-  test("model-based arithmetic falls back for undeclared terms in the Solver API"):
+  test("model-based arithmetic leaves undeclared terms of the Solver API to the eager pairs"):
     val s = Solver(simplify = false)
     assertEquals(s.solve(), s.Result.Sat)
     s.assert(a === b)
     s.assert(a <= Num(0))
     s.assert(b >= Num(1))
     assertEquals(s.solve(), s.Result.Unsat)
+
+  test("model-based arithmetic compares integer arguments of a function into the reals"):
+    // `x` and `y` are equal in arithmetic only: the final check finds the two rows of `f`, and splits.
+    val s = Session(Solver(simplify = false), checkModels = true)
+    assertEquals(
+      s.run("""
+        (declare-const x Int) (declare-const y Int)
+        (declare-fun f (Int) Real)
+        (assert (<= x y)) (assert (<= y x))
+        (assert (distinct (f x) (f y)))
+        (check-sat)
+      """),
+      List("unsat")
+    )
+
+  test("model-based arithmetic keeps the integer fields of datatype values paired"):
+    // Their values make the datatype's: equal fields are one value, against `x ≠ y`.
+    val s = Session(Solver(simplify = false), checkModels = true)
+    assertEquals(
+      s.run("""
+        (declare-datatypes ((Pair 0)) (((mk (f1 Int) (f2 Int)))))
+        (declare-const x Pair) (declare-const y Pair) (declare-const w Int)
+        (assert (not (= x y)))
+        (assert (= (f1 x) (f1 y)))
+        (assert (= (f2 x) 0))
+        (assert (= (+ (f2 y) w) 0))
+        (assert (<= w 0)) (assert (<= 0 w))
+        (check-sat)
+      """),
+      List("unsat")
+    )
 
   test("random formulas over predicates agree with brute force"):
     val rnd = scala.util.Random(9)
