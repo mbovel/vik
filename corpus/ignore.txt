@@ -287,6 +287,7 @@ QF_UFBV/smt-lib-incremental/2018-Wolf-fmbench__zipcpu-zipmmu-compact.smt2	timeou
 QF_UFBV/smt-lib-incremental/2019-Wolf-fmbench__2019B__marlann_compute_cp_fail1_QF_UFBV.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv8_bv_needham.1.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_at.1.prop1_ab_cti_max.smt2	beyond the search today (the fuel, two million steps, runs out)
+QF_UFBV/smt-lib/2018-Goel-hwbench__QF_UFBV_bv_bv_peterson.2.prop1_ab_reg_max.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-mem.smt2	timeout (5 s limit)
 QF_UFBV/smt-lib/2019-Wolf-fmbench__2018E__zipcpu-busdelay-compact-nomem.smt2	skip: the encoding exhausts a 512 MB heap before any search, which the fuel does not bound
 QF_UFBV/smt-lib/20230314-Jaroslav-Bendik-Certora__38347_092cc73601c78e45f4f9_55_QF_UFBV.smt2	timeout (5 s limit)

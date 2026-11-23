@@ -1358,10 +1358,10 @@ private final class Encoder(
   /** The sorts whose shared terms the final check compares by their values (see
    *  [[arithmeticDisagreements]]), and not the eager pairs.
    */
-  private def checkedSort(sort: Sort): Boolean = sort == Sort.Int || sort == Sort.Real
+  private def checkedSort(sort: Sort): Boolean = Encoder.numeric(sort) // integers, reals, bit-vector ranges
 
-  /** Two terms of checked sorts, an integer and a real among them: their
-   *  equality is the final check's, with its arithmetic meaning from the start.
+  /** Two terms of checked sorts, of different ones among them: their equality
+   *  is the final check's, with its arithmetic meaning from the start.
    */
   private def checkedPair(a: Term, b: Term): Boolean = checkedSort(sortOf(a)) && checkedSort(sortOf(b))
 
