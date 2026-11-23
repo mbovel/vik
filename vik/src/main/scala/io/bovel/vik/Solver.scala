@@ -451,8 +451,9 @@ final class Solver(val simplify: Boolean = true):
     e.solve(assumed, keepGoing) match
       // A `sat` found before the datatype terms had their fields of a finite sort: searched again with them.
       case cdclt.Solver.Result.Sat(_) if e.boundFields() => decide(keepGoing)
-      // A `sat` whose model needs two arrays equated or apart that have no atom yet: searched again with it.
-      case cdclt.Solver.Result.Sat(_) if e.equateArrays() => decide(keepGoing)
+      // A `sat` whose model needs two arrays or two fields equated or apart that have no atom yet: searched
+      // again with it.
+      case cdclt.Solver.Result.Sat(_) if e.equateMissing() => decide(keepGoing)
       case cdclt.Solver.Result.Sat(_) =>
         lastCore = Nil
         if !checkModels then Result.Sat
@@ -610,23 +611,6 @@ private final class Encoder(
     case Sort.Named(name) => datatypesByName.get(name)
     case _ => None
 
-  /** The constructors and the selectors: their applications' integer pairs stay
-   *  with [[shareIntegers]] (see its `pair`).
-   */
-  private val fieldFunctions: Set[String] =
-    datatypes.flatMap(_.constructors.flatMap(c => c.name :: c.selectors.map(_._1))).toSet
-
-  /** The fields that [[shareIntegers]] pairs with their constructor's arguments
-   *  (the selector rule): the arithmetic ones and the arrays, each as its
-   *  selector, its constructor and its position. Found once: the pass runs at
-   *  every round of every check.
-   */
-  private val sharedFields: List[(Term, Term, Int)] =
-    for
-      d <- datatypes; c <- d.constructors; ((selector, sort), i) <- c.selectors.zipWithIndex
-      if Encoder.numeric(sort) || sort.arrow.isDefined
-    yield (Term.Const(selector), Term.Const(c.name), i)
-
   /** How many values a sort has: one, finitely many, or infinitely many. A
    *  range of the integers and `Bool` are finite; a datatype is when every
    *  field of its constructors is, and has one value when it has one
@@ -749,20 +733,17 @@ private final class Encoder(
   def shareIntegers(): Unit = if anyInt || anyArray || anyNoted || anyStore() then
     val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
     val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
-    val selectorPairs = ArrayBuffer.empty[(Term, Term)] // a selector's application and a field: paired last
-    // An integer pair is left to the final check (see arithmeticDisagreements), but for the fields of
-    // datatype values: their values make the datatype's, and two terms with equal fields are one value,
-    // which the final check does not see. `(f2 x)` and `(f2 y)` equal in arithmetic only, with `x ≠ y`
-    // and equal `(f1 x)`, `(f1 y)`, left `x ≠ y` true in a model where `x` and `y` are one value.
-    def pair(a: Term, b: Term, fields: Boolean = false, stores: Boolean = false): Unit =
+    // A numeric pair is the final check's (see arithmeticDisagreements), and so is an array pair (see
+    // modelDisagreements), but for two stores'.
+    def pair(a: Term, b: Term, stores: Boolean = false): Unit =
       step()
-      if checkedPair(a, b) && !fields then ()
+      if checkedPair(a, b) then ()
       else if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
       then pairs += ((a, b))
-      else if a != b && sortOf(a).arrow.isDefined && sortOf(b).arrow.isDefined && (fields || stores)
+      else if a != b && sortOf(a).arrow.isDefined && sortOf(b).arrow.isDefined && stores
         && !sharedPairs((b, a)) && sharedPairs.add((a, b))
-      then arrayPairs += ((a, b)) // others are the final check's (see arrayDisagreements)
+      then arrayPairs += ((a, b))
     if sharedNoted != intTerms.size then
       sharedNoted = intTerms.size
       sharedTerms = 0
@@ -782,16 +763,13 @@ private final class Encoder(
     // gives: equal by extensionality, their applications are equal by congruence (issue 39).
     def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
     def pairApplications(a: Term.App, b: Term.App): Unit =
-      val fields = a.fun match
-        case Term.Const(name) => fieldFunctions(name)
-        case _ => false
-      // The array pairs of two stores stay too: the arrangement of the store chains, which the search
+      // The array pairs of two stores stay: the arrangement of the store chains, which the search
       // needs. Left to the final check, `wchains002se` went from 0.4 s to no answer in 30 s.
       val stores = a.fun match
         case Term.Const(name) => Names.isStore(name)
         case _ => false
-      pair(a, b, fields, stores)
-      for (x, y) <- a.args.zip(b.args) do pair(x, y, fields, stores)
+      pair(a, b, stores)
+      for (x, y) <- a.args.zip(b.args) do pair(x, y, stores)
     def meetNewPairs(
         relevant: Array[Term.App],
         arrived: Array[Int],
@@ -818,16 +796,6 @@ private final class Encoder(
         val relevant = applications(fun).iterator.filter(shares).toArray
         val arrived = relevant.indices.filter(i => fresh(relevant(i))).toArray // increasing
         meetNewPairs(relevant, arrived, pairApplications)
-      // A selector's applications meet the arguments of its constructor at its position (the selector
-      // rule). An arithmetic field, integer or real: a real one shared only through the e-graph left
-      // the simplex without its equalities (issue 18). And an array field: the e-graph equates the
-      // selector's application with the array, but their reads are shared only once the two are a
-      // pair (issue 134).
-      for (selector, constructor, i) <- sharedFields if freshFuns(selector) || freshFuns(constructor) do
-        val constructions = applications.getOrElse(constructor, noApplications)
-        val arrived = constructions.filter(fresh)
-        for s <- applications.getOrElse(selector, noApplications); k <- (if fresh(s) then constructions else arrived) do
-          if k.args.length > i then selectorPairs += ((s, k.args(i)))
     // The reads of two arrays the search may equate meet in the final check's rows, keyed by the class of
     // the array (see arithmeticDisagreements): no pass pairs them here.
     // Not the equalities of the application lemmas: paired, they would be the problem's, each with
@@ -838,7 +806,6 @@ private final class Encoder(
         case eq @ Formula.Eq(a, b) if !lemmaEqualities(eq) => pair(a, b)
         case _ => ()
       sharedEqualities += 1
-    for (s, x) <- selectorPairs do pair(s, x, fields = true)
     for (a, b) <- pairs do
       linkArithmeticEquality(lit(Formula.Eq(a, b)), a, b)
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
@@ -1563,15 +1530,18 @@ private final class Encoder(
 
   private val sharedNumbers = ArrayBuffer.empty[Term] // the terms of checked sorts, in arrival order
   private val numericApplications = ArrayBuffer.empty[Term.App] // the applications with such an argument
-  // The applications with an array argument or an array result: the final check compares them by the
-  // arrays' values in the candidate model (see arrayDisagreements).
-  private val arrayApplications = ArrayBuffer.empty[Term.App]
+  // The applications with an array or a datatype argument or result: the final check compares them by
+  // the values of those in the candidate model (see modelDisagreements). And the datatype terms, whose
+  // classes the e-graph keeps apart the model must give two values.
+  private val modelApplications = ArrayBuffer.empty[Term.App]
+  private val datatypeTerms = ArrayBuffer.empty[Term]
   private var registeredTerms = 0
 
   private def registerShared(): Unit =
     while registeredTerms < terms.length do
       step()
       val term = terms(registeredTerms)
+      if datatypeOf(sortOf(term)).isDefined then datatypeTerms += term
       if checkedSort(sortOf(term)) then
         term match
           case Term.Num(_) | Term.Linear(_, _) => () // numerals are values, linear operands already have variables
@@ -1580,8 +1550,8 @@ private final class Encoder(
       term match
         case app: Term.App =>
           if app.args.exists(arg => checkedSort(sortOf(arg))) then numericApplications += app
-          if sortOf(app).arrow.isDefined || app.args.exists(arg => sortOf(arg).arrow.isDefined) then
-            arrayApplications += app
+          if (app :: app.args).exists(t => sortOf(t).arrow.isDefined || datatypeOf(sortOf(t)).isDefined) then
+            modelApplications += app
         case _ => ()
       registeredTerms += 1
 
@@ -1661,40 +1631,61 @@ private final class Encoder(
     // without changing the function's current results.
     (splits.iterator ++ outputs.iterator).map((a, b) => ArithmeticSplit(a, b, equalFirst = false)).toList
 
-  /** The array equalities the final check found missing in the last candidate,
-   *  for the solver to give their atoms, whose witnesses the passes then make,
-   *  before it searches again (see [[equateArrays]]).
+  /** The equalities the final check found missing in the last candidate, for
+   *  the solver to give their atoms before it searches again (see
+   *  [[equateMissing]]).
    */
-  private var missingArrayEqualities = List.empty[(Term, Term)]
+  private var missingEqualities = List.empty[(Term, Term)]
 
-  /** The rows of the functions with an array argument or an array result, the
-   *  arrays compared by the values of their e-classes in the candidate model
-   *  (not by the model's graph of a function, which gives `(g a)` and `(g b)`
-   *  one result once `a` and `b` are one value), the numbers by the simplex's,
-   *  the rest by their e-classes. Two rows with one key and two results need
-   *  two arguments that are apart, and for arrays that means an equality atom
-   *  with its extensionality witness: the pairs of arrays that the eager pass
-   *  made for every two applications of a function, made here only where the
-   *  model needs one (issue 39's shape: `f(a) ≠ f(b)` with `a` and `b` equal as
-   *  arrays). A numeric argument apart is split as in
-   *  [[arithmeticDisagreements]].
+  /** What the final check finds in the candidate model beyond the numbers: the
+   *  rows of the functions with an array or a datatype argument or result, and
+   *  the datatype classes the e-graph keeps apart. Arrays and datatype values
+   *  are compared by the values of their e-classes in the model (not through
+   *  the model's graph of a function, which gives `(g a)` and `(g b)` one
+   *  result once `a` and `b` are one value), numbers by the simplex's, the rest
+   *  by their e-classes.
+   *
+   *  Two rows with one key and two results need two arguments apart: a numeric
+   *  one is split as in [[arithmeticDisagreements]]; two arrays need an
+   *  equality atom, with its extensionality witness, made only where a model
+   *  needs one (issue 39's shape: `f(a) ≠ f(b)` with `a` and `b` equal as
+   *  arrays); two datatype values the fields below. Two datatype classes apart
+   *  in the e-graph with one value have equal fields: their fields get their
+   *  equality atoms, which the search decides like any other. Preferred equal,
+   *  against the classes' disequality, they took `valid-LawTypeArgsElim__99` to
+   *  2.6 times the work of the eager pairs. Without these, the eager pass
+   *  paired the fields of every two terms of a constructor or a selector:
+   *  `x ≠ y` with equal fields, equal in arithmetic only, answered `sat` with a
+   *  model that failed its check (`datatype__selectortrigger001`).
    */
-  private def arrayDisagreements(classValue: Term => Term): (List[ArithmeticSplit], List[(Term, Term)]) =
+  private def modelDisagreements(classValue: Term => Term): (List[ArithmeticSplit], List[(Term, Term)]) =
     val real = liaSolver.realValues()
     val truth = eg.find(trueTerm)
     val falsity = eg.find(falseTerm)
-    val arrayValues = HashMap.empty[Term, Term]
+    val modelValues = HashMap.empty[Term, Term]
+    def modelValue(term: Term): Term = modelValues.getOrElseUpdate(term, Model.normal(classValue(term)))
     def valueOf(term: Term): Any =
       val sort = sortOf(term)
       if checkedSort(sort) then numericValue(term, real)
-      else if sort.arrow.isDefined then arrayValues.getOrElseUpdate(term, Model.normal(classValue(term)))
+      else if sort.arrow.isDefined || datatypeOf(sort).isDefined then modelValue(term)
       else
         val root = eg.find(classes(term))
         if sort == Sort.Bool && root != truth then falsity else root
-    val rows = HashMap.empty[(EClassId, List[Any]), (Term.App, Any)]
     val numeric = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
-    val arrays = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
-    for app <- arrayApplications do
+    val missing = scala.collection.mutable.LinkedHashSet.empty[(Term, Term)]
+    // Two datatype terms of one value: their fields at the constructor of the value.
+    def fields(x: Term, y: Term): Unit =
+      val constructor = modelValue(x) match
+        case Term.App(Term.Const(c), _) => Some(c)
+        case Term.Const(c) => Some(c)
+        case _ => None
+      val selectors =
+        for d <- datatypeOf(sortOf(x)).toList; c <- d.constructors if constructor.contains(c.name); s <- c.selectors
+        yield s._1
+      if selectors.isEmpty then missing += ((x, y)) // one constructor without fields: one value
+      for s <- selectors do missing += ((Term.App(Term.Const(s), List(x)), Term.App(Term.Const(s), List(y))))
+    val rows = HashMap.empty[(EClassId, List[Any]), (Term.App, Any)]
+    for app <- modelApplications do
       step()
       val key = (eg.find(classes(app.fun)), app.args.map(valueOf))
       val result = valueOf(app)
@@ -1704,17 +1695,31 @@ private final class Encoder(
         apart.find((a, _) => checkedSort(sortOf(a))) match
           case Some((a, b)) => if !numeric((b, a)) then numeric += ((a, b))
           case None =>
-            for (a, b) <- apart.find((a, _) => sortOf(a).arrow.isDefined) do if !arrays((b, a)) then arrays += ((a, b))
-    (numeric.toList.map((a, b) => ArithmeticSplit(a, b, equalFirst = false)), arrays.toList)
+            apart.find((a, _) => sortOf(a).arrow.isDefined) match
+              case Some((a, b)) => missing += ((a, b))
+              case None => for (a, b) <- apart.find((a, _) => datatypeOf(sortOf(a)).isDefined) do fields(a, b)
+    // Two datatype classes the e-graph keeps apart, of one value: each class against every class of its
+    // value before it, not the first only, which a third class with no disequality to either can be.
+    val byValue = HashMap.empty[Term, ArrayBuffer[(Term, EClassId)]]
+    val roots = HashSet.empty[EClassId]
+    for t <- datatypeTerms do
+      step()
+      val root = eg.find(classes(t))
+      if roots.add(root) then
+        val same = byValue.getOrElseUpdate(modelValue(t), ArrayBuffer.empty)
+        for (other, r) <- same.find((_, r) => eg.disequality(r, root).isDefined) do fields(other, t)
+        same += ((t, root))
+    (numeric.toList.map((a, b) => ArithmeticSplit(a, b, equalFirst = false)), missing.toList)
 
-  /** Gives the array equalities the last candidate missed their atoms, and
-   *  tells whether there were any: the solver then runs its passes, which make
-   *  their witnesses, and searches again. Like [[boundFields]], between
-   *  searches, since a witness's reads need the array lemmas.
+  /** Gives the equalities the last candidate missed their atoms, and tells
+   *  whether there were any: the solver then runs its passes, which make the
+   *  witnesses of the array equalities and the sorts of the new terms, and
+   *  searches again. Like [[boundFields]], between searches, since a witness's
+   *  reads need the array lemmas and a field may be a new term.
    */
-  def equateArrays(): Boolean =
-    val missing = missingArrayEqualities
-    missingArrayEqualities = Nil
+  def equateMissing(): Boolean =
+    val missing = missingEqualities
+    missingEqualities = Nil
     for (a, b) <- missing do lit(Formula.Eq(a, b))
     missing.nonEmpty
 
@@ -1747,19 +1752,19 @@ private final class Encoder(
               if disagreements.isEmpty then
                 wantFields()
                 if !fieldsWanted then
-                  if arrayApplications.nonEmpty then
-                    val (m, classValue) = buildModel()
-                    val (numeric, arrays) = arrayDisagreements(classValue)
+                  if modelApplications.nonEmpty || datatypeTerms.nonEmpty then
+                    val (assemble, classValue) = buildModel()
+                    val (numeric, more) = modelDisagreements(classValue)
                     disagreements = numeric
                     if numeric.isEmpty then
-                      // An equality already with its atom cannot be missing: apart, its witness keeps the two
-                      // arrays apart in the model. Found again, it would be searched for ever.
-                      missingArrayEqualities = arrays.filter((a, b) =>
+                      // An equality already with its atom cannot be missing: false, its arithmetic meaning or
+                      // its witness keeps the two apart in the model. Found again, it would be searched for ever.
+                      missingEqualities = more.filter((a, b) =>
                         !lits.contains(literalKey(Formula.Eq(a, b)))
                           || lemmaEqualities.contains(literalKey(Formula.Eq(a, b)))
                       )
-                      if arrays.nonEmpty && missingArrayEqualities.isEmpty then stuck = true
-                      if produceModels && arrays.isEmpty then lastModel = m
+                      if more.nonEmpty && missingEqualities.isEmpty then stuck = true
+                      if produceModels && more.isEmpty then lastModel = assemble()
                   else if produceModels then lastModel = takeModel()
             case _ => ()
           candidate
@@ -1784,13 +1789,14 @@ private final class Encoder(
    *  applications the problem mentions. Uninterpreted sorts get an abstract
    *  element per e-class; a datatype class becomes its constructor term.
    */
-  private def takeModel(): Model = buildModel()._1
+  private def takeModel(): Model = buildModel()._1()
 
-  /** The model, and the value of a term by its e-class in it: the value the
-   *  candidate gives the term, where the model's graph of a function gives two
-   *  rows with one key a single result.
+  /** The model, assembled when asked, and the value of a term by its e-class in
+   *  it: the value the candidate gives the term, where the model's graph of a
+   *  function gives two rows with one key a single result. The final check
+   *  needs the values only.
    */
-  private def buildModel(): (Model, Term => Term) =
+  private def buildModel(): (() => Model, Term => Term) =
     val real = liaSolver.realValues() // one δ for every real of the model, as the final check takes them
     val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
@@ -2095,39 +2101,41 @@ private final class Encoder(
     for (root, sort) <- built do
       valueOfClass(root, sort, Set.empty)
       valueConstructed()
-    val constants = Map.newBuilder[String, Term]
-    val functions = Map.newBuilder[String, Model.Function]
-    for
-      (name, (argSorts, sort)) <- declarations
-      if argSorts.isEmpty && sort.arrow.isDefined && !Names.isStore(name)
-    do
-      // An array the assertions never read or wrote holds a default everywhere: a value all the same,
-      // where `(select arr i)` was printed as itself (issue 48).
-      constants += name -> (
-        if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
-        else Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
-      )
-    // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
-    for
-      (name, (argSorts, sort)) <- declarations
-      if argSorts.nonEmpty && sort.arrow.isDefined && !Names.isStore(name)
-    do
-      val rows = classes.keys.collect {
-        case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-          (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
-      }.toList
-      val default = Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
-      functions += name -> Model.Function(argSorts, sort, rows, default)
-    for (name, (argSorts, sort)) <- declarations if sort.arrow.isEmpty do
-      if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
-      else
+    def assemble(): Model =
+      val constants = Map.newBuilder[String, Term]
+      val functions = Map.newBuilder[String, Model.Function]
+      for
+        (name, (argSorts, sort)) <- declarations
+        if argSorts.isEmpty && sort.arrow.isDefined && !Names.isStore(name)
+      do
+        // An array the assertions never read or wrote holds a default everywhere: a value all the same,
+        // where `(select arr i)` was printed as itself (issue 48).
+        constants += name -> (
+          if classes.contains(Term.Const(name)) then arrayValue(classOf(Term.Const(name)), sort)
+          else Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
+        )
+      // A function into arrays: its graph, an array value per application the problem mentions (issue 27).
+      for
+        (name, (argSorts, sort)) <- declarations
+        if argSorts.nonEmpty && sort.arrow.isDefined && !Names.isStore(name)
+      do
         val rows = classes.keys.collect {
           case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
-            (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
+            (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
         }.toList
-        val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
+        val default = Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
         functions += name -> Model.Function(argSorts, sort, rows, default)
-    (Model(constants.result(), functions.result(), datatypes), t => valueOfClass(classOf(t), sortOf(t), Set.empty))
+      for (name, (argSorts, sort)) <- declarations if sort.arrow.isEmpty do
+        if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
+        else
+          val rows = classes.keys.collect {
+            case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
+              (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
+          }.toList
+          val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
+          functions += name -> Model.Function(argSorts, sort, rows, default)
+      Model(constants.result(), functions.result(), datatypes)
+    (() => assemble(), t => valueOfClass(classOf(t), sortOf(t), Set.empty))
 
 /** Several theories over disjoint sets of atoms, asserted and checked in turn,
  *  without exchange of equalities between them; `owner(v)` is the theory of the

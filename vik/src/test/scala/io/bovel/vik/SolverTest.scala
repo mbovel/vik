@@ -301,8 +301,9 @@ class SolverTest extends munit.FunSuite:
       List("unsat")
     )
 
-  test("model-based arithmetic keeps the integer fields of datatype values paired"):
-    // Their values make the datatype's: equal fields are one value, against `x ≠ y`.
+  test("model-based arithmetic finds two datatype values apart with equal integer fields"):
+    // Their values make the datatype's: equal fields are one value, against `x ≠ y`. The final check equates
+    // the fields, and congruence over the constructor finds `x = y`.
     val s = Session(Solver(simplify = false), checkModels = true)
     assertEquals(
       s.run("""
