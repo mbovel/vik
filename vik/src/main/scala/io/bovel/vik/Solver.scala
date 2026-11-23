@@ -854,11 +854,8 @@ private final class Encoder(
     // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
     // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
     // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
-    // An equality an application lemma made already stays the lemma's, without a witness: only the
-    // problem stating it makes it one of its own (see `lit`).
-    for (a, b) <- arrayPairs do
-      val eq = Formula.Eq(a, b)
-      lits.getOrElseUpdate(eq, encode(eq))
+    // Sharing needs the witness even if an application lemma introduced the atom first (issue 135).
+    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
 
   /** Applications of the arrays the search may equate with a store: for every
    *  application `a(i)` of an array-sorted term and every store term `s` of the
@@ -913,8 +910,8 @@ private final class Encoder(
    */
   private val extensionalityDone = scala.collection.mutable.HashSet.empty[Formula]
 
-  /** The function equalities of the encoded formulas: the ones that may need a
-   *  witness — never the ones the application lemmas make.
+  /** The function equalities used outside application lemmas, in the order they
+   *  first need an extensionality witness.
    */
   private val functionEqualities = ArrayBuffer.empty[Formula]
   private var recordFunctionEqualities = true
@@ -1189,7 +1186,7 @@ private final class Encoder(
 
   def clauseCount: Int = clauses.length
 
-  def litOf(f: Formula): Option[Lit] = lits.get(f)
+  def litOf(f: Formula): Option[Lit] = lits.get(literalKey(f))
 
   private def selectTerm(array: Term, index: Term): Term = array match
     case Term.App(Term.Const(n), _) if Names.isStore(n) => Term.App(array, List(index))
@@ -1287,18 +1284,25 @@ private final class Encoder(
       }
     )
 
+  private val reversedFunctionEqualities = HashMap.empty[Formula.Eq, Formula.Eq]
+
+  // A function equality keeps the orientation in which it first got its atom.
+  private def literalKey(formula: Formula): Formula = formula match
+    case eq: Formula.Eq if anyFunctionEquality => reversedFunctionEqualities.getOrElse(eq, eq)
+    case _ => formula
+
   /** The literal standing for `formula`, defining it by clauses if needed. */
   private def lit(formula: Formula): Lit =
-    // An equality first encoded for an application lemma, met again in a formula of the problem,
-    // is one of the problem's from then on: its negation needs a witness like any other, and it
-    // arrives again for `shareIntegers`, which left it aside as the lemma's.
-    if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(formula) then
-      functionEqualities += formula
-      equalities += formula
-    lits.getOrElseUpdate(formula, encode(formula))
+    val key = literalKey(formula)
+    // An equality first encoded for an application lemma needs a witness once an assertion or
+    // theory sharing uses it. It also arrives again for the sharing pass, which skipped it before.
+    if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(key) then
+      functionEqualities += key
+      equalities += key
+    lits.getOrElseUpdate(key, encode(key))
 
   /** The function equalities encoded for the application lemmas alone, which
-   *  get no witness (see [[applicationLemmas]]) until the problem states them.
+   *  get no witness (see [[applicationLemmas]]) until another use needs one.
    */
   private val lemmaEqualities = scala.collection.mutable.HashSet.empty[Formula]
 
@@ -1309,7 +1313,7 @@ private final class Encoder(
       case True => trueLit
       case False => trueLit.neg
       case Not(arg) => lit(arg).neg
-      case Eq(lhs, rhs) =>
+      case eq @ Eq(lhs, rhs) =>
         if lhs == rhs then trueLit
         else
           boolean(lhs)
@@ -1317,6 +1321,7 @@ private final class Encoder(
           equalities += formula
           if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
+            reversedFunctionEqualities(Eq(rhs, lhs)) = eq
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           atom(classOf(lhs), classOf(rhs))
       case Pred(term) =>
@@ -1374,13 +1379,13 @@ private final class Encoder(
    *  assertion (see [[Solver.push]]).
    */
   def assert(formula: Formula, under: Lit | Null): Unit =
+    meet(formula)
+    val l = lit(formula)
     formula match
       // An equality asserted for good needs no witness; one under a level's selector is gone with
       // the level, and its negation then needs one like any other (issue 19).
-      case Formula.Eq(_, _) if under == null => assertedEqualities += formula
+      case Formula.Eq(_, _) if under == null => assertedEqualities += literalKey(formula)
       case _ => ()
-    meet(formula)
-    val l = lit(formula)
     clauses += (if under == null then Array(l) else Array(under.nn.neg, l))
 
   /** Meets the applications of an integer range in a formula, innermost first,
