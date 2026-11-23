@@ -928,6 +928,15 @@ private final class Encoder(
 
   def introducedName(name: String): Boolean = introduced.contains(name)
 
+  /** An array's base and the indices written by the surrounding stores. */
+  private def storeWrites(array: Term): (Term, List[Term]) =
+    @annotation.tailrec
+    def collect(term: Term, indices: List[Term]): (Term, List[Term]) = term match
+      case Term.App(Term.Const(name), List(base, index, _)) if Names.isStore(name) =>
+        collect(base, index :: indices)
+      case _ => (term, indices)
+    collect(array, Nil)
+
   def assertExtensionality(): Unit = if anyFunctionEquality then
     val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
@@ -939,15 +948,25 @@ private final class Encoder(
           sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
-              // A witness is a constant of the index sort like any other: of a range of the integers, it
-              // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
-              // indices could still differ at it (issue 20).
-              val witnesses = params.map { sort =>
-                val name = witnessName()
-                introduced(name) = sort
-                Term.Const(name)
-              }
-              clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
+              val (fBase, fWrites) = storeWrites(f)
+              val (gBase, gWrites) = storeWrites(g)
+              if fBase == gBase then
+                // Arrays built from the same base can differ only at a written index. Using these
+                // indices keeps the new reads and sharing from growing with each fresh witness.
+                val differences = (fWrites ::: gWrites).distinct.map(i =>
+                  lit(Formula.Eq(selectTerm(f, i), selectTerm(g, i))).neg
+                )
+                clauses += (lit(eq) :: differences).toArray
+              else
+                // A witness is a constant of the index sort like any other: of a range of the integers, it
+                // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
+                // indices could still differ at it (issue 20).
+                val witnesses = params.map { sort =>
+                  val name = witnessName()
+                  introduced(name) = sort
+                  Term.Const(name)
+                }
+                clauses += Array(lit(eq), lit(Formula.Eq(applyAll(f, witnesses), applyAll(g, witnesses))).neg)
             case _ => ()
 
   /** What a term's sort says of it, asserted once for every term the encoder

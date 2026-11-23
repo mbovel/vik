@@ -134,6 +134,21 @@ class SolverTest extends munit.FunSuite:
       (check-sat)"""
     assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("sat", "unsat", "unsat", "sat"))
 
+  test("store chains over the same base differ only at their write indices"):
+    val script = """
+      (declare-const a (Array Int (Array Bool Bool)))
+      (declare-const x (Array Bool Bool))
+      (declare-const y (Array Bool Bool))
+      (assert (select x true))
+      (assert (not (select y true)))
+      (push 1)
+      (assert (distinct (store (store a 0 x) 1 y) (store (store a 1 y) 0 x)))
+      (check-sat)
+      (pop 1)
+      (assert (distinct (store (store a 0 x) 1 y) (store (store a 0 x) 1 x)))
+      (check-sat)"""
+    assertEquals(Session.run(io.bovel.smtlib.Parser.parse(script)), List("unsat", "sat"))
+
   test("push and pop"):
     val s = Solver()
     s.assert(a === b)
