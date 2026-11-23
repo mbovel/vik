@@ -37,18 +37,19 @@ class OptionsTest extends munit.FunSuite:
     assertEquals(Session(checkModels = true).play(lowered), List("sat", "sat"))
 
   test("check-models: a model that fails its check answers unknown, with the error and the reason"):
-    // Issue 179: the fresh real field of `y` equals the simplex's value of `r`, the field of `x`. To replace
-    // by another model that fails, once that is fixed.
+    // Issue 189: the two stores agree in the e-graph and get different arrays in the model.
     val script = """
+      (set-logic QF_AX)
       (set-option :check-models true)
-      (declare-datatype P ((mk (f Real))))
-      (declare-const x P)
-      (declare-const y P)
-      (declare-const r Real)
-      (assert (= x (mk r)))
-      (assert (> r 0.5))
-      (assert (< r 1.5))
-      (assert (distinct x y))
+      (declare-sort Index 0)
+      (declare-sort Element 0)
+      (declare-fun a1 () (Array Index Element))
+      (declare-fun a2 () (Array Index Element))
+      (declare-fun i1 () Index)
+      (declare-fun i2 () Index)
+      (assert (let ((?v_0 (store a2 i1 (select a1 i1))) (?v_1 (store a1 i1 (select a2 i1))))
+        (= (store ?v_1 i1 (select ?v_0 i2)) (store ?v_0 i2 (select ?v_1 i2)))))
+      (assert (not (= a1 a2)))
       (check-sat)
       (get-info :reason-unknown)
       (get-model)"""
