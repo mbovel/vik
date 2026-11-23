@@ -209,6 +209,12 @@ final class Solver(val simplify: Boolean = true):
    */
   var checkModels: Boolean = false
 
+  /** Formulas the model check requires besides the assertions, which the search
+   *  never sees: for a test of what a failed check does, now that no model the
+   *  solver makes is known to fail one.
+   */
+  private[vik] var alsoChecked: List[Formula] = Nil
+
   /** The first assertion in force that the model of the `Sat` just found does
    *  not make true: found false, or not evaluable when the evaluation throws.
    *  The ranges of the declared constants count among them. Or else the first
@@ -221,7 +227,8 @@ final class Solver(val simplify: Boolean = true):
     case Some(m) =>
       val items = levels.iterator.flatten.zipWithIndex.map((f, i) => (s"assertion ${i + 1}", f)) ++
         named.iterator.flatten.map((name, f) => (s"assertion $name", f)) ++
-        facts.iterator.map((name, fact) => (s"the range of $name", fact.formula))
+        facts.iterator.map((name, fact) => (s"the range of $name", fact.formula)) ++
+        alsoChecked.iterator.map(f => ("a formula checked besides", f))
       val untrue = items.flatMap { (what, f) =>
         val value =
           try if m.holds(f) then "true" else "false"
@@ -1764,6 +1771,23 @@ private final class Encoder(
       realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
     val arraysBeingValued = scala.collection.mutable.HashSet.empty[EClassId] // against a cycle of stores or of fields
+    // The arrays that stores connect, by e-class: a store's class and its base's are one group, and a
+    // group's arrays take one default. Each array taking a default of its own, two store chains over
+    // `A` and `B` that the problem equates were apart at every index no read observes (issue 189). The
+    // read-over-write lemmas make the reads of a store and of its base agree at every index the
+    // problem mentions, so with one default every store equation of a class holds everywhere.
+    val storeGroup = HashMap.empty[EClassId, EClassId]
+    def group(c: EClassId): EClassId =
+      val parent = storeGroup.getOrElse(c, c)
+      if parent == c then c
+      else
+        val top = group(parent)
+        storeGroup(c) = top
+        top
+    for case s @ Term.App(Term.Const(n), List(base, _, _)) <- terms.iterator if Names.isStore(n) do
+      val (a, b) = (group(eg.find(classes(s))), group(eg.find(classOf(base))))
+      if a != b then storeGroup(a) = b
+    val groupDefaults = HashMap.empty[EClassId, Term]
     // The value of a datatype class with no constructor node: none of its testers holds, so none is
     // asserted of it, and the value is built — a constructor whose tester is not false, its fields
     // from the selectors' classes when the problem has them and fresh values otherwise — one that
@@ -1954,7 +1978,7 @@ private final class Encoder(
           val indexSort = sort.arrow.get._1.head
           val elementSort = applied(sort, 1) // itself an array, for an array of arrays
           arraysBeingValued += root
-          val rows = classes.keys.collect {
+          val rows = terms.iterator.collect {
             case app @ Term.App(fun, List(j)) if classes.get(fun).exists(c => eg.find(c) == root) =>
               (valueOfTerm(j, indexSort), valueOfTerm(app, elementSort))
           }.toMap
@@ -1963,7 +1987,7 @@ private final class Encoder(
           // array of its own reads over a default of its own; the class's reads then agree with it
           // by the read-over-write lemmas. A class reached again while its base is valued keeps to
           // its reads.
-          val written = classes.keys.collectFirst {
+          val written = terms.iterator.collectFirst {
             case s @ Term.App(Term.Const(n), List(base, i, v))
                 if Names.isStore(n) && classes.get(s).exists(c => eg.find(c) == root)
                   && !arraysBeingValued(eg.find(classOf(base))) =>
@@ -1971,7 +1995,10 @@ private final class Encoder(
           }
           arraysBeingValued -= root
           val start = written.getOrElse {
-            Model.constArray(sort, valueOfTerm(Term.Const("@default"), elementSort))
+            Model.constArray(
+              sort,
+              groupDefaults.getOrElseUpdate(group(root), valueOfTerm(Term.Const("@default"), elementSort))
+            )
           }
           rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
         }

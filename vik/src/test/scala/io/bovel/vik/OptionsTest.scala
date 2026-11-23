@@ -37,29 +37,21 @@ class OptionsTest extends munit.FunSuite:
     assertEquals(Session(checkModels = true).play(lowered), List("sat", "sat"))
 
   test("check-models: a model that fails its check answers unknown, with the error and the reason"):
-    // Issue 189: the two stores agree in the e-graph and get different arrays in the model.
-    val script = """
-      (set-logic QF_AX)
-      (set-option :check-models true)
-      (declare-sort Index 0)
-      (declare-sort Element 0)
-      (declare-fun a1 () (Array Index Element))
-      (declare-fun a2 () (Array Index Element))
-      (declare-fun i1 () Index)
-      (declare-fun i2 () Index)
-      (assert (let ((?v_0 (store a2 i1 (select a1 i1))) (?v_1 (store a1 i1 (select a2 i1))))
-        (= (store ?v_1 i1 (select ?v_0 i2)) (store ?v_0 i2 (select ?v_1 i2)))))
-      (assert (not (= a1 a2)))
-      (check-sat)
-      (get-info :reason-unknown)
-      (get-model)"""
-    val responses = Session.run(Parser.parse(script))
+    // No model the solver makes is known to fail its check: the check is given a formula the search never
+    // sees, `x < 0` against `x > 0`.
+    def session(check: Boolean) =
+      val solver = Solver()
+      solver.alsoChecked = List(Formula.Less(Term.Const("x"), Term.Num(0)))
+      Session(solver, checkModels = check)
+    val script = "(declare-const x Int) (assert (> x 0)) (check-sat) (get-info :reason-unknown) (get-model)"
+    val responses = session(check = true).run(script)
     assertEquals(responses.head, "unknown")
     assert(responses(1).startsWith("(error \"model check: "), responses(1))
     assert(responses(2).startsWith("((:reason-unknown \"model check: "), responses(2))
     assertEquals(responses(3), "(error \"no model\")")
-    assertEquals(Session.answers(Parser.parse(script)), List(None))
-    assertEquals(Session.run(Parser.parse(script.replace("(set-option :check-models true)", ""))).head, "sat")
+    assertEquals(session(check = false).run(script).head, "sat")
+    // `:check-models` in the script turns the check on as the option does.
+    assertEquals(session(check = false).run("(set-option :check-models true) " + script).head, "unknown")
 
   test("check-models: the solver checks its own model"):
     val s = Solver()
