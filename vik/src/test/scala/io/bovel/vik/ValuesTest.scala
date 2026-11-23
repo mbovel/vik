@@ -53,6 +53,24 @@ class ValuesTest extends munit.FunSuite:
       List("unsat")
     )
 
+  test("a constructor's argument mixing an integer and a real keeps its exact value"):
+    // Valued by the final check's evaluator, at the model's one δ (from #208).
+    assertEquals(
+      run("""
+        (set-option :check-models true)
+        (declare-datatype P ((mk (f Real))))
+        (declare-const i Int)
+        (declare-const r Real)
+        (declare-const x P)
+        (assert (= i 2))
+        (assert (= r 0.5))
+        (assert (= x (mk (- r (to_real i)))))
+        (check-sat)
+        (get-value ((= (f x) (- 1.5))))
+      """),
+      List("sat", "(((= (f x) (- 1.5)) true))")
+    )
+
   test("bit-vectors inside datatypes and arrays are written as bit-vectors"):
     // At their fields' sorts, and over a constant array of the script's sort (issue 47).
     assertEquals(
