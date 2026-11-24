@@ -2,6 +2,8 @@
 ; `reset-assertions`. The range is an assertion of the lowering, and `reset-assertions` drops the
 ; assertions: the constants were unbounded integers afterwards, and a query unsat on its own answered
 ; sat (2026-09-04).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const y (_ BitVec 8))

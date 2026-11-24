@@ -3,6 +3,8 @@
 ; bars, so a file that declares `p1` and asserts about `|p1|` was rejected as an unknown symbol; the
 ; SMT-LIB release has 46 such files in `20210312-Bouvier` (2026-09-04). A quoted symbol whose text is a
 ; numeral or a keyword is not that token, and keeps its bars.
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_UFLIA)
 (declare-const p1 Int)
 (declare-fun |286| (Int) Bool)

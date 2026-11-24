@@ -1,6 +1,8 @@
 ; Hand-written for VIK (this repository's license): `bvudiv` and `bvurem` by an unknown divisor — the
 ; quotient and the remainder of one exact product, the divisor zero answered all ones and the dividend
 ; (2026-09-04).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const y (_ BitVec 8))

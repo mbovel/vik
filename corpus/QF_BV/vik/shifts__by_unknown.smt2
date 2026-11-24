@@ -1,5 +1,7 @@
 ; Hand-written for VIK (this repository's license): shifts by an unknown amount, a barrel shifter over the
 ; amount's bits — the value shifted, the amount recovered, and an amount past the width (2026-09-04).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const s (_ BitVec 8))

@@ -84,6 +84,26 @@ final class Parser:
   private def undoable(set: scala.collection.mutable.Set[String], key: String): Unit =
     if scopes.nonEmpty && !globalDeclarations && !set(key) then scopes.last += (() => set -= key)
 
+  /** Forgets every declaration and definition, and the levels: what `reset`
+   *  does but for the options, and `reset-assertions` without
+   *  `:global-declarations`.
+   */
+  private def forget(): Unit =
+    functions.clear()
+    macros.clear()
+    constructors.clear()
+    declaredSorts.clear()
+    datatypeNames.clear()
+    sortParameters.clear()
+    sortDefinitions.clear()
+    polymorphic.clear()
+    templates.clear()
+    owner.clear()
+    instantiated.clear()
+    instanceSymbols.clear()
+    datatypeOf.clear()
+    scopes.clear()
+
   private def push(levels: Int): Unit =
     for _ <- 1 to levels do scopes += scala.collection.mutable.ArrayBuffer.empty
 
@@ -216,25 +236,13 @@ final class Parser:
     case SList(SSymbol("check-sat") :: assumptions) => // z3's shorthand
       List(Command.CheckSatAssuming(assumptions.map(assertion)))
     case SList(SSymbol("reset-assertions") :: Nil) =>
-      // The levels go, and the declarations made in them stay, as the session keeps them: their undos go
-      // unrun (issue 178).
-      scopes.clear()
+      // SMT-LIB 2.6, section 4.2.2: the levels go, and with them every declaration and definition unless
+      // `:global-declarations` is true (issue 246). Kept, they made a declaration repeated after the reset an
+      // error (issue 178 had kept them, as z3 does).
+      if globalDeclarations then scopes.clear() else forget()
       List(Command.ResetAssertions)
     case SList(SSymbol("reset") :: Nil) =>
-      functions.clear()
-      macros.clear()
-      constructors.clear()
-      declaredSorts.clear()
-      datatypeNames.clear()
-      sortParameters.clear()
-      sortDefinitions.clear()
-      polymorphic.clear()
-      templates.clear()
-      owner.clear()
-      instantiated.clear()
-      instanceSymbols.clear()
-      datatypeOf.clear()
-      scopes.clear()
+      forget()
       globalDeclarations = false
       List(Command.Reset)
     case SList(SSymbol("get-unsat-core") :: Nil) => List(Command.GetUnsatCore)

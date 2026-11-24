@@ -340,9 +340,10 @@ final class Session(
           responses ++= answer() :: modelError.toList
           current.pop()
         case Command.ResetAssertions =>
+          // SMT-LIB 2.6, section 4.2.2: the declarations go too, unless they are global (issue 246).
           lastCheck = ""
           restart()
-          declarations.foreach(declare)
+          if globalDeclarations then declarations.foreach(declare) else declarations.clear()
         case Command.Reset =>
           lastCheck = ""
           restart()

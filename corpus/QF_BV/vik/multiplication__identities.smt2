@@ -1,6 +1,8 @@
 ; Hand-written for VIK (this repository's license): identities of a product of two unknowns, each negated —
 ; commutativity (the operands are lowered in one order, so it is syntactic), one step of distributivity,
 ; the sign, distributivity over a constant, and a product with a bitwise operand (2026-09-03).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 6))
 (declare-const y (_ BitVec 6))

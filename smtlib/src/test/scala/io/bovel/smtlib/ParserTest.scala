@@ -231,13 +231,14 @@ class ParserTest extends munit.FunSuite:
         "(declare-fun g () Int)(define-fun g () Int 2)",
         "(define-fun g () Int 2)(declare-const g Int)",
         "(define-fun g () Int 1)(define-fun g () Int 2)",
-        // The declarations stay over a `reset-assertions` (issue 178), as in z3.
-        "(declare-const g Int)(reset-assertions)(declare-const g Int)"
+        // Global declarations stay over a `reset-assertions`.
+        "(set-option :global-declarations true)(declare-const g Int)(reset-assertions)(declare-const g Int)"
       )
     do intercept[Smt2Error](parse(script))
     val e = intercept[Smt2Error](parse("(declare-datatype A ((a (f Int))))(declare-datatype B ((a)))"))
     assertEquals(e.getMessage, "a: a symbol declared twice")
-    // A popped symbol is free again.
+    // A popped symbol is free again, and so is every symbol after a `reset-assertions` (issue 246).
+    parse("(declare-const g Int)(reset-assertions)(declare-const g Bool)")
     parse("(push 1)(declare-datatype A ((a)))(pop 1)(declare-datatype B ((a)))(declare-const x B)")
     parse("(push 1)(declare-const g Int)(pop 1)(declare-const g Bool)")
 
@@ -258,14 +259,15 @@ class ParserTest extends munit.FunSuite:
         s"(declare-datatype A $par)(declare-datatype A ((b)))",
         s"(declare-datatype A $par)(declare-sort A 0)",
         s"(declare-sort A 0)(declare-datatype A $par)",
-        // The declarations stay over a `reset-assertions` (issue 178), and their names with them, as in z3.
-        "(declare-datatype A ((a)))(reset-assertions)(declare-datatype A ((b)))"
+        // Global declarations stay over a `reset-assertions`, and their names with them.
+        "(set-option :global-declarations true)(declare-datatype A ((a)))(reset-assertions)(declare-datatype A ((b)))"
       )
     do intercept[Smt2Error](parse(script))
     val e = intercept[Smt2Error](parse("(declare-datatypes ((A 0) (A 0)) (((a)) ((b))))"))
     assertEquals(e.getMessage, "A: a sort declared twice")
     // A popped name is free again, and so is the name of a theory's sort in a logic without the theory.
     parse("(push 1)(declare-sort A 0)(pop 1)(declare-datatype A ((a)))")
+    parse("(declare-datatype A ((a)))(reset-assertions)(declare-datatype A ((b)))") // issue 246
     parse("(set-logic QF_UF)(declare-sort Int 0)(declare-const x Int)")
     // A datatype's parameter may be named like a sort of the script (issue 152).
     parse("(declare-sort A 0)(declare-datatype L (par (A) ((nil) (cons (hd A) (tl (L A))))))")
