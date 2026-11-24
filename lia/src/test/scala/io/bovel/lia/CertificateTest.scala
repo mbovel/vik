@@ -10,8 +10,12 @@ class CertificateTest extends munit.FunSuite:
    *  integer variables (and `reals` real ones), asserted with proofs on, then
    *  checked: every `Unsat` has a certificate that derives a contradiction from
    *  the bounds and disequalities of its reasons. Returns whether it was
-   *  `Unsat`. A `box` of that many bits stands for the small-model box.
+   *  `Unsat`. A `box` of that many bits stands for the small-model box, past
+   *  which an `Unsat` has no certificate: it counts as unchecked,
+   *  `uncertified`.
    */
+  private var uncertified = 0
+
   def run(rnd: Random, n: Int, reals: Int, m: Int, range: Int, box: Long = -1): Boolean =
     val solver = Solver()
     solver.proofs = true
@@ -49,7 +53,11 @@ class CertificateTest extends munit.FunSuite:
           h => if asserted.get(h.reason).contains(h) then None else Some(s"not asserted: $h"),
           (r, x, c) => if distinct.get(r).contains((x, c)) then None else Some(s"not asserted: $x ≠ $c")
         )
-        assertEquals(checker.check(solver.conflictCertificate.nn, reasons), None)
+        val certificate = solver.conflictCertificate
+        if certificate == null then
+          assert(box >= 0, "an unsat without a certificate, and no box")
+          uncertified += 1
+        else assertEquals(checker.check(certificate, reasons), None)
         true
       case _ => false
 
@@ -67,9 +75,11 @@ class CertificateTest extends munit.FunSuite:
       if run(rnd, 1 + rnd.nextInt(3), 1 + rnd.nextInt(2), 3 + rnd.nextInt(8), 1 + rnd.nextInt(5)) then unsats += 1
     assert(unsats > 300, s"$unsats unsats")
 
-  test("with proofs, the check gives up rather than prune past the small-model box"):
+  test("with proofs, pruning past the small-model box answers the same, without a certificate"):
     val rnd = Random(3)
     var unsats = 0
+    uncertified = 0
     for _ <- 0 until 2000 do
       if run(rnd, 2 + rnd.nextInt(4), 0, 3 + rnd.nextInt(8), 1 + rnd.nextInt(5), box = 2) then unsats += 1
     assert(unsats > 100, s"$unsats unsats")
+    assert(uncertified > 0 && uncertified < unsats, s"$uncertified of $unsats unsats uncertified")
