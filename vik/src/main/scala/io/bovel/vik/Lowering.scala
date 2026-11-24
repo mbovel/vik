@@ -154,6 +154,9 @@ private final class Lowerer:
   private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
   private val moduloOf = Memo[Term, (Term, Int)]() // a modulo's result, to the value it reduces
   private val splitOf = Memo[Term, (Int, Term, Term)]() // a term's first division at a power of two
+  // `t × 2^j` modulo `2^width`, keyed `(t, j, width)`: a shift by a constant and the product it equals, lowered
+  // whichever way comes first, are one term.
+  private val shifts = Memo[(Term, Int, Int), Term]()
   private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
   private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
 
@@ -166,6 +169,7 @@ private final class Lowerer:
     loweredSignedDivisions.clear()
     moduloOf.clear()
     splitOf.clear()
+    shifts.clear()
     loweredBits.clear()
     bitConstants.clear()
     gateAtoms.clear()
@@ -1311,7 +1315,14 @@ private final class Lowerer:
           case (Num(c), t) => times(t, c.mod(m), width)
           case _ => product(a, b, width)
       case (BvOp.Shl, a :: Num(c) :: Nil) =>
-        if c >= width then Num(0) else times(a, BigInt(2).pow(c.toInt), width)
+        if c >= width then Num(0)
+        else if c > 0 && !range(a).exists(_._2 < modulus(width - c.toInt)) then
+          val j = c.toInt
+          shifts.getOrElseUpdate(
+            (a, j, width),
+            Term.linear(List((modulus(j), divide(a, modulus(width - j), modulus(j) - 1)._2)))
+          )
+        else times(a, BigInt(2).pow(c.toInt), width)
       case (BvOp.Lshr, a :: Num(c) :: Nil) =>
         if c >= width then Num(0) else divide(a, BigInt(2).pow(c.toInt), m / BigInt(2).pow(c.toInt) - 1)._1
       case (BvOp.Udiv, a :: Num(c) :: Nil) => if c.signum == 0 then Num(m - 1) else divide(a, c, (m - 1) / c)._1
@@ -1911,11 +1922,8 @@ private final class Lowerer:
 
   /** `c × t` modulo `2^width`, for `0 ≤ c < 2^width`. */
   private def times(t: Term, c: BigInt, width: Int): Term =
-    val j = c.lowestSetBit
     if c.signum == 0 then Num(0)
-    else if c.bitCount == 1 && j > 0 && !range(t).exists(_._2 < modulus(width - j)) then
-      // A power of two keeps the low bits: `2^j × (t mod 2^(width - j))`, a division shared with the shift's.
-      Term.linear(List((c, divide(t, modulus(width - j), modulus(j) - 1)._2)))
+    else if c.bitCount == 1 then shifts.getOrElseUpdate((t, c.lowestSetBit, width), modulo(t * c, width, 0, c - 1))
     else modulo(t * c, width, 0, c - 1)
 
   /** `t` under a mask that is a run of low bits (`2^k − 1`) or of high bits
