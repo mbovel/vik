@@ -167,8 +167,8 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(lowered("(assert (= (sbv_to_int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1)))
     assertEquals(lowered("(assert (= (bv2int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1))) // signed, unlike z3
     assertEquals(lowered("(assert (= (sbv_to_int #x7F) 127))").last, IntEq(Num(127), Num(127)))
-    assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, IntEq(Num(44), Num(44)))
-    assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, IntEq(Num(255), Num(255)))
+    assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, True) // the modulo folds on a literal
+    assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, True)
     val asserts = lowered("(declare-const n Int) (assert (= ((_ int_to_bv 8) n) #x2A))")
     assertEquals(asserts.last, IntEq(Const(".bv!1"), Num(42)))
     assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const(".bv!1")), (256, Const(".k!2"))), 0))), asserts)

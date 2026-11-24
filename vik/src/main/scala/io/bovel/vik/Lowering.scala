@@ -152,6 +152,7 @@ private final class Lowerer:
   private val loweredOperations = Memo[(String, List[Term], List[BigInt]), Term]()
   private val loweredDivisions = Memo[(Term, BigInt, BigInt), (Term, Term)]()
   private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
+  private val splitOf = Memo[Term, (Int, Term, Term)]() // a term's first division at a power of two
   private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
   private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
 
@@ -162,6 +163,7 @@ private final class Lowerer:
     loweredDivisions.clear()
     quotients.clear()
     loweredSignedDivisions.clear()
+    splitOf.clear()
     loweredBits.clear()
     bitConstants.clear()
 
@@ -681,7 +683,45 @@ private final class Lowerer:
   private def equal(sort: s2.Sort, lhs: Term, rhs: Term): Formula = sort match
     case s2.Sort.BitVec(w) if bitwiseEquality(List(lhs, rhs), w) =>
       And(bits(lhs, w).zip(bits(rhs, w)).map(same).toList)
+    case s2.Sort.BitVec(w) if lhs.isInstanceOf[Num] || rhs.isInstanceOf[Num] =>
+      (lhs, rhs) match
+        case (Num(c), t) => equalConst(t, c, w)
+        case (t, Num(c)) => equalConst(t, c, w)
+        case _ => IntEq(lhs, rhs)
     case _ => if arithmetic(sort) then IntEq(lhs, rhs) else Eq(lhs, rhs)
+
+  /** `t = c` for a `width`-bit term: bit literals when its bits are known, the
+   *  two halves of a division of it at a power of two otherwise, folded on its
+   *  range.
+   */
+  private def equalConst(t: Term, c: BigInt, width: Int): Formula =
+    if range(t).exists((lo, hi) => c < lo || c > hi) then False
+    else
+      t match
+        case Num(v) => if v == c then True else False
+        case _ =>
+          knownBits(t, width) match
+            case Some(fs) => chain(fs.toList.zipWithIndex.map((f, i) => if c.testBit(i) then f else Not(f)))
+            case None =>
+              splitOf.get(t) match
+                case Some((j, q, r)) if j < width =>
+                  And(List(equalConst(q, c >> j, width - j), equalConst(r, c.mod(modulus(j)), j)))
+                case _ =>
+                  // at an end of its range, a sum is each of its terms at that end
+                  (t, range(t)) match
+                    case (Linear(terms, _), Some((lo, hi))) if (c == lo || c == hi) && lo < hi =>
+                      chain(terms.map { (a, u) =>
+                        val (l, h) = range(u).get
+                        val end = if (c == lo) == (a.signum > 0) then l else h
+                        if l == h then True
+                        else
+                          (u, end == l) match
+                            case (Const(n), atLow) if bitFormula.contains(n) && l == 0 && h == 1 =>
+                              if atLow then Not(bitFormula(n)) else bitFormula(n)
+                            case (_, true) => Le(u, Num(l))
+                            case _ => Ge(u, Num(h))
+                      })
+                    case _ => IntEq(t, Num(c))
 
   /** Whether an equality of these `width`-bit terms is one of bits: all their
    *  bits known, and not all of them literals.
@@ -1203,7 +1243,27 @@ private final class Lowerer:
     val k = Const(name)
     define(Ge(k, Num(lo)))
     define(Le(k, Num(hi)))
+    ranges(name) = (lo, hi)
     k
+
+  // The bounds of the minted constants (names are never reused); a declared bit-vector's are its sort's.
+  private val ranges = HashMap.empty[String, (BigInt, BigInt)]
+
+  /** Bounds `[lo, hi]` on the value of a lowered integer term, if known. */
+  private def range(t: Term): Option[(BigInt, BigInt)] =
+    t match
+      case Num(v) => Some((v, v))
+      case Const(name) =>
+        ranges.get(name).orElse(functions.get(name) match
+          case Some(s2.Sort.BitVec(w)) => Some((BigInt(0), modulus(w) - 1))
+          case _ => None)
+      case Linear(terms, c) =>
+        terms.foldLeft(Option((c, c))) {
+          case (Some((lo, hi)), (a, u)) =>
+            range(u).map((l, h) => if a.signum > 0 then (lo + a * l, hi + a * h) else (lo + a * h, hi + a * l))
+          case (None, _) => None
+        }
+      case _ => None
 
   private def modulus(width: Int): BigInt = BigInt(2).pow(width)
 
@@ -1421,19 +1481,27 @@ private final class Lowerer:
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
     knownBits(t, width).getOrElse {
-      val bs = (0 until width).map(_ => freshInt("bit", 0, 1, aux = true))
-      define(IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b)))))
-      val fs = bs.map(b => Ge(b, Num(1)))
-      for (f, b) <- fs.zip(bs) do bitConstants(f) = b
-      loweredBits((t, width)) = fs
-      fs
+      t match
+        case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 =>
+          bits(u, width).map(Not(_))
+        case _ =>
+          val bs = (0 until width).map(_ => freshInt("bit", 0, 1, aux = true))
+          define(IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b)))))
+          val fs = bs.map(b => Ge(b, Num(1)))
+          for (f, b) <- fs.zip(bs) do
+            bitConstants(f) = b
+            b match
+              case Const(n) => bitFormula(n) = f
+              case _ => ()
+          loweredBits((t, width)) = fs
+          fs
     }
 
   /** The bits of `t` if they are known without a decomposition. */
   private def knownBits(t: Term, width: Int): Option[IndexedSeq[Formula]] = t match
     case Num(v) => Some((0 until width).map(i => if v.testBit(i) then True else False))
     case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 => knownBits(u, width).map(_.map(Not(_)))
-    case _ => loweredBits.get((t, width))
+    case _ => loweredBits.get((t, width)).orElse(sumBits(t, width))
 
   /** The `{0, 1}` constant carrying a bit: the one it came from, its
    *  complement, or a fresh case on the bit's formula.
@@ -1442,7 +1510,46 @@ private final class Lowerer:
     case True => Num(1)
     case False => Num(0)
     case Not(g) if bitConstants.contains(g) => Num(1) - bitConstants(g)
-    case _ => bitConstants.getOrElseUpdate(f, cases("bit", f, Num(1), Num(0), 0, 1))
+    case _ =>
+      bitConstants.getOrElseUpdate(
+        f, {
+          val k = cases("bit", f, Num(1), Num(0), 0, 1)
+          k match
+            case Const(n) => bitFormula(n) = f
+            case _ => ()
+          k
+        }
+      )
+
+  // The formula of each minted `{0, 1}` constant carrying a bit (names are never reused).
+  private val bitFormula = HashMap.empty[String, Formula]
+
+  /** The bits of a weighted sum of bit constants, `Σ ±2^i b_i + c`, one term
+   *  per position.
+   */
+  private def sumBits(t: Term, width: Int): Option[IndexedSeq[Formula]] = t match
+    case Linear(terms, c0) if c0 >= 0 && c0 < modulus(width) =>
+      val out = Array.fill[Formula](width)(False)
+      var c = c0
+      val seen = scala.collection.mutable.BitSet()
+      val ok = terms.forall {
+        case (a, Const(n)) if bitFormula.contains(n) =>
+          val i = a.abs.lowestSetBit
+          if a.abs != modulus(i) || i >= width || seen(i) then false
+          else
+            seen += i
+            if a.signum > 0 then
+              out(i) = bitFormula(n); true
+            else if c.testBit(i) then
+              c = c.clearBit(i); out(i) = Not(bitFormula(n)); true
+            else false
+        case _ => false
+      }
+      if !ok || (0 until width).exists(i => c.testBit(i) && seen(i)) then None
+      else
+        for i <- 0 until width if c.testBit(i) do out(i) = True
+        Some(out.toIndexedSeq)
+    case _ => None
 
   /** The term with these bits: the weighted sum of their constants. */
   private def fromBits(fs: IndexedSeq[Formula]): Term =
@@ -1469,11 +1576,14 @@ private final class Lowerer:
           case BvOp.And => u & v
           case BvOp.Or => u | v
           case _ => u ^ v)
+      case _ if disjoint(a, b) || disjoint(b, a) => if op == BvOp.And then Num(0) else a + b
       case _ =>
         val (l, r) = if a.hashCode <= b.hashCode then (a, b) else (b, a)
         loweredOperations.getOrElseUpdate(
           (op.name, List(l, r), List(width)), {
             val run = (l, r) match
+              case (t, Num(_)) if knownBits(t, width).isDefined => None
+              case (Num(_), t) if knownBits(t, width).isDefined => None
               case (t, Num(mask)) => masked(op, t, mask, width)
               case (Num(mask), t) => masked(op, t, mask, width)
               case _ => None
@@ -1486,6 +1596,21 @@ private final class Lowerer:
             }
           }
         )
+
+  /** Whether the bits `a` may set are all below those `b` may set: `a < 2^z`
+   *  where every coefficient (and the constant) of the non-negative `b` is a
+   *  multiple of `2^z`.
+   */
+  private def disjoint(a: Term, b: Term): Boolean =
+    range(a).exists(_._1 >= 0) && range(b).exists(_._1 >= 0) && {
+      val zb = b match
+        case Linear(terms, c) =>
+          val zs = terms.map(_._1) ++ (if c.signum != 0 then List(c) else Nil)
+          if zs.exists(_.signum < 0) then 0 else zs.map(_.lowestSetBit).min
+        case Num(v) => if v.signum == 0 then Int.MaxValue else v.lowestSetBit
+        case _ => 0
+      zb > 0 && (zb == Int.MaxValue || range(a).get._2 < BigInt(2).pow(zb))
+    }
 
   /** One bit of a bitwise operation, folded on literals and on equal bits. */
   private def gate(op: BvOp, x: Formula, y: Formula): Formula = (op, x, y) match
@@ -1509,23 +1634,30 @@ private final class Lowerer:
   /** `value` reduced modulo `2^width`: a fresh result `r` with
    *  `value = r + 2^width × k`, the overflow count `k` in `[lo, hi]`.
    */
-  private def modulo(value: Term, width: Int, lo: BigInt, hi: BigInt): Term = value match
-    case Num(v) => Num(v.mod(modulus(width)))
-    case _ =>
-      loweredOperations.getOrElseUpdate(
-        ("modulo", List(value), List(width, lo, hi)), {
-          val r = freshInt("bv", 0, modulus(width) - 1)
-          // A few overflow counts are a choice for the SAT solver — `value = r`, or `value = r + 2^width` —
-          // rather than an integer unknown `k` with `2^width` as its coefficient, on which the simplex
-          // pivots into huge rationals and walks; a wide range of counts stays an unknown.
-          if hi - lo < splitCases then
-            define(Or((lo to hi).toList.map(k => IntEq(value, r + Num(k * modulus(width))))))
-          else
-            val k = freshInt("k", lo, hi)
-            define(IntEq(value, r + k * modulus(width)))
-          r
-        }
-      )
+  private def modulo(value: Term, width: Int, lo0: BigInt, hi0: BigInt): Term =
+    val m = modulus(width)
+    val (lo, hi) = range(value) match
+      case Some((l, h)) if lo0.max(floorDiv(l, m)) <= hi0.min(floorDiv(h, m)) =>
+        (lo0.max(floorDiv(l, m)), hi0.min(floorDiv(h, m)))
+      case _ => (lo0, hi0)
+    value match
+      case Num(v) => Num(v.mod(modulus(width)))
+      case _ if lo == hi => value - Num(lo * m)
+      case _ =>
+        loweredOperations.getOrElseUpdate(
+          ("modulo", List(value), List(width, lo, hi)), {
+            val r = freshInt("bv", 0, modulus(width) - 1)
+            // A few overflow counts are a choice for the SAT solver — `value = r`, or `value = r + 2^width` —
+            // rather than an integer unknown `k` with `2^width` as its coefficient, on which the simplex
+            // pivots into huge rationals and walks; a wide range of counts stays an unknown.
+            if hi - lo < splitCases then
+              define(Or((lo to hi).toList.map(k => IntEq(value, r + Num(k * modulus(width))))))
+            else
+              val k = freshInt("k", lo, hi)
+              define(IntEq(value, r + k * modulus(width)))
+            r
+          }
+        )
 
   /** Up to this many overflow counts, [[modulo]] is a disjunction of
    *  equalities.
@@ -1538,35 +1670,95 @@ private final class Lowerer:
    */
   private def negative(t: Term, width: Int): Formula = t match
     case Num(v) => if v >= modulus(width - 1) then True else False
-    case _ => Ge(t, Num(modulus(width - 1)))
+    case _ =>
+      range(t) match
+        case Some((_, h)) if h < modulus(width - 1) => False
+        case Some((l, _)) if l >= modulus(width - 1) => True
+        case _ => Ge(t, Num(modulus(width - 1)))
 
   /** A constant defined by cases: `thn` when `cond`, `els` otherwise, within
    *  `[lo, hi]`; once per distinct case split at a level.
    */
   private def cases(tag: String, cond: Formula, thn: Term, els: Term, lo: BigInt, hi: BigInt): Term =
-    loweredOperations.getOrElseUpdate(
-      (tag, List(Term.boolean(cond), thn, els), List(lo, hi)), {
-        val k = freshInt(tag, lo, hi)
-        define(Implies(cond, IntEq(k, thn)))
-        define(Implies(Not(cond), IntEq(k, els)))
-        k
-      }
-    )
+    if cond == True then thn
+    else if cond == False then els
+    else
+      loweredOperations.getOrElseUpdate(
+        (tag, List(Term.boolean(cond), thn, els), List(lo, hi)), {
+          val k = freshInt(tag, lo, hi)
+          define(Implies(cond, IntEq(k, thn)))
+          define(Implies(Not(cond), IntEq(k, els)))
+          k
+        }
+      )
 
   /** `value = divisor × q + r` with `0 ≤ r < divisor` and `q ≤ quotientMax`:
    *  the pair `(q, r)`.
    */
-  private def divide(value: Term, divisor: BigInt, quotientMax: BigInt): (Term, Term) = value match
-    case Num(v) => (Num(v / divisor), Num(v.mod(divisor)))
-    case _ =>
-      loweredDivisions.getOrElseUpdate(
-        (value, divisor, quotientMax), {
-          val q = freshInt("q", 0, quotientMax)
-          val r = freshInt("r", 0, divisor - 1)
-          define(IntEq(value, q * divisor + r))
-          (q, r)
-        }
+  private def divide(value: Term, divisor: BigInt, quotientMax: BigInt): (Term, Term) =
+    val known = range(value).collect { case (l, h) if l >= 0 && l / divisor == h / divisor => l / divisor }
+    lazy val split =
+      if divisor.bitCount != 1 then None
+      else
+        val j = divisor.lowestSetBit
+        bitsOfValue(value, j, quotientMax).orElse(splitLinear(value, j))
+    value match
+      case Num(v) => (Num(v / divisor), Num(v.mod(divisor)))
+      case _ if known.isDefined => (Num(known.get), value - Num(known.get * divisor))
+      case _ if split.isDefined => split.get
+      case _ =>
+        loweredDivisions.getOrElseUpdate(
+          (value, divisor, quotientMax), {
+            val q = freshInt("q", 0, quotientMax)
+            val r = freshInt("r", 0, divisor - 1)
+            define(IntEq(value, q * divisor + r))
+            if divisor.bitCount == 1 then splitOf.getOrElseUpdate(value, (divisor.lowestSetBit, q, r))
+            (q, r)
+          }
+        )
+
+  /** A division at `2^j` of a term whose bits are known: the sums of its high
+   *  and low bits.
+   */
+  private def bitsOfValue(value: Term, j: Int, quotientMax: BigInt): Option[(Term, Term)] =
+    val width = j + (quotientMax + 1).bitLength - 1
+    if quotientMax + 1 != modulus(width - j) then None
+    else
+      knownBits(value, width).filter(_ => !value.isInstanceOf[Num]).map(fs =>
+        (fromBits(fs.drop(j)), fromBits(fs.take(j)))
       )
+
+  /** `value = 2^j × high + low` read off a sum of non-negative terms whose
+   *  coefficients are powers of two: a term at or above `2^j` goes high, one
+   *  below it is itself split at the boundary; `None` unless the low parts
+   *  cannot carry into bit `j`. Checked before any constant is minted.
+   */
+  private def splitLinear(value: Term, j: Int): Option[(Term, Term)] = value match
+    case Linear(terms, c) if j > 0 && c >= 0 =>
+      val d = modulus(j)
+      val rs = terms.map((a, u) => range(u))
+      val fits = terms.zip(rs).forall {
+        case ((a, _), Some((lo, _))) => a.signum > 0 && lo >= 0 && (a.mod(d) == 0 || a.bitCount == 1)
+        case _ => false
+      }
+      if !fits then None
+      else
+        val lowMax = c.mod(d) + terms.zip(rs).collect {
+          case ((a, _), Some((_, hi))) if a.mod(d) != 0 => a * hi.min(modulus(j - a.lowestSetBit) - 1)
+        }.sum
+        if lowMax >= d then None
+        else
+          val high = scala.collection.mutable.ListBuffer.empty[(BigInt, Term)]
+          val low = scala.collection.mutable.ListBuffer.empty[(BigInt, Term)]
+          for ((a, u), r) <- terms.zip(rs) do
+            if a.mod(d) == 0 then high += ((a / d, u))
+            else
+              val e = modulus(j - a.lowestSetBit)
+              val (uq, ur) = divide(u, e, r.get._2 / e)
+              high += ((BigInt(1), uq))
+              low += ((a, ur))
+          Some((Term.linear(high.toList, c / d), Term.linear(low.toList, c.mod(d))))
+    case _ => None
 
   /** `bvsdiv`, `bvsrem` and `bvsmod` of `a` by the constant `c`, of signed
    *  value `T`: the truncating division of the signed value of `a` by `|T|`,
@@ -1652,7 +1844,12 @@ private final class Lowerer:
 
   /** `c × t` modulo `2^width`, for `0 ≤ c < 2^width`. */
   private def times(t: Term, c: BigInt, width: Int): Term =
-    if c.signum == 0 then Num(0) else modulo(t * c, width, 0, c - 1)
+    val j = c.lowestSetBit
+    if c.signum == 0 then Num(0)
+    else if c.bitCount == 1 && j > 0 && !range(t).exists(_._2 < modulus(width - j)) then
+      // A power of two keeps the low bits: `2^j × (t mod 2^(width - j))`, a division shared with the shift's.
+      Term.linear(List((c, divide(t, modulus(width - j), modulus(j) - 1)._2)))
+    else modulo(t * c, width, 0, c - 1)
 
   /** `t` under a mask that is a run of low bits (`2^k − 1`) or of high bits
    *  (`2^width − 2^k`): the one division `t = 2^k × high + low` gives the and,
