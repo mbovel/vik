@@ -1720,7 +1720,8 @@ private final class Lowerer:
     case _ => Not(Iff(x, y))
 
   /** `value` reduced modulo `2^width`: a fresh result `r` with
-   *  `value = r + 2^width × k`, the overflow count `k` in `[lo, hi]`.
+   *  `value = r + 2^width × k`, the overflow count `k` in `[lo, hi]` narrowed
+   *  to what the range of `value` allows; no fresh result when that pins `k`.
    */
   private def modulo(value: Term, width: Int, lo0: BigInt, hi0: BigInt): Term =
     val m = modulus(width)
@@ -1782,7 +1783,9 @@ private final class Lowerer:
       )
 
   /** `value = divisor × q + r` with `0 ≤ r < divisor` and `q ≤ quotientMax`:
-   *  the pair `(q, r)`.
+   *  the pair `(q, r)`. Fresh unknowns only when neither the range of `value`
+   *  (one quotient), its known bits, nor a split of a sum along a power of two
+   *  ([[splitLinear]]) gives them.
    */
   private def divide(value: Term, divisor: BigInt, quotientMax: BigInt): (Term, Term) =
     val known = range(value).collect { case (l, h) if l >= 0 && l / divisor == h / divisor => l / divisor }

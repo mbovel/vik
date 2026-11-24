@@ -173,6 +173,42 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(asserts.last, IntEq(Const(".bv!1"), Num(42)))
     assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const(".bv!1")), (256, Const(".k!2"))), 0))), asserts)
 
+  private val bytes = "(declare-const x (_ BitVec 8))(declare-const y (_ BitVec 8))(declare-const z (_ BitVec 8))"
+  private def answer(script: String): List[String] = Session.run(Parser.parse(s"$bytes$script(check-sat)"))
+
+  test("the bit-vector rewrites read the range of a lowered term"):
+    // Bits that cannot overlap make the or a sum: no bit decomposed.
+    val or = s"$bytes(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) z))"
+    assertEquals(minted(or, "bit"), 0)
+    assertEquals(
+      answer("(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) #x5A))(assert (not (= (bvand y #x0F) #x0A)))"),
+      List("unsat")
+    )
+    assertEquals(answer("(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) #x5A))(assert (not (= y #x0A)))"), List("sat"))
+    // A logical shift right leaves the sign bit clear: no sign test is left.
+    val signed = lowered(s"$bytes(assert (bvslt (bvlshr x #x01) #x00))").last
+    assert(!signed.toString.contains("128"), signed)
+    assertEquals(answer("(assert (bvslt (bvlshr x #x01) #x00))"), List("unsat"))
+    // A shift by a constant and the product it equals are one term.
+    assertEquals(minted(s"$bytes(assert (= (bvshl x #x02) y))(assert (= (bvmul x #x04) z))", "r"), 1)
+    assertEquals(answer("(assert (distinct (bvshl x #x02) (bvmul x #x04)))"), List("unsat"))
+
+  test("the bits of a modular sum come from an adder over its operands' bits"):
+    // A constant addend: the bits of `x` and a carry chain, not a decomposition of the sum.
+    val plusOne = s"$bytes(assert (= (bvand (bvadd x #x01) y) z))"
+    assert(minted(plusOne, "carry") > 0)
+    assertEquals(answer("(assert (= x #xFF))(assert (not (= (bvand (bvadd x #x01) y) #x00)))"), List("unsat"))
+    assertEquals(
+      answer("(assert (= x #x7F))(assert (= y #xFF))(assert (not (= (bvand (bvadd x #x01) y) #x80)))"),
+      List("unsat")
+    )
+    // Two operands whose bits are not known: the sum's own bits are fewer than theirs and the carries.
+    assertEquals(minted(s"$bytes(assert (= (bvand (bvadd x y) z) z))", "carry"), 0)
+    assertEquals(
+      answer("(assert (= (bvand (bvsub x y) #x01) #x01))(assert (= (bvand x #x01) (bvand y #x01)))"),
+      List("unsat")
+    )
+
   test("a script's symbol starting with `.` is refused: SMT-LIB reserves it for the solver (issue 194)"):
     for script <- List(
         "(declare-fun .store!1 ((Array Int Int) Int Int) (Array Int Int))",
