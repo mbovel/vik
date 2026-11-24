@@ -129,6 +129,11 @@ final class Solver(val simplify: Boolean = true):
    */
   private val encoded = HashMap.empty[String, (List[Sort], Sort)]
 
+  /** Whether the live encoder was given `name` and its level was popped since:
+   *  the terms that mention it belong to that level (see [[Encoder]]).
+   */
+  private def forgotten(name: String): Boolean = encoded.contains(name) && !declarations.contains(name)
+
   /** Forgets a declaration: its level is popped (issue 40). */
   def undeclare(name: String): Unit =
     declarations -= name
@@ -381,7 +386,7 @@ final class Solver(val simplify: Boolean = true):
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
       if encoder != null then encoder.nn.addCounts(retired)
-      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked())
+      val e = Encoder(declarations, datatypes.toList, auxiliaries, () => anyStore, () => asked(), forgotten)
       encoder = e
       encoded.clear()
       encoded ++= declarations
@@ -543,7 +548,8 @@ private final class Encoder(
     datatypes: List[Datatype],
     auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
-    keepGoing: () => Boolean // of the solve under way (see Solver.solve)
+    keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
+    forgotten: String => Boolean = _ => false // a declaration popped since this encoder was built
 ):
   private var steps = 0L
 
@@ -1713,6 +1719,18 @@ private final class Encoder(
    *  function gives two rows with one key a single result. The final check
    *  needs the values only.
    */
+  /** Whether a term mentions a symbol whose declaration was popped: a term of a
+   *  popped level, which the encoder keeps for the levels to come but which is
+   *  no row of a function in the model. Its arguments have whatever value the
+   *  search left them, out of their range for a lowered bit-vector, and the
+   *  model of the next check had `f` take such a row (issue 244).
+   */
+  private def popped(t: Term): Boolean = t match
+    case Term.Const(n) => forgotten(n)
+    case Term.App(f, args) => popped(f) || args.exists(popped)
+    case Term.Linear(terms, _) => terms.exists((_, u) => popped(u))
+    case _ => false
+
   private def buildModel(): (() => Model, Term => Term) =
     val real = liaSolver.realValues() // one δ for every real of the model, as the final check takes them
     val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
@@ -2044,7 +2062,7 @@ private final class Encoder(
         if argSorts.nonEmpty && sort.arrow.isDefined && !Names.isStore(name)
       do
         val rows = classes.keys.collect {
-          case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
+          case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length && !popped(a) =>
             (args.zip(argSorts).map(valueOfTerm), arrayValue(classOf(a), sort))
         }.toList
         val default = Model.constArray(sort, valueOfTerm(Term.Const("@default"), applied(sort, 1)))
@@ -2053,7 +2071,7 @@ private final class Encoder(
         if argSorts.isEmpty then constants += name -> valueOfTerm(Term.Const(name), sort)
         else
           val rows = classes.keys.collect {
-            case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length =>
+            case a @ Term.App(Term.Const(n), args) if n == name && args.length == argSorts.length && !popped(a) =>
               (args.zip(argSorts).map(valueOfTerm), valueOfTerm(a, sort))
           }.toList
           val default = rows.headOption.map(_._2).getOrElse(valueOfTerm(Term.Const("@default"), sort))
