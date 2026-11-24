@@ -219,7 +219,15 @@ private final class Lowerer:
         case ArithOp.Sub => number(values.reduce(_ - _))
         case ArithOp.Neg => number(-values.head)
         case ArithOp.Mul => number(values.reduce(_ * _))
-        case ArithOp.Div => number(values.reduce(_ / _)) // a zero divisor is refused before this, by the lowering
+        case ArithOp.Div =>
+          // By zero, the value the model gives the division symbol at the dividend (see `dividedByZero`).
+          number(values.reduceLeft { (a, b) =>
+            if !b.isZero then a / b
+            else
+              divisionByZero.fold(io.bovel.lia.Rational.zero)(f =>
+                rational(model.value(App(Const(f), List(number(a)))))
+              )
+          })
         case ArithOp.ToReal => number(values.head)
         case ArithOp.ToInt => Num(values.head.floor)
         case ArithOp.IntDiv | ArithOp.Mod | ArithOp.Abs => throw s2.Unsupported(s"${op.name} is not supported")
@@ -505,6 +513,7 @@ private final class Lowerer:
       macros.clear()
       rationalValues.clear()
       storeSymbols.clear()
+      divisionByZero = None
       clearMemos()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
@@ -781,9 +790,11 @@ private final class Lowerer:
       // Real division by a rational literal, `(/ 1 3)` and `(/ x 2)` alike; the rest is nonlinear.
       args.map(term(_, env)).reduceLeft { (numerator, divisorTerm) =>
         val divisor = literalValue(divisorTerm).getOrElse(throw s2.Smt2Error(s"nonlinear division"))
-        literalValue(numerator) match
-          case Some((p, q)) => rationalConst(p * divisor._2, q * divisor._1)
-          case None => rationalProduct(divisor._2, divisor._1, numerator)
+        if divisor._1.signum == 0 then dividedByZero(numerator)
+        else
+          literalValue(numerator) match
+            case Some((p, q)) => rationalConst(p * divisor._2, q * divisor._1)
+            case None => rationalProduct(divisor._2, divisor._1, numerator)
       }
     case ArithOp.ToReal => term(args.head, env) // the same value: sorts decide integrality, not the tree
     case ArithOp.ToInt =>
@@ -881,6 +892,27 @@ private final class Lowerer:
       )
 
   private val rationalProducts = Memo[(BigInt, BigInt, Term), Term]()
+
+  /** `(/ t 0)`: SMT-LIB's division is total, and its value at zero unspecified
+   *  but a function of the dividend, so `(/ 1 0)` is one real and equals itself
+   *  (issue 247). It is an uninterpreted function of the lowering's own,
+   *  `.div0!N : Real → Real`, applied to the dividend, declared on first use.
+   *  The declaration goes with its level's `pop`, as the session forgets it
+   *  then, and the next use declares another.
+   */
+  private var divisionByZero: Option[String] = None
+
+  private def dividedByZero(dividend: Term): Term =
+    val name = divisionByZero.getOrElse {
+      val n = freshName("div0")
+      introduce(n, Sort.fun(List(Sort.Real), Sort.Real))
+      undoable(functions, n)
+      functions(n) = s2.Sort.Fun(List(s2.Sort.Real), s2.Sort.Real)
+      if scopes.nonEmpty && !globalDeclarations then scopes.last += (() => divisionByZero = None)
+      divisionByZero = Some(n)
+      n
+    }
+    App(Const(name), List(dividend))
 
   /** The `.store!N` function symbol for arrays of `sort`, declared on first
    *  use: `store` is not a function of the tree, each array sort gets its own

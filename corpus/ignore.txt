@@ -780,7 +780,6 @@ QF_NIA/yices2/mcsat-nia__linear_sea.ch_true-unreach-call.i_162.smt2	refused: `di
 QF_NIA/yices2/mcsat__sublogic_nia_linear.smt2	refused: `div`, `mod`, `abs` and `divisible` are not lowered (issue 241)
 QF_NRA/yices2/mcsat-nra-assumptions__issue296.smt2	refused: a named term below the top of an assertion is not read (issue 239)
 QF_NRA/yices2/mcsat-nra-random__random_1_10_34eac69ae0.smt2	skip: the parser's recursion overflows the stack (a deep nest, issue 242)
-QF_NRA/yices2/mcsat-nra__issue181.smt2	refused: a division by a literal zero crashes (issue 247)
 QF_NRA/yices2/mcsat-nra__simple_ballistics_reach.01.seq_lazy_lemmas_global_2.smt2	skip: the parser's recursion overflows the stack (a deep nest, issue 242)
 QF_RDL/smt-lib/sal__fischer3-mutex-17.smt2	timeout (5 s limit)
 QF_RDL/smt-lib/sal__fischer6-mutex-11.smt2	timeout (5 s limit)

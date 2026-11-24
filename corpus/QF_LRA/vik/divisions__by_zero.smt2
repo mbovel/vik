@@ -1,0 +1,27 @@
+; Hand-written for VIK (this repository's license): a division by a literal zero. SMT-LIB's division is
+; total, and its value at zero is unspecified but a function of the dividend: `(/ 1.0 0.0)` is some real, the
+; same each time, and two dividends that are equal give equal quotients. VIK threw "division by zero" on each
+; of these (issue 247, from Yices2's `mcsat/nra/issue181`).
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(push 1)
+(assert (= x (/ 1.0 0.0)))
+(set-info :status sat)
+(check-sat)
+(assert (= y (/ 1.0 0.0)))
+(assert (not (= x y)))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(push 1)
+(assert (= x y))
+(assert (not (= (/ x 0.0) (/ y 0.0))))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(assert (= y (/ x 0.0)))
+(assert (> y (+ x 1.0)))
+(assert (< (/ (/ x 0.0) 2.0) 5.0))
+(set-info :status sat)
+(check-sat)
