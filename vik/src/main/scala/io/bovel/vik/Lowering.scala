@@ -16,7 +16,8 @@ import Term.*
  *      their uses;
  *    - `+`, `-` and `*` by a literal become the linear normal form; rational
  *      literals and divisions become defined `Real` constants; `div`, `mod`,
- *      `abs` and nonlinear multiplication are rejected;
+ *      `abs` and nonlinear multiplication are rejected
+ *      ([[io.bovel.smtlib.Unsupported]]);
  *    - chained `=`, `distinct` and comparisons become pairwise bounds on
  *      numbers and bit-vectors, equalities and disequalities elsewhere;
  *    - a term-level `ite` becomes a fresh constant with two defining assertions
@@ -29,11 +30,15 @@ import Term.*
  *      asserted here), and each operation a linear relation between its
  *      arguments, its result and fresh bounded integers — `bvadd` and friends
  *      through an overflow count `k` (`value = r + 2^n × k`), divisions, shifts
- *      and extractions through `x = d × q + r`, the signed comparisons and
- *      `sign_extend` through the sign bit (`x = u + 2^(n−1) × s`).
- *      Multiplication, division and shifts by a variable, and the other bitwise
- *      operations would need bit-blasting: rejected
- *      ([[io.bovel.smtlib.Unsupported]]).
+ *      and extractions by a constant through `x = d × q + r`, the signed
+ *      comparisons and `sign_extend` through the sign bit, the atom
+ *      `x ≥ 2^(n−1)`. What is not linear goes through the bits of an operand,
+ *      each a Boolean the SAT solver decides, the term being the weighted sum
+ *      of its bits: `bvand`, `bvor` and `bvxor` bit by bit, a product of two
+ *      unknowns as shift-and-add over the bits of one, a shift by an unknown
+ *      amount as a barrel shifter over the amount's bits, a division by an
+ *      unknown as `a = b × q + r` with that product. Every operation of the
+ *      theory is lowered: only a wrong number of arguments is rejected.
  */
 object Lowering:
   def apply(script: s2.Script): Script = Script(Lowerer().commands(script.commands))
