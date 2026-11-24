@@ -210,6 +210,19 @@ class ParserTest extends munit.FunSuite:
     // A name goes with its level, as a definition does.
     parse("(declare-const x Int)(push 1)(assert (> (! (+ x 1) :named t) 0))(pop 1)(declare-const t Bool)")
 
+  test("divisible is the remainder of a division by a positive numeral"):
+    // `((_ divisible n) t)` could not be typed (issue 241).
+    val script = parse("(declare-const x Int)(assert ((_ divisible 3) (+ x 1)))")
+    assert(
+      script.commands.exists {
+        case Command.Assert(Formula.Eq(List(Term.ArithApp(ArithOp.Mod, List(_, Term.Numeral(n))), Term.Numeral(z)))) =>
+          n == 3 && z == 0
+        case _ => false
+      },
+      script.commands
+    )
+    intercept[Smt2Error](parse("(declare-const x Int)(assert ((_ divisible 0) x))"))
+
   test("a symbol is declared once"):
     // The second `a` replaced the first: `A` was left with the constructor of `B`, and two of its values
     // could not differ (issue 230).
