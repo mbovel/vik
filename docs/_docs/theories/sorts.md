@@ -71,6 +71,16 @@ of a model, for a datatype term that nothing constrains, are built from a constr
 values, and every datatype has one. A datatype given to `io.bovel.vik.Solver` directly, without the parser,
 is not checked and must be well-founded too.
 
+A name is declared once. A command that names a sort like one the script has already — a sort of
+`declare-sort`, an abbreviation of `define-sort` or a datatype — is refused, as z3 and cvc5 refuse it, and so
+are two datatypes of one name in a `declare-datatypes`. A `pop` frees the names of its level.
+
+Function symbols follow the same rule, which is SMT-LIB's: `declare-fun` and `define-fun` refuse a symbol the
+script has already, and a datatype refuses a constructor or a selector named like one, another datatype's
+included. z3 and cvc5 accept a constructor or a selector that two datatypes share and tell its uses apart by
+their sorts. VIK does not, and refuses the second declaration. A datatype given to `io.bovel.vik.Solver`
+directly is not checked here either.
+
 A parametric datatype — `(declare-datatype List (par (T) ...))` — is a datatype per instance, `(List Int)`,
 `(List Bool)`: see [sort parameters](#sort-parameters) below.
 

@@ -81,7 +81,7 @@ class ParserEndsTest extends munit.FunSuite:
         // A regular datatype with a field at an instance of a non-regular one.
         s"""$option
            (declare-datatype N (par (X) ((nil) (cons (hd X) (tl (N (Option X)))))))
-           (declare-datatype R (par (X) ((r (x X) (f (N Int))))))
+           (declare-datatype R (par (X) ((r (rx X) (f (N Int))))))
            (declare-const x (R Bool))"""
       )
     do
@@ -100,11 +100,11 @@ class ParserEndsTest extends munit.FunSuite:
       (declare-datatype List (par (X) ((nil) (cons (head X) (tail (List X))))))
       (declare-datatype Rose (par (X) ((rose (label X) (subtrees (List (Rose X)))))))
       (declare-datatype Swap (par (X Y) ((leaf) (swap (x X) (rest (Swap Y X))))))
-      (declare-datatype D (par (X) ((d (x X)) (e (f (D (Option Int)))) (g (h (D (Option (Option Int))))))))
+      (declare-datatype D (par (X) ((d0 (dx X)) (d1 (df (D (Option Int)))) (d2 (dh (D (Option (Option Int))))))))
       (declare-datatypes ((P 2) (Q 1)) (
         (par (X Y) ((p0) (p1 (p1a (P Y X)) (p1b (Q X)) (p1d (Q (Option Int))))))
         (par (Z) ((q0) (q1 (q1a (Q Z)) (q1b (Option Z)) (q1c (P Z Int)))))))
-      (declare-datatype Shift (par (X Y) ((s0) (s1 (f (Shift Int (Option X)))))))
+      (declare-datatype Shift (par (X Y) ((s0) (s1 (sf (Shift Int (Option X)))))))
       (declare-const a (Rose (List (Option Int))))
       (declare-const b (List (List (List Int))))
       (declare-const c (Swap Int (Option Int)))
