@@ -1,0 +1,13 @@
+; From opensmt: base/incremental/bmwlin_20_5_1.inter.bmc_k100_2_simplified.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun t6 () Bool)
+(declare-fun t7 () Bool)
+(assert (or (not t6) (not t7)))
+
+;(push 1)
+
+(assert (and t7 t6))
+
+(set-info :status unsat)
+(check-sat)
+(exit)

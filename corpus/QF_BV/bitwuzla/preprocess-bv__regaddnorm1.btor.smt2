@@ -1,0 +1,6 @@
+; From bitwuzla: preprocess/bv/regaddnorm1.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const v0 (_ BitVec 2))
+(assert (= #b1 (bvnot (ite (= (bvnot (_ bv0 2)) (bvadd (bvnot v0) #b10)) #b1 #b0))))
+(check-sat)

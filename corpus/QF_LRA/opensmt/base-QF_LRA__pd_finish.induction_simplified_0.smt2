@@ -1,0 +1,7 @@
+; From opensmt: base/QF_LRA/pd_finish.induction_simplified_0.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun v () Real)
+(assert (= 0.0 (+ v v)))
+(set-info :status sat)
+(check-sat)
+(exit)

@@ -1,0 +1,8 @@
+; From opensmt: base/QF_RDL/pure_bool.smt2 (MIT, LICENSES/opensmt.txt)
+(set-option :produce-model 1)
+(set-info :status sat)
+(set-logic QF_RDL)
+(declare-fun x () Bool)
+(assert x)
+(set-info :status sat)
+(check-sat)

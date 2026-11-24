@@ -1,0 +1,7 @@
+; From bitwuzla: solver/array/murxla-53d8ca79e058078a.min.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_AX, the smallest the script fits, which set none (prune logic)
+(set-logic QF_AX)
+(declare-const i Bool)
+(declare-const AAA (Array Bool (Array Bool (Array Bool Bool))))
+(set-info :status sat)
+(check-sat-assuming ((select (select (select (store AAA i (select AAA i)) true) false) false) (= AAA (store AAA i (select AAA i))) (= AAA (store AAA i (select AAA false)))))

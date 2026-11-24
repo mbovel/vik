@@ -1,0 +1,13 @@
+; From bitwuzla: get-interpolant/eqsubst3.smt2 (MIT, LICENSES/bitwuzla.txt)
+; ignore output
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
+(set-option :produce-interpolants true)
+(set-option :interpolants-subst true)
+(declare-const x (_ BitVec 1))
+(declare-const y (_ BitVec 1))
+(assert (! (= x y) :named a1))
+(assert (distinct x y))
+(set-info :status unsat)
+(check-sat)
+(get-interpolant (a1))

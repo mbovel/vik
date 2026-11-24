@@ -1,0 +1,7 @@
+; From bitwuzla: rewrite/array/rwpropindexpluszero5.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_ABV)
+(set-info :status sat)
+(declare-const a0 (Array (_ BitVec 8) (_ BitVec 8) ))
+(declare-const v0 (_ BitVec 8))
+(assert (= #b1 (bvnot (ite (= (select (store a0 v0 (bvadd v0 (bvnot #b11111111))) (bvadd v0 (bvnot #b11111111))) (select a0 (bvadd v0 (bvnot #b11111111)))) #b1 #b0))))
+(check-sat)

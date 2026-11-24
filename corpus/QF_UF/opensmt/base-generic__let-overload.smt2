@@ -1,0 +1,6 @@
+; From opensmt: base/generic/let-overload.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(set-info :status sat)
+(assert (let ((l false) (l true)) l))
+(set-info :status sat)
+(check-sat)

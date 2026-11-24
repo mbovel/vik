@@ -1,0 +1,15 @@
+; From opensmt: base/QF_UF/uf_bool_test_unsat.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(set-info :status unsat)
+(declare-fun p (Bool) Bool)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(declare-fun c () Bool)
+(assert (= (p a) true))
+(assert (= (p b) false))
+(assert (or c (= a b)))
+(assert (or (not c) (= a b)))
+(set-info :status unsat)
+(check-sat)
+
+

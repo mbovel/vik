@@ -1,0 +1,7 @@
+; From bitwuzla: solver/array/regrarray7.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_ABV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_ABV)
+(set-info :status sat)
+(declare-const a (Array (_ BitVec 2) (_ BitVec 1)))
+(assert (not (= a (store a (_ bv0 2) (_ bv0 1)))))
+(check-sat)

@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/modelgensmt22.smt2 (MIT, LICENSES/bitwuzla.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-11-24)
+(set-logic QF_BV)
+(define-fun $e1 () (_ BitVec 1) (_ bv0 1))
+(assert (not (= (bvnot $e1) #b0)))
+(set-info :status sat)
+(check-sat)
+(exit)

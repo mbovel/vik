@@ -1,0 +1,10 @@
+; From bitwuzla: preprocess/issue162.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
+(set-option :rewrite-level 0)
+(declare-const v1 Bool)
+(assert v1)
+(assert (ite v1 v1 (not v1)))
+(set-info :status sat)
+(check-sat)
+

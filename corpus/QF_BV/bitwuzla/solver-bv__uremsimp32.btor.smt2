@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/uremsimp32.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v0 (_ BitVec 32))
+(declare-const v1 (_ BitVec 32))
+(assert (= #b1 (bvnot (ite (bvult (bvurem v1 v0) v0) #b1 #b0))))
+(assert (= #b1 (bvnot (ite (= v0 #b00000000000000000000000000000000) #b1 #b0))))
+(check-sat)

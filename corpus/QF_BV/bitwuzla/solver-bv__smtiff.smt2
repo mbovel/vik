@@ -1,0 +1,7 @@
+; From bitwuzla: solver/bv/smtiff.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-info :status sat)
+(set-logic QF_BV)
+(declare-fun a () Bool)
+(declare-fun b () Bool)
+(assert (and (not a) (= a b)))
+(check-sat)

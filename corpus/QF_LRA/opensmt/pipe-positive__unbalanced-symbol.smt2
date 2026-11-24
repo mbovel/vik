@@ -1,0 +1,6 @@
+; From opensmt: pipe/positive/unbalanced-symbol.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun |X)| () Real)
+(assert (< 1 |X)|))
+(set-info :status sat)
+(check-sat)

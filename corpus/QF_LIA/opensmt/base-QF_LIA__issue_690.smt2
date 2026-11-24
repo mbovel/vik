@@ -1,0 +1,6 @@
+; From opensmt: base/QF_LIA/issue_690.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(set-info :status sat)
+(assert (= 0 (- 3 2 1)))
+(set-info :status sat)
+(check-sat)

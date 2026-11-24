@@ -1,0 +1,6 @@
+; From yices2: mcsat/nia/issue334.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_NIA)
+(declare-fun i2 () Int)
+(assert (= true true true true (distinct 0 (abs i2) 3337)))
+(set-info :status sat)
+(check-sat)

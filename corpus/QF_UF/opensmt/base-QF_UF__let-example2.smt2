@@ -1,0 +1,6 @@
+; From opensmt: base/QF_UF/let-example2.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(assert (or (let ((a true) (b (let ((a false)) (not a)))) (and a b)) (let ((a true)) (not a))))
+(set-info :status sat)
+(check-sat)
+(exit)

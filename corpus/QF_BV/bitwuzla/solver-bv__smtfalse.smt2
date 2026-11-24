@@ -1,0 +1,5 @@
+; From bitwuzla: solver/bv/smtfalse.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-info :status unsat)
+(set-logic QF_BV)
+(assert false)
+(check-sat)

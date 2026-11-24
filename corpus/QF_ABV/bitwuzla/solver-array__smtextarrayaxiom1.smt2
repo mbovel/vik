@@ -1,0 +1,11 @@
+; From bitwuzla: solver/array/smtextarrayaxiom1.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_ABV, the smallest the script fits, for QF_AUFBV (prune logic)
+(set-info :status unsat)
+(set-logic QF_ABV)
+(declare-fun a () (Array (_ BitVec 1) (_ BitVec 1)))
+(declare-fun b () (Array (_ BitVec 1) (_ BitVec 1)))
+(assert (= (select a (_ bv0 1)) (select b (_ bv0 1))))
+(assert (= (select a (_ bv1 1)) (select b (_ bv1 1))))
+(assert (not (= a b)))
+(check-sat)
+

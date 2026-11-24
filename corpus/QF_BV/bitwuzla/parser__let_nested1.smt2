@@ -1,0 +1,7 @@
+; From bitwuzla: parser/let_nested1.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const a (_ BitVec 1))
+(assert (let ((x (let ((y a)) y)) (y a)) (= x y)))
+(check-sat)

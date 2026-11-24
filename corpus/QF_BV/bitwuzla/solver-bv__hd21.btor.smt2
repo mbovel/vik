@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/hd21.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v0 (_ BitVec 8))
+(declare-const v1 (_ BitVec 8))
+(declare-const v2 (_ BitVec 8))
+(assert (not (or (not (bvsle v0 v1)) (= (and (bvsle v0 v2) (bvsle v2 v1)) (bvule (bvsub v2 v0) (bvsub v1 v0))))))
+(check-sat)

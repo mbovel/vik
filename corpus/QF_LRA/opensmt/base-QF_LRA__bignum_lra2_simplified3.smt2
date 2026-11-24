@@ -1,0 +1,12 @@
+; From opensmt: base/QF_LRA/bignum_lra2_simplified3.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun v3 () Real)
+(declare-fun v2 () Real)
+(assert (and
+  (or (= v3 (/ 1 100000)) (= v3 (/ 1 100002)))
+  (or (= v3 (* (/ 1 120030) v3)) (= v3 v2))
+  (= 0.0 v2)
+))
+(set-info :status unsat)
+(check-sat)
+(exit)

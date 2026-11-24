@@ -1,0 +1,7 @@
+; From bitwuzla: rewrite/bv/3vl4.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v0 (_ BitVec 31))
+(declare-const v1 (_ BitVec 30))
+(assert (= #b1 ((_ extract 31 31) (bvudiv (concat (_ bv0 1) v0) (concat v1 (bvnot (_ bv0 2)))))))
+(check-sat)

@@ -1,0 +1,12 @@
+; From bitwuzla: get-interpolant/murxla-20916f8962fc9c26.min.pudlak.smt2 (MIT, LICENSES/bitwuzla.txt)
+; ignore output
+(set-option :global-declarations true)
+(set-option :produce-interpolants 1)
+(set-option :interpolants-algo "pudlak")
+(set-option :bv-solver "preprop")
+(declare-const _x1 (_ BitVec 96))
+(assert (! (let ((_let0 (bvsub _x1 _x1)))(bvsmulo _let0 _let0)) :named a1))
+(push 1)
+(set-info :status unsat)
+(check-sat)
+(get-interpolant (a1 a1))

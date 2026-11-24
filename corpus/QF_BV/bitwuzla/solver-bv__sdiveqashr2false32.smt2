@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/sdiveqashr2false32.smt2 (MIT, LICENSES/bitwuzla.txt)
+; statuses: the `unknown` ones answered by Z3 version 4.14.0 (statusstamp, 2026-11-24)
+(set-logic QF_BV)
+(declare-fun a ()(_ BitVec 32))
+(assert (distinct (bvsdiv a (_ bv2 32)) (bvashr a (_ bv1 32))))
+(set-info :status sat)
+(check-sat)
+(exit)

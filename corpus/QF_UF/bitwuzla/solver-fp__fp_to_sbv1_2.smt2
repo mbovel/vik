@@ -1,0 +1,8 @@
+; From bitwuzla: solver/fp/fp_to_sbv1_2.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
+(set-option :produce-models true)
+(set-info :status sat)
+(set-info :status sat)
+(check-sat)
+(get-value ((and (bvusubo (_ bv0 1) (_ bv1 1)) (bvusubo ((_ fp.to_sbv 1) roundTowardNegative (fp (_ bv0 1) (_ bv0 8) (_ bv0 23))) (_ bv1 1)))))

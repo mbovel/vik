@@ -1,0 +1,20 @@
+; From stp: sample-smt-tests/cli-produce-models-and-logic.smt2 (MIT, LICENSES/stp.txt)
+; RUN: %solver --produce-models %s | %OutputCheck %s
+; RUN: not %solver %s | %OutputCheck --check-prefix=DEFAULT %s
+; RUN: not %solver --logic NONSENSE %s 2>&1 | %OutputCheck --check-prefix=LOGIC %s
+;
+; --produce-models is a flag, so the file after it is still the input (as a
+; value option it swallowed the file name); the command line's default is
+; off. --logic takes the logics set-logic accepts and no other name.
+(set-logic QF_BV)
+(declare-fun x () (_ BitVec 8))
+(assert (= x #x03))
+(set-info :status sat)
+(check-sat)
+(get-value (x))
+; CHECK: ^sat
+; CHECK-NEXT: ^\(
+; CHECK-NEXT: #x03
+; DEFAULT: ^sat
+; DEFAULT-NEXT: ^\(error "get-value requires :produce-models true"\)
+; LOGIC: --logic must be one of

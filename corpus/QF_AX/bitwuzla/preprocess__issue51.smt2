@@ -1,0 +1,13 @@
+; From bitwuzla: preprocess/issue51.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_AX, the smallest the script fits, which set none (prune logic)
+(set-logic QF_AX)
+(set-info :status sat)
+(declare-const p Bool)
+(declare-fun m () (Array Bool (Array Bool Bool)))
+(define-fun m0 () (Array Bool Bool) (select m false))
+(define-fun m00 () Bool (select m0 false))
+
+(assert m00)
+(assert (= p (not (select (select (store m false (store m0 false false)) m00) true))))
+(assert (not p))
+(check-sat)

@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/redor3.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const v0 (_ BitVec 3))
+(assert (= #b1 (bvredor v0)))
+(check-sat)

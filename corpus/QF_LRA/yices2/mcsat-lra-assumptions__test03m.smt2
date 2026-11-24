@@ -1,0 +1,21 @@
+; From yices2: mcsat/lra/assumptions/test03m.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-option :produce-unsat-model-interpolants true)
+(set-logic QF_LRA)
+
+(declare-const x Real)
+(declare-const y Real)
+(declare-const z Real)
+
+;; sum su to get (x >= 0)
+(assert (>= (+ x y z) 0))
+(assert (>= (+ x y (- z)) 0))
+(assert (>= (+ x (- y) z) 0))
+(assert (>= (+ x (- y) (- z)) 0))
+
+(push 1)
+(set-info :status unsat)
+(check-sat-assuming-model (x) ((- 1)))
+(get-unsat-model-interpolant)
+(pop 1)
+(set-info :status sat)
+(check-sat-assuming-model (x) (1))

@@ -16,13 +16,27 @@ import scala.util.Try
  *  the files), `cvc5-examples` (`examples/api/smtlib` of the cvc5 repository)
  *  and `z3guide` (`website/docs-smtlib` of the z3 guide's repository: every
  *  `z3` code block of its pages), the last two without answers — `statusstamp`
- *  supplies them. Every candidate is parsed: only the files in the supported
+ *  supplies them — and the regression suites of other solvers: `opensmt`
+ *  (`test/regression`, answers in `.expected.out` files), `yices2`
+ *  (`tests/regress`, answers in `.gold` files), `bitwuzla` (`test/regress`,
+ *  answers in `.expect` files or the file's statuses), `stp`
+ *  (`tests/query-files`, answers in the `; CHECK:` lines of its lit tests) and
+ *  `smt-switch` (`tests/smt2`, statuses in the files). A file of those that
+ *  states a license of its own keeps it, and its header says so; one under the
+ *  GPL is left out. Every candidate is parsed: only the files in the supported
  *  fragment are copied, into `<logic>/<origin>/<family>__<file>.smt2`, with a
  *  header naming the origin, the original path and the license, and a
  *  `(set-info :status ...)` before each `check-sat` when the answers are known.
  */
-@main def smt2import(origin: String, root: String, perFamily: Int = 0): Unit =
-  Import.run(origin, Path.of(root), perFamily)
+@main def smt2import(args: String*): Unit =
+  // A default for `perFamily` is not optional to `@main`: the arguments are read here.
+  val refused = args.indexOf("--refused") match
+    case -1 => None
+    case i => args.lift(i + 1).map(Path.of(_))
+  args.filterNot(a => a == "--refused" || refused.exists(_.toString == a)) match
+    case Seq(origin, root) => Import.run(origin, Path.of(root), 0, refused)
+    case Seq(origin, root, perFamily) => Import.run(origin, Path.of(root), perFamily.toInt, refused)
+    case _ => println("usage: smt2import <origin> <source root> [files per family] [--refused <directory>]")
 
 object Import:
   private val licenses = Map(
@@ -32,6 +46,11 @@ object Import:
     "z3test" -> "MIT, LICENSES/z3test.txt",
     "princess" -> "BSD, LICENSES/princess.txt",
     "smtinterpol" -> "LGPL-3.0, LICENSES/smtinterpol.txt",
+    "opensmt" -> "MIT, LICENSES/opensmt.txt",
+    "yices2" -> "BSD-3-Clause, LICENSES/yices2.txt",
+    "bitwuzla" -> "MIT, LICENSES/bitwuzla.txt",
+    "stp" -> "MIT, LICENSES/stp.txt",
+    "smt-switch" -> "BSD-3-Clause, LICENSES/smt-switch.txt",
     "submission" -> "see the file's header",
     "smt-lib-incremental" -> "CC BY 4.0 (SMT-LIB release 2025, incremental, Zenodo 15493096)",
     "smt-lib" -> "CC BY 4.0 (SMT-LIB release 2025, non-incremental, Zenodo 16740866)"
@@ -72,6 +91,41 @@ object Import:
    */
   private def guideBlocks(page: String): List[String] =
     "(?ms)^```z3(?: [^\n]*)?\n(.*?)^```".r.findAllMatchIn(page).map(_.group(1).nn).toList
+
+  /** The answers among the lines of a file of expected output, if it holds no
+   *  error: a suite's test of a refused script is no benchmark.
+   */
+  private def sidecar(path: Path): Option[List[String]] =
+    Option.when(Files.exists(path))(Files.readAllLines(path).asScala.map(_.trim.nn).filter(_.nonEmpty).toList)
+      .filter(lines => !lines.exists(l => l.startsWith("(error") || l.toLowerCase.nn.contains("error")))
+      .map(_.filter(answers))
+      .filter(_.nonEmpty)
+
+  /** How many `check-sat`s a script runs, a commented one aside. */
+  private def checks(text: String): Int =
+    "(?m)^[^;\\n]*\\(check-sat".r.findAllIn(text).length
+
+  /** The answers a lit test of STP expects: its `; CHECK:` and `; CHECK-NEXT:`
+   *  patterns that are an answer (`^sat`, `unsat$`), when there is one per
+   *  `check-sat`; none for a test that checks other output only.
+   */
+  private def litAnswers(text: String): Option[List[String]] =
+    val found = "(?m)^\\s*;+\\s*CHECK(?:-NEXT)?(?:-L)?:\\s*\\^?(sat|unsat|unknown)\\$?\\s*$".r
+      .findAllMatchIn(text).map(_.group(1).nn).toList
+    Option.when(found.nonEmpty && found.length == checks(text))(found)
+
+  /** The license a file states for itself, where it does: a benchmark that a
+   *  suite took from elsewhere says so in its header, its `:license` or an SPDX
+   *  line. `GPL` for any of the GPL family, which is left out.
+   */
+  def ownLicense(text: String): Option[String] =
+    val head = text.linesIterator.filter(l => l.startsWith(";") || l.contains("set-info")).take(60).mkString("\n")
+    val stated = "(?i)\\(set-info :license \"([^\"]+)\"\\)|SPDX-License-Identifier:\\s*(\\S[^\\n]*)".r
+      .findFirstMatchIn(head).map(m => Option(m.group(1)).getOrElse(m.group(2)).nn.trim)
+    val ccBy = "(?i)creativecommons\\.org/licenses/by/4|CC[- ]BY[- ]4".r
+    if "(?i)\\bL?GPL|GNU (Lesser )?General Public".r.findFirstIn(head).isDefined then Some("GPL")
+    else if stated.exists(l => ccBy.findFirstIn(l).isDefined && !l.contains(" AND ")) then Some("CC BY 4.0")
+    else stated.orElse(Option.when(ccBy.findFirstIn(head).isDefined)("CC BY 4.0"))
 
   /** `02 - basiccommands.md` as `basiccommands`: the guide numbers its pages
    *  and sections.
@@ -156,6 +210,30 @@ object Import:
                 ).map(_.group(1).nn)
               }.map(_.linesIterator.map(_.trim).filter(answers).toList).filter(_.nonEmpty)
                 .map(e => Candidate(rel, text, Some(e), parts(parts.length - 2)))
+            case "opensmt" => // test/regression/<suite>/<family>/file.smt2 and file.smt2.expected.out
+              val family = if parts.length > 2 then parts(0) + "-" + parts(1) else parts(0)
+              val err = path.resolveSibling(path.getFileName.nn.toString + ".expected.err")
+              Option.when(!Files.exists(err) || Files.size(err) == 0)(())
+                .flatMap(_ => sidecar(path.resolveSibling(path.getFileName.nn.toString + ".expected.out")))
+                .map(e => Candidate(rel, text, Some(e), family))
+            case "yices2" => // tests/regress/<family>/[subdirs/]file.smt2 and file.smt2.gold
+              // `coverage/smtlib` holds benchmarks of other origins, some under the GPL: left for a review of
+              // their provenance (issue 222).
+              val family = if parts.length > 1 then parts.init.mkString("-") else "root"
+              Option.when(!rel.startsWith("coverage/smtlib/"))(())
+                .flatMap(_ => sidecar(path.resolveSibling(path.getFileName.nn.toString + ".gold")))
+                .map(e => Candidate(rel, text, Some(e), family))
+            case "bitwuzla" => // test/regress/<family>/[subdirs/]file.smt2, with file.expect or its own statuses
+              val family = if parts.length > 1 then parts.init.mkString("-") else "root"
+              val expect = path.resolveSibling(path.getFileName.nn.toString.dropRight(5) + ".expect")
+              if Files.exists(expect) then sidecar(expect).map(e => Candidate(rel, text, Some(e), family))
+              else Some(Candidate(rel, text, None, family))
+            case "stp" => // tests/query-files/<family>/[subdirs/]file.smt2, a lit test
+              val family = if parts.length > 1 then parts.init.mkString("-") else "root"
+              if "(?m)^\\s*;+\\s*(XFAIL|REQUIRES):".r.findFirstIn(text).isDefined then None
+              else litAnswers(text).map(e => Candidate(rel, text, Some(e), family))
+            case "smt-switch" => // tests/smt2/<family>/file.smt2, statuses in the files; `errors` are refusals
+              Option.when(parts.head != "errors")(Candidate(rel, text, None, parts.head))
             case "smtinterpol" => // SMTInterpolTest/test/<family>/[subdirs/]file, statuses in the files
               Some(Candidate(rel, text, None, if parts.length > 1 then parts.init.mkString("__") else "root"))
             case "submission" => // <non-incremental|incremental>/<logic>/<family>/.../file
@@ -191,7 +269,12 @@ object Import:
   private val parallelism = 32
   private val loweringSeconds = 120L
 
-  def run(origin: String, root: Path, perFamily: Int): Unit =
+  /** With `refused`, a candidate VIK refuses is written there as it would be to
+   *  the corpus, in the directory of the logic it claims or seems to use, and
+   *  the reason goes to `refused.tsv` beside it: what the corpus may want on
+   *  `ignore.txt` until VIK reads it, chosen by hand.
+   */
+  def run(origin: String, root: Path, perFamily: Int, refused: Option[Path] = None): Unit =
     val found = candidates(origin, root)
     val chosen =
       if perFamily > 0 then found.groupBy(_.family).values.flatMap(_.sortBy(_.text.length).take(perFamily)).toList
@@ -208,8 +291,15 @@ object Import:
         t.setDaemon(true)
         t
     )
-    val lowered = chosen.map { c =>
-      val content = s"; From $origin: ${c.rel} (${licenses(origin)})\n" +
+    // A regression suite holds benchmarks of other origins beside its own tests.
+    val suite = Set("opensmt", "yices2", "bitwuzla", "stp", "smt-switch")(origin)
+    def own(c: Candidate): Option[String] = if suite then ownLicense(c.text) else None
+    val lowered = chosen.filter(c => !own(c).contains("GPL")).map { c =>
+      val license = own(c) match
+        case Some(stated) if !licenses(origin).startsWith(stated) =>
+          s"$stated, as the file states; the suite is ${licenses(origin)}"
+        case _ => licenses(origin)
+      val content = s"; From $origin: ${c.rel} ($license)\n" +
         c.expected.fold(c.text)(withStatuses(c.text, _))
       // The file goes to the smallest logic it fits, and says so (`Logic.relabel`) where it set another.
       val outcome = pool.submit[Try[(String, String)]](() =>
@@ -238,5 +328,18 @@ object Import:
         case scala.util.Failure(e) =>
           val message = s"${e.getClass.getSimpleName}: ${e.getMessage}".take(60)
           rejected(message) = rejected.getOrElse(message, 0) + 1
+          for out <- refused do
+            val dir = out.resolve(fallback(content)).resolve(origin)
+            Files.createDirectories(dir)
+            val file = if c.name.nonEmpty then c.name else Path.of(c.rel).getFileName.toString
+            val name = s"${c.family}__$file".replace("/", "_")
+            Files.writeString(dir.resolve(name), content)
+            val line = s"${out.relativize(dir.resolve(name))}\t${message.replace('\n', ' ')}\n"
+            Files.writeString(
+              out.resolve("refused.tsv"),
+              line,
+              java.nio.file.StandardOpenOption.CREATE,
+              java.nio.file.StandardOpenOption.APPEND
+            )
     println(s"$origin: ${chosen.length} candidates, $copied in the fragment, copied")
     for (message, n) <- rejected.toList.sortBy(-_._2).take(15) do println(f"  rejected $n%5d  $message")

@@ -1,0 +1,8 @@
+; From opensmt: base/QF_UFLRA/purify_test_2.smt2 (MIT, LICENSES/opensmt.txt)
+(set-info :status sat)
+(set-logic QF_UFLRA)
+(declare-fun x () Real)
+(declare-fun f (Real) Real)
+(assert (>= (+ x (f x)) 0))
+(set-info :status sat)
+(check-sat)

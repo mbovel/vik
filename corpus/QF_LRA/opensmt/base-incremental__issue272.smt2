@@ -1,0 +1,12 @@
+; From opensmt: base/incremental/issue272.smt2 (MIT, LICENSES/opensmt.txt)
+(set-option :produce-interpolants true)
+(set-logic QF_LRA)
+(push 1)
+(push 1)
+(assert false)
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(set-info :status sat)
+(check-sat)
+

@@ -1,0 +1,11 @@
+; From opensmt: base/incremental/lra_push_test.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun r () Real)
+(declare-fun b () Bool)
+(set-info :status sat)
+(check-sat)
+(assert
+ (or (not b) (= 0.0 r)))
+(set-info :status sat)
+(check-sat)
+(exit)

@@ -1,0 +1,7 @@
+; From yices2: both/issue687c.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_LIA)
+(declare-const x Int)
+(assert (> x 0))
+(set-info :status sat)
+(check-sat)
+(get-option :yices-mcsat-rand-dec-freq)

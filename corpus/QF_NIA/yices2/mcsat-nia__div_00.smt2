@@ -1,0 +1,8 @@
+; From yices2: mcsat/nia/div_00.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_NIA)
+(set-info :smt-lib-version 2.0)
+(declare-fun x () Int)
+(assert (= (mod x 3) 1))
+(set-info :status sat)
+(check-sat)
+(exit)

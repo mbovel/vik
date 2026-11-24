@@ -1,0 +1,8 @@
+; From opensmt: base/QF_LIA/infinite_bound_refinement.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(declare-fun x () Int)
+(declare-fun y () Int)
+(assert (> (- y x) 0))
+(assert (> (- x y) (- 1)))
+(set-info :status unsat)
+(check-sat)

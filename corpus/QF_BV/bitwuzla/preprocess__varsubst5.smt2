@@ -1,0 +1,8 @@
+; From bitwuzla: preprocess/varsubst5.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
+(set-info :status sat)
+(set-option :pp-variable-subst-norm-bv-ineq true)
+(declare-const x (_ BitVec 2))
+(assert (bvult (_ bv2 2) x))
+(check-sat)

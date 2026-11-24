@@ -1,0 +1,7 @@
+; From bitwuzla: solver/bv/udiv8castdown6.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v0 (_ BitVec 6))
+(declare-const v1 (_ BitVec 6))
+(assert (= #b1 (bvnot (bvand (ite (= (bvudiv v0 v1) ((_ extract 5 0) (bvudiv ((_ zero_extend 2) v0) ((_ zero_extend 2) v1)))) #b1 #b0) (ite (= (bvurem v0 v1) ((_ extract 5 0) (bvurem ((_ zero_extend 2) v0) ((_ zero_extend 2) v1)))) #b1 #b0)))))
+(check-sat)

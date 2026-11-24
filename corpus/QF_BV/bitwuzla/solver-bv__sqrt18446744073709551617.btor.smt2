@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/sqrt18446744073709551617.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v0 (_ BitVec 33))
+(assert (= #b1 (ite (= (bvmul ((_ zero_extend 33) v0) ((_ zero_extend 33) v0)) (_ bv18446744073709551617 66)) #b1 #b0)))
+(check-sat)

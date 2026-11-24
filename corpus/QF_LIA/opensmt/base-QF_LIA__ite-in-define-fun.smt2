@@ -1,0 +1,7 @@
+; From opensmt: base/QF_LIA/ite-in-define-fun.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(set-info :status unsat)
+(define-fun m ((x Int) (y Int)) Int (ite (< x y) y x))
+(assert (= 0 (m 0 1)))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,8 @@
+; From opensmt: base/QF_UFLIA/issue626.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UFLIA)
+(set-info :status unsat)
+(declare-fun t () Int)
+(declare-fun u (Int Int) Int)
+(assert (and (> 0 t) (= t (mod (u 0 0) 2))))
+(set-info :status unsat)
+(check-sat)

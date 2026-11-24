@@ -1,0 +1,7 @@
+; From yices2: wd/issue330.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_LRA, the smallest the script fits, for LRA (prune logic)
+(set-logic QF_LRA)
+(assert (= 1.0 1.0))
+(set-info :status sat)
+(check-sat)
+(get-assignment)

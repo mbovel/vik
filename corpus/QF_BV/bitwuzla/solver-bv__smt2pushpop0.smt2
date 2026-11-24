@@ -1,0 +1,7 @@
+; From bitwuzla: solver/bv/smt2pushpop0.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(declare-const bv (_ BitVec 32))
+(push 0)
+(pop 0)
+(set-info :status sat)
+(check-sat)

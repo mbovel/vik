@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/modelgen2.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const v0 (_ BitVec 8))
+(assert (= #b1 ((_ extract 0 0) v0)))
+(check-sat)

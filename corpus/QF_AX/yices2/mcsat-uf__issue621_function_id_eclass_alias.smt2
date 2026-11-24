@@ -1,0 +1,15 @@
+; From yices2: mcsat/uf/issue621_function_id_eclass_alias.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_AX, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_AX)
+(declare-fun f () (Array Bool Bool))
+(declare-fun g () (Array Bool Bool))
+(declare-fun h () (Array Bool Bool))
+
+(assert (= f g))
+(assert (= h (store g false true)))
+(assert (= (select g false) false))
+(assert (= (select h false) true))
+
+(set-info :status sat)
+(check-sat)
+(exit)

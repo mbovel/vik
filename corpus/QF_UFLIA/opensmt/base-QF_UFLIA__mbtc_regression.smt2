@@ -1,0 +1,7 @@
+; From opensmt: base/QF_UFLIA/mbtc_regression.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UFLIA)
+(set-info :status sat)
+(declare-fun x (Int) Int)
+(assert (= 1 (+ (* 2 (x 1)) (x 0))))
+(set-info :status sat)
+(check-sat)

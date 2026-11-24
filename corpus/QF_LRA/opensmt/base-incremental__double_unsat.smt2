@@ -1,0 +1,8 @@
+; From opensmt: base/incremental/double_unsat.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(assert false)
+(set-info :status unsat)
+(check-sat)
+(set-info :status unsat)
+(check-sat)
+(exit)

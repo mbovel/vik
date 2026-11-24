@@ -1,0 +1,8 @@
+; From bitwuzla: solver/array/murxla-cdb99aaa93c8dc25.min.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_AUFLIA, the smallest the script fits, which set none (prune logic)
+(set-logic QF_AUFLIA)
+(declare-fun x (Bool) (Array Bool Bool))
+(declare-fun x4 ((Array Bool Bool)) (Array Bool (Array Bool Bool)))
+(assert (= (x4 (x false)) (store (x4 (x false)) false (store (x false) false true))))
+(set-info :status sat)
+(check-sat)

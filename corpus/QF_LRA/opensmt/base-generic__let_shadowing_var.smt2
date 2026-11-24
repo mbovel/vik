@@ -1,0 +1,7 @@
+; From opensmt: base/generic/let_shadowing_var.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun x () Real)
+(assert (>= x 0))
+(assert (let ((x (< x 0))) x))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,7 @@
+; From bitwuzla: preprocess/rewrite2.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
+(declare-const s (_ BitVec 1))
+(assert (= (_ bv0 4) (bvadd (_ bv3 4) (bvor (_ bv1 4) ((_ zero_extend 3) s)))))
+(set-info :status unsat)
+(check-sat)
