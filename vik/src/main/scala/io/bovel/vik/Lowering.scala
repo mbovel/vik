@@ -1519,7 +1519,10 @@ private final class Lowerer:
 
   /** The bits of a sum or difference reduced modulo `2^width`, by a
    *  ripple-carry adder over the bits of its operands: at most two non-constant
-   *  operands, each a `width`-bit term.
+   *  operands, each a `width`-bit term, and with two, both already decomposed.
+   *  A constant addend needs no bits of its own; a second operand decomposed
+   *  only for the adder costs its bits on top of the carries, more than the
+   *  sum's own bits (a shift amount `q - r` in issue9407-4, twice as slow).
    */
   private def adderBits(t: Term, width: Int): Option[IndexedSeq[Formula]] =
     moduloOf.get(t) match
@@ -1529,6 +1532,7 @@ private final class Lowerer:
           case u => (List((BigInt(1), u)), BigInt(0))
         val m = modulus(width)
         val ok = terms.length <= 2 && terms.forall((a, u) => a.abs == 1 && range(u).exists((l, h) => l >= 0 && h < m))
+          && (terms.length < 2 || terms.forall((_, u) => knownBits(u, width).isDefined))
         if !ok then None
         else
           val negs = terms.count(_._1.signum < 0)
