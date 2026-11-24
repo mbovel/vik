@@ -1,6 +1,8 @@
 ; Hand-written for VIK (this repository's license): identities of the shifts by an unknown amount, each
 ; negated — a left shift is a product by a power of two, a right shift its inverse on the low bits, an
 ; arithmetic shift keeps the sign, and a shift past the width is zero or the sign (2026-09-04).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const s (_ BitVec 8))

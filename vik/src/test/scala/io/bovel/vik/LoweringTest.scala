@@ -33,12 +33,28 @@ class LoweringTest extends munit.FunSuite:
 
   test("a bit-vector constant keeps its range after reset-assertions"):
     // The range is what the sort says, not an assertion: the lowering declares the constant at its sort and
-    // asserts nothing, and reset-assertions, which drops the assertions, leaves the constant a bit-vector.
+    // asserts nothing, and reset-assertions, which drops the assertions, leaves a global constant a bit-vector.
     // While the range was an assertion, it had to be said again there, or an unsat script answered sat.
-    val commands = Lowering(Parser.parse("(declare-const a (_ BitVec 8)) (reset-assertions)")).commands
-    assertEquals(commands, List(Command.DeclareFun("a", Nil, Sort.IntRange(0, 255)), Command.ResetAssertions))
-    val script = "(declare-const a (_ BitVec 1)) (reset-assertions) (assert (bvugt a #b1)) (check-sat)"
+    val global = "(set-option :global-declarations true)"
+    val commands = Lowering(Parser.parse(s"$global (declare-const a (_ BitVec 8)) (reset-assertions)")).commands
+    assertEquals(
+      commands,
+      List(
+        Command.SetOption(":global-declarations", "true"),
+        Command.DeclareFun("a", Nil, Sort.IntRange(0, 255)),
+        Command.ResetAssertions
+      )
+    )
+    val script = s"$global (declare-const a (_ BitVec 1)) (reset-assertions) (assert (bvugt a #b1)) (check-sat)"
     assertEquals(Session.run(Parser.parse(script)).last, "unsat")
+
+  test("reset-assertions forgets the declarations that are not global (issue 246)"):
+    // SMT-LIB 2.6, section 4.2.2. They stayed, as z3 keeps them, and a declaration repeated after the reset was
+    // an error; cvc5 forgets them.
+    val again = "(declare-const x Int) (assert (> x 0)) (check-sat) (reset-assertions) (declare-const x Bool) " +
+      "(assert x) (check-sat)"
+    assertEquals(Session.run(Parser.parse(again)), List("sat", "sat"))
+    intercept[Smt2Error](Parser.parse("(declare-const x Int) (reset-assertions) (assert (> x 0))"))
 
   test("a pop keeps the range of a global declaration (issue 145)"):
     // Under `:global-declarations` the constant outlives its level, and its range, once asserted there,

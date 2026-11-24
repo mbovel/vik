@@ -1,5 +1,7 @@
 ; Hand-written for VIK (this repository's license): a selector of a bit-vector field is in `[0, 2^n)`
 ; even on a datatype constant nothing constructs — the range is asserted at the selector's first use.
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_UFBVDT)
 (declare-datatypes ((Box 0)) (((new_Box (Box.value@Box (_ BitVec 32))))))
 (declare-fun x0 () Box)

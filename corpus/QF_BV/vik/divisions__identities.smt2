@@ -1,5 +1,7 @@
 ; Hand-written for VIK (this repository's license): identities of the divisions by an unknown, each negated —
 ; the Euclidean law, division by one and by itself, and the signed divisions' signs (2026-09-04).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const y (_ BitVec 8))

@@ -1,5 +1,7 @@
 ; Hand-written for VIK (this repository's license): `bvmul` of two unknowns, shift-and-add over the bits of
 ; one operand — a factorization of an odd number, a product of one, a square (2026-09-03).
+; The declarations are global, so that they stay over `reset-assertions`, which forgets the others (issue 246).
+(set-option :global-declarations true)
 (set-logic QF_BV)
 (declare-const x (_ BitVec 8))
 (declare-const y (_ BitVec 8))

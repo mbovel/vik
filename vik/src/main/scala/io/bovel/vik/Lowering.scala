@@ -78,6 +78,19 @@ private final class Lowerer:
   /** A name of the lowering's own, `.prefix!N` ([[Names]]): no script symbol is
    *  one.
    */
+  /** Forgets the declarations, the definitions, the symbols minted for them and
+   *  the levels: `reset`, and `reset-assertions` without
+   *  `:global-declarations`.
+   */
+  private def forget(): Unit =
+    scopes.clear()
+    functions.clear()
+    macros.clear()
+    rationalValues.clear()
+    storeSymbols.clear()
+    divisionByZero = None
+    clearMemos()
+
   private def freshName(prefix: String): String =
     fresh += 1
     Names.minted(prefix, fresh)
@@ -509,19 +522,16 @@ private final class Lowerer:
         for _ <- 1 to levels do scopes.remove(scopes.length - 1).reverseIterator.foreach(_())
       List(Command.Pop(levels))
     case s2.Command.ResetAssertions =>
-      // The levels go, and the declarations made in them stay, as the session keeps them (issue 178).
-      scopes.clear()
-      clearMemos()
+      // The levels go, and the declarations with them unless they are global (issue 246), as the parser and
+      // the session forget them.
+      if globalDeclarations then
+        scopes.clear()
+        clearMemos()
+      else forget()
       List(Command.ResetAssertions)
     case s2.Command.Reset =>
-      scopes.clear()
+      forget()
       globalDeclarations = false
-      functions.clear()
-      macros.clear()
-      rationalValues.clear()
-      storeSymbols.clear()
-      divisionByZero = None
-      clearMemos()
       List(Command.Reset)
     case s2.Command.GetModel => List(Command.GetModel)
     case s2.Command.GetValue(items) =>
