@@ -8,7 +8,7 @@ extraCSS:
 
 # Arrays
 
-Extensional arrays: `select`, `store`, and equality between arrays.
+Extensional arrays: `select`, `store`, equality between arrays, constant arrays and the maps of arrays.
 
 **Decision procedure: yes.** The store lemmas over the finite index set decide `QF_AX` and its combinations
 (up to the integer page's caveat), arrays of arrays included.
@@ -59,6 +59,32 @@ places costs the search a case per arrangement — seconds where a flat array ta
 (assert (= (select (select n i) 2) (select (select m i) 2)))
 (check-sat)
 ```
+
+## Constant arrays and maps
+
+`((as const (Array I E)) v)` is the array that holds `v` at every index, and `((_ map f) a b …)` the array
+that holds, at every index, `f` of what `a`, `b`, … hold there, for any `f` a term can apply: a connective,
+an arithmetic operation, `ite`, a declared or defined function. Inox writes sets as arrays of Booleans and
+bags as arrays of integers, and combines them with maps: the union of two sets is `((_ map or) s t)`.
+
+```smt2
+(set-logic QF_ALIA)
+(declare-const s (Array Int Bool))
+(declare-const t (Array Int Bool))
+(declare-const x Int)
+(assert (= s (store ((as const (Array Int Bool)) false) 1 true)))
+(assert (select ((_ map or) s t) x))
+(assert (not (select t x)))
+(assert (not (= x 1)))
+(check-sat)
+```
+
+A constant array and a map are symbols of the lowering's own, and the array lemmas instantiate what they
+hold at every index of their sort and of their arrays', and at one more index, beyond the writes, which
+settles what they hold away from the indices read. Over a finite index sort — `Bool`, a bit-vector, a
+datatype without a field of an infinite sort — the writes may fill the sort, and the arrays are then read
+at every value of it as well. An operator that reads or writes an array at an index one of the elements is
+in is refused: its instances need not end.
 
 ## Models
 
