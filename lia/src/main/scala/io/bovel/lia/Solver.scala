@@ -94,9 +94,20 @@ object Solver:
 
   /** `x ≡ c (mod g)`: the values the integer equations in force leave to `x`
    *  ([[Solver.integerEquations]]), with the bounds those equations hold by, as
-   *  the premises of the bounds moved onto the lattice.
+   *  the premises of the bounds moved onto the lattice. With [[Solver.proofs]],
+   *  `below` and `above` derive the two sides of the equation `m·x + Σ a·z = k`
+   *  the lattice comes from, `≤ k` and `≥ k`, and `lambda` is the factor that
+   *  takes `m` to `1` modulo `g`, `lambda·k` being `c` modulo `g`.
    */
-  private final class Lattice(val x: Int, val c: BigInt, val g: BigInt, val premises: Array[Bound])
+  private final class Lattice(
+      val x: Int,
+      val c: BigInt,
+      val g: BigInt,
+      val premises: Array[Bound],
+      val below: Certificate | Null = null,
+      val above: Certificate | Null = null,
+      val lambda: Rational = Rational.zero
+  )
 
   /** A set of variables with its smallest at hand: a binary min-heap. */
   private final class VarHeap:
@@ -964,7 +975,12 @@ final class Solver:
           val v = l.value.ceil
           val on = v + (lattice.c - v).mod(lattice.g)
           if on > v then
-            assertBound(lattice.x, Bound(Delta(Rational(on)), -1, lattice.premises :+ l, reasons), false) match
+            val certificate = if proofs then onLattice(lattice, l, false) else null
+            assertBound(
+              lattice.x,
+              Bound(Delta(Rational(on)), -1, lattice.premises :+ l, reasons, certificate),
+              false
+            ) match
               case Result.Sat => ()
               case unsat => break(unsat)
         val u = upper(lattice.x)
@@ -972,7 +988,12 @@ final class Solver:
           val v = u.value.floor
           val on = v - (v - lattice.c).mod(lattice.g)
           if on < v then
-            assertBound(lattice.x, Bound(Delta(Rational(on)), -1, lattice.premises :+ u, reasons), true) match
+            val certificate = if proofs then onLattice(lattice, u, true) else null
+            assertBound(
+              lattice.x,
+              Bound(Delta(Rational(on)), -1, lattice.premises :+ u, reasons, certificate),
+              true
+            ) match
               case Result.Sat => ()
               case unsat => break(unsat)
       Result.Sat
@@ -1303,15 +1324,17 @@ final class Solver:
     // The equation `Σ f·x = Σ f·c` of the fixed variables, an integer combination over the unknowns whose
     // constant is not a multiple of the gcd of its coefficients: its two sides, each rounded, cross.
     def refutation(factors: HashMap[Var, Rational]): Certificate =
-      def side(up: Boolean): Certificate =
-        val parts = factors.toArray
-        Certificate.Round(
-          Certificate.Comb(
-            parts.map(_._2.abs),
-            parts.map((x, f) => (if (f.signum > 0) == up then upper(x) else lower(x)).nn.certificate.nn)
-          )
-        )
-      Certificate.Comb(Array(Rational.one, Rational.one), Array(side(true), side(false)))
+      Certificate.Comb(
+        Array(Rational.one, Rational.one),
+        Array(Certificate.Round(side(factors, true)), Certificate.Round(side(factors, false)))
+      )
+    // `Σ f·x ≤ Σ f·c` (`up`) or `≥`, from the bounds that fix the variables `x`.
+    def side(factors: HashMap[Var, Rational], up: Boolean): Certificate =
+      val parts = factors.toArray
+      Certificate.Comb(
+        parts.map(_._2.abs),
+        parts.map((x, f) => (if (f.signum > 0) == up then upper(x) else lower(x)).nn.certificate.nn)
+      )
     def isFixed(x: Var): Boolean =
       val l = lower(x)
       val u = upper(x)
@@ -1339,15 +1362,19 @@ final class Solver:
         fix(b)
         for i <- 0 until row.size do fix(row.varAt(i))
     // The lattices. A row left out above defines its variable, and is where that variable's lattice starts.
-    // Not with proofs: a bound moved onto a lattice has no certificate yet.
     val avoiding = HashSet.from(distinct.iterator.map(_._1))
     for
       x <- 0 until numVars
-      if !proofs && isInt(x) && !isFixed(x) && (lower(x) != null || upper(x) != null || avoiding(x))
+      if isInt(x) && !isFixed(x) && (lower(x) != null || upper(x) != null || avoiding(x))
     do
       val start = solved.getOrElse(x, ofRow(x))
       if start != null then
-        val equation = Equation(start.coefs.clone(), start.constant, start.reasons)
+        val equation = Equation(
+          start.coefs.clone(),
+          start.constant,
+          start.reasons,
+          if start.factors == null then null else start.factors.nn.clone()
+        )
         var y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
         while y.nonEmpty do // minus a times `y + rest = c`, as `eliminate` rewrites
           val by = solved(y.get)
@@ -1359,17 +1386,42 @@ final class Solver:
             if sum == 0 then equation.coefs -= z else equation.coefs(z) = sum
           equation.constant -= a * by.constant
           equation.reasons ++= by.reasons
+          val factors = equation.factors
+          if factors != null then
+            for (z, f) <- by.factors.nn do
+              val sum = factors.getOrElse(z, Rational.zero) - f * Rational(a)
+              if sum.isZero then factors -= z else factors(z) = sum
           y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
         val m = equation.coefs.getOrElse(x, BigInt(0))
         val g = equation.coefs.iterator.collect { case (z, a) if z != x => a }.foldLeft(BigInt(0))(_ gcd _)
         if m != 0 && g > 1 then // m·x ≡ c (mod g), which is x ≡ c' (mod g / d) for d = gcd(m, g)
           val d = m.abs gcd g
-          if equation.constant % d != 0 then break(Result.Unsat(equation.reasons))
+          if equation.constant % d != 0 then break(unsat(equation.reasons, refutation(equation.factors.nn)))
           if g / d > 1 && equation.reasons.forall(_ >= 0) then // a branch's reason is negative
-            val c = ((equation.constant / d) * (m / d).modInverse(g / d)).mod(g / d)
+            val u = (m / d).modInverse(g / d)
+            val c = ((equation.constant / d) * u).mod(g / d)
             val premises = equation.reasons.toArray.map(r => Bound(Delta.zero, r, Array.empty, reasons))
-            lattices += Solver.Lattice(x, c, g / d, premises)
+            val factors = equation.factors
+            lattices += (
+              if factors == null then Solver.Lattice(x, c, g / d, premises)
+              else
+                Solver.Lattice(x, c, g / d, premises, side(factors, true), side(factors, false), Rational(u, d))
+            )
     Result.Sat
+
+  /** The certificate of the bound of `lattice.x` that `bound` moves onto the
+   *  lattice (see `align` in [[check]]), an upper bound if `upper`. With `λ`
+   *  the lattice's factor, the equation `m·x + S = k` times `λ` is
+   *  `x + T = λ·k`, where every coefficient of `T = (λ·m − 1)·x + λ·S` over the
+   *  unknowns is a multiple of `g`: `λ·m ≡ 1` and the coefficients of `S` are
+   *  multiples of `g·d`. So `T ≤ λ·k − v` from `x ≥ v` rounds to a multiple of
+   *  `g`, and the equation turns that back into a bound on `x`, on the lattice.
+   */
+  private def onLattice(lattice: Solver.Lattice, bound: Bound, upper: Boolean): Certificate =
+    val (towards, back) = if upper then (lattice.above, lattice.below) else (lattice.below, lattice.above)
+    val rounded = Certificate.Round(bound.certificate.nn) // `x` is an integer: its bound, an integer
+    val t = Certificate.Round(Certificate.Comb(Array(lattice.lambda, Rational.one), Array(towards.nn, rounded)))
+    Certificate.Comb(Array(Rational.one, lattice.lambda), Array(t, back.nn))
 
   /** Repairs the basic variables violating their bounds, smallest first, by
    *  pivoting with the smallest non-basic variable of their row that can move
