@@ -127,35 +127,12 @@ final class Solver(val simplify: Boolean = true):
   /** What each declared map of arrays holds at an index (see [[Pointwise]]). */
   private[vik] val maps = HashMap.empty[String, Pointwise]
 
-  /** The finite index sorts of the constant arrays and maps other than `Bool`
-   *  and the ranges of the integers: how many values each has, and how to build
-   *  the `k`-th (see [[Command.DeclareFinite]]).
-   */
-  private[vik] val finiteSorts = HashMap.empty[Sort, (BigInt, BigInt => Term)]
-
-  /** Their values, by their text, where there are few and none holds an array:
-   *  what two array values over them are compared at ([[Model.Finite]]).
-   */
-  private[vik] val finiteValues = HashMap.empty[String, List[Term]]
-
   /** The constants a map's template mentions, other than its own parameters and
    *  auxiliaries.
    */
   private def templateConstants(pointwise: Pointwise): Set[String] =
     (pointwise.value :: pointwise.definitions.flatMap(_.terms)).flatMap(Term.constants).toSet --
       pointwise.params.collect { case Term.Const(n) => n } -- pointwise.auxiliaries.map(_._1)
-
-  def declareFinite(sort: Sort, size: BigInt, value: BigInt => Term): Unit =
-    if finiteSorts.contains(sort) then dirty = true // a sort of its name declared anew, after a pop
-    finiteSorts(sort) = (size, value)
-    finiteValues -= sort.text
-    if size <= 256 then
-      val values = List.tabulate(size.toInt)(k => value(BigInt(k)))
-      def plain(t: Term): Boolean = t match
-        case Term.App(f, args) => plain(f) && args.forall(plain)
-        case Term.Const(n) => !Names.isArrayOperation(n)
-        case _ => true
-      if values.forall(plain) then finiteValues(sort.text) = values
 
   /** Declares a map of arrays: the symbol, and the auxiliaries of what it holds
    *  at an index, each a function of the elements there.
@@ -435,8 +412,6 @@ final class Solver(val simplify: Boolean = true):
         datatypes.toList,
         auxiliaries,
         maps,
-        finiteSorts,
-        finiteValues,
         () => anyStore,
         () => asked(),
         forgotten
@@ -604,8 +579,6 @@ private final class Encoder(
     datatypes: List[Datatype],
     auxiliaries: HashSet[String], // the solver's set, read when a constant gets its LIA variable
     maps: HashMap[String, Pointwise], // what each map of arrays holds at an index
-    finiteSorts: HashMap[Sort, (BigInt, BigInt => Term)], // the finite index sorts, their counts, their values
-    finiteValues: HashMap[String, List[Term]], // their values, by their text (see Solver.finiteValues)
     anyStore: () => Boolean, // the solver's flag, read at every array pass (see Solver.anyStore)
     keepGoing: () => Boolean, // of the solve under way (see Solver.solve)
     forgotten: String => Boolean = _ => false // a declaration popped since this encoder was built
@@ -1170,8 +1143,8 @@ private final class Encoder(
    *  stores over it, so that `((as const A) 0)` with finitely many writes is
    *  not `((as const A) 1)`. There is one while the sort has more values than
    *  the stores' indices; a finite sort they may fill is listed instead (see
-   *  [[settling]]): a bit-vector's values the solver knows, another's the
-   *  lowering counts and lists ([[Command.DeclareFinite]]).
+   *  [[settling]]): a bit-vector's values the solver knows, another's it counts
+   *  and builds ([[finiteValue]]).
    */
   private val beyondIndices = scala.collection.mutable.HashMap.empty[Sort, Term]
   private val beyondDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
@@ -1188,9 +1161,15 @@ private final class Encoder(
       val name = Names.beyond(beyondIndices.size)
       sort match
         case Sort.IntRange(_, _) => () // its range comes with its class (see assertSorts)
-        case _ if cardinality(sort) != Encoder.Cardinality.Infinite && !finiteSorts.contains(sort) =>
-          throw io.bovel.smtlib.Smt2Error(s"a constant array or a map over the finite sort $sort")
-        case _ => ()
+        case _ =>
+          // A small finite sort's values, for the comparison of the arrays over it ([[Model.Finite]]).
+          for size <- finiteSize(sort) if size <= 256 do
+            val values = List.tabulate(size.toInt)(k => finiteValue(sort, BigInt(k)))
+            def plain(t: Term): Boolean = t match
+              case Term.App(f, args) => plain(f) && args.forall(plain)
+              case Term.Const(n) => !Names.isArrayOperation(n)
+              case _ => true
+            if values.forall(plain) then finiteValues(sort.text) = values
       introduced(name) = sort
       Term.Const(name)
     }
@@ -1208,18 +1187,99 @@ private final class Encoder(
     case _ if listedSorts(sort) => beyond(sort) :: listing(sort)
     case _ => List(beyond(sort))
 
-  /** The values of a finite index sort the lowering counted, built once it is
-   *  listed: as many as the writes that filled it, and one more.
+  /** The values of a finite index sort, built once it is listed: as many as the
+   *  writes that filled it, and one more.
    */
   private val listings = scala.collection.mutable.HashMap.empty[Sort, List[Term]]
+
+  private def listing(sort: Sort): List[Term] =
+    listings.getOrElseUpdate(sort, List.tabulate(finiteSize(sort).get.toInt)(k => finiteValue(sort, BigInt(k))))
+
+  /** The values of the small finite index sorts other than `Bool` and the
+   *  ranges of the integers, by their text, where none holds an array: what two
+   *  array values over them are compared at ([[Model.Finite]]).
+   */
+  private val finiteValues = HashMap.empty[String, List[Term]]
   private val finiteIndexValues = Model.Finite(finiteValues.get)
 
-  private def listing(sort: Sort): List[Term] = listings.getOrElseUpdate(
-    sort, {
-      val (size, value) = finiteSorts(sort)
-      List.tabulate(size.toInt)(k => value(BigInt(k)))
-    }
-  )
+  /** How many values a finite index sort other than `Bool` and the ranges of
+   *  the integers has, capped at `2^62`: a datatype is the sum over its
+   *  constructors of the product of their fields', an array its elements' to
+   *  the power of its indices'. None for an infinite sort. This and
+   *  [[finiteValue]] are the one place that counts and builds the values of a
+   *  sort, beside [[cardinality]] (issue 256).
+   */
+  private def finiteSize(sort: Sort): Option[BigInt] = sort match
+    case Sort.Bool | Sort.IntRange(_, _) => None // their values are known (see settling)
+    case _ if cardinality(sort) == Encoder.Cardinality.Infinite => None
+    case _ => Some(count(sort))
+
+  private val manyValues = BigInt(1) << 62
+
+  /** The number of values of a sort [[cardinality]] finds finite. */
+  private def count(sort: Sort): BigInt = sort match
+    case Sort.Bool => BigInt(2)
+    case Sort.IntRange(lower, upper) => (upper - lower + 1).min(manyValues)
+    case Sort.Fun(index :: rest, result) =>
+      val element = Sort.fun(rest, result)
+      if cardinality(element) == Encoder.Cardinality.One then BigInt(1)
+      else
+        val n = count(index)
+        if n >= 64 then manyValues else count(element).pow(n.toInt).min(manyValues)
+    case _ =>
+      datatypeOf(sort).get.constructors.map(c =>
+        c.selectors.foldLeft(BigInt(1))((n, field) => (n * count(field._2)).min(manyValues))
+      ).sum.min(manyValues)
+
+  /** The `k`-th value of a finite sort, for `0 ≤ k <` its [[count]]: `k` in
+   *  mixed radix. `Bool`'s first value is `true`, a range's its least number, a
+   *  datatype's the values of its constructors in turn, the last field varying
+   *  fastest, and an array a store at every index over the constant array of
+   *  its element's first value, of the symbols the lowering declared for its
+   *  sort.
+   */
+  private def finiteValue(sort: Sort, k: BigInt): Term = sort match
+    case Sort.Bool => Term.boolean(if k == 0 then Formula.True else Formula.False)
+    case Sort.IntRange(lower, _) => Term.Num(lower + k)
+    case Sort.Fun(index :: rest, result) =>
+      val element = Sort.fun(rest, result)
+      val (const, store) = arraySymbols(sort, index, element)
+      val start: Term = Term.App(const, List(finiteValue(element, 0)))
+      if cardinality(element) == Encoder.Cardinality.One then start
+      else
+        val size = count(element)
+        val (writes, _) = (0 until count(index).toInt).foldLeft((List.empty[(Term, Term)], k)) {
+          case ((done, rest), j) =>
+            ((finiteValue(index, BigInt(j)), finiteValue(element, rest % size)) :: done, rest / size)
+        }
+        writes.reverse.foldLeft(start) { case (a, (j, v)) => Term.App(store, List(a, j, v)) }
+    case _ =>
+      val constructors = datatypeOf(sort).get.constructors
+      val sizes =
+        constructors.map(_.selectors.foldLeft(BigInt(1))((n, field) => (n * count(field._2)).min(manyValues)))
+      val starts = sizes.scanLeft(BigInt(0))(_ + _)
+      val c = sizes.indices.find(i => k < starts(i + 1)).get
+      val constructor = constructors(c)
+      if constructor.selectors.isEmpty then Term.Const(constructor.name)
+      else
+        val (args, _) = constructor.selectors.foldRight((List.empty[Term], k - starts(c))) {
+          case ((_, field), (done, rest)) =>
+            val n = count(field)
+            (finiteValue(field, rest % n) :: done, rest / n)
+        }
+        Term.App(Term.Const(constructor.name), args)
+
+  /** The constant array and the store of an array sort, as the lowering
+   *  declared them for an index sort that holds the arrays.
+   */
+  private def arraySymbols(sort: Sort, index: Sort, element: Sort): (Term, Term) =
+    def find(test: String => Boolean, declared: Sort): Term =
+      declarations.collectFirst { case (name, (Nil, s)) if test(name) && s == declared => Term.Const(name) }
+        .getOrElse(throw io.bovel.smtlib.Smt2Error(s"no constant array or store for the values of $sort"))
+    (
+      find(Names.isConstArray, Sort.fun(List(element), sort)),
+      find(Names.isStore, Sort.fun(List(sort, index, element), sort))
+    )
 
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
   private val templateStores = scala.collection.mutable.HashSet.empty[Term] // the stores of the maps' templates
@@ -1254,7 +1314,7 @@ private final class Encoder(
         if beyondDone.add((w, s.args(1))) then
           val room = indexSort match
             case Sort.IntRange(lower, upper) => upper - lower
-            case _ => finiteSorts.get(indexSort).fold(BigInt(-1))(_._1 - 1) // -1: an infinite sort
+            case _ => finiteSize(indexSort).fold(BigInt(-1))(_ - 1) // -1: an infinite sort
           val apart = beyondApart.getOrElse(indexSort, 0)
           if room >= 0 && apart >= room then listedSorts += indexSort
           else
@@ -1308,7 +1368,7 @@ private final class Encoder(
     for (sort, js) <- indices.toList do
       val indexSort = sort.arrow.get._1.head
       if listedSorts(indexSort) then
-        val listed = if finiteSorts.contains(indexSort) then listing(indexSort) else Nil
+        val listed = if finiteSize(indexSort).isDefined then listing(indexSort) else Nil
         for j <- js.toList if listed.nonEmpty do
           if !listed.contains(j) && exhausted.add((indexSort, j)) then
             clauses += listed.map(v => lit(equalIndex(indexSort, j, v))).toArray

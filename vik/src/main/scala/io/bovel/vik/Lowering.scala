@@ -90,7 +90,7 @@ private final class Lowerer:
     storeSymbols.clear()
     constSymbols.clear()
     declaredDatatypes.clear()
-    finiteSorts.clear()
+    notedIndices.clear()
     mapSymbols.clear()
     divisionByZero = None
     clearMemos()
@@ -578,7 +578,7 @@ private final class Lowerer:
       // assertion that reuses it needs the solver to know it (issue 16). Their definitions cannot be
       // asserted after a check and go with the command instead.
       val declared = pending.toList.filter {
-        case _: Command.DeclareFun | _: Command.DeclareMap | _: Command.DeclareFinite => true
+        case _: Command.DeclareFun | _: Command.DeclareMap => true
         case _ => false
       }
       pending.clear()
@@ -993,118 +993,36 @@ private final class Lowerer:
         }
       )
 
-  /** The datatypes declared, as written, whose values the lowering counts and
-   *  builds for [[noteIndex]].
+  /** The datatypes declared, as written, whose fields [[noteIndex]] looks into
+   *  for arrays.
    */
   private val declaredDatatypes = HashMap.empty[String, s2.Datatype]
 
-  /** The finite index sorts of the constant arrays and maps, by their text,
-   *  whose count and values went to the solver: undone with the level of their
-   *  datatype, which a later declaration may name anew.
+  /** Declares the constant arrays and stores of the array sorts inside the
+   *  index sort of a constant array or a map. The solver counts and builds the
+   *  values of a finite index sort (`Encoder.finiteValue`), and an array among
+   *  them is a store at every index over a constant array: these symbols, which
+   *  only the lowering mints. Once per array sort, as the symbols stay.
    */
-  private val finiteSorts = HashMap.empty[String, BigInt]
+  private val notedIndices = scala.collection.mutable.HashSet.empty[Sort]
 
-  private val manyValues = BigInt(1) << 62
-
-  /** Tells the solver how many values the index sort of a constant array or a
-   *  map has, and how to build the `k`-th of them ([[Command.DeclareFinite]]),
-   *  for a finite sort other than `Bool` and the bit-vectors, whose values the
-   *  solver knows: the index it takes beyond the writes ([[Encoder.beyond]]) is
-   *  apart from fewer of them than the sort has values, and the arrays are read
-   *  at every value from then on, which the solver builds then.
-   */
   private def noteIndex(arraySort: s2.Sort): Unit = arraySort match
-    case s2.Sort.Array(s2.Sort.Bool | s2.Sort.BitVec(_), _) => ()
-    case s2.Sort.Array(index, _) =>
-      val key = lowered(index)
-      if !finiteSorts.contains(key.text) then
-        for n <- cardinality(index) do
-          undoable(finiteSorts, key.text)
-          finiteSorts(key.text) = n
-          val build = shape(index) // its symbols declared now: the solver declares none of its own
-          pending += Command.DeclareFinite(key, n, k => build.value(k))
+    case s2.Sort.Array(index, _) if notedIndices.add(lowered(arraySort)) =>
+      for inner <- arraysIn(index, Set.empty) do
+        constSymbol(inner)
+        storeSymbol(inner)
     case _ => ()
 
-  /** A finite sort as the solver builds its values: what a value is made of,
-   *  with the symbols that make it, and how many values there are.
+  /** The array sorts in a sort as written: itself, its index and its elements,
+   *  and the fields of a datatype, each datatype once.
    */
-  private sealed trait Shape:
-    def size: BigInt
-
-    /** The `k`-th value, for `0 ≤ k < size`: `k` read in mixed radix. */
-    def value(k: BigInt): Term
-
-  private final case class Constructors(constructors: List[(String, List[Shape])]) extends Shape:
-    private val sizes = constructors.map(_._2.foldLeft(BigInt(1))((n, f) => (n * f.size).min(manyValues)))
-    val size: BigInt = sizes.sum.min(manyValues)
-    def value(k: BigInt): Term =
-      // The constructor whose values `k` falls among, then its fields: the last varies fastest.
-      val starts = sizes.scanLeft(BigInt(0))(_ + _)
-      val c = sizes.indices.find(i => k < starts(i + 1)).get
-      val (name, fields) = constructors(c)
-      if fields.isEmpty then Const(name)
-      else
-        val (args, _) = fields.foldRight((List.empty[Term], k - starts(c))) { case (f, (done, rest)) =>
-          (f.value(rest % f.size) :: done, rest / f.size)
-        }
-        App(Const(name), args)
-
-  private final case class Bits(width: Int) extends Shape:
-    val size: BigInt = BigInt(2).pow(width)
-    def value(k: BigInt): Term = Num(k)
-
-  private object Booleans extends Shape:
-    val size: BigInt = BigInt(2)
-    def value(k: BigInt): Term = Term.boolean(if k == 0 then True else False)
-
-  /** The arrays from `index` to `element`; `index` is `None` (and may be
-   *  infinite) when `element` has a single value, and so do the arrays.
-   */
-  private final case class Arrays(index: Option[Shape], element: Shape, const: Term, store: Term) extends Shape:
-    val size: BigInt = index match
-      case None => BigInt(1)
-      case Some(i) => if i.size >= 64 then manyValues else element.size.pow(i.size.toInt).min(manyValues)
-    def value(k: BigInt): Term = index match
-      case None => App(const, List(element.value(0)))
-      case Some(i) =>
-        // A store at every index, over the constant array of the first element.
-        val (at, _) = (0 until i.size.toInt).foldLeft((List.empty[(Term, Term)], k)) { case ((done, rest), j) =>
-          ((i.value(BigInt(j)), element.value(rest % element.size)) :: done, rest / element.size)
-        }
-        at.reverse.foldLeft(App(const, List(element.value(0))): Term) { case (a, (j, v)) => App(store, List(a, j, v)) }
-
-  /** The shape of a finite sort, declaring the symbols of its arrays. */
-  private def shape(sort: s2.Sort): Shape = sort match
-    case s2.Sort.Bool => Booleans
-    case s2.Sort.BitVec(w) => Bits(w)
-    case s2.Sort.Named(name) =>
-      Constructors(declaredDatatypes(name).constructors.map(c => (c.name, c.selectors.map((_, f) => shape(f)))))
-    case s2.Sort.Array(index, element) =>
-      val e = shape(element)
-      Arrays(if e.size == 1 then None else Some(shape(index)), e, constSymbol(sort), storeSymbol(sort))
-    case _ => throw s2.Smt2Error(s"the values of the infinite sort ${sort.text}")
-
-  /** How many values a sort has, `None` for infinitely many: `Bool`, a
-   *  bit-vector, a datatype with no field of an infinite sort or of its own, an
-   *  array between finite sorts or into a sort of one value. An uninterpreted
-   *  sort has as many as a model needs. Capped at [[manyValues]].
-   */
-  private def cardinality(sort: s2.Sort, open: Set[String] = Set.empty): Option[BigInt] = sort match
-    case s2.Sort.Bool => Some(BigInt(2))
-    case s2.Sort.BitVec(w) => Some(if w >= 62 then manyValues else BigInt(2).pow(w))
-    case s2.Sort.Named(name) if !open(name) =>
-      declaredDatatypes.get(name).flatMap { d =>
-        val counts = d.constructors.map(_.selectors.foldLeft(Option(BigInt(1)))((acc, field) =>
-          for n <- acc; m <- cardinality(field._2, open + name) yield (n * m).min(manyValues)
-        ))
-        if counts.forall(_.isDefined) then Some(counts.flatten.sum.min(manyValues)) else None
-      }
-    case s2.Sort.Array(index, element) =>
-      (cardinality(index, open), cardinality(element, open)) match
-        case (_, Some(m)) if m == 1 => Some(m)
-        case (Some(n), Some(m)) => Some(if n >= 64 then manyValues else m.pow(n.toInt).min(manyValues))
-        case _ => None
-    case _ => None
+  private def arraysIn(sort: s2.Sort, seen: Set[String]): List[s2.Sort] = sort match
+    case s2.Sort.Array(index, element) => sort :: arraysIn(index, seen) ++ arraysIn(element, seen)
+    case s2.Sort.Named(name) if !seen(name) =>
+      declaredDatatypes.get(name).toList.flatMap(
+        _.constructors.flatMap(_.selectors.flatMap((_, field) => arraysIn(field, seen + name)))
+      )
+    case _ => Nil
 
   /** The `.array.const!N` function symbol for the constant arrays of `sort`,
    *  declared on first use like a [[storeSymbol]]: a function of the element to
