@@ -281,7 +281,7 @@ class ParserTest extends munit.FunSuite:
     parse("""
       (declare-sort U 0) (declare-sort B 1)
       (declare-datatype R ((n) (m (next R))))
-      (declare-datatypes ((A 0) (C 0)) (((a (c C))) ((e) (d (a A)))))
+      (declare-datatypes ((A 0) (C 0)) (((a (c C))) ((e) (d (back A)))))
       (declare-datatypes ((L 1)) ((par (T) ((nil) (cons (head T) (tail (L T)))))))
       (declare-datatype F ((f (l (L F)) (u U) (b (B Int)) (arr (Array Int U)))))
       (declare-datatypes ((M 1) (N 0)) ((par (T) ((m1 (v T) (o N)))) ((n0) (n1 (w (M Int))))))
