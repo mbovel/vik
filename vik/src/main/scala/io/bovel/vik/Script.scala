@@ -24,12 +24,6 @@ enum Command:
    */
   case DeclareMap(name: String, sort: Sort, pointwise: Pointwise)
 
-  /** That the index sort `sort` of a constant array or a map has `size` values,
-   *  the `k`-th of which `value(k)` builds (for `0 ≤ k < size`): the
-   *  lowering's, which counts the values of a datatype, and kept past the `pop`
-   *  of its level, as a [[DeclareMap]] is.
-   */
-  case DeclareFinite(sort: Sort, size: BigInt, value: BigInt => Term)
   case Assert(formula: Formula)
 
   /** `(assert (! formula :named name))`: an assertion that [[GetUnsatCore]] can

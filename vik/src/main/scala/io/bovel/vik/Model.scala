@@ -325,7 +325,7 @@ object Model:
 
   /** The values of the finite index sorts other than `Bool` and the ranges of
    *  the integers, by the sort's text, where there are few: what the solver was
-   *  told of them ([[Command.DeclareFinite]]). None by default.
+   *  told of them (`Encoder.finiteValue`). None by default.
    */
   final class Finite(val values: String => Option[List[Term]])
   object Finite:
