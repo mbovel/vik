@@ -436,9 +436,13 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       if logging then resolved.nn += reasonId(p.variable)
       first = 1
     learned(0) = p.neg
-    seen(p.variable) = true
-    // Minimization: drop the literals that the others imply through clause reasons.
-    val implied = minimize(learned, seen, zeros)
+    // Minimization, with a proof: drop the literals that the others imply through clause reasons, for
+    // shorter proofs. Not without: it changes the search, which loses files of the corpus.
+    val implied =
+      if logging then
+        seen(p.variable) = true
+        minimize(learned, seen, zeros)
+      else ArrayBuffer.empty[Var]
     if logging then
       // A literal dropped is derived by its reason, and so is each literal those reasons use that
       // the clause lacks: their reasons come first, in trail order, which is their order of propagation.
