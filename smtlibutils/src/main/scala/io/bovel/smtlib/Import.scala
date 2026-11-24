@@ -254,7 +254,8 @@ object Import:
     val checks = "\\(check-sat-assuming|\\(check-sat-using|\\(check-sat(?=[ )])".r
     // A check-sat inside a comment is no check-sat: a status spliced into `;(check-sat)` stayed in the
     // comment, made the command live, and shifted the answers of the real ones (issue 56).
-    def commented(at: Int): Boolean = text.lastIndexOf(';', at) > text.lastIndexOf('\n', at)
+    def commented(at: Int): Boolean = // a comment ends at a line feed or a carriage return (issue 243)
+      text.lastIndexOf(';', at) > text.lastIndexOf('\n', at).max(text.lastIndexOf('\r', at))
     val out = StringBuilder()
     var last = 0
     var k = 0
