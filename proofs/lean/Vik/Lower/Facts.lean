@@ -23,10 +23,6 @@ attribute [local instance low] Lean.Grind.Ring.intCast
 
 /-! ## Integers -/
 
-theorem two_pow_pred {w : Nat} (hw : 0 < w) : (2 : Int) ^ w = 2 * 2 ^ (w - 1) := by
-  obtain ⟨v, rfl⟩ : ∃ v, w = v + 1 := ⟨w - 1, by omega⟩
-  rw [Int.pow_succ, Nat.add_sub_cancel]; grind
-
 theorem two_pow_pos (w : Nat) : (0 : Int) < 2 ^ w := Int.pow_pos (by decide)
 
 theorem signedI_bounds {w : Nat} (hw : 0 < w) {t : Int} (h0 : 0 ≤ t) (h1 : t ≤ 2 ^ w - 1) :

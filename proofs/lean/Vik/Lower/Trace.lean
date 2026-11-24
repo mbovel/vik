@@ -300,8 +300,6 @@ def ltInt (a b : Nat) : Shape := .le (.num (linOf P tr a).1 ((linOf P tr a).2 + 
 /-- The equality of two lowered terms of surface sort `s`. -/
 def eqS (num : Bool) (a b : Shape) : Shape := if num then .and [.le a b, .le b a] else .eq a b
 
-def Trace.nsd : Nat := SP.sig.decls.length
-
 /-- `negative(t, w)`: the sign of the lowered node `t`, `2^(w-1) ≤ t`. -/
 def negS (t w : Nat) : Shape :=
   match Tab.at P.nodes (t) with
@@ -738,11 +736,6 @@ def Trace.casesOk (l : Nat) (c : Shape) (thn els : Lia.Form × Int) : Bool :=
     fits P.sig P.nodes P.sortOf c' c && fits P.sig P.nodes P.sortOf t (.num thn.1 thn.2) &&
       fits P.sig P.nodes P.sortOf e (.num els.1 els.2)
   | _ => false
-
-/-- A symbol as a linear combination. -/
-def symForm (x : Option Nat) (a : Rat) : Lia.Form := match x with
-  | some x => [(x, a)]
-  | none => []
 
 /-- `bvsdiv`, `bvsrem` and `bvsmod` of the lowered node `t` by the constant
     `c`, at node `l`. -/

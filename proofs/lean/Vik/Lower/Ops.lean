@@ -200,7 +200,7 @@ theorem sdivOk_sound {op : BvBin} {w l t : Nat} {c : Int} {x y : BitVec w} (hw0 
     (ht : ρ t = .num ((Vik.val x : Int) : R)) (hyc : Vik.val y = c)
     (hop : op = .sdiv ∨ op = .srem ∨ op = .smod) (hb : tr.sdivOk SP P op w l t c = true) :
     ρ l = .num ((Vik.val (op.apply x y) : Int) : R) := by
-  have h2 := Vik.two_pow_pred hw0
+  have h2 := two_pow_pred hw0
   have hT : y.toInt = smodT c w := by
     rw [Vik.toInt_eq y hw0, hyc]; unfold smodT
     rw [show (2 : Int) ^ w / 2 = 2 ^ (w - 1) by omega]

@@ -13,7 +13,7 @@ set_option linter.unusedSectionVars false
 namespace Vik.Cpc
 
 open Lean.Grind Vik.Real Vik.Surf Vik.Clausal
-open Vik.Low (Val get)
+open Vik.Low (Val get truth_iff)
 
 variable {R U : Type} [Field R] [LE R] [LT R] [Std.IsLinearOrder R] [Std.LawfulOrderLT R]
   [OrderedRing R] [IsCharP R 0]
@@ -227,9 +227,6 @@ theorem val_append {I : Surf.Interp R U} {A B : List SNode} {i : Nat} (hi : i < 
   have hl := values_length I A
   unfold values at hl
   rw [Surf.values_prefix I B _ i (by rw [hl]; exact hi)]
-
-theorem truth_iff (v : Val R U) : v.truth = true ↔ v = .bool true := by
-  simp [Val.truth]
 
 section
 variable {c : Ctx} {M : Surf.Model R U}
