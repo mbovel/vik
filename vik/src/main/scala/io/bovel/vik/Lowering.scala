@@ -480,7 +480,14 @@ private final class Lowerer:
       macros(name) = (params, sort, body) // expanded at each use; the definition itself vanishes
       Nil
     case s2.Command.Assert(f) => flush(Command.Assert(formula(f, Map.empty)))
-    case s2.Command.AssertNamed(name, f) => flush(Command.AssertNamed(name, formula(f, Map.empty)))
+    case s2.Command.AssertNamed(name, f) =>
+      // The name is a definition of the formula too, from here on (issue 239), as the parser reads it.
+      val lowered = Command.AssertNamed(name, formula(f, Map.empty))
+      reserve(name)
+      if !functions.contains(name) && !macros.contains(name) then // a label only otherwise, as the parser reads it
+        undoable(macros, name)
+        macros(name) = (Nil, s2.Sort.Bool, f)
+      flush(lowered)
     case s2.Command.CheckSat => List(Command.CheckSat)
     case s2.Command.CheckSatAssuming(assumptions) =>
       flush(Command.CheckSatAssuming(assumptions.map(formula(_, Map.empty))))

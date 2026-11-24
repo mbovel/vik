@@ -1,0 +1,26 @@
+; Hand-written for VIK (this repository's license): `:named` below the top of an assertion. SMT-LIB 2.6, section
+; 4.1.6, reads a command as a define-fun per named subterm, in post-order, then the command: the name is a
+; constant equal to the term, from where it is named on. VIK dropped such a name, and its uses were unknown
+; symbols (issue 239, from the `:named` terms of Yices2's fuzzer and of STP's tests).
+(set-logic QF_UFLIA)
+(declare-fun f (Int) Int)
+(declare-const x Int)
+(declare-const y Int)
+(assert (= (! (f x) :named fx) (+ y 1)))
+(push 1)
+(assert (not (= fx (+ y 1))))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(push 1)
+(assert (! (< (! (+ x y) :named s) (* 2 s)) :named B))
+(set-info :status sat)
+(check-sat-assuming (B))
+(set-info :status unsat)
+(check-sat-assuming ((not B)))
+(pop 1)
+(assert (and (! (> x 0) :named q) (=> q (< (f x) 0))))
+(set-info :status unsat)
+(check-sat-assuming ((>= fx 0)))
+(set-info :status sat)
+(check-sat)
