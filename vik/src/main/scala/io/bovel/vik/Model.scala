@@ -156,6 +156,10 @@ final case class Model(
     datatypes.exists(_.constructors.exists(_.selectors.exists((_, s) => s.arrow.isDefined)))
       || functions.valuesIterator.exists(f => (f.result :: f.parameters).exists(_.arrow.isDefined))
       || constants.valuesIterator.exists(Model.isArray)
+      // A constant array or a map makes an array value with no declared array in sight: two of them were
+      // compared as terms, and stores at every value of a finite index were not the constant array they
+      // make (issue 255).
+      || constSorts.nonEmpty || maps.nonEmpty
 
   private lazy val fields: Map[String, List[Sort]] =
     (for d <- datatypes; c <- d.constructors yield c.name -> c.selectors.map(_._2)).toMap
@@ -287,6 +291,29 @@ object Model:
         case Term.App(f @ Term.Const(name), args) if name != "/" && args.exists(holdsArray) =>
           Term.App(f, args.map(normal))
         case _ => value
+
+  /** An array value with as few writes as it can have, to print: the last write
+   *  at each index, none of the default's value, and over a finite index sort
+   *  written at its every value, the most frequent element as the default
+   *  (`(store (store ((as const (Array Bool Int)) 1) true 0) false 0)` is
+   *  `((as const (Array Bool Int)) 0)`). [[normal]] is a form to compare, with
+   *  a write at every index of such a sort that differs from the first.
+   */
+  def compact(value: Term)(using Finite): Term =
+    if !isArray(value) then value
+    else
+      val (d, m) = graph(value)
+      val (default, writes) = indexValues(base(value)) match
+        case Some(all) if all.nonEmpty && all.forall(m.contains) =>
+          val counts = all.groupBy(m(_)).view.mapValues(_.length).toMap
+          val most = counts.values.max
+          // The default it has when it is among the most frequent, so that a value changes only when it must.
+          val default = if counts.get(d).contains(most) then d else all.map(m(_)).find(counts(_) == most).get
+          (default, m.filter((_, v) => v != default))
+        case _ => (d, m)
+      writes.toList.sortBy(_._1.toString).foldLeft(Term.App(base(value), List(default)): Term) { case (a, (i, v)) =>
+        store(a, i, v)
+      }
 
   /** The head of the constant array at the bottom of an array value, `(as const
    *  (Array I E))`.

@@ -1,17 +1,11 @@
 # path, a tab, the reason: the files the tests expect to fail (see README.md); kept sorted (byte order)
 QF_ABV/bitwuzla/preprocess__normalize14.smt2	timeout (5 s limit)
-QF_ABV/bitwuzla/solver-array__adc_const_index.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.array.const!2 0) ia xa) 0 xb) (.array.const!2 1)) is false
-QF_ABV/bitwuzla/solver-array__adc_partially_fixed_index.smt2	model: lowered assertion 1 (= (.array.const!1 0) (.store!2 (.store!2 (.store!2 (.store!2 (.array.const!1 1) 0 0) 1 0) v 0) v6 0)) is false
-QF_ABV/bitwuzla/solver-array__adc_push_pop.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.array.const!2 0) i x) 0 y) (.array.const!2 1)) is false
-QF_ABV/bitwuzla/solver-array__adc_push_pop_fixed_var2.smt2	model: lowered assertion 1 (= (.store!2 (.store!2 (.store!2 (.store!2 (.array.const!1 0) i3 e0) 3 e0) i2 e0) i1 2) (.array.const!1 2)) is false
-QF_ABV/bitwuzla/solver-array__adc_push_pop_nested.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.array.const!2 0) i x) 0 y) (.array.const!2 1)) is false
 QF_ABV/bitwuzla/solver-array__dubreva002ue.smt2	timeout (5 s limit)
 QF_ABV/bitwuzla/solver-array__fifo32bc04k05.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_ABV/bitwuzla/solver-array__fifo32ia04k05.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_ABV/bitwuzla/solver-array__fifo32in04k05.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_ABV/bitwuzla/solver-array__lazywritememleak1.btor.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_ABV/bitwuzla/solver-array__regrconstarray20.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
-QF_ABV/bitwuzla/solver-array__regrconstarray26.smt2	model: lowered assertion 2 (= (.store!1 (.array.const!2 e2) i10 e3) (.store!1 (.store!1 (.array.const!2 e3) i7 3) i12 6)) is false
 QF_ABV/bitwuzla/solver-array__sc2011rules-qf-abv-ex.smt2	timeout (5 s limit)
 QF_ABV/bitwuzla/solver-array__swapmem002ue.smt2	timeout (5 s limit)
 QF_ABV/bitwuzla/solver-array__wchains002ue.smt2	timeout (5 s limit)
@@ -53,7 +47,6 @@ QF_ABV/stp/array-extensionality-tests__83-ackermanize-outranks-budget.smt2	skip:
 QF_ABV/stp/array-extensionality-tests__84-constant-indexes-charged-what-they-cost.smt2	skip: the recursion overflows the stack of some JVMs' test threads (a deep nest, issue 242)
 QF_ABV/stp/array-write-chain-tests__reused-chain-row-keeps-its-level-reads.smt2	skip: the recursion overflows the stack of some JVMs' test threads (a deep nest, issue 242)
 QF_ABV/stp/array-write-chain-tests__write-chain-incremental.smt2	timeout (5 s limit)
-QF_ABV/stp/constant-arrays__07-store-chains-tiny-index-sat.smt2	model: lowered assertion 1 (= (.store!1 (.array.const!2 3) 0 x) (.store!1 (.array.const!2 7) 1 y)) is false
 QF_ABV/stp/constant-arrays__60-lazy-chain-read-falls-through-to-the-default.smt2	timeout (5 s limit)
 QF_ABV/stp/constant-arrays__64-rule-k-prime-decides-on-the-path.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_ABV/stp/constant-arrays__68-reused-lazy-chain-row-binds-its-anchors.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
@@ -199,15 +192,8 @@ QF_BV/bitwuzla/solver-abstract__bv_udiv_pow2.smt2	timeout (5 s limit)
 QF_BV/bitwuzla/solver-abstract__bv_urem_pow2.smt2	timeout (5 s limit)
 QF_BV/bitwuzla/solver-abstract__eagerrefine1.smt2	refused: the overflow predicates and the bit-vector reductions are not read (issue 240)
 QF_BV/bitwuzla/solver-abstract__murxla-cc7db96bcf2e620d.min.smt2	refused: the overflow predicates and the bit-vector reductions are not read (issue 240)
-QF_BV/bitwuzla/solver-array__regrconstarray11.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.array.const!2 0) i2 e2) i1 e1) (.store!1 (.store!1 (.array.const!2 1) i3 e3) i4 e4)) is false
-QF_BV/bitwuzla/solver-array__regrconstarray14.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.store!1 (.store!1 (.array.const!2 x) i1 e1) i2 e2) i3 e3) i4 e4) (.array.const!2 y)) is false
-QF_BV/bitwuzla/solver-array__regrconstarray15.smt2	model: lowered assertion 1 (= (.store!1 (.store!1 (.array.const!2 0) 3 1) i1 e1) (.store!1 (.store!1 (.array.const!2 1) 0 0) i3 e3)) is false
-QF_BV/bitwuzla/solver-array__regrconstarray2.smt2	model: lowered assertion 1 (= (.array.const!1 0) (.store!2 (.store!2 (.array.const!1 1) 0 0) 1 0)) is false
 QF_BV/bitwuzla/solver-array__regrconstarray22.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
 QF_BV/bitwuzla/solver-array__regrconstarray23.smt2	skip: the encoder's recursion overflows the stack (`Encoder.meet`, issue 242)
-QF_BV/bitwuzla/solver-array__regrconstarray4.smt2	model: lowered assertion 1 (= (.store!1 (.array.const!2 0) 1 1) (.store!1 (.array.const!2 1) 0 0)) is false
-QF_BV/bitwuzla/solver-array__regrconstarray7.smt2	model: lowered assertion 1 (= (.array.const!1 0) (.store!2 (.store!2 (.array.const!1 1) i1 0) i2 0)) is false
-QF_BV/bitwuzla/solver-array__regrconstarray8.smt2	model: lowered assertion 1 (= (.array.const!1 0) (.store!2 (.store!2 (.array.const!1 1) i1 e1) i2 e2)) is false
 QF_BV/bitwuzla/solver-bv-prop__prels-funs.smt2	refused: the overflow predicates and the bit-vector reductions are not read (issue 240)
 QF_BV/bitwuzla/solver-bv__blabs.smt2	timeout (5 s limit)
 QF_BV/bitwuzla/solver-bv__calprob14sat5ksimp.btor.smt2	timeout (5 s limit)
@@ -581,7 +567,6 @@ QF_RDL/smt-lib/scheduling__orb01_1000.smt2	timeout (5 s limit)
 QF_RDL/smt-lib/scheduling__orb03_1100.smt2	timeout (5 s limit)
 QF_RDL/smt-lib/scheduling__orb06_1000.smt2	timeout (5 s limit)
 QF_RDL/smt-lib/scheduling__orb08_930.smt2	timeout (5 s limit)
-QF_UF/bitwuzla/solver-array__regrconstarray16.smt2	model: lowered assertion 1 (= (.array.const!1 false) (.store!2 (.store!2 (.array.const!1 true) false false) true false)) is false
 QF_UF/bitwuzla/solver-fp__issue36.smt2	refused: the overflow predicates and the bit-vector reductions are not read (issue 240)
 QF_UF/cvc5/regress0-uf__eq_diamond23.smtv1.smt2	timeout (5 s limit)
 QF_UF/cvc5/regress0-uf__iso_icl_repgen004.smtv1.smt2	timeout (5 s limit)

@@ -2237,7 +2237,14 @@ private final class Encoder(
               groupDefaults.getOrElseUpdate(group(root), valueOfTerm(Term.Const("@default"), elementSort))
             )
           }
-          rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) => Model.store(acc, i, v) }
+          // With as few writes as it can have: the rows over the start repeat what the start writes, and over a
+          // finite index sort written at every value, eight stores over `Bool` were printed for
+          // `((as const ...) 0)` (issue 255).
+          Model.compact(rows.toList.sortBy(_._1.toString).foldLeft(start) { case (acc, (i, v)) =>
+            Model.store(acc, i, v)
+          })(
+            using finiteIndexValues
+          )
         }
       )
     // The datatype classes in an order that keeps their values apart. A class with no constructor

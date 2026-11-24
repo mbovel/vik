@@ -5,7 +5,7 @@
 ; `(= a c)` is true, where it was valued from its own reads over a default of its own until 2026-09-05.
 ; EXPECT: sat
 ; EXPECT: (((= a c) true) ((= a b) false) ((select c i) @E!0))
-; EXPECT: ((define-fun a () (Array I E) (store ((as const (Array I E)) @E!1) @I!0 @E!0)) (define-fun b () (Array I E) (store ((as const (Array I E)) @E!3) @I!0 @E!2)) (define-fun c () (Array I E) (store (store (store ((as const (Array I E)) @E!1) @I!0 @E!0) @I!0 @E!0) @I!0 @E!0)) (define-fun i () I @I!0) (define-fun v () E @E!0))
+; EXPECT: ((define-fun a () (Array I E) (store ((as const (Array I E)) @E!1) @I!0 @E!0)) (define-fun b () (Array I E) (store ((as const (Array I E)) @E!3) @I!0 @E!2)) (define-fun c () (Array I E) (store ((as const (Array I E)) @E!1) @I!0 @E!0)) (define-fun i () I @I!0) (define-fun v () E @E!0))
 (set-logic QF_AX)
 (set-option :produce-models true)
 (declare-sort I 0)
