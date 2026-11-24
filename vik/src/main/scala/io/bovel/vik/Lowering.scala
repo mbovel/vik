@@ -152,6 +152,7 @@ private final class Lowerer:
   private val loweredOperations = Memo[(String, List[Term], List[BigInt]), Term]()
   private val loweredDivisions = Memo[(Term, BigInt, BigInt), (Term, Term)]()
   private val loweredSignedDivisions = Memo[(Term, Int, BigInt, Boolean), (Term, Term)]()
+  private val moduloOf = Memo[Term, (Term, Int)]() // a modulo's result, to the value it reduces
   private val splitOf = Memo[Term, (Int, Term, Term)]() // a term's first division at a power of two
   private val loweredBits = Memo[(Term, Int), IndexedSeq[Formula]]()
   private val bitConstants = Memo[Formula, Term]() // a bit back to the `{0, 1}` constant that carries it
@@ -163,9 +164,11 @@ private final class Lowerer:
     loweredDivisions.clear()
     quotients.clear()
     loweredSignedDivisions.clear()
+    moduloOf.clear()
     splitOf.clear()
     loweredBits.clear()
     bitConstants.clear()
+    gateAtoms.clear()
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
 
@@ -1481,9 +1484,15 @@ private final class Lowerer:
    */
   private def bits(t: Term, width: Int): IndexedSeq[Formula] =
     knownBits(t, width).getOrElse {
+      lazy val adder = adderBits(t, width)
       t match
         case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 =>
           bits(u, width).map(Not(_))
+        case _ if adder.isDefined =>
+          val fs = adder.get
+          loweredBits((t, width)) = fs
+          define(IntEq(t, fromBits(fs)))
+          fs
         case _ =>
           val bs = (0 until width).map(_ => freshInt("bit", 0, 1, aux = true))
           define(IntEq(t, Term.linear(bs.toList.zipWithIndex.map((b, i) => (modulus(i), b)))))
@@ -1496,6 +1505,63 @@ private final class Lowerer:
           loweredBits((t, width)) = fs
           fs
     }
+
+  /** The bits of a sum or difference reduced modulo `2^width`, by a
+   *  ripple-carry adder over the bits of its operands: at most two non-constant
+   *  operands, each a `width`-bit term.
+   */
+  private def adderBits(t: Term, width: Int): Option[IndexedSeq[Formula]] =
+    moduloOf.get(t) match
+      case Some((value, w)) if w == width =>
+        val (terms, c) = value match
+          case Linear(ts, c) => (ts, c)
+          case u => (List((BigInt(1), u)), BigInt(0))
+        val m = modulus(width)
+        val ok = terms.length <= 2 && terms.forall((a, u) => a.abs == 1 && range(u).exists((l, h) => l >= 0 && h < m))
+        if !ok then None
+        else
+          val negs = terms.count(_._1.signum < 0)
+          val vectors = terms.map((a, u) => if a.signum > 0 then bits(u, width) else bits(u, width).map(Not(_)))
+          val k = (c + negs).mod(m)
+          val all = if k.signum == 0 && vectors.nonEmpty then vectors else vectors :+ knownBits(Num(k), width).get
+          Some(all.reduceLeft(ripple))
+      case _ => None
+
+  /** The low bits of the sum of two bit vectors, carry by carry. */
+  private def ripple(x: IndexedSeq[Formula], y: IndexedSeq[Formula]): IndexedSeq[Formula] =
+    var carry: Formula = False
+    x.indices.map { i =>
+      val s = atom(xor3(x(i), y(i), carry))
+      carry = atom(majority(x(i), y(i), carry))
+      s
+    }
+
+  /** A gate's output as an atom of its own, a fresh bit `b` with `b ≥ 1 ⇔ f`: a
+   *  chain of adders then stays linear, where nesting the carries makes each
+   *  sum bit a formula over every bit below it, and an adder over such sums
+   *  repeats them.
+   */
+  private def atom(f: Formula): Formula = f match
+    case True | False | Le(Num(_), Const(_)) | Not(Le(Num(_), Const(_))) => f
+    case _ =>
+      gateAtoms.getOrElseUpdate(
+        f, {
+          val b = freshInt("carry", 0, 1, aux = true)
+          val g = Ge(b, Num(1))
+          define(Iff(g, f))
+          b match
+            case Const(n) =>
+              bitConstants(g) = b
+              bitFormula(n) = g
+            case _ => ()
+          g
+        }
+      )
+  private val gateAtoms = Memo[Formula, Formula]()
+
+  private def xor3(a: Formula, b: Formula, c: Formula): Formula = gate(BvOp.Xor, gate(BvOp.Xor, a, b), c)
+  private def majority(a: Formula, b: Formula, c: Formula): Formula =
+    gate(BvOp.Or, gate(BvOp.And, a, b), gate(BvOp.And, c, gate(BvOp.Or, a, b)))
 
   /** The bits of `t` if they are known without a decomposition. */
   private def knownBits(t: Term, width: Int): Option[IndexedSeq[Formula]] = t match
@@ -1647,6 +1713,7 @@ private final class Lowerer:
         loweredOperations.getOrElseUpdate(
           ("modulo", List(value), List(width, lo, hi)), {
             val r = freshInt("bv", 0, modulus(width) - 1)
+            moduloOf.getOrElseUpdate(r, (value, width))
             // A few overflow counts are a choice for the SAT solver — `value = r`, or `value = r + 2^width` —
             // rather than an integer unknown `k` with `2^width` as its coefficient, on which the simplex
             // pivots into huge rationals and walks; a wide range of counts stays an unknown.
