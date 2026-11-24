@@ -46,6 +46,11 @@ final class Session(
   private val lowerer = Lowerer()
   private var current = initial
   private var checking = checkModels
+  // With proofs, each command's lowering is checked against a replay of it: a proof refutes the surface
+  // script only if every lowered assertion is the lowering of one, or a definition of a minted symbol.
+  private val loweringCheck = if initial.proofs then LoweringCheck() else null
+  private val loweringErrors = ArrayBuffer.empty[String]
+  lowerer.tracing = initial.proofs
   current.produceModels = false // a walk per sat: paid only once the commands ask (see play)
   current.checkModels = checking
 
@@ -99,7 +104,7 @@ final class Session(
    */
   private def command(c: s2.Command): List[String] = c match
     case s2.Command.GetValue(items) =>
-      val lowered = lowerer.commands(List(c))
+      val lowered = lowering(c)
       play(lowered.init) // the declarations the lowering minted, kept whichever way the query is answered
       current.model() match
         case Some(m) =>
@@ -107,12 +112,23 @@ final class Session(
         case None => play(List(lowered.last))
     case s2.Command.Assert(f) => asserting(c, f)
     case s2.Command.AssertNamed(_, f) => asserting(c, f)
-    case s2.Command.CheckSat => checked(play(lowerer.commands(List(c))), Nil)
-    case s2.Command.CheckSatAssuming(assumptions) => checked(play(lowerer.commands(List(c))), assumptions)
-    case _ => play(lowerer.commands(List(c)))
+    case s2.Command.CheckSat => checked(kept(play(lowering(c))), Nil)
+    case s2.Command.CheckSatAssuming(assumptions) => checked(kept(play(lowering(c))), assumptions)
+    case _ => play(lowering(c))
+
+  /** With proofs: whether each `unsat` writes its certificate at once, for
+   *  [[proof]] to return after later commands (a `pop` drops what the proof's
+   *  script is made of).
+   */
+  var keepProofs = false
+  private var lastProof: Option[Either[String, String]] = None
+
+  private def kept(out: List[String]): List[String] =
+    if keepProofs && out.contains("unsat") then lastProof = Some(proofNow())
+    out
 
   private def asserting(c: s2.Command, formula: s2.Formula): List[String] =
-    val responses = play(lowerer.commands(List(c)))
+    val responses = play(lowering(c))
     written.last += formula // once lowered and asserted: an assertion the lowering refuses is not in force
     responses
 
@@ -156,6 +172,47 @@ final class Session(
   private def modelError: Option[String] = failure.map(f => s"(error ${quoted(s"model check: $f")})")
   private def quoted(text: String): String = "\"" + text.replace("\"", "\"\"") + "\""
 
+  private def lowering(c: s2.Command): List[Command] =
+    val lowered = lowerer.commands(List(c))
+    if loweringCheck != null then
+      val made = lowerer.intros.toList
+      lowerer.intros.clear()
+      for error <- loweringCheck.command(c, lowered, made) do loweringErrors += s"lowering: $error"
+    lowered
+
+  /** With proofs: the errors of the checks of the lowering so far, then those
+   *  of the solver's proof of its last unsat ([[Solver.checkProof]]).
+   */
+  def checkProof(): List[String] = loweringErrors.toList ++ current.checkProof()
+
+  /** With proofs: the certificate of the last `Unsat`, an S-expression from the
+   *  script the check saw to its lowering and the solver's proof of it (see
+   *  [[ProofExport]]), or why it cannot be written. Right after the check, or
+   *  at any time with [[keepProofs]]. `proofs` writes it as Lean files.
+   */
+  def proof(): Either[String, String] =
+    if keepProofs then lastProof.getOrElse(Left("no unsat"))
+    else proofNow()
+
+  /** With proofs: the proof of the last `Unsat` in CPC, cvc5's Cooperating
+   *  Proof Calculus, with the rules of `proofs/cpc/Vik.eo` ([[Cpc]]), or why it
+   *  cannot be written: [[proof]]'s certificate, translated. Compact unless
+   *  `compact` is false, which writes plain CPC, the rules of cvc5's `Cpc.eo`
+   *  only but `vik_lower`. It covers Booleans and uninterpreted functions so
+   *  far.
+   */
+  def cpcProof(compact: Boolean = true): Either[String, String] =
+    proof().flatMap { certificate =>
+      try Right(Cpc(certificate, compact))
+      catch
+        case e: Cpc.Unsupported => Left(s"no CPC proof yet: ${e.getMessage}")
+        case e: Cpc.Malformed => Left(s"malformed certificate: ${e.getMessage}")
+    }
+
+  private def proofNow(): Either[String, String] =
+    if loweringCheck == null then Left("no proofs")
+    else if loweringErrors.nonEmpty then Left(loweringErrors.head)
+    else loweringCheck.surface().flatMap(sf => current.certificate(Some(sf)))
   def assert(text: String): Unit = run(s"(assert $text)")
   def assert(formula: s2.Formula): Unit = run(s2.Script(List(s2.Command.Assert(formula))))
   // Through the lowerer, like the script commands: a `pop` drops the memo entries whose defining
@@ -275,7 +332,7 @@ final class Session(
     val produceModels = current.produceModels
     replaced += current.spent
     for ((_, n), i) <- current.statistics.zipWithIndex do replacedCounts(i) += n
-    current = Solver(simplify = current.simplify)
+    current = Solver(simplify = current.simplify, proofs = current.proofs)
     current.produceModels = produceModels
     current.checkModels = checking
 
