@@ -1309,11 +1309,20 @@ def Trace.binOk (op : BvBin) (w l a b : Nat) : Bool :=
       | _ => false
 
 /-- The rational `p / q` (`q > 0`) that surface node `a` stands for when it is
-    a literal: a `rat`, or a node whose lowering is a constant. -/
+    a literal: a `rat`, a node whose lowering is a constant, or one whose
+    lowering is the symbol of a `rat`, as a division of literals is. -/
 def Trace.litOf (a : Nat) : Option (Int × Nat) :=
   match Tab.at SP.nodes (a) with
   | some (.rat p q) => if 0 < q then some (p, q) else none
-  | _ => if SP.isNum a then (constOf (linOf P tr a)).map fun c => (c, 1) else none
+  | _ =>
+    if SP.isNum a then
+      match constOf (linOf P tr a) with
+      | some c => some (c, 1)
+      | none =>
+        match tr.realAt SP P (tr.at a) with
+        | some (.rat p q) => if 0 < q then some (p, q) else none
+        | _ => none
+    else none
 
 /-- Whether lowered node `l` is the rational `p / q`, `q > 0`: a number, or the
     symbol of `rat`. -/

@@ -167,7 +167,7 @@ theorem eqR_ev {V : Type} (I : Low.Interp R V) (ρ' : Nat → Val R V) {a b : Sh
   · rintro ⟨h1, h2⟩; exact Std.IsPartialOrder.le_antisymm _ _ h1 h2
   · intro h; rw [h]; exact ⟨Std.le_refl _, Std.le_refl _⟩
 
-include hM hw ht hwP in
+include hM hw ht hwP hG in
 /-- A literal. -/
 theorem litOf_sound {a : Nat} {p : Int} {q : Nat} (h : tr.litOf SP P a = some (p, q)) (ha : a < SP.nodes.length)
     (e : ρ (tr.at a) = enc (vs a)) : 0 < q ∧ vs a = .num ((p : R) / ((q : Int) : R)) := by
@@ -183,19 +183,29 @@ theorem litOf_sound {a : Nat} {p : Int} {q : Nat} (h : tr.litOf SP P a = some (p
     · cases h
   · split at h
     · rename_i hnum
-      obtain ⟨c, hc, he⟩ := Option.map_eq_some_iff.mp h
-      simp only [Prod.mk.injEq] at he; obtain ⟨rfl, rfl⟩ := he
-      refine ⟨by decide, ?_⟩
-      obtain ⟨r, hr⟩ := v_num hM hw ht ha hnum
-      have l := lin_ev hwP e
-      rw [constOf_eval hc, hr, toR_num] at l
-      rw [hr, ← l]
-      congr 1
-      have : ((1 : Nat) : Int) = 1 := rfl
-      rw [this, Ring.intCast_one]; grind
+      split at h
+      · rename_i c hc
+        simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, rfl⟩ := h
+        refine ⟨by decide, ?_⟩
+        obtain ⟨r, hr⟩ := v_num hM hw ht ha hnum
+        have l := lin_ev hwP e
+        rw [constOf_eval hc, hr, toR_num] at l
+        rw [hr, ← l]
+        congr 1
+        have : ((1 : Nat) : Int) = 1 := rfl
+        rw [this, Ring.intCast_one]; grind
+      · split at h
+        · rename_i p' q' hr
+          split at h
+          · rename_i hq
+            simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, rfl⟩ := h
+            refine ⟨hq, enc_inj ?_⟩
+            rw [← e, real_val (Ms := Ms) hwP hG hr]; rfl
+          · cases h
+        · cases h
     · cases h
 
-include hM hw ht hwP in
+include hM hw ht hwP hG in
 /-- The literal factors of a product. -/
 theorem mulLits_sound {as : List Nat} {p : Int} {q : Nat} {o : Option Nat}
     (h : tr.mulLits SP P as = some ((p, q), o))
@@ -227,7 +237,7 @@ theorem mulLits_sound {as : List Nat} {p : Int} {q : Nat} {o : Option Nat}
       | some _ => simp only [hl, reduceCtorEq] at hf
     · simp only [hl, Option.some.injEq, Prod.mk.injEq] at hf
       obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hf
-      obtain ⟨hqa, hva⟩ := litOf_sound hM hw ht hwP hl hal ea
+      obtain ⟨hqa, hva⟩ := litOf_sound hM hw ht hwP hG hl hal ea
       refine ⟨Nat.mul_pos hqa hq', fun t ht => List.mem_cons_of_mem a (ho' t ht), ?_⟩
       rw [he, hva, toR_num]
       have h1 := cast_ne_zero (R := R) (show (qa : Int) ≠ 0 by omega)
@@ -266,7 +276,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     rw [hv]
     split at hb
     · rename_i p q hlit
-      obtain ⟨hq, hva⟩ := litOf_sound hM hw ht hwP hlit (by omega) ea
+      obtain ⟨hq, hva⟩ := litOf_sound hM hw ht hwP hG hlit (by omega) ea
       rw [Low.val_num hwP (by simpa using hb), hva, toR_num, floorOf_rat p (by omega)]; rfl
     · rw [real_val (Ms := Ms) hwP hG (beq_iff_eq.mp hb)]
       simp only [RRule.val, ea, toR_enc]; rfl
@@ -278,7 +288,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     rw [hv]
     split at hb
     · rename_i p q hlit
-      obtain ⟨hq, hva⟩ := litOf_sound hM hw ht hwP hlit (by omega) ea
+      obtain ⟨hq, hva⟩ := litOf_sound hM hw ht hwP hG hlit (by omega) ea
       have hx : (vs a).toR = (p : R) / ((q : Int) : R) := by rw [hva, toR_num]
       have hi := isInt_rat (R := R) p (q := (q : Int)) (by omega)
       have e2 : decide ((vs a).toR = ((floorOf (vs a).toR : Int) : R)) = (p % (q : Int) == 0) := by
@@ -314,7 +324,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     rw [hv]
     split at hb
     · rename_i pb qb hlb
-      obtain ⟨hqb, hvb⟩ := litOf_sound hM hw ht hwP hlb (by omega) (ih b hbi)
+      obtain ⟨hqb, hvb⟩ := litOf_sound hM hw ht hwP hG hlb (by omega) (ih b hbi)
       simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at hb
       obtain ⟨hpb, hb⟩ := hb
       rw [hvb, toR_num]
@@ -331,7 +341,7 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
         · rw [Int.sign_eq_one_of_pos h, show (1 : Int) * 1 = 1 by decide, Ring.intCast_one]
       split at hb
       · rename_i pa qa hla
-        obtain ⟨hqa, hva⟩ := litOf_sound hM hw ht hwP hla (by omega) (ih a hai)
+        obtain ⟨hqa, hva⟩ := litOf_sound hM hw ht hwP hG hla (by omega) (ih a hai)
         obtain ⟨_, e⟩ := ratOk_sound (Ms := Ms) hwP hG hb
         rw [e, hva, toR_num]
         simp only [enc_num]
@@ -358,13 +368,13 @@ theorem realOk_sound (hD : ∀ d ∈ SP.defs, d.Holds SP.sig Ms) {i : Nat} {n : 
     rw [hv]
     split at hb
     · rename_i p q hm
-      obtain ⟨_, _, e⟩ := mulLits_sound hM hw ht hwP hm has
+      obtain ⟨_, _, e⟩ := mulLits_sound hM hw ht hwP hG hm has
       obtain ⟨_, e'⟩ := ratOk_sound (Ms := Ms) hwP hG hb
       rw [e', show as.map (Low.get (Surf.values Ms.toInterp SP.nodes)) = as.map vs from rfl, e]
       simp only [enc_num]
       congr 1; grind
     · rename_i p q t hm
-      obtain ⟨_, ht', e⟩ := mulLits_sound hM hw ht hwP hm has
+      obtain ⟨_, ht', e⟩ := mulLits_sound hM hw ht hwP hG hm has
       rw [ratmulOk_sound hwP htP hG hML hrng hb hl, (has t (ht' t rfl)).2, toR_enc,
         show as.map (Low.get (Surf.values Ms.toInterp SP.nodes)) = as.map vs from rfl, e]
       rfl
