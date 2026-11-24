@@ -107,7 +107,13 @@ def denotes (e : Enc) : Nat → Lit → Nat → Bool
           | some (.or [n, b']) => b' == b && e.node n == some (.not a)
           | _ => false
         | none => false
-    | some (.eq a b) => if a == b then l == e.trueLit else plain
+    | some (.eq a b) =>
+      if a == b then l == e.trueLit
+      else
+        -- One atom stands for both orientations of an equality.
+        plain || (l.pos && match e.meaningOf l.var with
+          | some m => e.node m == some (.eq b a)
+          | none => false)
     | some (.le a b) =>
       match constant e.nodes a b with
       | some v => l == holdsLit e (decide (v ≤ 0))
@@ -145,6 +151,10 @@ inductive Origin where
   /-- `0 ≤ t` or `t ≤ 2ʷ - 1`, the formula `f`, for a node `t` of a sort of
       bit-vectors of width `w`. -/
   | sortRange (f : Nat)
+  /-- `f = g ∨ f(i₁) ≠ g(i₁) ∨ …`, the equality `eq`, for arrays `f` and `g`
+      made by stores from the same base, the `iₖ` their indices, and the
+      disequalities `ds`: arrays from one base differ only where written. -/
+  | sameBase (eq : Nat) (ds : List Nat)
   deriving Repr
 
 def Enc.numeric (e : Enc) (i : Nat) : Bool := i < e.nodes.length && e.sig.numeric ((Tab.at e.sortOf i).getD 0)
@@ -206,10 +216,60 @@ def storeOk (e : Enc) (c : Clause) (r w : Nat) : Bool :=
       ((j == i && w == v) ||
         (e.node w == some (.app a [j]) &&
           c.any fun l => match positive e l with
-            | some m => sides e m == some (i, j)
+            | some m => sides e m == some (i, j) || sides e m == some (j, i)
             | none => false))
     | _ => false
   | _ => false
+
+/-- The base of the stores that make `t`, with the indices they write,
+    outermost first (`t` itself and none when it is no store). -/
+def chain (e : Enc) : Nat → Nat → Option (Nat × List Nat)
+  | 0, _ => none
+  | fuel + 1, t =>
+    match e.node t with
+    | some (.app k [a, i, _]) =>
+      match e.node k with
+      | some (.const n) =>
+        if e.stores.contains n then (chain e fuel a).map fun p => (p.1, i :: p.2) else some (t, [])
+      | _ => some (t, [])
+    | _ => some (t, [])
+
+/-- A bound of the range of a witness `w` of a bit-vector index: `0 ≤ w` or
+    `w ≤ 2ʷ - 1`. -/
+def witnessLe (e : Enc) (f : Nat) : Bool :=
+  match e.node f with
+  | some (.le a b) =>
+    match e.node a, e.node b with
+    | some (.num z), some (.const n) => z == 0 && (e.width n).isSome
+    | some (.const n), some (.num v) =>
+      match e.width n with
+      | some w => v == 2 ^ w - 1
+      | none => false
+    | _, _ => false
+  | _ => false
+
+/-- A bound of the range of a node `t` of a sort of bit-vectors: `0 ≤ t` or
+    `t ≤ 2ʷ - 1`. -/
+def rangeLe (e : Enc) (f : Nat) : Bool :=
+  match e.node f with
+  | some (.le a b) =>
+    match e.node a, e.node b with
+    | some (.num z), _ =>
+      z == 0 && decide (b < e.nodes.length) && (e.bvIndex.lookup ((Tab.at e.sortOf b).getD 0)).isSome
+    | _, some (.num v) =>
+      decide (a < e.nodes.length) &&
+        match e.bvIndex.lookup ((Tab.at e.sortOf a).getD 0) with
+        | some w => v == 2 ^ w - 1
+        | none => false
+    | _, _ => false
+  | _ => false
+
+/-- A bound `p` accepts, or the conjunction of two. -/
+def rangeOf (e : Enc) (p : Nat → Bool) (f : Nat) : Bool :=
+  p f ||
+    match e.node f with
+    | some (.and [x, y]) => p x && p y
+    | _ => false
 
 def inputOk (e : Enc) (c : Clause) : Origin → Bool
   | .definition => defOk e c
@@ -229,7 +289,9 @@ def inputOk (e : Enc) (c : Clause) : Origin → Bool
       | some m =>
         match e.node m with
         | some (.eq a b) =>
-          e.numeric a && e.numeric b && e.node lt == some (.lt a b) && e.node le == some (.le a b)
+          e.numeric a && e.numeric b &&
+            ((e.node lt == some (.lt a b) && e.node le == some (.le a b)) ||
+              (e.node lt == some (.lt b a) && e.node le == some (.le b a)))
             && has e c lt && hasNot e c le
         | some (.le a b) => e.node lt == some (.lt a b) && hasNot e c lt
         | _ => false
@@ -259,37 +321,25 @@ def inputOk (e : Enc) (c : Clause) : Origin → Bool
     c.any fun l => match positive e l with
       | some m =>
         match sides e m with
-        | some (r, w) => storeOk e c r w
+        | some (r, w) => storeOk e c r w || storeOk e c w r
         | none => false
       | none => false
   | .extensionality k =>
     match e.exts[k]? with
     | some (eq, eqw, _) => has e c eq && hasNot e c eqw
     | none => false
-  | .witnessRange f =>
-    has e c f &&
-      match e.node f with
-      | some (.le a b) =>
-        match e.node a, e.node b with
-        | some (.num z), some (.const n) => z == 0 && (e.width n).isSome
-        | some (.const n), some (.num v) =>
-          match e.width n with
-          | some w => v == 2 ^ w - 1
-          | none => false
-        | _, _ => false
-      | _ => false
-  | .sortRange f =>
-    has e c f &&
-      match e.node f with
-      | some (.le a b) =>
-        match e.node a, e.node b with
-        | some (.num z), _ =>
-          z == 0 && decide (b < e.nodes.length) && (e.bvIndex.lookup ((Tab.at e.sortOf b).getD 0)).isSome
-        | _, some (.num v) =>
-          decide (a < e.nodes.length) &&
-            match e.bvIndex.lookup ((Tab.at e.sortOf a).getD 0) with
-            | some w => v == 2 ^ w - 1
-            | none => false
+  | .witnessRange f => has e c f && rangeOf e (witnessLe e) f
+  | .sortRange f => has e c f && rangeOf e (rangeLe e) f
+  | .sameBase q ds =>
+    has e c q &&
+      match e.node q with
+      | some (.eq f g) =>
+        match chain e (f + 1) f, chain e (g + 1) g with
+        | some (b, ws), some (b', ws') =>
+          b == b' && (ws ++ ws').all fun i => ds.any fun d =>
+            hasNot e c d && match e.node d with
+              | some (.eq p r) => e.node p == some (.app f [i]) && e.node r == some (.app g [i])
+              | _ => false
         | _, _ => false
       | _ => false
 
@@ -442,7 +492,19 @@ theorem denotes_sound : ∀ (fuel : Nat) (l : Lit) (f : Nat), denotes e fuel l f
       · rename_i hab
         simp only [beq_iff_eq] at hab h; subst hab h
         rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hf)]; exact ⟨fun _ => rfl, fun _ => htrue⟩
-      · exact plain h
+      · rw [Bool.or_eq_true] at h
+        rcases h with h | h
+        · exact plain h
+        · simp only [Bool.and_eq_true] at h
+          obtain ⟨hpos, h⟩ := h
+          split at h
+          · rename_i m hm
+            simp only [beq_iff_eq] at h
+            unfold Lit.holds
+            rw [hpos, hmean _ _ hm, holds_eq hw ((Enc.node_eq _ _).symm.trans h),
+              holds_eq hw ((Enc.node_eq _ _).symm.trans hf)]
+            exact ⟨Eq.symm, Eq.symm⟩
+          · cases h
     · rename_i a b hf
       split at h
       · rename_i v hv
@@ -537,6 +599,12 @@ structure Enc.Sound (e : Enc) (I : Interp R U) (ρ : Assignment) : Prop where
   /-- The nodes of bit-vector sorts are in their range. -/
   sortRange : ∀ t w, t < e.nodes.length → e.bvIndex.lookup (e.sortOf[t]?.getD 0) = some w →
     ∃ k : Int, val I e.nodes t = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
+  /-- Arrays made by stores from the same base that agree at the indices
+      written are equal. -/
+  sameBase : ∀ q f g fuel fuel' b ws ws', e.node q = some (.eq f g) →
+    chain e fuel f = some (b, ws) → chain e fuel' g = some (b, ws') →
+    (∀ i ∈ ws ++ ws', I.app (val I e.nodes f) [val I e.nodes i] = I.app (val I e.nodes g) [val I e.nodes i]) →
+    val I e.nodes f = val I e.nodes g
 
 theorem num_eq {I : Interp R U} {e : Enc} {ρ : Assignment} (hS : e.Sound I ρ) {a b : Nat}
     (ha : e.numeric a = true) (hb : e.numeric b = true)
@@ -569,6 +637,120 @@ theorem testsOk_sound {I : Interp R U} {e : Enc} (hw : wellFormed e.nodes = true
     · obtain ⟨p', hp', hh⟩ := testsOk_sound hw h ct m hct
       exact ⟨p', by simp [hp'], hh⟩
   | [], _ :: _, h, _, _, _ | _ :: _, [], h, _, _, _ => by simp [testsOk] at h
+
+theorem witnessLe_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFormed e.nodes = true)
+    (hS : e.Sound I ρ) {f : Nat} (h : witnessLe e f = true) : holds I e.nodes f := by
+  unfold witnessLe at h
+  split at h
+  · rename_i a b hle
+    rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
+    split at h
+    · rename_i z n ha hb
+      simp only [Bool.and_eq_true, beq_iff_eq, Option.isSome_iff_exists] at h
+      obtain ⟨rfl, w, hw'⟩ := h
+      obtain ⟨k, hk, h0, _⟩ := hS.range n w hw'
+      rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), val_const hw ((Enc.node_eq _ _).symm.trans hb), hk]
+      simp only [Val.toR]
+      have := cast_le (R := R) h0
+      rw [Ring.intCast_zero] at this
+      simpa [Ring.intCast_zero] using this
+    · rename_i n v ha hb
+      split at h
+      · rename_i w hw'
+        simp only [beq_iff_eq] at h
+        subst h
+        obtain ⟨k, hk, _, h1⟩ := hS.range n w hw'
+        rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), val_const hw ((Enc.node_eq _ _).symm.trans ha), hk]
+        simp only [Val.toR]
+        exact cast_le (R := R) (by omega)
+      · cases h
+    · cases h
+  · cases h
+
+theorem rangeLe_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFormed e.nodes = true)
+    (hS : e.Sound I ρ) {f : Nat} (h : rangeLe e f = true) : holds I e.nodes f := by
+  unfold rangeLe at h
+  split at h
+  · rename_i a b hle
+    rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
+    split at h
+    · rename_i z _ ha
+      simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Option.isSome_iff_exists, Tab.at_eq] at h
+      obtain ⟨⟨rfl, hb⟩, w, hw'⟩ := h
+      obtain ⟨k, hk, h0, _⟩ := hS.sortRange b w hb hw'
+      rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), hk]
+      simp only [Val.toR]
+      have := cast_le (R := R) h0
+      rw [Ring.intCast_zero] at this
+      simpa [Ring.intCast_zero] using this
+    · rename_i _ v hb _
+      simp only [Bool.and_eq_true, decide_eq_true_eq, Tab.at_eq] at h
+      obtain ⟨ha, h⟩ := h
+      split at h
+      · rename_i w hw'
+        simp only [beq_iff_eq] at h
+        subst h
+        obtain ⟨k, hk, _, h1⟩ := hS.sortRange a w ha hw'
+        rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), hk]
+        simp only [Val.toR]
+        exact cast_le (R := R) (by omega)
+      · cases h
+    · cases h
+  · cases h
+
+theorem rangeOf_sound {I : Interp R U} {e : Enc} (hw : wellFormed e.nodes = true) {p : Nat → Bool}
+    (hp : ∀ g, p g = true → holds I e.nodes g) {f : Nat} (h : rangeOf e p f = true) : holds I e.nodes f := by
+  unfold rangeOf at h
+  rw [Bool.or_eq_true] at h
+  rcases h with h | h
+  · exact hp f h
+  · split at h
+    · rename_i x y hxy
+      simp only [Bool.and_eq_true] at h
+      rw [holds_and hw ((Enc.node_eq _ _).symm.trans hxy)]
+      intro z hz
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
+      rcases hz with rfl | rfl
+      · exact hp _ h.1
+      · exact hp _ h.2
+    · cases h
+
+/-- A read over a write `r` is the value `w` that `storeOk` says it is, in a
+    model where the clause is false. -/
+theorem storeOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFormed e.nodes = true)
+    (hS : e.Sound I ρ) {c : Clause} {r w : Nat} (hc : ¬c.holds ρ) (h : storeOk e c r w = true) :
+    val I e.nodes r = val I e.nodes w := by
+  have hmean := hS.meaning
+  have htrue := hS.trueLit
+  have lfalse : ∀ l ∈ c, ¬l.holds ρ := fun l m hl => hc ⟨l, m, hl⟩
+  unfold storeOk at h
+  split at h
+  · rename_i s j hr
+    split at h
+    · rename_i k a i v hs'
+      simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at h
+      obtain ⟨hk, h⟩ := h
+      split at hk
+      · rename_i n hk'
+        have law := hS.store r s k n a i v j hr hs' hk' (List.contains_iff_mem.mp hk)
+        rcases h with ⟨rfl, rfl⟩ | ⟨hw', h⟩
+        · exact law.1 rfl
+        · obtain ⟨l', hl', h⟩ := List.any_eq_true.mp h
+          split at h
+          · rename_i m' hm'
+            simp only [Bool.or_eq_true, beq_iff_eq] at h
+            have hij : val I e.nodes j ≠ val I e.nodes i := by
+              intro hji
+              apply lfalse l' hl'
+              apply (positive_sound hw hmean htrue hm').mpr
+              rcases h with h | h
+              · exact sides_sound hw hmean htrue h hji.symm
+              · exact sides_sound hw hmean htrue h hji
+            rw [law.2 hij, val_app hw ((Enc.node_eq _ _).symm.trans hw')]; rfl
+          · cases h
+      · cases hk
+    · cases h
+  · cases h
 
 /-- An input clause the checker accepts holds. -/
 theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFormed e.nodes = true)
@@ -700,13 +882,18 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
       split at h
       · rename_i a b hab
         simp only [Bool.and_eq_true, beq_iff_eq] at h
-        obtain ⟨⟨⟨⟨⟨na, nb⟩, hlt⟩, hle⟩, h1⟩, h2⟩ := h
+        simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+        obtain ⟨⟨⟨⟨na, nb⟩, hor⟩, h1⟩, h2⟩ := h
         rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hab)] at nm
-        have := nh h1; rw [holds_lt hw ((Enc.node_eq _ _).symm.trans hlt)] at this
-        have := hn h2; rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)] at this
         apply nm
         apply num_eq hS na nb
-        apply Std.le_antisymm <;> grind
+        rcases hor with ⟨hlt, hle⟩ | ⟨hlt, hle⟩
+        · have := nh h1; rw [holds_lt hw ((Enc.node_eq _ _).symm.trans hlt)] at this
+          have := hn h2; rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)] at this
+          apply Std.le_antisymm <;> grind
+        · have := nh h1; rw [holds_lt hw ((Enc.node_eq _ _).symm.trans hlt)] at this
+          have := hn h2; rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)] at this
+          apply Std.le_antisymm <;> grind
       · rename_i a b hab
         simp only [Bool.and_eq_true, beq_iff_eq] at h
         obtain ⟨hlt, h1⟩ := h
@@ -773,34 +960,13 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
       have hlm := positive_sound hw hmean htrue hm
       split at h
       · rename_i r w hs
-        unfold storeOk at h
-        split at h
-        · rename_i s j hr
-          split at h
-          · rename_i k a i v hs'
-            simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at h
-            obtain ⟨hk, h⟩ := h
-            split at hk
-            · rename_i n hk'
-              have law := hS.store r s k n a i v j hr hs' hk' (List.contains_iff_mem.mp hk)
-              apply lfalse l hl
-              rw [hlm]
-              apply sides_sound hw hmean htrue hs
-              rcases h with ⟨rfl, rfl⟩ | ⟨hw', h⟩
-              · exact law.1 rfl
-              · obtain ⟨l', hl', h⟩ := List.any_eq_true.mp h
-                split at h
-                · rename_i m' hm'
-                  simp only [beq_iff_eq] at h
-                  have hij : val I e.nodes j ≠ val I e.nodes i := by
-                    intro hji
-                    exact lfalse l' hl' ((positive_sound hw hmean htrue hm').mpr
-                      (sides_sound hw hmean htrue h hji.symm))
-                  rw [law.2 hij, val_app hw ((Enc.node_eq _ _).symm.trans hw')]; rfl
-                · cases h
-            · cases hk
-          · cases h
-        · cases h
+        apply lfalse l hl
+        rw [hlm]
+        apply sides_sound hw hmean htrue hs
+        rw [Bool.or_eq_true] at h
+        rcases h with h | h
+        · exact storeOk_sound hw hS hc h
+        · exact (storeOk_sound hw hS hc h).symm
       · cases h
     · cases h
   | extensionality k =>
@@ -814,62 +980,34 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
     · cases h
   | witnessRange f =>
     simp only [inputOk, Bool.and_eq_true] at h
-    obtain ⟨hf, h⟩ := h
-    apply nh hf
-    split at h
-    · rename_i a b hle
-      rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
-      split at h
-      · rename_i z n ha hb
-        simp only [Bool.and_eq_true, beq_iff_eq, Option.isSome_iff_exists] at h
-        obtain ⟨rfl, w, hw'⟩ := h
-        obtain ⟨k, hk, h0, _⟩ := hS.range n w hw'
-        rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), val_const hw ((Enc.node_eq _ _).symm.trans hb), hk]
-        simp only [Val.toR]
-        have := cast_le (R := R) h0
-        rw [Ring.intCast_zero] at this
-        simpa [Ring.intCast_zero] using this
-      · rename_i n v ha hb
-        split at h
-        · rename_i w hw'
-          simp only [beq_iff_eq] at h
-          subst h
-          obtain ⟨k, hk, _, h1⟩ := hS.range n w hw'
-          rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), val_const hw ((Enc.node_eq _ _).symm.trans ha), hk]
-          simp only [Val.toR]
-          exact cast_le (R := R) (by omega)
-        · cases h
-      · cases h
-    · cases h
+    exact nh h.1 (rangeOf_sound hw (fun g hg => witnessLe_sound hw hS hg) h.2)
   | sortRange f =>
     simp only [inputOk, Bool.and_eq_true] at h
-    obtain ⟨hf, h⟩ := h
-    apply nh hf
+    exact nh h.1 (rangeOf_sound hw (fun g hg => rangeLe_sound hw hS hg) h.2)
+  | sameBase q ds =>
+    simp only [inputOk, Bool.and_eq_true] at h
+    obtain ⟨hq, h⟩ := h
     split at h
-    · rename_i a b hle
-      rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
+    · rename_i f g hfg
       split at h
-      · rename_i z _ ha
-        simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Option.isSome_iff_exists, Tab.at_eq] at h
-        obtain ⟨⟨rfl, hb⟩, w, hw'⟩ := h
-        obtain ⟨k, hk, h0, _⟩ := hS.sortRange b w hb hw'
-        rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), hk]
-        simp only [Val.toR]
-        have := cast_le (R := R) h0
-        rw [Ring.intCast_zero] at this
-        simpa [Ring.intCast_zero] using this
-      · rename_i _ v hb _
-        simp only [Bool.and_eq_true, decide_eq_true_eq, Tab.at_eq] at h
-        obtain ⟨ha, h⟩ := h
-        split at h
-        · rename_i w hw'
-          simp only [beq_iff_eq] at h
-          subst h
-          obtain ⟨k, hk, _, h1⟩ := hS.sortRange a w ha hw'
-          rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), hk]
-          simp only [Val.toR]
-          exact cast_le (R := R) (by omega)
-        · cases h
+      · rename_i b ws b' ws' hf hg
+        simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at h
+        obtain ⟨rfl, hall⟩ := h
+        apply nh hq
+        rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hfg)]
+        apply hS.sameBase q f g _ _ b ws ws' hfg hf hg
+        intro i hi
+        obtain ⟨d, -, hd⟩ := List.any_eq_true.mp (hall i hi)
+        simp only [Bool.and_eq_true] at hd
+        obtain ⟨hnd, hd⟩ := hd
+        have hdh := hn hnd
+        split at hd
+        · rename_i p r hpr
+          simp only [Bool.and_eq_true, beq_iff_eq] at hd
+          rw [holds_eq hw ((Enc.node_eq _ _).symm.trans hpr), val_app hw ((Enc.node_eq _ _).symm.trans hd.1),
+            val_app hw ((Enc.node_eq _ _).symm.trans hd.2)] at hdh
+          simpa using hdh
+        · cases hd
       · cases h
     · cases h
 

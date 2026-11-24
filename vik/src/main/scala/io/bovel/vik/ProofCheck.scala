@@ -232,6 +232,8 @@ final class InputClauses(
     case False => l == trueLit.neg
     case Implies(a, b) => denotes(l, Or(List(Not(a), b)))
     case Eq(a, b) if a == b => l == trueLit
+    case Eq(a, b) => l.positive &&
+      (meaning(l.variable) == formula || meaning(l.variable) == Eq(b, a)) // one atom for both
     case Le(a, b) => constant(a, b).fold(l.positive && meaning(l.variable) == formula)(v => l == holds(v <= 0))
     case Less(a, b) => constant(a, b).fold(l.positive && meaning(l.variable) == formula)(v => l == holds(v < 0))
     case _ => l.positive && meaning(l.variable) == formula
@@ -250,7 +252,9 @@ final class InputClauses(
       case Eq(l, r) => Some((l, r))
       case And(List(Le(l, r), Le(r2, l2))) if l == l2 && r == r2 => Some((l, r))
       case _ => None
-    def equal(l: Term, r: Term): Boolean = positives.exists(f => sides(f).contains((l, r)))
+    def equal(l: Term, r: Term): Boolean = positives.exists(f => sides(f).exists(s => s == (l, r) || s == (r, l)))
+    // The sides of a positive literal's equality, in both orientations: an equality has one atom for both.
+    def oriented: Iterator[(Term, Term)] = positives.flatMap(sides).flatMap((l, r) => Iterator((l, r), (r, l)))
     def ok(b: Boolean, what: => String): Option[String] = if b then None else Some(what)
     origin match
       case Encoder.Origin.Definition =>
@@ -287,7 +291,7 @@ final class InputClauses(
         // `a = b ∨ a < b ∨ ¬(a ≤ b)`, or `¬(a < b) ∨ a ≤ b`.
         ok(
           positives.exists {
-            case Eq(a, b) => has(Less(a, b)) && has(Not(Le(a, b)))
+            case Eq(a, b) => (has(Less(a, b)) && has(Not(Le(a, b)))) || (has(Less(b, a)) && has(Not(Le(b, a))))
             case Le(a, b) => has(Not(Less(a, b)))
             case _ => false
           },
@@ -306,7 +310,7 @@ final class InputClauses(
         // `f ≠ s ∨ f(x) = s(x)`.
         ok(
           positives.exists {
-            case Eq(Term.App(f, xs), Term.App(g, ys)) => xs == ys && has(Not(Eq(f, g)))
+            case Eq(Term.App(f, xs), Term.App(g, ys)) => xs == ys && has(Not(Eq(f, g))) // `has` reads `g = f` too
             case _ => false
           },
           "not an instance of congruence"
@@ -314,7 +318,7 @@ final class InputClauses(
       case Encoder.Origin.ReadOverWrite =>
         // `store(a, i, v)(i) = v`, or `i = j ∨ store(a, i, v)(j) = a(j)`.
         ok(
-          positives.flatMap(sides).exists {
+          oriented.exists {
             case (Term.App(s @ Term.App(Term.Const(n), List(a, i, v)), List(j)), w) if Names.isStore(n) =>
               (j == i && w == v) || (w == Term.App(a, List(j)) && equal(i, j))
             case _ => false
@@ -325,7 +329,10 @@ final class InputClauses(
         // `f = g ∨ f(w) ≠ g(w)`, for fresh `w`: the witnesses of `f ≠ g`, Skolem constants of that one
         // disequality, so of no other pair.
         def at(f: Term): Term = witnesses.foldLeft(f)((t, w) => Term.App(t, List(w)))
-        positives.collectFirst { case eq @ Eq(f, g) if negatives.contains(Eq(at(f), at(g))) => eq } match
+        val unequal = negatives.toSet
+        positives.flatMap { case Eq(f, g) => Iterator(Eq(f, g), Eq(g, f)); case _ => Iterator.empty }.collectFirst {
+          case eq @ Eq(f, g) if unequal(Eq(at(f), at(g))) || unequal(Eq(at(g), at(f))) => eq
+        } match
           case None => Some("not an instance of extensionality")
           case Some(eq) =>
             witnesses.zipWithIndex.iterator.flatMap { (w, i) =>
@@ -340,15 +347,28 @@ final class InputClauses(
         if !fresh(w) then Some(s"the witness $w is not a fresh symbol")
         else
           ranges += ((w, width))
-          ok(has(Le(Term.Num(0), w)) || has(Le(w, Term.Num(BigInt(2).pow(width) - 1))), "not the range of a witness")
+          val bounds = List(Le(Term.Num(0), w), Le(w, Term.Num(BigInt(2).pow(width) - 1)))
+          ok(bounds.exists(has) || has(And(bounds)), "not the range of a witness")
+      case Encoder.Origin.SameBase(f, g, indices) =>
+        // `f = g ∨ f(i) ≠ g(i) ∨ …` for the indices `i` of the stores that make `f` and `g` from one base.
+        def chain(t: Term, written: List[Term]): (Term, List[Term]) = t match
+          case Term.App(Term.Const(n), List(a, i, _)) if Names.isStore(n) => chain(a, i :: written)
+          case _ => (t, written)
+        val (fb, fw) = chain(f, Nil)
+        val (gb, gw) = chain(g, Nil)
+        if fb != gb then Some(s"$f and $g are not made from one base")
+        else if !(fw ++ gw).forall(indices.contains) then Some("an index written left out")
+        else
+          ok(
+            has(Eq(f, g)) && indices.forall(i => has(Not(Eq(Term.App(f, List(i)), Term.App(g, List(i)))))),
+            "not an instance of the same base"
+          )
       case Encoder.Origin.SortRange(t) =>
         // `0 ≤ t` or `t ≤ 2^n − 1`, for a term of a bit-vector sort of `n` bits.
         sortOf(t) match
           case bitVector(n) =>
-            ok(
-              has(Le(Term.Num(0), t)) || has(Le(t, Term.Num(BigInt(2).pow(n.nn.toInt) - 1))),
-              "not the range of its sort"
-            )
+            val bounds = List(Le(Term.Num(0), t), Le(t, Term.Num(BigInt(2).pow(n.nn.toInt) - 1)))
+            ok(bounds.exists(has) || has(And(bounds)), "not the range of its sort")
           case s => Some(s"the range of $t, of sort $s")
 
   private val bitVector = """\(_ BitVec (\d+)\)""".r

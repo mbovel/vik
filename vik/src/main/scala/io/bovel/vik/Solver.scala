@@ -635,7 +635,9 @@ private object Encoder:
    *    - `Extensionality`: two functions are equal or differ at fresh
    *      `witnesses`;
    *    - `WitnessRange`: a bit-vector witness index is in its range;
-   *    - `SortRange`: a term of a bit-vector sort is in its range.
+   *    - `SortRange`: a term of a bit-vector sort is in its range;
+   *    - `SameBase`: arrays `f` and `g` made by stores from the same base are
+   *      equal or differ at one of the `indices` written.
    */
   enum Origin:
     case Definition
@@ -649,6 +651,7 @@ private object Encoder:
     case Extensionality(witnesses: List[Term])
     case WitnessRange(witness: Term, width: Int)
     case SortRange(term: Term)
+    case SameBase(f: Term, g: Term, indices: List[Term])
 
 private final class Encoder(
     declarations: HashMap[String, (List[Sort], Sort)],
@@ -936,13 +939,12 @@ private final class Encoder(
               more = true
               val (fBase, fWrites) = storeWrites(f)
               val (gBase, gWrites) = storeWrites(g)
-              if fBase == gBase && !proofs then // (no proof of this lemma yet)
+              if fBase == gBase then
                 // Arrays built from the same base can differ only at a written index. Using these
                 // indices keeps the new reads and sharing from growing with each fresh witness.
-                val differences = (fWrites ::: gWrites).distinct.map(i =>
-                  lit(Formula.Eq(selectTerm(f, i), selectTerm(g, i))).neg
-                )
-                emit((lit(eq) :: differences).toArray, Encoder.Origin.Definition) // never with proofs
+                val indices = (fWrites ::: gWrites).distinct
+                val differences = indices.map(i => lit(Formula.Eq(selectTerm(f, i), selectTerm(g, i))).neg)
+                emit((lit(eq) :: differences).toArray, Encoder.Origin.SameBase(f, g, indices))
               else
                 // A witness is a constant of the index sort like any other: of a range of the integers, it
                 // gets the range with its class, or two arrays over `(_ BitVec 1)` agreeing at both
@@ -1007,17 +1009,12 @@ private final class Encoder(
         sortOf(t) match
           case Sort.IntRange(lower, upper) =>
             val bounds = List(Formula.Le(Term.Num(lower), t), Formula.Le(t, Term.Num(upper)))
-            t match
-              case Term.Const(name) if proofs && Names.isWitness(name) =>
-                // The range of a witness of an index: each bound a clause of its own, which the
-                // certificate gives as such (`WitnessRange`).
-                val width = (upper + 1).bitLength - 1
-                for b <- bounds do emit(Array(lit(b)), Encoder.Origin.WitnessRange(t, width))
-              case _ if proofs =>
-                // What the sort of the term says, each bound a clause of its own (`SortRange`).
-                meet(Formula.And(bounds))
-                for b <- bounds do emit(Array(lit(b)), Encoder.Origin.SortRange(t))
-              case _ => assert(Formula.And(bounds), null)
+            // For the proof: the range of a witness of an index, or what the sort of the term says.
+            val origin = t match
+              case Term.Const(name) if Names.isWitness(name) =>
+                Encoder.Origin.WitnessRange(t, (upper + 1).bitLength - 1)
+              case _ => Encoder.Origin.SortRange(t)
+            assert(Formula.And(bounds), null, origin)
           case _ => ()
 
   private val anyFiniteField =
@@ -1358,7 +1355,7 @@ private final class Encoder(
   private val orientations = HashMap.empty[Formula.Eq, Formula.Eq]
 
   private def literalKey(formula: Formula): Formula = formula match
-    case eq: Formula.Eq if !proofs => orientations.getOrElse(eq, eq) // with proofs, a literal means its own formula
+    case eq: Formula.Eq => orientations.getOrElse(eq, eq) // the proof reads either orientation as the literal's
     case _ => formula
 
   /** The literal standing for `formula`, defining it by clauses if needed. */

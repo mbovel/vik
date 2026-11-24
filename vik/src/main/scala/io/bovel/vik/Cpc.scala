@@ -634,8 +634,19 @@ object Cpc:
                 case _ => false
             }
           case Ctor("eq", Vector(a, b)) if a == b => l == trueLit
+          case Ctor("eq", Vector(a, b)) => plain || l.pos && reversed(l, a, b)
           case _ => plain
       }
+
+    /** Whether the positive literal `l` means the equality `b = a`: one atom
+     *  stands for both orientations of an equality.
+     */
+    private def reversed(l: Lit, a: Sexp, b: Sexp): Boolean =
+      meaning.lift(l.v).flatten.exists(m =>
+        lNodes(m) match
+          case Ctor("eq", Vector(a2, b2)) => a2 == b && b2 == a
+          case _ => false
+      )
 
     /** A proof that the formula of node `f` is the term of the literal `l` that
      *  stands for it, or none when they are the same term.
@@ -660,6 +671,8 @@ object Cpc:
           Some(step(s"(= $tf $tl)", "bool-impl-elim", args = Seq(lTerm(int(a)), lTerm(int(b)))))
         case Ctor("eq", Vector(a, b)) if a == b =>
           Some(step(s"(= $tf true)", "eq-refl", args = Seq(lTerm(int(a)))))
+        case Ctor("eq", Vector(a, b)) if l.pos && !meaning.lift(l.v).flatten.contains(f) && reversed(l, a, b) =>
+          Some(step(s"(= $tf $tl)", "eq-symm", args = Seq(lTerm(int(a)), lTerm(int(b)))))
         case _ => None
 
     /** The literal `x` of a clause proved by `p`, replaced by `y`, given a

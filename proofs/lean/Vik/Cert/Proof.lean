@@ -828,6 +828,86 @@ theorem lookup_some_mem {d : Nat} {cs : List (Nat × Nat × List Nat)}
     {l : List (Nat × List (Nat × Nat × List Nat))} (h : l.lookup d = some cs) : (d, cs) ∈ l :=
   lookup_mem h
 
+/-- A sort that a value of a function sort fits is that sort. -/
+theorem fits_fn {sig : Sig} {s a : Nat} {as : List Nat} {r : Nat} (h : sig.fits s a = true)
+    (ha : sig.sorts[a]? = some (.fn as r)) : s = a := by
+  simp only [Sig.fits, Sig.is, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+  rcases h with h | ⟨_, h⟩
+  · exact h
+  · rw [ha] at h; cases h
+
+theorem chain_nil {e : Enc} : ∀ {fuel t b : Nat}, chain e fuel t = some (b, []) → b = t := by
+  intro fuel
+  induction fuel with
+  | zero => intro t b h; simp [chain] at h
+  | succ fuel _ =>
+    intro t b h
+    unfold chain at h
+    split at h
+    · split at h
+      · split at h
+        · simp only [Option.map_eq_some_iff] at h
+          obtain ⟨_, _, h⟩ := h
+          simp at h
+        · simp only [Option.some.injEq, Prod.mk.injEq] at h; exact h.1.symm
+      · simp only [Option.some.injEq, Prod.mk.injEq] at h; exact h.1.symm
+    · simp only [Option.some.injEq, Prod.mk.injEq] at h; exact h.1.symm
+
+/-- The sorts of a store's symbol: `store(a, i, v)` of an array sort. -/
+theorem store_sorts {P : Problem} {A : Answer} (hA : Accepted P A) {n : Nat} (hn : n ∈ P.stores) :
+    ∃ s0 arr idx el, P.sig.decls[n]? = some s0 ∧ P.sig.sorts[s0]? = some (.fn [arr, idx, el] arr) ∧
+      P.sig.sorts[arr]? = some (.fn [idx] el) := by
+  have hst := List.all_eq_true.mp hA.stores n hn
+  split at hst
+  · rename_i s0 hd
+    split at hst
+    · rename_i arr idx el arr' hs0
+      simp only [Bool.and_eq_true, beq_iff_eq] at hst
+      obtain ⟨rfl, harr⟩ := hst
+      exact ⟨s0, _, _, _, hd, hs0, harr⟩
+    · cases hst
+  · cases hst
+
+/-- A store node: the sorts of its symbol, and those of the node and of its
+    arguments, which fit them. -/
+theorem store_node {P : Problem} {A : Answer} (hA : Accepted P A) {t k a i v n : Nat}
+    (ht : P.nodes[t]? = some (.app k [a, i, v])) (hk : P.nodes[k]? = some (.const n)) (hn : n ∈ P.stores) :
+    ∃ s0 arr idx el, P.sig.decls[n]? = some s0 ∧ P.sig.sorts[s0]? = some (.fn [arr, idx, el] arr) ∧
+      P.sig.sorts[arr]? = some (.fn [idx] el) ∧ P.sort t = arr ∧ P.sig.fits (P.sort a) arr = true ∧
+      P.sig.fits (P.sort i) idx = true ∧ P.sig.fits (P.sort v) el = true := by
+  obtain ⟨s0, arr, idx, el, hd, hs0, harr⟩ := store_sorts hA hn
+  have tk := typed_node hA.typed hk
+  simp only [Tab.at_eq, nodeTyped, beq_iff_eq] at tk
+  rw [hd] at tk
+  have tt := typed_node hA.typed ht
+  simp only [Tab.at_eq, nodeTyped] at tt
+  rw [← Option.some.inj tk, hs0] at tt
+  simp only [Sig.allFit, Bool.and_true, Bool.and_eq_true, beq_iff_eq, List.map_cons, List.map_nil] at tt
+  obtain ⟨hsort, ha, hi, hv⟩ := tt
+  exact ⟨s0, arr, idx, el, hd, hs0, harr, hsort.symm, ha, hi, hv⟩
+
+theorem chain_cons_sort {P : Problem} {A : Answer} (hA : Accepted P A) {fuel t b i : Nat} {ws : List Nat}
+    (h : chain (P.enc A) fuel t = some (b, i :: ws)) :
+    ∃ arr idx el, P.sig.sorts[arr]? = some (.fn [idx] el) ∧ P.sort t = arr := by
+  cases fuel with
+  | zero => simp [chain] at h
+  | succ fuel =>
+    unfold chain at h
+    split at h
+    · rename_i k a i' v hk
+      split at h
+      · rename_i n hkn
+        split at h
+        · rename_i hn
+          have hk' : P.nodes[t]? = some (.app k [a, i', v]) := by simpa [Problem.enc] using hk
+          have hkn' : P.nodes[k]? = some (.const n) := by simpa [Problem.enc] using hkn
+          have hn' : n ∈ P.stores := by simpa [Problem.enc] using hn
+          obtain ⟨_, arr, idx, el, _, _, harr, hs, _⟩ := store_node hA hk' hkn' hn'
+          exact ⟨arr, idx, el, harr, hs⟩
+        · simp at h
+      · simp at h
+    · simp at h
+
 section
 variable {P : Problem} {A : Answer} (hA : Accepted P A) {M : Model R U} {size : Val R U → Nat}
   (hL : P.Laws M size) (hin : ∀ f ∈ P.inputs, holds M.toInterp P.nodes f)
@@ -839,6 +919,93 @@ include hA hL hrng
 
 theorem dom_of {i : Nat} (hi : i < P.nodes.length) : M.dom (P.sort i) (val M.toInterp P.nodes i) :=
   val_dom hL.sound hA.wf hA.typed hrng i hi
+
+/-- Read at an index that none of its stores writes, an array made by stores
+    reads as their base. -/
+theorem chain_read : ∀ (fuel t b : Nat) (ws : List Nat), chain (P.enc A) fuel t = some (b, ws) →
+    t < P.nodes.length → ∀ arr idx el, P.sig.sorts[arr]? = some (.fn [idx] el) → P.sort t = arr →
+    ∀ j, M.dom idx j → inRange P.bvIndex idx j → (∀ i ∈ ws, j ≠ val M.toInterp P.nodes i) →
+    M.app (val M.toInterp P.nodes t) [j] = M.app (val M.toInterp P.nodes b) [j] := by
+  intro fuel
+  induction fuel with
+  | zero => intro t b ws h; simp [chain] at h
+  | succ fuel ih =>
+    intro t b ws h ht arr idx el harr hsort j dj rj hne
+    unfold chain at h
+    split at h
+    · rename_i k a i v hk
+      split at h
+      · rename_i n hkn
+        split at h
+        · rename_i hn
+          simp only [Option.map_eq_some_iff] at h
+          obtain ⟨⟨b0, ws0⟩, hc, he⟩ := h
+          simp only [Prod.mk.injEq] at he
+          obtain ⟨rfl, rfl⟩ := he
+          have hk' : P.nodes[t]? = some (.app k [a, i, v]) := by simpa [Problem.enc] using hk
+          have hkn' : P.nodes[k]? = some (.const n) := by simpa [Problem.enc] using hkn
+          have hn' : n ∈ P.stores := by simpa [Problem.enc] using hn
+          obtain ⟨s0, arr', idx', el', hd, hs0, harr', hs', ha, hi, hv⟩ := store_node hA hk' hkn' hn'
+          have e1 : arr' = arr := hs'.symm.trans hsort
+          subst e1
+          rw [harr] at harr'
+          simp only [Option.some.injEq, SortDef.fn.injEq, List.cons.injEq, and_true] at harr'
+          obtain ⟨rfl, rfl⟩ := harr'
+          have la := child_lt hA.wf hk' (j := a) (by simp [Node.children])
+          have li := child_lt hA.wf hk' (j := i) (by simp [Node.children])
+          have lv := child_lt hA.wf hk' (j := v) (by simp [Node.children])
+          have lt := lt_of_node hk'
+          have da := dom_of hA hL hrng (i := a) (by omega)
+          have di := dom_of hA hL hrng (i := i) (by omega)
+          have dv := dom_of hA hL hrng (i := v) (by omega)
+          have ra := hrng a (by omega)
+          have ri := hrng i (by omega)
+          have rv := hrng v (by omega)
+          obtain ⟨da', -⟩ := dom_fit hL.sound ha da ra
+          obtain ⟨di', ri'⟩ := dom_fit hL.sound hi di ri
+          obtain ⟨dv', rv'⟩ := dom_fit hL.sound hv dv rv
+          have law := hL.store n hn' s0 _ _ _ hd hs0 harr _ _ _ _ da' di' dv' dj ri' rj rv'
+          have hji : j ≠ val M.toInterp P.nodes i := hne i (by simp)
+          rw [val_app hA.wf hk', val_const hA.wf hkn']
+          simp only [List.map_cons, List.map_nil]
+          rw [law.2 hji]
+          exact ih a b0 ws0 hc (by omega) _ _ _ harr (fits_fn ha harr) j dj rj
+            (fun i' hi' => hne i' (by simp [hi']))
+        · simp only [Option.some.injEq, Prod.mk.injEq] at h; rw [h.1]
+      · simp only [Option.some.injEq, Prod.mk.injEq] at h; rw [h.1]
+    · simp only [Option.some.injEq, Prod.mk.injEq] at h; rw [h.1]
+
+/-- Arrays from one base that agree where written are equal, given the
+    array sort of a node of their sort. -/
+theorem sameBaseOf {q f g fuel fuel' b : Nat} {ws ws' : List Nat} (hq : P.nodes[q]? = some (.eq f g))
+    (hf : chain (P.enc A) fuel f = some (b, ws)) (hg : chain (P.enc A) fuel' g = some (b, ws'))
+    (hall : ∀ i ∈ ws ++ ws', M.app (val M.toInterp P.nodes f) [val M.toInterp P.nodes i] =
+      M.app (val M.toInterp P.nodes g) [val M.toInterp P.nodes i])
+    {t : Nat} (hs : ∃ arr idx el, P.sig.sorts[arr]? = some (.fn [idx] el) ∧ P.sort t = arr)
+    (ht : P.sort t = P.sort f) (lf : f < P.nodes.length) (lg : g < P.nodes.length) :
+    val M.toInterp P.nodes f = val M.toInterp P.nodes g := by
+  have tq := typed_node hA.typed hq
+  simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, beq_iff_eq] at tq
+  have hfg : P.sort f = P.sort g := tq.2
+  obtain ⟨arr, idx, el, harr, hst⟩ := hs
+  have hsf : P.sort f = arr := ht.symm.trans hst
+  have hsg : P.sort g = arr := hfg.symm.trans hsf
+  have df := dom_of hA hL hrng lf
+  have dg := dom_of hA hL hrng lg
+  rw [hsf] at df
+  rw [hsg] at dg
+  apply hL.ext arr [idx] el _ _ harr df dg
+  intro xs hxs
+  match xs, hxs with
+  | [j], ⟨⟨dj, rj⟩, _⟩ =>
+    by_cases hj : ∃ i ∈ ws ++ ws', j = val M.toInterp P.nodes i
+    · obtain ⟨i, hi, rfl⟩ := hj
+      exact hall i hi
+    · have hne : ∀ i ∈ ws ++ ws', j ≠ val M.toInterp P.nodes i := fun i hi he => hj ⟨i, hi, he⟩
+      rw [chain_read hA hL hrng _ _ _ _ hf lf arr idx el harr hsf j dj rj
+          (fun i hi => hne i (List.mem_append_left _ hi)),
+        chain_read hA hL hrng _ _ _ _ hg lg arr idx el harr hsg j dj rj
+          (fun i hi => hne i (List.mem_append_right _ hi))]
 
 include hin hext hwr in
 theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
@@ -922,6 +1089,21 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
       · cases hst
     · cases hst
   ext k eq eqw ws h := hext k eq eqw ws h
+  sameBase q f g fuel fuel' b ws ws' hq hf hg hall := by
+    have hq' : P.nodes[q]? = some (.eq f g) := by simpa [Problem.enc] using hq
+    have lf := child_lt hA.wf hq' (j := f) (by simp [Node.children])
+    have lg := child_lt hA.wf hq' (j := g) (by simp [Node.children])
+    have lq := lt_of_node hq'
+    have tq := typed_node hA.typed hq'
+    simp only [Tab.at_eq, nodeTyped, Bool.and_eq_true, beq_iff_eq] at tq
+    have hfg : P.sort f = P.sort g := tq.2
+    cases ws with
+    | nil =>
+      cases ws' with
+      | nil => rw [← chain_nil hf, ← chain_nil hg]
+      | cons i ws' =>
+        exact sameBaseOf hA hL hrng hq' hf hg hall (chain_cons_sort hA hg) hfg.symm (by omega) (by omega)
+    | cons i ws => exact sameBaseOf hA hL hrng hq' hf hg hall (chain_cons_sort hA hf) rfl (by omega) (by omega)
   range n w h := hwr n w h
 
 end

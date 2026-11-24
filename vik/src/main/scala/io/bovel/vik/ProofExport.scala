@@ -534,8 +534,14 @@ private[vik] object ProofExport:
       case Encoder.Origin.Extensionality(ws) =>
         def at(f: Term): Term = ws.foldLeft(f)((t, w) => Term.App(t, List(w)))
         val negatives = clause.iterator.filter(!_.positive).map(meaningOf).toSet
-        clause.iterator.filter(_.positive).map(meaningOf).collectFirst {
-          case eq @ Formula.Eq(f, g) if negatives.contains(Formula.Eq(at(f), at(g))) => (eq, Formula.Eq(at(f), at(g)))
+        // either orientation: an equality has one atom for both
+        clause.iterator.filter(_.positive).map(meaningOf).flatMap {
+          case Formula.Eq(f, g) => Iterator(Formula.Eq(f, g), Formula.Eq(g, f))
+          case _ => Iterator.empty
+        }.collectFirst {
+          case eq @ Formula.Eq(f, g)
+              if negatives.contains(Formula.Eq(at(f), at(g))) || negatives.contains(Formula.Eq(at(g), at(f))) =>
+            (eq, Formula.Eq(at(f), at(g)))
         } match
           case Some((eq, eqw)) =>
             val k = exts.getOrElseUpdate(ws, (formula(eq), formula(eqw)))
@@ -543,10 +549,11 @@ private[vik] object ProofExport:
           case None => throw Unsupported("an extensionality instance without its equalities")
       case Encoder.Origin.WitnessRange(w, width) =>
         ranges += w
-        val lo = Formula.Le(Term.Num(0), w)
-        val hi = Formula.Le(w, Term.Num(BigInt(2).pow(width) - 1))
-        val f = if clause.exists(l => l.positive && meaningOf(l) == lo) then lo else hi
-        s".witnessRange ${formula(f)}"
+        val f = clause.iterator.filter(_.positive).map(meaningOf).collectFirst { case f: Formula => f }
+        s".witnessRange ${formula(f.getOrElse(throw Unsupported("a witness range without its bounds")))}"
+      case Encoder.Origin.SameBase(f, g, indices) =>
+        val ds = indices.map(i => formula(Formula.Eq(Term.App(f, List(i)), Term.App(g, List(i)))))
+        s".sameBase ${formula(Formula.Eq(f, g))} ${list(ds.map(_.toString))}"
       case Encoder.Origin.SortRange(_) =>
         val f = clause.iterator.filter(_.positive).map(meaningOf).collectFirst { case f: Formula => f }
         s".sortRange ${formula(f.getOrElse(throw Unsupported("a range without its bound")))}"
