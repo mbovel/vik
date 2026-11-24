@@ -288,7 +288,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
     case None => Left("no proof")
     case Some(_) =>
       val e = encoder.nn
-      e.certificate(inputs.toList ++ e.rangeInputs, simplified, proved._2.toList.sorted, surface)
+      e.certificate(inputs.toList, simplified, proved._2.toList.sorted, surface)
 
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
@@ -546,7 +546,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
               e.lastModel = null
               Result.Unknown(Reason.Model(failure))
       case cdclt.Solver.Result.Unsat =>
-        if proofs then proved = ((inputs ++ e.rangeInputs).toSet, assumed.iterator.map(_.variable).toSet)
+        if proofs then proved = (inputs.toSet, assumed.iterator.map(_.variable).toSet)
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }
         Result.Unsat
@@ -634,7 +634,8 @@ private object Encoder:
    *    - `ReadOverWrite`: the array axioms of a store;
    *    - `Extensionality`: two functions are equal or differ at fresh
    *      `witnesses`;
-   *    - `WitnessRange`: a bit-vector witness index is in its range.
+   *    - `WitnessRange`: a bit-vector witness index is in its range;
+   *    - `SortRange`: a term of a bit-vector sort is in its range.
    */
   enum Origin:
     case Definition
@@ -647,6 +648,7 @@ private object Encoder:
     case ReadOverWrite
     case Extensionality(witnesses: List[Term])
     case WitnessRange(witness: Term, width: Int)
+    case SortRange(term: Term)
 
 private final class Encoder(
     declarations: HashMap[String, (List[Sort], Sort)],
@@ -1011,16 +1013,12 @@ private final class Encoder(
                 // certificate gives as such (`WitnessRange`).
                 val width = (upper + 1).bitLength - 1
                 for b <- bounds do emit(Array(lit(b)), Encoder.Origin.WitnessRange(t, width))
-              case _ =>
-                // With proofs, an input: the range of the lowering of a node of the script.
-                if proofs then rangeInputs += Formula.And(bounds)
-                assert(Formula.And(bounds), null)
+              case _ if proofs =>
+                // What the sort of the term says, each bound a clause of its own (`SortRange`).
+                meet(Formula.And(bounds))
+                for b <- bounds do emit(Array(lit(b)), Encoder.Origin.SortRange(t))
+              case _ => assert(Formula.And(bounds), null)
           case _ => ()
-
-  /** With proofs, the ranges [[assertRanges]] asserted (see
-   *  [[Solver.certificate]]).
-   */
-  val rangeInputs = ArrayBuffer.empty[Formula]
 
   private val anyFiniteField =
     datatypes.exists(_.constructors.exists(_.selectors.exists((_, s) =>

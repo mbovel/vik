@@ -864,6 +864,9 @@ theorem enc_sound : (P.enc A).Sound M.toInterp (assign P A M.toInterp) where
   numeric i h := by
     simp only [Enc.numeric, Problem.enc, Tab.at_eq, Bool.and_eq_true, decide_eq_true_eq] at h
     exact dom_num_of_numeric hL.sound h.2 (dom_of hA hL hrng h.1)
+  sortRange t w ht h := by
+    simp only [Problem.enc] at h ht
+    exact hrng t ht w h
   exhaustive t cs ht h := by
     simp only [Problem.enc] at h ht
     exact hL.exhaust _ _ (lookup_mem h) _ (dom_of hA hL hrng ht)

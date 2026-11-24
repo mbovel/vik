@@ -547,6 +547,9 @@ private[vik] object ProofExport:
         val hi = Formula.Le(w, Term.Num(BigInt(2).pow(width) - 1))
         val f = if clause.exists(l => l.positive && meaningOf(l) == lo) then lo else hi
         s".witnessRange ${formula(f)}"
+      case Encoder.Origin.SortRange(_) =>
+        val f = clause.iterator.filter(_.positive).map(meaningOf).collectFirst { case f: Formula => f }
+        s".sortRange ${formula(f.getOrElse(throw Unsupported("a range without its bound")))}"
       case other => throw Unsupported(s"the origin $other")
 
     private def rrule(r: RRule): String = r match

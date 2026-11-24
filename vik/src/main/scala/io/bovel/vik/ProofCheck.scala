@@ -341,6 +341,17 @@ final class InputClauses(
         else
           ranges += ((w, width))
           ok(has(Le(Term.Num(0), w)) || has(Le(w, Term.Num(BigInt(2).pow(width) - 1))), "not the range of a witness")
+      case Encoder.Origin.SortRange(t) =>
+        // `0 ≤ t` or `t ≤ 2^n − 1`, for a term of a bit-vector sort of `n` bits.
+        sortOf(t) match
+          case bitVector(n) =>
+            ok(
+              has(Le(Term.Num(0), t)) || has(Le(t, Term.Num(BigInt(2).pow(n.nn.toInt) - 1))),
+              "not the range of its sort"
+            )
+          case s => Some(s"the range of $t, of sort $s")
+
+  private val bitVector = """\(_ BitVec (\d+)\)""".r
 
   /** The witnesses of the extensionality instances checked so far: the
    *  disequality and the index of each.

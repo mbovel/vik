@@ -142,6 +142,9 @@ inductive Origin where
   /-- `0 ≤ w` or `w ≤ 2ʷ - 1`, the formula `f`, for a witness `w` of a
       bit-vector index of width `w`. -/
   | witnessRange (f : Nat)
+  /-- `0 ≤ t` or `t ≤ 2ʷ - 1`, the formula `f`, for a node `t` of a sort of
+      bit-vectors of width `w`. -/
+  | sortRange (f : Nat)
   deriving Repr
 
 def Enc.numeric (e : Enc) (i : Nat) : Bool := i < e.nodes.length && e.sig.numeric ((Tab.at e.sortOf i).getD 0)
@@ -273,6 +276,20 @@ def inputOk (e : Enc) (c : Clause) : Origin → Bool
           match e.width n with
           | some w => v == 2 ^ w - 1
           | none => false
+        | _, _ => false
+      | _ => false
+  | .sortRange f =>
+    has e c f &&
+      match e.node f with
+      | some (.le a b) =>
+        match e.node a, e.node b with
+        | some (.num z), _ =>
+          z == 0 && decide (b < e.nodes.length) && (e.bvIndex.lookup ((Tab.at e.sortOf b).getD 0)).isSome
+        | _, some (.num v) =>
+          decide (a < e.nodes.length) &&
+            match e.bvIndex.lookup ((Tab.at e.sortOf a).getD 0) with
+            | some w => v == 2 ^ w - 1
+            | none => false
         | _, _ => false
       | _ => false
 
@@ -517,6 +534,9 @@ structure Enc.Sound (e : Enc) (I : Interp R U) (ρ : Assignment) : Prop where
   ext : ∀ (k eq eqw : Nat) (ws : List Nat), e.exts[k]? = some (eq, eqw, ws) → holds I e.nodes eq ∨ ¬holds I e.nodes eqw
   /-- The witnesses of bit-vector indices are in their range. -/
   range : ∀ n w, e.width n = some w → ∃ k : Int, I.const n = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
+  /-- The nodes of bit-vector sorts are in their range. -/
+  sortRange : ∀ t w, t < e.nodes.length → e.bvIndex.lookup (e.sortOf[t]?.getD 0) = some w →
+    ∃ k : Int, val I e.nodes t = .num (k : R) ∧ 0 ≤ k ∧ k < 2 ^ w
 
 theorem num_eq {I : Interp R U} {e : Enc} {ρ : Assignment} (hS : e.Sound I ρ) {a b : Nat}
     (ha : e.numeric a = true) (hb : e.numeric b = true)
@@ -816,6 +836,37 @@ theorem inputOk_sound {I : Interp R U} {e : Enc} {ρ : Assignment} (hw : wellFor
           subst h
           obtain ⟨k, hk, _, h1⟩ := hS.range n w hw'
           rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), val_const hw ((Enc.node_eq _ _).symm.trans ha), hk]
+          simp only [Val.toR]
+          exact cast_le (R := R) (by omega)
+        · cases h
+      · cases h
+    · cases h
+  | sortRange f =>
+    simp only [inputOk, Bool.and_eq_true] at h
+    obtain ⟨hf, h⟩ := h
+    apply nh hf
+    split at h
+    · rename_i a b hle
+      rw [holds_le hw ((Enc.node_eq _ _).symm.trans hle)]
+      split at h
+      · rename_i z _ ha
+        simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Option.isSome_iff_exists, Tab.at_eq] at h
+        obtain ⟨⟨rfl, hb⟩, w, hw'⟩ := h
+        obtain ⟨k, hk, h0, _⟩ := hS.sortRange b w hb hw'
+        rw [val_num hw ((Enc.node_eq _ _).symm.trans ha), hk]
+        simp only [Val.toR]
+        have := cast_le (R := R) h0
+        rw [Ring.intCast_zero] at this
+        simpa [Ring.intCast_zero] using this
+      · rename_i _ v hb _
+        simp only [Bool.and_eq_true, decide_eq_true_eq, Tab.at_eq] at h
+        obtain ⟨ha, h⟩ := h
+        split at h
+        · rename_i w hw'
+          simp only [beq_iff_eq] at h
+          subst h
+          obtain ⟨k, hk, _, h1⟩ := hS.sortRange a w ha hw'
+          rw [val_num hw ((Enc.node_eq _ _).symm.trans hb), hk]
           simp only [Val.toR]
           exact cast_le (R := R) (by omega)
         · cases h
