@@ -841,6 +841,7 @@ final class Parser:
   private def sortOf(sexpr: SExpr, env: Map[String, Sort]): Sort = sexpr match
     case SSymbol("true" | "false") => Sort.Bool
     case SList(SSymbol("!") :: body :: _) => sortOf(body, env)
+    case SList(SList(SSymbol("_") :: SSymbol("divisible") :: SNumeral(_) :: Nil) :: _ :: Nil) => Sort.Bool
     case SList(SSymbol(name) :: args) if scripted(name, env) =>
       macros.get(name).map(_._2).getOrElse(applied(functions(name), args.length))
     case SNumeral(_) => Sort.Int
@@ -943,6 +944,10 @@ final class Parser:
     case SList(SSymbol("or") :: args) => Or(args.map(formula(_, env)))
     case SList(SSymbol("=>") :: args) if args.length >= 2 => Implies(args.map(formula(_, env)))
     case SList(SSymbol("xor") :: args) if args.length >= 2 => Xor(args.map(formula(_, env)))
+    case SList(SList(SSymbol("_") :: SSymbol("divisible") :: SNumeral(n) :: Nil) :: t :: Nil) =>
+      // `((_ divisible n) t)` is `(= (mod t n) 0)`, for a positive `n` (issue 241).
+      if n.signum <= 0 then throw Smt2Error(s"(_ divisible $n): the divisor must be positive")
+      Eq(List(Term.ArithApp(ArithOp.Mod, List(term(t, env), Term.Numeral(n))), Term.Numeral(0)))
     case SList(SSymbol("=") :: args) if args.length >= 2 =>
       if sortOf(args.head, env) == Sort.Bool then Iff(args.map(formula(_, env)))
       else Eq(args.map(term(_, env)))

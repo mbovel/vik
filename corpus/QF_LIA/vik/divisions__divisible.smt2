@@ -1,0 +1,21 @@
+; Hand-written for VIK (this repository's license): `((_ divisible n) t)`, the predicate of SMT-LIB's integers,
+; which is `(= (mod t n) 0)` for a positive numeral `n`. VIK refused it as a term it could not type (issue
+; 241). z3 4.14 does not read it; cvc5 gives these answers.
+(set-logic QF_LIA)
+(declare-const x Int)
+(push 1)
+(assert ((_ divisible 3) x))
+(assert (= x 7))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+(assert ((_ divisible 3) (- x 2)))
+(assert (not ((_ divisible 6) x)))
+(assert (< 0 x 10))
+(set-info :status sat)
+(check-sat)
+(assert (not (= x 2)))
+(assert (not (= x 5)))
+(assert (not (= x 8)))
+(set-info :status unsat)
+(check-sat)
