@@ -36,6 +36,14 @@ class SExprTest extends munit.FunSuite:
       )
     )
 
+  test("a comment ends at a carriage return as at a line feed"):
+    // SMT-LIB 2.6, section 3.1: "the first subsequent line-breaking character, i.e., 10dec or 13dec". Read on to the
+    // line feed, the assertion after a bare carriage return was comment, and STP's test answered sat (issue 243).
+    assertEquals(
+      SExprParser.parse("(a) ; one\r(b)\n; two\r\n(c)"),
+      List(SList(List(SSymbol("a"))), SList(List(SSymbol("b"))), SList(List(SSymbol("c"))))
+    )
+
   test("the lexical classes of the literals"):
     assertEquals(
       SExprParser.parse("(12 1.05 #x1f #b0110)"),

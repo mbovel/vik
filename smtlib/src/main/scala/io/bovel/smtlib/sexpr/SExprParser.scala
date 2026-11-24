@@ -3,11 +3,11 @@ package io.bovel.smtlib.sexpr
 import scala.collection.mutable.ArrayBuffer
 
 /** Reads S-expressions with a regex lexer: tokens are parentheses, comments
- *  (`;` to the end of the line, skipped), `|quoted symbols|`, `"strings"` (with
- *  `""` for a quote) and runs of other non-space characters. The class is
- *  stateful — it consumes its input once, with one token of lookahead — so a
- *  parser is used for one input and thrown away; [[SExprParser.parse]] is the
- *  way in.
+ *  (`;` to the end of the line, at a line feed or a carriage return as SMT-LIB
+ *  2.6 section 3.1 says, skipped), `|quoted symbols|`, `"strings"` (with `""`
+ *  for a quote) and runs of other non-space characters. The class is stateful —
+ *  it consumes its input once, with one token of lookahead — so a parser is
+ *  used for one input and thrown away; [[SExprParser.parse]] is the way in.
  */
 private class SExprParser(input: String):
   import SExprParser.*
@@ -95,7 +95,7 @@ object SExprParser:
   // engine's, and Java's has the vertical tab where Scala Native's port of RE2 has not (issue 59). Any
   // other control character is a token of its own, which `classify` refuses, as z3 and cvc5 do.
   private val tokenRegex =
-    """;[^\n]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\x00-\x20()";|\x7F]+|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]""".r
+    """;[^\n\r]*|\|[^|]*\||"(?:[^"]|"")*"|[()]|[^\x00-\x20()";|\x7F]+|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]""".r
   private def show(token: String | Null) = if token == null then "end of input" else s"'$token'"
 
   /** Reads all the S-expressions of `input`. */
