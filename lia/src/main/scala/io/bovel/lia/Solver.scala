@@ -75,6 +75,12 @@ object Solver:
    */
   private final class Equation(val coefs: HashMap[Int, BigInt], var constant: BigInt, var reasons: Set[Int])
 
+  /** `x ≡ c (mod g)`: the values the integer equations in force leave to `x`
+   *  ([[Solver.integerEquations]]), with the bounds those equations hold by, as
+   *  the premises of the bounds moved onto the lattice.
+   */
+  private final class Lattice(val x: Int, val c: BigInt, val g: BigInt, val premises: Array[Bound])
+
   /** A set of variables with its smallest at hand: a binary min-heap. */
   private final class VarHeap:
     private var heap = new Array[Int](16)
@@ -823,6 +829,33 @@ final class Solver:
       past
     val open = ArrayBuffer.empty[Branch]
     var equationsChecked = !equationCheck
+    // What the equations leave to the bounded unknowns, once branch and bound has slid: for the rest of
+    // the check, since they hold by asserted bounds alone.
+    val lattices = ArrayBuffer.empty[Solver.Lattice]
+
+    /** Moves the bounds of each variable with a lattice onto it: `x ≥ 1` with
+     *  `x ≡ 0 (mod 4)` is `x ≥ 4`. A bound a branch sets is moved inside the
+     *  branch, and goes with it. A bound that moved is in `tightened`.
+     */
+    def align(): Result = boundary:
+      for lattice <- lattices do
+        val l = lower(lattice.x)
+        if l != null then
+          val v = l.value.ceil
+          val on = v + (lattice.c - v).mod(lattice.g)
+          if on > v then
+            assertBound(lattice.x, Bound(Delta(Rational(on)), -1, lattice.premises :+ l, reasons), false) match
+              case Result.Sat => ()
+              case unsat => break(unsat)
+        val u = upper(lattice.x)
+        if u != null then
+          val v = u.value.floor
+          val on = v - (v - lattice.c).mod(lattice.g)
+          if on < v then
+            assertBound(lattice.x, Bound(Delta(Rational(on)), -1, lattice.premises :+ u, reasons), true) match
+              case Result.Sat => ()
+              case unsat => break(unsat)
+      Result.Sat
 
     /** Decides the relaxation and splits on the first fractional unknown, or
      *  else on the first violated disequality.
@@ -835,15 +868,19 @@ final class Solver:
         // finds go when the branch does. Outside of one they would stay after the check, and the search went
         // another, longer way for them on the sessions measured.
         val swept = if sweep && x < numVars then propagateRows() else Result.Sat
-        if swept != Result.Sat then swept
+        val aligned = if swept == Result.Sat && lattices.nonEmpty then align() else swept
+        if aligned != Result.Sat then
+          tightened.clear()
+          aligned
         else if tightened.nonEmpty then step(false)
         else if x < numVars then
           // A second branch on an unknown is branch and bound sliding along it, maybe without end:
-          // the equations alone may have no integer solution.
+          // the equations alone may have no integer solution, or leave a bounded unknown fewer values.
           val sliding = !equationsChecked && open.exists(_.x == x)
-          val refuted = if sliding then integerEquations() else Result.Sat
+          val refuted = if sliding then integerEquations(lattices) else Result.Sat
           equationsChecked ||= sliding && refuted == Result.Sat // a refutation is found again on the other side
           if refuted != Result.Sat then refuted
+          else if sliding && lattices.nonEmpty then step(false) // the lattices found: onto them first
           else
             branches += 1
             val v = deltaValue(x)
@@ -1054,8 +1091,20 @@ final class Solver:
    *  divide its constant, and is then solved for a variable of coefficient ±1,
    *  after reducing the coefficients by the smallest one through a fresh
    *  variable until there is one.
+   *
+   *  Solvable equations still leave a variable fewer values than its bounds do,
+   *  and the paper's next step, tightening, says which: with every solved
+   *  variable replaced by what it was solved to, an unknown `x` satisfies
+   *  `m·x + Σ a·y = c` over variables `y` that are free, so `m·x ≡ c` modulo
+   *  the gcd of the `a`. That lattice goes to `lattices`, for the unknowns that
+   *  have a bound or a value to avoid, and [[check]] moves their bounds onto
+   *  it: `x ≥ 1` with `x ≡ 0 (mod 4)` is `x ≥ 4`. The relaxation is as blind to
+   *  `x = y + 4k`, `0 ≤ x, y ≤ 3`, `x ≠ y` as to the parity above, and branch
+   *  and bound walks `k` there: the residues of a number modulo `2^n`, which
+   *  the bit-vectors lower to. A lattice that holds by a branch is left out: it
+   *  goes when the branch does.
    */
-  private def integerEquations(): Result = boundary:
+  private def integerEquations(lattices: ArrayBuffer[Solver.Lattice]): Result = boundary:
     val solved = HashMap.empty[Int, Equation] // x ↦ the equation `x + … = c` it was solved from
     var fresh = numVars
     var work = 0
@@ -1100,14 +1149,48 @@ final class Solver:
       if isFixed(x) && mentioned.add(x) then
         val reasons = lower(x).nn.reasons ++ upper(x).nn.reasons
         eliminate(Equation(HashMap(x -> BigInt(1)), lower(x).nn.value.r.num, reasons))
-    for b <- 0 until numVars do
+    // The row of the basic `b` as an equation over the integers, `Σ l·a·x − l·b = 0`: none if a real is in it.
+    def ofRow(b: Var): Equation | Null =
       val row = rows(b)
-      if row != null && isInt(b) && !row.existsVar(x => !isInt(x)) then
+      if row == null || !isInt(b) || row.existsVar(x => !isInt(x)) then null
+      else
         val terms = (0 until row.size).map(i => (row.varAt(i), row.coefAt(i)))
         val l = terms.foldLeft(BigInt(1))((l, term) => l / (l gcd term._2.den) * term._2.den)
-        if l != 1 || isFixed(b) then // l·b = Σ l·a·x, then what the bounds fix among its variables
-          eliminate(Equation(HashMap.from(terms.map((x, a) => (x, a.num * (l / a.den)))) += b -> -l, 0, Set.empty))
-          (b +: terms.map(_._1)).foreach(fix)
+        Equation(HashMap.from(terms.map((x, a) => (x, a.num * (l / a.den)))) += b -> -l, 0, Set.empty)
+    for b <- 0 until numVars do
+      val equation = ofRow(b)
+      if equation != null && (equation.coefs(b) != -1 || isFixed(b)) then
+        eliminate(equation) // l·b = Σ l·a·x, then what the bounds fix among its variables
+        val row = rows(b).nn
+        fix(b)
+        for i <- 0 until row.size do fix(row.varAt(i))
+    // The lattices. A row left out above defines its variable, and is where that variable's lattice starts.
+    val avoiding = HashSet.from(distinct.iterator.map(_._1))
+    for x <- 0 until numVars if isInt(x) && !isFixed(x) && (lower(x) != null || upper(x) != null || avoiding(x)) do
+      val start = solved.getOrElse(x, ofRow(x))
+      if start != null then
+        val equation = Equation(start.coefs.clone(), start.constant, start.reasons)
+        var y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
+        while y.nonEmpty do // minus a times `y + rest = c`, as `eliminate` rewrites
+          val by = solved(y.get)
+          val a = equation.coefs(y.get)
+          work += by.coefs.size
+          if work > Solver.equationWork then break(Result.Sat)
+          for (z, b) <- by.coefs do
+            val sum = equation.coefs.getOrElse(z, BigInt(0)) - a * b
+            if sum == 0 then equation.coefs -= z else equation.coefs(z) = sum
+          equation.constant -= a * by.constant
+          equation.reasons ++= by.reasons
+          y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
+        val m = equation.coefs.getOrElse(x, BigInt(0))
+        val g = equation.coefs.iterator.collect { case (z, a) if z != x => a }.foldLeft(BigInt(0))(_ gcd _)
+        if m != 0 && g > 1 then // m·x ≡ c (mod g), which is x ≡ c' (mod g / d) for d = gcd(m, g)
+          val d = m.abs gcd g
+          if equation.constant % d != 0 then break(Result.Unsat(equation.reasons))
+          if g / d > 1 && equation.reasons.forall(_ >= 0) then // a branch's reason is negative
+            val c = ((equation.constant / d) * (m / d).modInverse(g / d)).mod(g / d)
+            val premises = equation.reasons.toArray.map(r => Bound(Delta.zero, r, Array.empty, reasons))
+            lattices += Solver.Lattice(x, c, g / d, premises)
     Result.Sat
 
   /** Repairs the basic variables violating their bounds, smallest first, by
