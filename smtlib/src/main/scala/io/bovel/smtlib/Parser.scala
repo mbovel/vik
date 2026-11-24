@@ -110,10 +110,12 @@ final class Parser:
     case SList(SSymbol("set-logic") :: SSymbol(logic) :: Nil) => List(Command.SetLogic(logic))
     case SList(SSymbol("set-info") :: SKeyword(key) :: value :: Nil) => List(Command.SetInfo(s":$key", value.toString))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: SNumeral(arity) :: Nil) =>
+      newSorts(List(name))
       undoable(declaredSorts, name)
       declaredSorts(name) = index(arity)
       List(Command.DeclareSort(name, index(arity)))
     case SList(SSymbol("declare-sort") :: SSymbol(name) :: Nil) =>
+      newSorts(List(name))
       undoable(declaredSorts, name)
       declaredSorts(name) = 0
       List(Command.DeclareSort(name, 0))
@@ -127,6 +129,7 @@ final class Parser:
       // body that leads back to the name would expand without end at each use (issue 177).
       if leadsTo(body, names.toSet, name, Set.empty) then
         throw Smt2Error(s"unknown sort $name in its own definition (define-sort $name)")
+      newSorts(List(name))
       undoable(sortDefinitions, name)
       sortDefinitions(name) = (names, body)
       Nil
@@ -136,14 +139,17 @@ final class Parser:
     case SList(SSymbol("declare-const") :: SSymbol(name) :: s :: Nil) => declare(name, Nil, s)
     case SList(SSymbol("declare-datatype") :: SSymbol(name) ::
           SList(SSymbol("par") :: SList(params) :: SList(constructors) :: Nil) :: Nil) =>
+      newSorts(List(name))
       template(name, params, constructors)
       Nil
     case SList(SSymbol("declare-datatype") :: SSymbol(name) :: SList(constructors) :: Nil) =>
+      newSorts(List(name))
       List(declareDatatypes(List((name, constructors))))
     case SList(SSymbol("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil)
         if names.exists { case SList(_ :: SNumeral(n) :: Nil) if n == 0 => false; case _ => true } =>
       // Parametric: each declaration is `(par (params) (constructors))`, a template instantiated on use.
       // A monomorphic member is named up front: an earlier member's field may mention it.
+      newSorts(names.collect { case SList(SSymbol(name) :: _) => name })
       for case SList(SSymbol(name) :: SNumeral(n) :: Nil) <- names if n == 0 do
         undoable(datatypeNames, name)
         datatypeNames += name
@@ -158,7 +164,7 @@ final class Parser:
                 SList(SSymbol(name) :: SNumeral(_) :: Nil),
                 SList(constructors)
               ) => // a monomorphic member of the group
-            command(SList(List(SSymbol("declare-datatype"), SSymbol(name), SList(constructors)))).foreach(pending += _)
+            pending += declareDatatypes(List((name, constructors)))
           case other => throw Smt2Error(s"bad datatype declaration $other")
       Nil
     case SList(SSymbol("declare-datatypes") :: SList(names) :: SList(declarations) :: Nil) =>
@@ -168,6 +174,7 @@ final class Parser:
       }
       if sorts.length != declarations.length then
         throw Smt2Error("declare-datatypes: as many declarations as sorts expected")
+      newSorts(sorts)
       List(declareDatatypes(sorts.zip(declarations.map {
         case SList(constructors) => constructors
         case other => throw Smt2Error(s"bad constructor list $other")
@@ -294,6 +301,30 @@ final class Parser:
   private def free(name: String): Unit =
     if Parser.reserved(name) then throw Smt2Error(s"$name: a reserved word; pick another name")
     if instanceSymbols(name) then throw Smt2Error(s"$name: the symbol of an instance; pick another name")
+    unused(name)
+
+  /** Refuses a function symbol the script has already, as SMT-LIB asks of a
+   *  declaration: the second would replace the first. A constructor `a` of two
+   *  datatypes belonged to the second alone, and the first, left with no
+   *  constructor of its own, had one value where it has many (issue 230).
+   */
+  private def unused(name: String): Unit =
+    if functions.contains(name) || macros.contains(name) || polymorphic.contains(name) then
+      throw Smt2Error(s"$name: a symbol declared twice")
+
+  /** Refuses datatypes with a constructor or a selector named like a symbol of
+   *  the script, or two of them named alike (`constructors`: the ones of every
+   *  datatype the command declares). Within one datatype, [[distinct]] has
+   *  refused two constructors and two selectors of one name before.
+   */
+  private def newSymbols(constructors: List[SExpr]): Unit =
+    val names = constructors.flatMap {
+      case SList(SSymbol(constructor) :: selectors) =>
+        constructor :: selectors.collect { case SList(SSymbol(selector) :: _) => selector }
+      case _ => Nil
+    }
+    names.foreach(unused)
+    for name <- names.diff(names.distinct).headOption do throw Smt2Error(s"$name: a symbol declared twice")
 
   private def declare(name: String, args: List[SExpr], s: SExpr): List[Command] =
     free(name)
@@ -514,6 +545,7 @@ final class Parser:
    */
   private def declareDatatypes(declarations: List[(String, List[SExpr])]): Command =
     for (name, constructors) <- declarations do distinct(name, constructors)
+    newSymbols(declarations.flatMap(_._2))
     for (name, _) <- declarations do // named first: the fields read below may mention them, and instantiate
       undoable(datatypeNames, name)
       datatypeNames += name
@@ -536,6 +568,20 @@ final class Parser:
     datatypes.foreach(register)
     datatypes.foreach(fields)
     Command.DeclareDatatypes(datatypes)
+
+  /** Refuses a command that names a sort like one the script has already, or
+   *  two of its own sorts alike, as z3 and cvc5 do (issue 176): the second
+   *  declaration would replace the first, whose constructors then belong to no
+   *  datatype, and a script with no assertion was `unsat`. The names are the
+   *  script's: `Int` is free to declare in a logic without the integers.
+   */
+  private def newSorts(names: List[String]): Unit =
+    val taken = names.find(name =>
+      declaredSorts.contains(name) || datatypeNames(name) || templates.contains(name)
+        || sortDefinitions.contains(name)
+    )
+    for name <- taken.orElse(names.diff(names.distinct).headOption) do
+      throw Smt2Error(s"$name: a sort declared twice")
 
   /** Refuses a datatype that declares a constructor or a selector twice, as z3
    *  and cvc5 do (issue 146): the second declaration would replace the first, a
@@ -593,6 +639,7 @@ final class Parser:
   private def template(name: String, params: List[SExpr], constructors: List[SExpr]): Unit =
     val ps = params.map { case SSymbol(p) => p; case other => throw Smt2Error(s"bad sort parameter $other") }
     distinct(name, constructors)
+    newSymbols(constructors)
     undoable(templates, name)
     templates(name) = (ps, constructors)
     val self = SList(SSymbol(name) :: ps.map(SSymbol(_)))
