@@ -20,6 +20,15 @@
 (set-info :status unsat)
 (check-sat)
 (pop 1)
+; A divisor that folds to zero is one: a difference of literals, a definition, a `let`. A divisor that is a
+; term is a division by an unknown, non-linear, and refused (z3 refuses it in a linear logic too).
+(push 1)
+(define-fun zero () Real 0.0)
+(assert (or (not (= (/ x (- 1.0 1.0)) (/ x 0.0))) (not (= (/ x zero) (/ x 0.0)))
+            (let ((z 0.0)) (not (= (/ x z) (/ x 0.0))))))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
 (assert (= y (/ x 0.0)))
 (assert (> y (+ x 1.0)))
 (assert (< (/ (/ x 0.0) 2.0) 5.0))
