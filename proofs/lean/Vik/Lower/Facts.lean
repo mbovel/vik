@@ -195,6 +195,10 @@ theorem le_holds {a b : Shape} {A B : Int} (ha : (a.ev I ρ').toR = (A : R)) (hb
     (h : A ≤ B) : ((Shape.le a b).ev I ρ').truth = true := by
   simp only [Shape.ev, truth_bool, ha, hb, decide_eq_true_eq]; exact cast_le_iff.mpr h
 
+theorem lt_holds {a b : Shape} {A B : Int} (ha : (a.ev I ρ').toR = (A : R)) (hb : (b.ev I ρ').toR = (B : R))
+    (h : A < B) : ((Shape.lt a b).ev I ρ').truth = true := by
+  simp only [Shape.ev, truth_bool, ha, hb, decide_eq_true_eq]; exact cast_lt_iff.mpr h
+
 theorem and2_holds {a b : Shape} (ha : (a.ev I ρ').truth = true) (hb : (b.ev I ρ').truth = true) :
     ((Shape.and [a, b]).ev I ρ').truth = true := by
   simp only [Shape.ev, Shape.allTrue, truth_bool, ha, hb, Bool.and_true]
@@ -1074,8 +1078,8 @@ theorem ruleFacts_truth (hex : ExactSpec SP P tr Ms) {r : Rule} {aux : Nat} {fs 
           refine implies_of_right MI ρ (and2_holds MI ρ ?_ ?_)
           · refine eqI_holds MI ρ (ev_same_num MI ρ eA) (ev_lin_add hwP eaux er) ?_
             have := Int.mul_ediv_add_emod A B; omega
-          · refine le_holds MI ρ (ev_num1 MI ρ er 1) (ev_same_num MI ρ eB) ?_
-            have := Int.emod_lt_of_pos A (show 0 < B by omega); omega
+          · refine lt_holds MI ρ (ev_same_num MI ρ er) (ev_same_num MI ρ eB) ?_
+            exact Int.emod_lt_of_pos A (show 0 < B by omega)
         · cases hq
 
 include hM hw ht hwP htP hG hML hrng hco in

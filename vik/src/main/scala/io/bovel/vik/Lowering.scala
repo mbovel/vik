@@ -1052,10 +1052,9 @@ private final class Lowerer:
         val r = freshInt("r", 0, m - 1)
         val zero = IntEq(b, Num(0))
         define(Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a)))))
-        // `Lt` with proofs, the form [[LoweringCheck]] replays; upstream's `Less` without
         define(Implies(
           Not(zero),
-          And(List(IntEq(a, exactProduct(b, q, width) + r), if tracing then Lt(r, b) else Less(r, b)))
+          And(List(IntEq(a, exactProduct(b, q, width) + r), Less(r, b)))
         ))
         trace("udiv", List(Term.linear(List((BigInt(1), a), (m, b))), m, m), List(q, r), List(a, b, width))
         (q, r)

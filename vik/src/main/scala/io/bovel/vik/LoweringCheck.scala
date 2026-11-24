@@ -233,7 +233,7 @@ final class LoweringCheck:
         int(r, 0, m - 1)
         val zero = IntEq(b, Num(0))
         facts += Implies(zero, And(List(IntEq(q, Num(m - 1)), IntEq(r, a))))
-        facts += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, w) + r), Lt(r, b))))
+        facts += Implies(Not(zero), And(List(IntEq(a, exactProduct(b, q, w) + r), Less(r, b))))
       case ("sdivide", List(t: Term, w: Int, d: BigInt, floor: Boolean), Nil) if d.signum > 0 =>
         arity(2)
         val half = modulus(w - 1)

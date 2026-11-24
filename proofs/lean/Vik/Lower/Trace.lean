@@ -556,7 +556,7 @@ def Rule.facts (ks : List Nat) (aux : Nat) : Rule → List Shape
     intS q 0 (2 ^ w - 1) ++ intS r 0 (2 ^ w - 1) ++
       [.implies zero (.and [eqI (.same q) (.num [] (2 ^ w - 1)), eqI (.same r) (.same a)]),
         .implies (.not zero)
-          (.and [eqI (.same a) (.num ((lin P.nodes aux).1 ++ [(r, 1)]) (lin P.nodes aux).2), .le (.num [(r, 1)] 1) (.same b)])]
+          (.and [eqI (.same a) (.num ((lin P.nodes aux).1 ++ [(r, 1)]) (lin P.nodes aux).2), .lt (.same r) (.same b)])]
 
 /-- Whether node `x` is `signed(t, w)`: the constant, or the `cases` tagged
     `signed`. -/

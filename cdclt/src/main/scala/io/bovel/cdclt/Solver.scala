@@ -331,17 +331,28 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   /** The clause explaining the assignment of `lit`: `lit` at index 0, then the
    *  negations of the literals that implied it, which are all false.
    */
-  private def reasonClause(lit: Lit): Array[Lit] =
+  private def reasonClause(lit: Lit): Array[Lit] = reasonClause(lit, false)
+
+  /** The reason of `lit`, its explanation asked again of the theory unless
+   *  `cached` and the proof has one: conflict analysis asks again, as it does
+   *  without a proof, since the explanation may change with the theory's state
+   *  and the search follows it. A new explanation is a new lemma.
+   */
+  private def reasonClause(lit: Lit, cached: Boolean): Array[Lit] =
     val why = reason(lit.variable)
     if why != FromTheory then clauses(why)
     else
       val p = proof
       if p == null then theoryClause(lit)
-      else if reasonStep(lit.variable) >= 0 then p.steps(reasonStep(lit.variable)).clause
       else
-        val clause = theoryClause(lit)
-        reasonStep(lit.variable) = p.add(Proof.Step.Lemma(clause.clone(), theory.certificate()))
-        clause
+        val step = reasonStep(lit.variable)
+        if cached && step >= 0 then p.steps(step).clause
+        else
+          val clause = theoryClause(lit)
+          if step >= 0 && p.steps(step).clause.sameElements(clause) then p.steps(step).clause
+          else
+            reasonStep(lit.variable) = p.add(Proof.Step.Lemma(clause.clone(), theory.certificate()))
+            clause
 
   /** The proof, when the solver was asked for one (`proofs`): the clauses, the
    *  theory lemmas and the derivations so far, and the conclusion of the last
@@ -380,12 +391,12 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
     while todo.nonEmpty do
       val v = todo.remove(todo.length - 1)
       if unitStep(v) < 0 && needed.add(v) then
-        for l <- reasonClause(Lit(v, value(Lit(v).index) > 0)) if l.variable != v do todo += l.variable
+        for l <- reasonClause(Lit(v, value(Lit(v).index) > 0), true) if l.variable != v do todo += l.variable
     // In trail order: a unit's reason only has variables assigned before it.
     for lit <- trail.iterator.takeWhile(l => level(l.variable) == 0) if needed(lit.variable) do
       val v = lit.variable
       val hints = ArrayBuffer.empty[Int]
-      for l <- reasonClause(lit) if l.variable != v do hints += unitStep(l.variable)
+      for l <- reasonClause(lit, true) if l.variable != v do hints += unitStep(l.variable)
       hints += reasonId(v)
       unitStep(v) = p.add(Proof.Step.Derived(Array(lit), hints.distinct.toArray))
     vars.map(unitStep(_))
@@ -436,81 +447,10 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       if logging then resolved.nn += reasonId(p.variable)
       first = 1
     learned(0) = p.neg
-    // Minimization, with a proof: drop the literals that the others imply through clause reasons, for
-    // shorter proofs. Not without: it changes the search, which loses files of the corpus.
-    val implied =
-      if logging then
-        seen(p.variable) = true
-        minimize(learned, seen, zeros)
-      else ArrayBuffer.empty[Var]
-    if logging then
-      // A literal dropped is derived by its reason, and so is each literal those reasons use that
-      // the clause lacks: their reasons come first, in trail order, which is their order of propagation.
-      val position = scala.collection.mutable.HashMap.empty[Var, Int]
-      if implied.nonEmpty then
-        val wanted = implied.toSet
-        for i <- trail.indices if wanted(trail(i).variable) do position(trail(i).variable) = i
-      val extra = implied.sortBy(position(_)).map(reasonId)
-      learnedHints = (units(zeros.nn).toArray ++ extra ++ resolved.nn.reverseIterator).distinct
+    if logging then learnedHints = (units(zeros.nn).toArray ++ resolved.nn.reverseIterator).distinct
     for l <- learned.drop(1) do bump(l.variable)
     val backjump = if learned.length == 1 then 0 else learned.tail.map(l => level(l.variable)).max
     (learned.toArray, backjump)
-
-  /** Recursive minimization (MiniSat's): drops from `learned` each literal past
-   *  the first whose reason clause holds only literals of `learned` (marked in
-   *  `seen`), of level 0, or themselves implied so. Returns the variables
-   *  implied this way, those dropped among them, and adds the level-0 variables
-   *  met to `zeros`. Theory reasons are not explained for it, and a decision is
-   *  never implied.
-   */
-  private def minimize(
-      learned: ArrayBuffer[Lit],
-      seen: Array[Boolean],
-      zeros: scala.collection.mutable.HashSet[Var] | Null
-  ): ArrayBuffer[Var] =
-    val failed = new Array[Boolean](varCount)
-    val implied = ArrayBuffer.empty[Var]
-    // Whether `v`'s literal follows from the clause; marks what it uses as seen.
-    def redundant(v: Var): Boolean =
-      val stack = ArrayBuffer(v)
-      val added = ArrayBuffer(v)
-      val zs = ArrayBuffer.empty[Var]
-      var ok = true
-      while ok && stack.nonEmpty do
-        val w = stack.remove(stack.length - 1)
-        val clause = clauses(reason(w))
-        var i = 1
-        while ok && i < clause.length do
-          val u = clause(i).variable
-          if level(u) == 0 then
-            // A level-0 theory literal not explained yet may be explained by later literals, which
-            // the proof's unit clauses cannot use.
-            if zeros != null && reason(u) == FromTheory && unitStep(u) < 0 && reasonStep(u) < 0 then ok = false
-            else zs += u
-          else if !seen(u) then
-            if reason(u) >= 0 && !failed(u) then
-              seen(u) = true
-              added += u
-              stack += u
-            else ok = false
-          i += 1
-      if ok then
-        implied ++= added
-        if zeros != null then zeros ++= zs
-      else
-        // `v` stays seen: it is in the clause.
-        for u <- added.iterator.drop(1) do
-          seen(u) = false
-          failed(u) = true
-      ok
-    var j = 1
-    for i <- 1 until learned.length do
-      val q = learned(i)
-      if reason(q.variable) < 0 || !redundant(q.variable) then
-        learned(j) = q
-        j += 1
-    learned.dropRightInPlace(learned.length - j)
-    implied
 
   private def backtrack(to: Int): Unit =
     while decisionLevel > to do
