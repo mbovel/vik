@@ -1,0 +1,13 @@
+; From bitwuzla: get-interpolant/murxla-58cf094fd84cdb.min.smt2 (MIT, LICENSES/bitwuzla.txt)
+; ignore output
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
+(set-option :produce-interpolants 1)
+(set-option :rewrite-level 0)
+;(set-option :pp-variable-subst true)
+(declare-const x Bool)
+(assert (! x :named a1))
+(assert (distinct x true))
+(set-info :status unsat)
+(check-sat)
+(get-interpolant (a1))

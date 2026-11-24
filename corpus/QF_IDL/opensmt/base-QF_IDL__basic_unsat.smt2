@@ -1,0 +1,8 @@
+; From opensmt: base/QF_IDL/basic_unsat.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_IDL)
+(declare-fun b () Int)
+(set-info :status unsat)
+(assert (and (< 0 b) (< b 1)))
+(set-info :status unsat)
+(check-sat)
+(exit)

@@ -1,0 +1,11 @@
+; From bitwuzla: parser/reset_status.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-info :status sat)
+(set-logic QF_BV)
+(set-info :status sat)
+(check-sat)
+(reset)
+; the status is reset, too
+(set-logic QF_BV)
+(assert false)
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,8 @@
+; From opensmt: base/QF_UFLRA/regression_7.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UFLRA)
+(set-info :status sat)
+(declare-fun A () Real)
+(declare-fun c (Real) Real)
+(assert (and (= (c 0.0) A) (= A 1.0)))
+(set-info :status sat)
+(check-sat)

@@ -1,0 +1,6 @@
+; From opensmt: base/QF_LRA/div_simplification.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(assert (and false false false false false (or (= 0.0 (* (/ 0 3000) 0.0)) false) false))
+(set-info :status unsat)
+(check-sat)
+(exit)

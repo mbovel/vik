@@ -1,0 +1,8 @@
+; From yices2: wd/issue289b.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_AUFLIA)
+(declare-fun _substvar_17_ () (Array Int Bool))
+(declare-fun _substvar_18_ () (Array Int Bool))
+(declare-const arr0 (Array Int Bool))
+(assert (= (store arr0 37 (not (select arr0 37))) arr0 _substvar_18_ arr0 _substvar_17_))
+(set-info :status unsat)
+(check-sat)

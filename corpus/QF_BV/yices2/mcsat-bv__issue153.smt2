@@ -1,0 +1,8 @@
+; From yices2: mcsat/bv/issue153.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_BV)
+(declare-fun x () (_ BitVec 8))
+(declare-fun y () (_ BitVec 8))
+(declare-fun z () (_ BitVec 8))
+(assert (let ((e9 (bvmul y z))) (let ((e17 (bvmul e9 x))) (let ((e22 (bvsrem (_ bv0 8) e17))) (let ((e167 (not (= e22 (_ bv0 8))))) e167)))))
+(set-info :status unsat)
+(check-sat)

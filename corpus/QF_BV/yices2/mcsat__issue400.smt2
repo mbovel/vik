@@ -1,0 +1,7 @@
+; From yices2: mcsat/issue400.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic ALL)
+(declare-fun v () (_ BitVec 1))
+(declare-fun a () Int)
+(assert (distinct (= 0 a) (= v (_ bv1 1))))
+(set-info :status sat)
+(check-sat)

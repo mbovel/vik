@@ -1,0 +1,7 @@
+; From opensmt: base/QF_LRA/simple_startup_3nodes.abstract.base_simplified.1.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun v1 () Real)
+(assert (<= v1 (+ v1 (* (- 1) 3))))
+(set-info :status unsat)
+(check-sat)
+(exit)

@@ -1,0 +1,6 @@
+; From yices2: mcsat/uf/issue317.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_UF)
+(declare-fun P (Bool Bool) Bool)
+(assert (P true false))
+(set-info :status sat)
+(check-sat)

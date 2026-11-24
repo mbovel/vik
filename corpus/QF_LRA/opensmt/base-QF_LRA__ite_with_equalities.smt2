@@ -1,0 +1,13 @@
+; From opensmt: base/QF_LRA/ite_with_equalities.smt2 (MIT, LICENSES/opensmt.txt)
+(set-info :status unsat)
+(set-logic QF_LRA)
+(declare-fun x8 () Real)
+(declare-fun x7 () Real)
+(declare-fun x9 () Real)
+(assert (and
+	(= x7 (ite (= x8 0) x8 0))
+	(not (= x7 0))
+))
+(set-info :status unsat)
+(check-sat)
+(exit)

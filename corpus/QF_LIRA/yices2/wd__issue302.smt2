@@ -1,0 +1,8 @@
+; From yices2: wd/issue302.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_LIRA)
+(declare-const i8 Int)
+(declare-const r11 Real)
+(assert (<= 0.0 r11))
+(assert (= (to_real i8) 0.9125 r11))
+(set-info :status unsat)
+(check-sat)

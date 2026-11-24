@@ -1,0 +1,28 @@
+; From yices2: bv/incr-cadical-l0-cursor.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; Tests level-0 cursor handling across multiple solves.
+; Generates long clauses at level 0 via complex comparisons, then
+; interleaves level-0 and level-1 check-sats to exercise the
+; fwd_clauses[0] cursor across potential simplify_clause_database calls.
+(set-logic QF_BV)
+(declare-fun x () (_ BitVec 16))
+(declare-fun y () (_ BitVec 16))
+(assert (bvult x #x8000))
+(assert (bvult y #x8000))
+(assert (bvult x y))
+(set-info :status sat)
+(check-sat)
+(push 1)
+(assert (= x #x0001))
+(set-info :status sat)
+(check-sat)
+(pop 1)
+(assert (bvugt x #x0000))
+(set-info :status sat)
+(check-sat)
+(push 1)
+(assert (= y #x7fff))
+(set-info :status sat)
+(check-sat)
+(pop 1)
+(set-info :status sat)
+(check-sat)

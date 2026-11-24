@@ -1,0 +1,21 @@
+; From yices2: mcsat/uf/issue621_non_risky_merge_after_diseq.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_AUFLIA, the smallest the script fits, for ALL (prune logic)
+(set-logic QF_AUFLIA)
+(declare-fun f () (Array Int Bool))
+(declare-fun g () (Array Int Bool))
+(declare-fun h () (Array Int Bool))
+
+(assert (distinct f g))
+(set-info :status sat)
+(check-sat)
+
+(push 1)
+(assert (= f h))
+(assert (= h g))
+(set-info :status unsat)
+(check-sat)
+(pop 1)
+
+(set-info :status sat)
+(check-sat)
+(exit)

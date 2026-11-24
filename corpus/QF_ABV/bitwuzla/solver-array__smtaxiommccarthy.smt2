@@ -1,0 +1,11 @@
+; From bitwuzla: solver/array/smtaxiommccarthy.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_ABV, the smallest the script fits, for QF_AUFBV (prune logic)
+(set-info :status unsat)
+(set-logic QF_ABV)
+(declare-fun i () (_ BitVec 32))
+(declare-fun j () (_ BitVec 32))
+(declare-fun v () (_ BitVec 8))
+(declare-fun a () (Array (_ BitVec 32) (_ BitVec 8)))
+(assert (not (= (select (store a i v) j) (ite (= i j) v (select a j)))))
+(check-sat)
+

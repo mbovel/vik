@@ -1,0 +1,6 @@
+; From opensmt: base/QF_RDL/empty.smt2 (MIT, LICENSES/opensmt.txt)
+(set-option :produce-model 1)
+(set-info :status sat)
+(set-logic QF_RDL)
+(set-info :status sat)
+(check-sat)

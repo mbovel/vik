@@ -1,0 +1,6 @@
+; From opensmt: base/QF_ALIA/purification.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_ALIA)
+(declare-fun a () (Array Int Int))
+(assert (<= 0 (select a 0)))
+(set-info :status sat)
+(check-sat)

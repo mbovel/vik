@@ -1,0 +1,5 @@
+; From yices2: wd/issue406.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_LRA)
+(set-info :status sat)
+(check-sat)
+(get-value (0.0 (- 1.0)))

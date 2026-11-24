@@ -1,0 +1,8 @@
+; From opensmt: base/incremental/push_test2.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(set-info :status sat)
+(check-sat)
+(assert false)
+(set-info :status unsat)
+(check-sat)
+(exit)

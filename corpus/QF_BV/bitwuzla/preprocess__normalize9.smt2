@@ -1,0 +1,8 @@
+; From bitwuzla: preprocess/normalize9.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_BV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const T (_ BitVec 1))
+(declare-fun T1 () (_ BitVec 8))
+(assert (= (_ bv0 32) (bvadd ((_ zero_extend 24) T1) ((_ zero_extend 24) T1) ((_ zero_extend 24) T1) ((_ zero_extend 31) T) (bvshl ((_ zero_extend 24) T1) (_ bv8 32)))))
+(check-sat)

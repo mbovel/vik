@@ -1,0 +1,11 @@
+; From opensmt: base/QF_LIA/regression/lia_nosubst.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(declare-fun x () Int)
+(declare-fun y () Int)
+(declare-fun a () Bool)
+
+(assert (= (* 3 x) (* 4 y)))
+(assert (=> a (= x 1)))
+(assert (=> (not a) (= x 1)))
+(set-info :status unsat)
+(check-sat)

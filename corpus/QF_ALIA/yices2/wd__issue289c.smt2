@@ -1,0 +1,6 @@
+; From yices2: wd/issue289c.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_ALIA)
+(declare-const arr0 (Array Int Bool))
+(assert (= (store arr0 59 (not (select arr0  59))) arr0))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,6 @@
+; From opensmt: pipe/positive/quoted-symbol.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun |X)| () Real)
+(set-info :status sat)
+(check-sat)
+(exit)

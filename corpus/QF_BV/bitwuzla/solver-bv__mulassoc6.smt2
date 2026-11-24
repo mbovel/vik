@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/mulassoc6.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-info :status unsat)
+(set-logic QF_BV)
+(declare-fun a () (_ BitVec 6))
+(declare-fun b () (_ BitVec 6))
+(declare-fun c () (_ BitVec 6))
+(assert (not (= (bvmul a (bvmul b c)) (bvmul (bvmul a b) c))))
+(check-sat)

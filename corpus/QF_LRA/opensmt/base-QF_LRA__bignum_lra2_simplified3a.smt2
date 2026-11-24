@@ -1,0 +1,7 @@
+; From opensmt: base/QF_LRA/bignum_lra2_simplified3a.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun v3 () Real)
+(assert (= v3 (* (/ 1 120030) v3)))
+(set-info :status sat)
+(check-sat)
+(exit)

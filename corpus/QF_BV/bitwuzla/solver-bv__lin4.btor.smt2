@@ -1,0 +1,7 @@
+; From bitwuzla: solver/bv/lin4.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const v0 (_ BitVec 4))
+(declare-const v1 (_ BitVec 4))
+(assert (= #b1 (ite (= (bvnot (bvadd (bvmul (bvnot v1) (_ bv2 4)) (bvmul (bvnot v0) (_ bv3 4)))) (_ bv1 4)) #b1 #b0)))
+(check-sat)

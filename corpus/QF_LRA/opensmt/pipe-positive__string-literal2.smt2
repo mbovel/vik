@@ -1,0 +1,6 @@
+; From opensmt: pipe/positive/string-literal2.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(set-option :foo "|bar)")
+(get-option :foo)
+(set-info :status sat)
+(check-sat)

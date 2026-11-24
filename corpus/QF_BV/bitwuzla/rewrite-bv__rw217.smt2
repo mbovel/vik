@@ -1,0 +1,8 @@
+; From bitwuzla: rewrite/bv/rw217.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-fun x () (_ BitVec 4))
+(declare-fun y () (_ BitVec 4))
+(assert (distinct (bvand (concat #x0 x) (concat y #x0)) #x00))
+(check-sat)
+(exit)

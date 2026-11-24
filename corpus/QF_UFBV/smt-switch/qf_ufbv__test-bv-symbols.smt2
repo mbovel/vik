@@ -1,0 +1,13 @@
+; From smt-switch: qf_ufbv/test-bv-symbols.smt2 (BSD-3-Clause, LICENSES/smt-switch.txt)
+(set-logic QF_UFBV)
+(set-option :incremental true)
+; bv1 and bv2 are symbols; only an indexed bvN, as in (_ bv1 4), is a literal
+(declare-const bv1 (_ BitVec 4))
+(declare-fun bv2 ((_ BitVec 4)) (_ BitVec 4))
+(assert (= (bv2 bv1) (_ bv1 4)))
+(set-info :status sat)
+(check-sat)
+(assert (= bv1 (_ bv10 4)))
+(assert (= (bv2 #xa) #x0))
+(set-info :status unsat)
+(check-sat)

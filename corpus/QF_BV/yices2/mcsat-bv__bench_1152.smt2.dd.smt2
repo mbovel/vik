@@ -1,0 +1,8 @@
+; From yices2: mcsat/bv/bench_1152.smt2.dd.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_BV)
+(declare-fun x0 () (_ BitVec 32))
+(declare-fun x1 () (_ BitVec 32))
+(assert (let ((?v_32 (bvadd (bvmul (bvsub (_ bv0 32) (_ bv48 32)) x0) (_ bv0 32)))) (and true (not (= x1 (_ bv0 32))) true (= (_ bv0 32) ?v_32) (= ?v_32 x1))))
+(set-info :status unsat)
+(check-sat)
+(exit)

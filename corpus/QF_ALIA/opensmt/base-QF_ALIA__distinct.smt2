@@ -1,0 +1,8 @@
+; From opensmt: base/QF_ALIA/distinct.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_ALIA)
+(set-info :status unsat)
+(declare-fun a () (Array Int Int))
+(declare-fun i () Int)
+(assert (distinct i (select (store a i i) i)))
+(set-info :status unsat)
+(check-sat)

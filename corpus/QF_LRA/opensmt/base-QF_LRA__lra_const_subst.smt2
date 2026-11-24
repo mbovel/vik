@@ -1,0 +1,6 @@
+; From opensmt: base/QF_LRA/lra_const_subst.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(declare-fun x () Real)
+(assert (and (= x 0) (or (> x 0) (<= x 0))))
+(set-info :status sat)
+(check-sat)

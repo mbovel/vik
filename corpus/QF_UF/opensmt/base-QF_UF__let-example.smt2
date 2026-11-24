@@ -1,0 +1,13 @@
+; From opensmt: base/QF_UF/let-example.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun v0 () U)
+(declare-fun v1 () U)
+(declare-fun b0 () Bool)
+(assert (and
+    (let ((?e0 (= v0 v1))) (let ((?d1 (not b0)))
+        (or ?e0 ?d1)))
+    (let ((?e0 (distinct v0 v1))) (let ((?d1 b0))
+        (or ?e0 ?d1)))))
+(set-info :status sat)
+(check-sat)

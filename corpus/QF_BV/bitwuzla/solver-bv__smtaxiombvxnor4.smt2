@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/smtaxiombvxnor4.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-fun s () (_ BitVec 4))
+(declare-fun t () (_ BitVec 4))
+(assert (not (= (bvxnor s t) (bvor (bvand s t) (bvand (bvnot s) (bvnot t))))))
+(check-sat)
+(exit)

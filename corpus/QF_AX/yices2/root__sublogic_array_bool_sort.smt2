@@ -1,0 +1,12 @@
+; From yices2: sublogic_array_bool_sort.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; Only 4 arrays from Bool to Bool exist: unsat in an array logic with arithmetic
+; logic: QF_AX, the smallest the script fits, for QF_ALIA (prune logic)
+(set-logic QF_AX)
+(declare-fun a1 () (Array Bool Bool))
+(declare-fun a2 () (Array Bool Bool))
+(declare-fun a3 () (Array Bool Bool))
+(declare-fun a4 () (Array Bool Bool))
+(declare-fun a5 () (Array Bool Bool))
+(assert (distinct a1 a2 a3 a4 a5))
+(set-info :status unsat)
+(check-sat)

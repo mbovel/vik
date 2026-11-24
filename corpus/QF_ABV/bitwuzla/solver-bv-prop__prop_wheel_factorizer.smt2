@@ -1,0 +1,7 @@
+; From bitwuzla: solver/bv/prop/prop_wheel_factorizer.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_ABV, the smallest the script fits, which set none (prune logic)
+(set-logic QF_ABV)
+(set-info :status sat)
+(declare-const x (_ BitVec 2))
+(declare-const x2 (Array (_ BitVec 2) (_ BitVec 2)))
+(check-sat-assuming ((bvslt (_ bv0 2) x) (bvslt (bvurem x (select x2 (_ bv0 2))) (_ bv1 2))))

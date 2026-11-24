@@ -1,0 +1,8 @@
+; From opensmt: base/generic/multi_push.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(declare-fun v19 () Bool)
+(push 4)
+(pop 1)
+(pop 1)
+(set-info :status sat)
+(check-sat)

@@ -1,0 +1,6 @@
+; From yices2: mcsat/bool/assumptions/iss674.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_LRA, the smallest the script fits, for QF_NRA (prune logic)
+(set-logic QF_LRA)
+(declare-const p Bool)
+(set-info :status unsat)
+(check-sat-assuming (p (not p)))

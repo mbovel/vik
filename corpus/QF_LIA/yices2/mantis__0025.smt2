@@ -1,0 +1,17 @@
+; From yices2: mantis/0025.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_LIA, the smallest the script fits, for QF_UFLIA (prune logic)
+(set-option :produce-assignments true)
+(set-logic QF_LIA)
+(declare-fun I () Int)
+(declare-fun B0 () Bool)
+(declare-fun B1 () Bool)
+(assert (and
+ (=> (= I 3) (= B0 true))
+ (=> (not (distinct I 1 3)) (= B1 false))
+ (=> (not (distinct I 1 2)) (= B1 false))
+ (=> (not (distinct I 0 2)) (= B1 false))
+ ))
+(set-info :status sat)
+(check-sat)
+(exit)
+

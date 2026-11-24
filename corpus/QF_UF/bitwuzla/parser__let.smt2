@@ -1,0 +1,6 @@
+; From bitwuzla: parser/let.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_UF, the smallest the script fits, which set none (prune logic)
+(set-logic QF_UF)
+(set-info :status unsat)
+(assert (let ((.def_0 (let ((.def_0 (_ bv0 10))) false))) .def_0))
+(check-sat)

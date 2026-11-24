@@ -1,0 +1,8 @@
+; From opensmt: base/QF_UF/test-tl-ite-unsat.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_UF)
+(declare-fun c () Bool)
+(declare-fun a () Bool)
+(set-info :status unsat)
+(assert (ite c (and (ite c a (not a)) (not c)) (and a c)))
+(set-info :status unsat)
+(check-sat)

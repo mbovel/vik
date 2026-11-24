@@ -1,0 +1,5 @@
+; From opensmt: base/QF_LRA/LRA_test2.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LRA)
+(assert (> (- 1 2) 0))
+(set-info :status unsat)
+(check-sat)

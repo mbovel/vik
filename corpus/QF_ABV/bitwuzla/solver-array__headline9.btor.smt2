@@ -1,0 +1,7 @@
+; From bitwuzla: solver/array/headline9.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_ABV)
+(set-info :status sat)
+(declare-const a0 (Array (_ BitVec 16) (_ BitVec 32) ))
+(declare-const a1 (Array (_ BitVec 16) (_ BitVec 32) ))
+(assert (= #b1 (ite (distinct a0 a1) #b1 #b0)))
+(check-sat)

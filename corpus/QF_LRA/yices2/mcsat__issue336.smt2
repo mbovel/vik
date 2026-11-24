@@ -1,0 +1,7 @@
+; From yices2: mcsat/issue336.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+; logic: QF_LRA, the smallest the script fits, for QF_NIRA (prune logic)
+(set-logic QF_LRA)
+(declare-fun r2 () Real)
+(assert (is_int r2))
+(set-info :status sat)
+(check-sat)

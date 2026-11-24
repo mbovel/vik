@@ -1,0 +1,8 @@
+; From bitwuzla: solver/bv/smtaxiombvuge6.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-fun s () (_ BitVec 6))
+(declare-fun t () (_ BitVec 6))
+(assert (not (= (bvuge s t) (or (bvult t s) (= s t)))))
+(check-sat)
+(exit)

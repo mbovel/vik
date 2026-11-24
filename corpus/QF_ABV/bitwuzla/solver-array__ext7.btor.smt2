@@ -1,0 +1,8 @@
+; From bitwuzla: solver/array/ext7.btor.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_ABV)
+(set-info :status unsat)
+(declare-const a0 (Array (_ BitVec 8) (_ BitVec 8) ))
+(declare-const a1 (Array (_ BitVec 8) (_ BitVec 8) ))
+(declare-const a2 (Array (_ BitVec 8) (_ BitVec 8) ))
+(assert (= #b1 (bvnot (bvor (bvnot (bvand (ite (= a0 a1) #b1 #b0) (ite (= a1 a2) #b1 #b0))) (ite (= a0 a2) #b1 #b0)))))
+(check-sat)

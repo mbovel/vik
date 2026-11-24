@@ -1,0 +1,6 @@
+; From yices2: mantis/0028.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_BV)
+(declare-fun x () (_ BitVec 64))
+(assert (= x (bvlshr (_ bv0 64) (bvmul (_ bv0 64) (_ bv8 64)))))
+(set-info :status sat)
+(check-sat)

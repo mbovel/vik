@@ -1,0 +1,8 @@
+; From bitwuzla: solver/array/regrarray10.smt2 (MIT, LICENSES/bitwuzla.txt)
+; logic: QF_AX, the smallest the script fits, for QF_AFP (prune logic)
+(set-logic QF_AX)
+(declare-fun a () (Array Bool (Array Bool Bool)))
+(assert (= a (store a true (store (select a false) false true))))
+(assert (= (select (select a true) false) false))
+(set-info :status unsat)
+(check-sat)
