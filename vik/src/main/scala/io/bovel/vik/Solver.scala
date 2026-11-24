@@ -1595,8 +1595,11 @@ private final class Encoder(
         case _ => ()
       registeredTerms += 1
 
-  /** The simplex's value of a registered shared term in its current solution:
-   *  an integer, or a real at the δ of `real`.
+  /** The simplex's value of a term in its current solution, an integer, or a
+   *  real at the δ of `real`: a term with a variable, or a linear term over
+   *  such terms. The final check and the model both take their numbers from
+   *  here. Every operand of a linear term with a class has its variable (see
+   *  [[classOfNew]]).
    */
   private def numericValue(term: Term, real: lia.Var => lia.Rational): lia.Rational = term match
     case Term.Num(value) => lia.Rational(value)
@@ -1719,12 +1722,13 @@ private final class Encoder(
    *  element per e-class; a datatype class becomes its constructor term.
    */
   private def takeModel(): Model =
+    val real = liaSolver.realValues() // one δ for every real of the model, as the final check takes them
     val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
     for (t, x) <- intVars do
       classes.get(t).foreach { c =>
-        if sortOf(t) == Sort.Real then realClassValues(eg.find(c)) = liaSolver.realValue(x)
+        if sortOf(t) == Sort.Real then realClassValues(eg.find(c)) = real(x)
         else classValues(eg.find(c)) = liaSolver.value(x)
       }
     // A numeral values its class too: a term equated with one by congruence alone (a constructor's
@@ -1742,7 +1746,7 @@ private final class Encoder(
     // A simplex value can appear in the model even if its term has no e-class.
     lazy val usedRealIntegers =
       val withoutClass = intVars.iterator.collect {
-        case (t, x) if !classes.contains(t) && sortOf(t) == Sort.Real => liaSolver.realValue(x)
+        case (t, x) if !classes.contains(t) && sortOf(t) == Sort.Real => real(x)
       }
       HashSet.from((realClassValues.valuesIterator ++ withoutClass).filter(_.isInteger).map(_.num))
     // Give free numeric classes distinct values. Start past the known integers and 0 (issue 26),
@@ -1758,10 +1762,6 @@ private final class Encoder(
       )
     def freshReal(root: EClassId): lia.Rational =
       realClassValues.getOrElseUpdate(root, lia.Rational(freshInt(root)))
-    def asRational(value: Term): lia.Rational = value match
-      case Term.Num(v) => lia.Rational(v)
-      case Term.App(Term.Const("/"), List(Term.Num(p), Term.Num(q))) => lia.Rational(p) / lia.Rational(q)
-      case _ => lia.Rational.zero
     val arrayValues = HashMap.empty[EClassId, Term] // an array's value per e-class (see arrayValue)
     val arraysBeingValued = scala.collection.mutable.HashSet.empty[EClassId] // against a cycle of stores or of fields
     // The value of a datatype class with no constructor node: none of its testers holds, so none is
@@ -1910,10 +1910,8 @@ private final class Encoder(
     def valueOfTerm(t: Term, sort: Sort): Term =
       (t, sort) match
         case (Term.Num(_), _) => t // a literal argument of an application
-        case (Term.Linear(terms, c), _) => // a linear argument or index: computed from its terms (issue 24)
-          Model.rationalTerm(terms.foldLeft(lia.Rational(c)) { case (sum, (a, u)) =>
-            sum + lia.Rational(a) * asRational(valueOfTerm(u, sortOf(u)))
-          })
+        case (Term.Linear(_, _), _) => // a linear argument or index: computed from its terms (issue 24)
+          Model.rationalTerm(numericValue(t, real))
         case (_, s) if s.arrow.isDefined => // an array: the element of an array of arrays
           if classes.contains(t) then arrayValue(classOf(t), s)
           else Model.constArray(s, valueOfTerm(Term.Const("@default"), applied(s, 1)))
@@ -1922,7 +1920,7 @@ private final class Encoder(
             .orElse(classes.get(t).map(c => Term.Num(freshInt(eg.find(c)))))
             .getOrElse(Term.Num(0))
         case (_, Sort.Real) =>
-          intVars.get(t).map(x => Model.rationalTerm(liaSolver.realValue(x)))
+          intVars.get(t).map(x => Model.rationalTerm(real(x)))
             .orElse(classes.get(t).map(c => Model.rationalTerm(freshReal(eg.find(c)))))
             .getOrElse(Term.Num(0))
         case _ =>
@@ -1939,7 +1937,7 @@ private final class Encoder(
     // when nothing else reads the field, where a fresh number made `x = (mk (+ a 1))` false (issue 137).
     // The fresh numbers drawn from here on are past these values as well.
     for case (t @ Term.Linear(_, _), c) <- classes do
-      val v = asRational(valueOfTerm(t, sortOf(t)))
+      val v = numericValue(t, real)
       if sortOf(t) == Sort.Real then realClassValues.getOrElseUpdate(eg.find(c), v)
       else classValues.getOrElseUpdate(eg.find(c), v.num)
       nextFresh = nextFresh.max(v.floor + 1)
