@@ -17,13 +17,14 @@ import io.bovel.lia
  *  afresh into a [[cdclt.Solver]] (Tseitin encoding, one CDCL(T) variable per
  *  distinct atom and per compound subformula) with a [[UfTheory]] over an
  *  [[io.bovel.egraph.EGraph]] for the equalities and a [[LiaTheory]] over a
- *  [[lia.Solver]] for the bounds. The theories are combined over the shared
- *  numeric terms — the ones under uninterpreted functions or compared by
- *  equality: every pair of shared terms that can meet gets its equality as an
- *  atom of both theories, and the SAT solver decides the arrangement (Nelson
- *  and Oppen; see `Encoder.shareIntegers`). Typed first-order integer problems
- *  add pairs when a candidate model disagrees. Eager pairing handles the other
- *  inputs.
+ *  [[lia.Solver]] for the bounds. The theories are combined by the model
+ *  (model-based theory combination, de Moura and Bjørner 2008): a candidate of
+ *  the search is checked against its model, which gives every e-class one value
+ *  and every function one result per argument values, and where it does not,
+ *  the equality between two shared terms that would make it is added and the
+ *  search goes on (see `Encoder.modelDisagreements`). The equalities between
+ *  two stores, which the search needs from the start, are the exception (see
+ *  `Encoder.pairStores`).
  */
 final class Solver(val simplify: Boolean = true):
   enum Result:
@@ -416,16 +417,16 @@ final class Solver(val simplify: Boolean = true):
     val e = encoder.nn
     e.produceModels = produceModels || checkModels
     val activations = named.flatten.toList.map((name, formula) => (name, e.activate(formula)))
-    // The passes feed one another — a shared array pair gets a witness, the witness an index, the index
-    // new store lemmas and new shared selects — so they run to a fixpoint of the emitted clauses.
+    // The passes feed one another — a pair of stores gets a witness, the witness an index, the index
+    // new store lemmas and new selects — so they run to a fixpoint of the emitted clauses.
     // The loop asks `keepGoing` like a step of the search: the array lemmas of a file can run past any
     // fuel, and a check-sat over its deadline must end, not run on in a thread the caller gave up on.
     // One round can too, and the passes ask from inside (see `Encoder.step`).
     // The Boolean terms are decided in the loop, first: deciding one encodes the terms inside it,
     // a `store` in a Boolean argument among them, which the passes of the same round then see
     // (issue 17). The loop measures the terms decided as well as the clauses, since a round that
-    // registers a Boolean and emits nothing else is not done; and the function equalities, since the
-    // sharing makes one per pair of arrays without a clause, and its witness is the next round's
+    // registers a Boolean and emits nothing else is not done; and the function equalities, since
+    // `pairStores` makes one per pair of stores without a clause, and its witness is the next round's
     // (issue 133).
     var emitted = -1
     var decided = -1
@@ -440,7 +441,7 @@ final class Solver(val simplify: Boolean = true):
       e.applicationLemmas()
       e.arrayLemmas()
       e.assertSorts()
-      e.shareIntegers()
+      e.pairStores()
     if !settled then
       // Stopped short of the fixpoint: clauses are missing, and a search over the rest could answer
       // sat without them (issue 38).
@@ -560,11 +561,9 @@ private final class Encoder(
   private val classes = HashMap.empty[Term, EClassId]
   private val terms = ArrayBuffer.empty[Term] // the terms of `classes`, in the order they arrived: for the passes
   private val unranged = ArrayBuffer.empty[Term] // the terms of an integer range, as they arrive (see assertSorts)
-  private val equalities = ArrayBuffer.empty[Formula] // the equality atoms, as they are encoded (see shareIntegers)
   // The applications among `terms` by their function, and the stores among them, both in arrival order.
   private val applications = HashMap.empty[Term, ArrayBuffer[Term.App]]
   private val storeTerms = ArrayBuffer.empty[Term.App]
-  private val noApplications = ArrayBuffer.empty[Term.App]
   private val sorts = HashMap.empty[Term, Sort] // the sorts of terms, memoized: asked for every term, many times
   private val adt = if datatypes.isEmpty then None else Some(AdtRules())
 
@@ -687,7 +686,7 @@ private final class Encoder(
 
   /** Only a term its sort does not already say is one is kept: the set is then
    *  empty on a script that declares its constants, and its growth, which makes
-   *  [[shareIntegers]] start over, is rare.
+   *  [[registerShared]] start over, is rare.
    */
   private var anyNoted = false
   private def noteInt(t: Term): Unit =
@@ -701,132 +700,23 @@ private final class Encoder(
 
   private def isFun(t: Term): Boolean = sortOf(t).arrow.isDefined
 
-  /** Theory combination: an `Int` term gets an e-class only when it occurs
-   *  under an uninterpreted function or a constructor, or is compared by `Eq`;
-   *  such shared terms are leaves for the e-graph and variables for the LIA
-   *  solver. For every pair of them that can meet — arguments of the same
-   *  function at the same position, applications of the same function, the
-   *  sides of an equality atom, a selector's applications and its field in
-   *  constructor applications: the only equalities the e-graph uses or makes —
-   *  this makes their equality atom (the one the e-graph propagates by
-   *  congruence) an atom of the LIA theory too, the equality of their
-   *  difference to 0: the SAT solver then decides an arrangement of the shared
-   *  terms that both theories accept, which is a model of both (Nelson and
-   *  Oppen; both theories are stably infinite).
-   */
-  private val sharedPairs = scala.collection.mutable.HashSet.empty[(Term, Term)]
-
-  /** What [[shareIntegers]] has seen: a session asks check after check of a
-   *  problem that grows (two per round of unfolding, on Stainless's), and
-   *  meeting every term with every other at each is quadratic in the session.
-   *  So the pass makes only the pairs with a term or an equality that arrived
-   *  since the last one. It makes them in the order the terms arrived, not the
-   *  one a hash table gives them: the atoms, their variables and their rows are
-   *  numbered in it, and the search follows the numbers. A term newly known as
-   *  an integer changes what the earlier ones share: the pass then starts over
-   *  (the pairs already made are not made again).
-   */
-  private var sharedTerms = 0 // the terms of `terms` seen
-  private var sharedEqualities = 0 // the equalities of `equalities` seen
-  private var sharedNoted = 0 // the size of `intTerms` then
-
-  def shareIntegers(): Unit = if anyInt || anyArray || anyNoted || anyStore() then
-    val pairs = ArrayBuffer.empty[(Term, Term)] // the pairs this call is first to meet
-    val arrayPairs = ArrayBuffer.empty[(Term, Term)] // function-sorted pairs: their equality atom, for extensionality
-    // A numeric pair is the final check's (see arithmeticDisagreements), and so is an array pair (see
-    // modelDisagreements), but for two stores'.
-    def pair(a: Term, b: Term, stores: Boolean = false): Unit =
-      step()
-      if checkedPair(a, b) then ()
-      else if a != b && isInt(a) && isInt(b) && sortOf(a).arrow.isEmpty && sortOf(b).arrow.isEmpty
-        && !sharedPairs((b, a)) && sharedPairs.add((a, b))
-      then pairs += ((a, b))
-      else if a != b && sortOf(a).arrow.isDefined && sortOf(b).arrow.isDefined && stores
-        && !sharedPairs((b, a)) && sharedPairs.add((a, b))
-      then arrayPairs += ((a, b))
-    if sharedNoted != intTerms.size then
-      sharedNoted = intTerms.size
-      sharedTerms = 0
-      sharedEqualities = 0
-    val fresh = scala.collection.mutable.HashSet.empty[Term] // the terms that arrived since the last pass
-    val freshFuns =
-      scala.collection.mutable.LinkedHashSet.empty[Term] // and the functions of the applications among them
-    while sharedTerms < terms.length do
-      val t = terms(sharedTerms)
-      fresh += t
-      t match
-        case a: Term.App => freshFuns += a.fun
-        case _ => ()
-      sharedTerms += 1
-    // An application with an integer or an array, as its value or among its arguments, can share; the
-    // others have nothing to. Two arrays under the same function meet here too, whatever the function
-    // gives: equal by extensionality, their applications are equal by congruence (issue 39).
-    def shares(a: Term.App): Boolean = isInt(a) || isFun(a) || a.args.exists(x => isInt(x) || isFun(x))
-    def pairApplications(a: Term.App, b: Term.App): Unit =
-      // The array pairs of two stores stay: the arrangement of the store chains, which the search
-      // needs. Left to the final check, `wchains002se` went from 0.4 s to no answer in 30 s.
-      val stores = a.fun match
-        case Term.Const(name) => Names.isStore(name)
-        case _ => false
-      pair(a, b, stores)
-      for (x, y) <- a.args.zip(b.args) do pair(x, y, stores)
-    def meetNewPairs(
-        relevant: Array[Term.App],
-        arrived: Array[Int],
-        meet: (Term.App, Term.App) => Unit
-    ): Unit =
-      var from = 0
-      var i = 0
-      while i < relevant.length && from < arrived.length do
-        val a = relevant(i)
-        if arrived(from) == i then
-          from += 1
-          var j = i + 1
-          while j < relevant.length do
-            meet(a, relevant(j))
-            j += 1
-        else
-          var k = from
-          while k < arrived.length do
-            meet(a, relevant(arrived(k)))
-            k += 1
-        i += 1
-    if fresh.nonEmpty then
-      for fun <- freshFuns do
-        val relevant = applications(fun).iterator.filter(shares).toArray
-        val arrived = relevant.indices.filter(i => fresh(relevant(i))).toArray // increasing
-        meetNewPairs(relevant, arrived, pairApplications)
-    // The reads of two arrays the search may equate meet in the final check's rows, keyed by the class of
-    // the array (see arithmeticDisagreements): no pass pairs them here.
-    // Not the equalities of the application lemmas: paired, they would be the problem's, each with
-    // a witness, the map and the arrays read there, and the integers there shared in turn. One the
-    // problem states later arrives again (see `lit`).
-    while sharedEqualities < equalities.length do
-      equalities(sharedEqualities) match
-        case eq @ Formula.Eq(a, b) if !lemmaEqualities(eq) => pair(a, b)
-        case _ => ()
-      sharedEqualities += 1
-    for (a, b) <- pairs do
-      linkArithmeticEquality(lit(Formula.Eq(a, b)), a, b)
-    // An equality atom per pair of function-sorted shared terms — two arrays under the same function can
-    // meet, and the atom's extensionality witness (with the store lemmas at it) decides whether they do:
-    // the entailed disjunction of the classic Stump-Barrett-Dill-Levitt example.
-    // Sharing needs the witness even if an application lemma introduced the atom first (issue 135).
-    for (a, b) <- arrayPairs do lit(Formula.Eq(a, b))
-
-  private def linkArithmeticEquality(e: Lit, a: Term, b: Term): Unit =
+  private def linkArithmeticEquality(e: Lit, a: Term, b: Term, late: Boolean = false): Unit =
     // The atom is the two bounds when true; when false, the disequality is a choice of the SAT solver
     // between the two sides, `a − b ≤ −1` or `a − b ≥ 1`, as a clause over bound atoms — not a
     // disequality the LIA solver decides by branching, without learning, at every value the
-    // relaxation lands on (hundreds of them on `wisas`).
+    // relaxation lands on (hundreds of them on `wisas`). Linked late, the atom may be decided for
+    // good already, and the theory would not hear of it again: its two bounds when true are clauses.
     def equalOrApart(x: lia.Var, c: BigInt): Unit =
-      liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
       // Below `c` and above it. Over the integers that is `≤ c − 1` and `> c`, which leaves nothing
       // between; over the reals it has to be the strict bound `< c`, or the clause forbids the open
       // band `(c − 1, c)` and forces two shared terms less than one apart to be equal (issue 8).
       val below = if liaSolver.isInteger(x) then bound(x, c - 1, false) else bound(x, c, true)
       val above = bound(x, c, false)
       clauses += Array(e, below, above.neg)
+      if !late then liaAtoms(e.variable) = LiaTheory.Atom.Equal(x, c)
+      else
+        clauses += Array(e.neg, above)
+        clauses += Array(e.neg, below.neg)
       // Over the reals the two sides are bounds on the same constant, and `< c` implies `≤ c`: said
       // here, the search does not have to reach the theory to find that out.
       if !liaSolver.isInteger(x) then clauses += Array(below.neg, above)
@@ -868,7 +758,7 @@ private final class Encoder(
           recordFunctionEqualities = false
           clauses += Array(lit(Formula.Eq(a.fun, s)).neg, lit(Formula.Eq(a, applied)))
           recordFunctionEqualities = true
-    // An application equated with an integer term is one, and conversely (for the sharing).
+    // An application equated with an integer term is one, and conversely (for the final check).
     var changed = true
     while changed do
       changed = false
@@ -1054,13 +944,12 @@ private final class Encoder(
 
   /** Makes the fields of a finite sort that the model of the last `sat` needs
    *  terms of the encoder, and tells whether there were any. As terms, they get
-   *  what their sorts say ([[assertSorts]]) and meet one another
-   *  ([[shareIntegers]]), so their values are among their sorts': a tester that
-   *  holds expands its term into the constructor over the term's fields,
-   *  whatever the term's own sort, and nothing else bounds them. Two terms
-   *  built by one constructor over a field of sort `Unit` stayed apart, against
-   *  the one value of `Unit` (issue 125), and three over a field of one bit
-   *  (issue 126).
+   *  what their sorts say ([[assertSorts]]) and meet one another in the final
+   *  check, so their values are among their sorts': a tester that holds expands
+   *  its term into the constructor over the term's fields, whatever the term's
+   *  own sort, and nothing else bounds them. Two terms built by one constructor
+   *  over a field of sort `Unit` stayed apart, against the one value of `Unit`
+   *  (issue 125), and three over a field of one bit (issue 126).
    *
    *  The fields only take models away, so they are made after a `sat`, which is
    *  then searched again with them, and an `unsat` found without them stands.
@@ -1109,9 +998,9 @@ private final class Encoder(
     if sortOf(term) == Sort.Bool && booleanClasses.add(classOf(term)) then booleans += term
 
   /** Whether some term is an integer, some application takes or gives an array
-   *  (two arrays under the same function are a pair to share, with or without
-   *  an integer or a `store` around: issue 133), or some equality is between
-   *  functions (arrays): the passes over all the terms of [[shareIntegers]] and
+   *  (two arrays under the same function are compared by the final check, with
+   *  or without an integer or a `store` around: issue 133), or some equality is
+   *  between functions (arrays): the final check's registration and
    *  [[assertExtensionality]] are skipped otherwise (many queries are small).
    */
   private var anyInt = false
@@ -1190,6 +1079,7 @@ private final class Encoder(
     case _ => Term.App(array, List(index))
 
   private val arrayWritesDone = scala.collection.mutable.HashSet.empty[Term]
+  private var storesPaired = 0 // the stores of `storeTerms` paired with every store before them
   private val arrayReadsDone = scala.collection.mutable.HashSet.empty[(Term, Term)]
 
   def arrayLemmas(): Unit = if anyStore() then
@@ -1226,6 +1116,21 @@ private final class Encoder(
             lit(equalAt(elementSort, selectTerm(s, j), selectTerm(a, j)))
           )
 
+  /** Every two stores of one sort, and the arrays under them: an equality atom
+   *  each, whose witness decides the arrangement of the store chains, which the
+   *  search needs. Left to the final check with the other arrays,
+   *  `wchains002se` went from 0.4 s to no answer in 30 s.
+   */
+  def pairStores(): Unit =
+    val n = storeTerms.length
+    for i <- 0 until n; j <- (i + 1).max(storesPaired) until n do
+      val (s, t) = (storeTerms(i), storeTerms(j))
+      if s.fun == t.fun then
+        for (x, y) <- (s :: s.args).zip(t :: t.args) if x != y && sortOf(x).arrow.isDefined do
+          step()
+          lit(Formula.Eq(x, y))
+    storesPaired = n
+
   def booleanCount: Int = booleans.length
 
   private var booleansDecided = 0
@@ -1259,7 +1164,7 @@ private final class Encoder(
 
   /** The LIA variable of an atomic `Int` term. An application is a node of the
    *  e-graph as well, so that congruence relates it to other applications (a
-   *  shared term, see [[shareIntegers]]).
+   *  shared term, see [[registerShared]]).
    */
   private def intVar(term: Term): lia.Var =
     term match
@@ -1300,21 +1205,10 @@ private final class Encoder(
   private def lit(formula: Formula): Lit =
     val key = literalKey(formula)
     // An equality first encoded for an application lemma needs a witness once an assertion or
-    // theory sharing uses it. It also arrives again for the sharing pass, which skipped it before.
+    // the final check uses it.
     if recordFunctionEqualities && lemmaEqualities.nonEmpty && lemmaEqualities.remove(key) then
       functionEqualities += key
-      equalities += key
     lits.getOrElseUpdate(key, encode(key))
-
-  /** The sorts whose shared terms the final check compares by their values (see
-   *  [[arithmeticDisagreements]]), and not the eager pairs.
-   */
-  private def checkedSort(sort: Sort): Boolean = Encoder.numeric(sort) // integers, reals, bit-vector ranges
-
-  /** Two terms of checked sorts, of different ones among them: their equality
-   *  is the final check's, with its arithmetic meaning from the start.
-   */
-  private def checkedPair(a: Term, b: Term): Boolean = checkedSort(sortOf(a)) && checkedSort(sortOf(b))
 
   /** The function equalities encoded for the application lemmas alone, which
    *  get no witness (see [[applicationLemmas]]) until another use needs one.
@@ -1333,13 +1227,15 @@ private final class Encoder(
         else
           boolean(lhs)
           boolean(rhs)
-          equalities += formula
           orientations(Eq(rhs, lhs)) = eq
           if sortOf(lhs).arrow.isDefined || sortOf(rhs).arrow.isDefined then
             anyFunctionEquality = true
             if recordFunctionEqualities then functionEqualities += formula else lemmaEqualities += formula
           val e = atom(classOf(lhs), classOf(rhs))
-          if checkedPair(lhs, rhs) then linkArithmeticEquality(e, lhs, rhs)
+          // Two numbers, of one sort or not: the equality has its arithmetic meaning from the start.
+          if isInt(lhs) && isInt(rhs) then linkArithmeticEquality(e, lhs, rhs)
+          else if sortOf(lhs) == Encoder.unknown || sortOf(rhs) == Encoder.unknown then
+            untypedEqualities += ((e, lhs, rhs))
           e
       case Pred(term) =>
         // Two-valued from its first literal on: the theory merges a false term with `false` only for
@@ -1537,19 +1433,40 @@ private final class Encoder(
   private val datatypeTerms = ArrayBuffer.empty[Term]
   private var registeredTerms = 0
 
+  /** The equalities with an undeclared side, a term of the Solver API without a
+   *  sort: their arithmetic meaning waits until both sides are known as
+   *  integers (see [[intTerms]]), which can be after they were encoded.
+   */
+  private val untypedEqualities = ArrayBuffer.empty[(Lit, Term, Term)]
+  private var registeredNoted = 0 // the size of `intTerms` at the last registration
+
   private def registerShared(): Unit =
+    // A term newly known as an integer: the terms are registered again, with it a number now.
+    if intTerms.size != registeredNoted then
+      registeredNoted = intTerms.size
+      registeredTerms = 0
+      sharedNumbers.clear()
+      numericApplications.clear()
+      modelApplications.clear()
+      datatypeTerms.clear()
+      untypedEqualities.filterInPlace((e, a, b) =>
+        if isInt(a) && isInt(b) then
+          linkArithmeticEquality(e, a, b, late = true)
+          false
+        else true
+      )
     while registeredTerms < terms.length do
       step()
       val term = terms(registeredTerms)
       if datatypeOf(sortOf(term)).isDefined then datatypeTerms += term
-      if checkedSort(sortOf(term)) then
+      if isInt(term) then
         term match
           case Term.Num(_) | Term.Linear(_, _) => () // numerals are values, linear operands already have variables
           case _ => intVar(term)
         sharedNumbers += term
       term match
         case app: Term.App =>
-          if app.args.exists(arg => checkedSort(sortOf(arg))) then numericApplications += app
+          if app.args.exists(isInt) then numericApplications += app
           if (app :: app.args).exists(t => sortOf(t).arrow.isDefined || datatypeOf(sortOf(t)).isDefined) then
             modelApplications += app
         case _ => ()
@@ -1653,10 +1570,10 @@ private final class Encoder(
    *  in the e-graph with one value have equal fields: their fields get their
    *  equality atoms, which the search decides like any other. Preferred equal,
    *  against the classes' disequality, they took `valid-LawTypeArgsElim__99` to
-   *  2.6 times the work of the eager pairs. Without these, the eager pass
-   *  paired the fields of every two terms of a constructor or a selector:
-   *  `x ≠ y` with equal fields, equal in arithmetic only, answered `sat` with a
-   *  model that failed its check (`datatype__selectortrigger001`).
+   *  2.6 times the work of the eager pairs. Before these, an eager pass paired
+   *  the fields of every two terms of a constructor or a selector: `x ≠ y` with
+   *  equal fields, equal in arithmetic only, answered `sat` with a model that
+   *  failed its check (`datatype__selectortrigger001`).
    */
   private def modelDisagreements(classValue: Term => Term): (List[ArithmeticSplit], List[(Term, Term)]) =
     val real = liaSolver.realValues()
@@ -1666,7 +1583,7 @@ private final class Encoder(
     def modelValue(term: Term): Term = modelValues.getOrElseUpdate(term, Model.normal(classValue(term)))
     def valueOf(term: Term): Any =
       val sort = sortOf(term)
-      if checkedSort(sort) then numericValue(term, real)
+      if isInt(term) then numericValue(term, real)
       else if sort.arrow.isDefined || datatypeOf(sort).isDefined then modelValue(term)
       else
         val root = eg.find(classes(term))
@@ -1692,7 +1609,7 @@ private final class Encoder(
       val (first, expected) = rows.getOrElseUpdate(key, (app, result))
       if expected != result then
         val apart = first.args.zip(app.args).filter((a, b) => eg.find(classes(a)) != eg.find(classes(b)))
-        apart.find((a, _) => checkedSort(sortOf(a))) match
+        apart.find((a, _) => isInt(a)) match
           case Some((a, b)) => if !numeric((b, a)) then numeric += ((a, b))
           case None =>
             apart.find((a, _) => sortOf(a).arrow.isDefined) match
@@ -1726,7 +1643,7 @@ private final class Encoder(
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
     liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
-    if anyInt || anyArray then
+    if anyInt || anyArray || anyNoted then
       registerShared()
       liaTheory.guideBoundsFromModel ||= numericApplications.exists(app => applications(app.fun).size > 1)
     lastModel = null
