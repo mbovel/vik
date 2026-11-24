@@ -27,7 +27,7 @@ what the bit-level operations cost is search, not completeness.
 ```
 
 Supported: `bvadd`, `bvsub`, `bvneg`, `bvnot`, `bvmul`,
-`bvshl`, `bvlshr`, `bvashr`, `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`, `bvmul`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
+`bvshl`, `bvlshr`, `bvashr`, `bvudiv`, `bvurem`, `bvsdiv`, `bvsrem`, `bvsmod`, `bvand`, `bvor`, `bvxor`, `bvnand`, `bvnor`, `bvxnor` and
 `bvcomp` of anything, `concat`, `extract`, `zero_extend`, `sign_extend`, `repeat`, `rotate_left`, `rotate_right`, the
 unsigned and the signed comparisons, equality, the literals `#b…`, `#x…`, `(_ bvN w)`, and the integer
 conversions of SMT-LIB 2.7 — `ubv_to_int`, `sbv_to_int`, `(_ int_to_bv n)`, with the pre-renaming spellings

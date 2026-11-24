@@ -258,8 +258,8 @@ QF_LIA, from `QF_LIA.tar.zst` of the same release, the same way:
 | `fft__Sz64_1160.smt2`, `nec-smt__small__int_from_list__prp-2-17.smt2`, `wisa__wisa1.smt2` | fft, nec-smt, wisa | sat, unsat, sat | larger structured instances (VIK 17 s, timeout, timeout: comparison only) |
 
 QF_BV, from `QF_BV.tar.zst` of the same release, a representative sample rather than every file: the release
-has 46 191 QF_BV files, 10 359 of them (up to 200 KB) in the arithmetic fragment that `vik` lowers to integers —
-the others use `bvor`, `bvashr`, `bvsdiv`, or `bvmul`/`bvand` of two variables, which would need bit-blasting —
+has 46 191 QF_BV files, 10 359 of them (up to 200 KB) in the arithmetic fragment that `vik` lowered to integers
+then — the others use `bvor`, `bvashr`, `bvsdiv`, or `bvmul`/`bvand` of two variables, which it refused at the time —
 and four families of generated series (`sage`, `Sage2`, `20221012-MCMPC`, `bruttomesso`) make up nine tenths
 of those. A hundred were taken (2026-09-02), spread over the seventeen families and the sizes within each, and
 where a family's files are alike, the ones VIK answers in tens of milliseconds: 66 that it answers within the
