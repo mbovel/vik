@@ -88,9 +88,14 @@ final case class Model(
    */
   private def lookup(name: String, values: List[Term]): Term = functions.get(name) match
     // Array arguments are compared extensionally: a row keyed by a store read back is one (issue 49).
+    // Without arrays the same values are equal values, and the row is found by its key: a scan of the rows
+    // per application made the check of a model quadratic in the applications of a function.
     case Some(f) =>
-      f.rows.collectFirst { case (a, r) if a.length == values.length && a.zip(values).forall(same) => r }
-        .getOrElse(f.default)
+      val row =
+        if anyArray then
+          f.rows.collectFirst { case (a, r) if a.length == values.length && a.zip(values).forall(same) => r }
+        else f.byArguments.get(values)
+      row.getOrElse(f.default)
     case None => Term.App(Term.Const(name), values)
 
   /** Whether `value` is a value of `sort`, a sort as the solver knows it: a
@@ -155,7 +160,9 @@ object Model:
    *  of its graph (argument values to result value) and the value everywhere
    *  else.
    */
-  final case class Function(parameters: List[Sort], result: Sort, rows: List[(List[Term], Term)], default: Term)
+  final case class Function(parameters: List[Sort], result: Sort, rows: List[(List[Term], Term)], default: Term):
+    /** The rows by their arguments, the first of a key as a scan finds it. */
+    lazy val byArguments: Map[List[Term], Term] = rows.reverseIterator.toMap
 
   /** The array of sort `sort` (the function sort the solver knows it by)
    *  holding `default` everywhere: `((as const (Array I E)) d)`.

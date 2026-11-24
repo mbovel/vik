@@ -1716,6 +1716,7 @@ private final class Encoder(
   private def buildModel(): (() => Model, Term => Term) =
     val real = liaSolver.realValues() // one δ for every real of the model, as the final check takes them
     val elements = HashMap.empty[(Sort, EClassId), Term] // sort and class to element
+    val elementsOf = HashMap.empty[Sort, Int] // how many a sort has: counted over `elements`, a model was quadratic
     val classValues = HashMap.empty[EClassId, BigInt] // the simplex value of an Int class, via any of its terms
     val realClassValues = HashMap.empty[EClassId, lia.Rational]
     for (t, x) <- intVars do
@@ -1734,7 +1735,13 @@ private final class Encoder(
       val bare = sort match
         case Sort.Named(name) => name
         case other => other.text
-      elements.getOrElseUpdate((sort, root), Term.Const(s"@$bare!${elements.count(_._1._1 == sort)}"))
+      elements.getOrElseUpdate(
+        (sort, root), {
+          val n = elementsOf.getOrElse(sort, 0)
+          elementsOf(sort) = n + 1
+          Term.Const(s"@$bare!$n")
+        }
+      )
     // A simplex value can appear in the model even if its term has no e-class.
     lazy val usedRealIntegers =
       val withoutClass = intVars.iterator.collect {
