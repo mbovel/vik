@@ -399,9 +399,23 @@ private final class Lowerer:
     case (App(Const(c), args), s2.Sort.Named(_))
         if functions.get(c).flatMap(_.arrow).exists(_._1.length == args.length) =>
       val fields = functions(c).arrow.get._1
-      s"(${Printer.symbol(c)} ${args.zip(fields).map(written).mkString(" ")})"
-    case (Const(c), _) => Printer.symbol(c) // a nullary constructor, an abstract element
+      s"(${constructor(c, sort)} ${args.zip(fields).map(written).mkString(" ")})"
+    case (Const(c), _) => constructor(c, sort) // a nullary constructor, an abstract element
     case _ => Printer.print(value)
+
+  /** A constructor of a value of the sort `sort`, as the script names it. The
+   *  constructors of an instance `(List Int)` of a parametric datatype have
+   *  names of the parser's, `cons@Int` and `nil@Int`, which no solver reads
+   *  back (issue 142): they are written `(as cons (List Int))`, as cvc5 writes
+   *  them and as z3 reads them too. The parser's name is the constructor's,
+   *  then the sort's arguments with `@` before each, where the sort has a
+   *  space.
+   */
+  private def constructor(c: String, sort: s2.Sort): String = sort match
+    case s2.Sort.Named(text) if text.startsWith("(") && functions.get(c).exists(f => f.arrow.fold(f)(_._2) == sort) =>
+      val arguments = text.drop(1).dropRight(1).dropWhile(_ != ' ') // ` Int`: as long as `@Int`
+      s"(as ${Printer.symbol(c.dropRight(arguments.length))} $text)"
+    case _ => Printer.symbol(c)
 
   private def decimal(v: BigInt): String = if v.signum < 0 then s"(- ${-v}.0)" else s"$v.0"
 
