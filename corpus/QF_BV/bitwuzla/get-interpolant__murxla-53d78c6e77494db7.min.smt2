@@ -1,0 +1,13 @@
+; From bitwuzla: get-interpolant/murxla-53d78c6e77494db7.min.smt2 (MIT, LICENSES/bitwuzla.txt)
+; ignore output
+(set-option :produce-interpolants true)
+(set-option :abstraction true)
+(set-option :abstraction-bv-size 3)
+(declare-const x (_ BitVec 3))
+(declare-const b (_ BitVec 1))
+(declare-const a (_ BitVec 1))
+(assert (! (bvumulo x (bvsrem x ((_ zero_extend 2) a))) :named a1))
+(assert (bvsdivo x (bvsrem x ((_ zero_extend 2) b))))
+(set-info :status unsat)
+(check-sat)
+(get-interpolant (a1))

@@ -1,0 +1,8 @@
+; From opensmt: base/divmod/nested-div.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(set-info :status unsat)
+(declare-fun a () Int)
+(assert (>= a 0))
+(assert (< (div a 2) (div (div a 2) 2)))
+(set-info :status unsat)
+(check-sat)

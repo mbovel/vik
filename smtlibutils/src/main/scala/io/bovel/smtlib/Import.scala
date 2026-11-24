@@ -28,10 +28,15 @@ import scala.util.Try
  *  header naming the origin, the original path and the license, and a
  *  `(set-info :status ...)` before each `check-sat` when the answers are known.
  */
-@main def smt2import(args: String*): Unit = args match // a default for `perFamily` is not optional to `@main`
-  case Seq(origin, root) => Import.run(origin, Path.of(root), 0)
-  case Seq(origin, root, perFamily) => Import.run(origin, Path.of(root), perFamily.toInt)
-  case _ => println("usage: smt2import <origin> <source root> [files per family]")
+@main def smt2import(args: String*): Unit =
+  // A default for `perFamily` is not optional to `@main`: the arguments are read here.
+  val refused = args.indexOf("--refused") match
+    case -1 => None
+    case i => args.lift(i + 1).map(Path.of(_))
+  args.filterNot(a => a == "--refused" || refused.exists(_.toString == a)) match
+    case Seq(origin, root) => Import.run(origin, Path.of(root), 0, refused)
+    case Seq(origin, root, perFamily) => Import.run(origin, Path.of(root), perFamily.toInt, refused)
+    case _ => println("usage: smt2import <origin> <source root> [files per family] [--refused <directory>]")
 
 object Import:
   private val licenses = Map(
@@ -264,7 +269,12 @@ object Import:
   private val parallelism = 32
   private val loweringSeconds = 120L
 
-  def run(origin: String, root: Path, perFamily: Int): Unit =
+  /** With `refused`, a candidate VIK refuses is written there as it would be to
+   *  the corpus, in the directory of the logic it claims or seems to use, and
+   *  the reason goes to `refused.tsv` beside it: what the corpus may want on
+   *  `ignore.txt` until VIK reads it, chosen by hand.
+   */
+  def run(origin: String, root: Path, perFamily: Int, refused: Option[Path] = None): Unit =
     val found = candidates(origin, root)
     val chosen =
       if perFamily > 0 then found.groupBy(_.family).values.flatMap(_.sortBy(_.text.length).take(perFamily)).toList
@@ -318,5 +328,18 @@ object Import:
         case scala.util.Failure(e) =>
           val message = s"${e.getClass.getSimpleName}: ${e.getMessage}".take(60)
           rejected(message) = rejected.getOrElse(message, 0) + 1
+          for out <- refused do
+            val dir = out.resolve(fallback(content)).resolve(origin)
+            Files.createDirectories(dir)
+            val file = if c.name.nonEmpty then c.name else Path.of(c.rel).getFileName.toString
+            val name = s"${c.family}__$file".replace("/", "_")
+            Files.writeString(dir.resolve(name), content)
+            val line = s"${out.relativize(dir.resolve(name))}\t${message.replace('\n', ' ')}\n"
+            Files.writeString(
+              out.resolve("refused.tsv"),
+              line,
+              java.nio.file.StandardOpenOption.CREATE,
+              java.nio.file.StandardOpenOption.APPEND
+            )
     println(s"$origin: ${chosen.length} candidates, $copied in the fragment, copied")
     for (message, n) <- rejected.toList.sortBy(-_._2).take(15) do println(f"  rejected $n%5d  $message")

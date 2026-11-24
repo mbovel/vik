@@ -1,0 +1,7 @@
+; From yices2: wd/issue218.smt2 (BSD-3-Clause, LICENSES/yices2.txt)
+(set-logic QF_LIA)
+(declare-const i0 Int)
+(assert (> (mod i0 795) i0))
+(set-info :status sat)
+(check-sat)
+(push 1)

@@ -1,0 +1,7 @@
+; From opensmt: base/divmod/nested-mod.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(set-info :status unsat)
+(declare-fun a () Int)
+(assert (not (= (mod a 2) (mod (mod a 2) 2))))
+(set-info :status unsat)
+(check-sat)

@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/smulo2.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat) 
+(declare-const v (_ BitVec 6))
+(assert (and (= (bvmul v v) (_ bv53 6)) (not (bvsmulo v v))))
+(check-sat)

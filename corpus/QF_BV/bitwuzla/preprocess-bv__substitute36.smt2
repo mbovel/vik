@@ -1,0 +1,6 @@
+; From bitwuzla: preprocess/bv/substitute36.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const x (_ BitVec 8))
+(assert (and (= (bvredor (bvand x  #b11100000)) #b1) (= ((_ extract 7 5) x) #b000)))
+(check-sat)

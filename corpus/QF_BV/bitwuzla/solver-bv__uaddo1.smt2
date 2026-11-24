@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/uaddo1.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status sat)
+(declare-const v (_ BitVec 3))
+(assert (not (bvuaddo v v)))
+(check-sat)

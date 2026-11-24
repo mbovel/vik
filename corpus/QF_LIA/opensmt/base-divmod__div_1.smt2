@@ -1,0 +1,7 @@
+; From opensmt: base/divmod/div_1.smt2 (MIT, LICENSES/opensmt.txt)
+(set-logic QF_LIA)
+(set-info :status sat)
+(declare-fun x () Int)
+(assert (= 0 (div x 2)))
+(set-info :status sat)
+(check-sat)

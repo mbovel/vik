@@ -1,0 +1,6 @@
+; From bitwuzla: solver/bv/ssubo2.smt2 (MIT, LICENSES/bitwuzla.txt)
+(set-logic QF_BV)
+(set-info :status unsat)
+(declare-const v (_ BitVec 6))
+(assert (and (= (bvsub v v) (_ bv53 6)) (not (bvssubo v v))))
+(check-sat)

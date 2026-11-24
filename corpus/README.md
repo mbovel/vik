@@ -58,9 +58,20 @@ similarity of 0.95, a threshold that keeps the variants a regression suite write
 license of its own keeps it, and its header says so: twelve state CC BY 4.0 (3 of OpenSMT, 4 of Yices2, 5 of STP). A
 file under the GPL is left out. Run on the scripts without their options and `get-` commands, z3 and cvc5 both give
 the statuses of 2 449 of the 2 576 files, one of them gives those of 68 more, and neither answers 58 within 30 s; no
-status is contradicted by both, but for STP's `comment-ends-at-cr` read as written (issue 243). What the suites hold
-that VIK refuses is filed as issues 238 to 242: constant arrays, named terms below an assertion's top, the overflow
-predicates and the bit-vector reductions, `div` and `mod`, and deep terms.
+status is contradicted by both, but for STP's `comment-ends-at-cr` read as written (issue 243).
+
+The suites also hold files VIK refuses for what it does not read yet, filed as issues: constant arrays (238), named
+terms below an assertion's top (239), the overflow predicates and the bit-vector reductions (240), `div`, `mod`,
+`abs` and `divisible` (241), deep terms (242), a declaration repeated after `reset-assertions` (246) and a division
+by a literal zero (247). `smt2import <origin> <root> --refused <directory>` writes them aside with the reason, and
+420 of them are in the corpus, each on `ignore.txt` with its issue, so that a file passes and leaves the list when
+its issue is fixed: those of the reasons above, less the ones that also use a quantifier, floating point or strings,
+those z3 does not read either (`prune invalid`'s rule; the `reset-assertions` files are kept, since z3 is the one
+that keeps the declarations there), and 17 alike another file. z3 answers `sat` on 17 constant-array files whose
+status is `unsat`; cvc5 agrees with the status on the three it answers, and z3 is wrong on
+`bitwuzla/solver-array__regrconstarray3` by hand (two constant arrays over a one-bit index). Twenty-five imported
+files overflow a test thread's stack on some JVMs (one did on CI's JDK 17 and 27, none locally on JDK 25), found by
+running every imported file with `-Xss640k`: they are `skip` lines, with issue 242.
 
 Files of logics we do not support (arrays, strings, reals, quantifiers, ...) and files outside the fragment
 `smtlib` parses are not imported; the importer reports what it rejected, by error.
