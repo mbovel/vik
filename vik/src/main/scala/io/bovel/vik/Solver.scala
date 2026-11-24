@@ -70,13 +70,12 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
   private var eliminated: Map[String, Term] = Map.empty
   private var dirty = false
 
-  /** With proofs: the formulas asserted to the encoder below every level, the
-   *  simplifications of the first batch among them, and for each
-   *  simplification, its assertion and the eliminations under it (see
-   *  [[Simplifier.traced]]).
+  /** With proofs: the simplifications of the first batch among the encoder's
+   *  inputs, and for each, its assertion and the eliminations under it (see
+   *  [[Simplifier.traced]]); `None` when one has no proof, which leaves the
+   *  search as it is and the proof out.
    */
-  private val inputs = ArrayBuffer.empty[Formula]
-  private var simplified: Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])] = Map.empty
+  private var simplified: Option[Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])]] = Some(Map.empty)
 
   /** The declared function symbols (argument sorts, result sort) and datatypes.
    *  Declarations are optional for uninterpreted functions and integers, and
@@ -111,9 +110,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
         val range = Formula.And(List(Formula.Le(Term.Num(lower), constant), Formula.Le(constant, Term.Num(upper))))
         facts(name) = Fact(range, levels.length - 1, levels.last.length)
         val e = encoder
-        if e != null && !dirty then
-          if proofs then inputs += range
-          e.assert(range, null)
+        if e != null && !dirty then e.assert(range, null)
       case _ => ()
     if Names.isStore(name) then anyStore = true
 
@@ -273,29 +270,30 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    *  made with `proofs`: over the variables of the SAT search, with the theory
    *  lemmas taken on trust (see [[cdclt.Proof]]).
    */
-  def proof: Option[cdclt.Proof] = Option(encoder).flatMap(e => Option(e.proof)).filter(_.conclusion >= 0)
+  def proof: Option[cdclt.Proof] = proved.map(_ => encoder.nn.proof.nn)
 
   /** Checks the [[proof]] of the last `Unsat` (see `Encoder.checkProof`):
    *  `None` when it holds.
    */
-  def checkProof(): Option[String] = proof.flatMap(_ => encoder.nn.checkProof(proved._1, proved._2))
+  def checkProof(): Option[String] =
+    if proved.nonEmpty && simplified.isEmpty then Some("a simplification without a proof")
+    else proved.flatMap((in, as) => encoder.nn.checkProof(in.toSet, as.toSet))
 
   /** The certificate of the [[proof]] of the last `Unsat`, the S-expression
    *  that `proofs/lean` checks (see [[ProofExport]]), or why it cannot be
    *  written.
    */
-  def certificate(surface: Option[ProofExport.Surface] = None): Either[String, String] = proof match
-    case None => Left("no proof")
-    case Some(_) =>
-      val e = encoder.nn
-      e.certificate(inputs.toList, simplified, proved._2.toList.sorted, surface)
+  def certificate(surface: Option[ProofExport.Surface] = None): Either[String, String] = (proved, simplified) match
+    case (None, _) => Left("no proof")
+    case (_, None) => Left("a simplification without a proof")
+    case (Some((in, as)), Some(simplifications)) => encoder.nn.certificate(in, simplifications, as, surface)
 
   /** What the [[proof]] of the last `Unsat` refutes, taken at that solve: the
    *  assertions of the first level, and the variables of the literals assumed
    *  (the selectors of the other levels, the activations of the named
-   *  assertions).
+   *  assertions); `None` when the last solve did not answer `Unsat`.
    */
-  private var proved: (Set[Formula], Set[cdclt.Var]) = (Set.empty, Set.empty)
+  private var proved: Option[(List[Formula], List[cdclt.Var])] = None
 
   /** The model of the last [[solve]]'s `Sat`, or `None` after any other answer:
    *  values for the constants, a finite graph per declared function (see
@@ -324,7 +322,6 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
     val e = encoder
     if mentionsEliminated(formula) then dirty = true
     else if e != null && !dirty then
-      if levels.length == 1 && proofs then inputs += formula
       e.assert(formula, if levels.length == 1 then null else selectors(levels.length - 2))
 
   // The elimination assumed the constant stayed local; a mention breaks it: start over.
@@ -357,6 +354,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
     bigWordsStart = lia.Rational.bigWords
     overflowsStart = lia.Rational.overflows
     solving = true
+    proved = None
     try decide(counted)
     catch
       case Encoder.Stopped =>
@@ -421,15 +419,18 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
    *  simplification comes with its proof ([[Simplifier.implies]]), and encodes
    *  the simplifications; whether it did.
    */
-  private def proofsOfSimplifications(e: Encoder, constructors: Set[String]): List[Formula] | Null =
-    val (pairs, gone, hints) =
-      Simplifier.traced(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
-    if !pairs.forall((o, s) => o == s || Simplifier.implies(o, s, hints)) then null
-    else
-      eliminated = gone
-      val out = pairs.filter(_._2 != Formula.True)
-      simplified = out.collect {
-        case (o, s) if o != s =>
+  /** The simplifications of `pairs` (each assertion with its simplification),
+   *  each with the conjunctions of the assertion that lost equalities (see
+   *  [[Simplifier.traced]]); `None` when one does not follow from its assertion
+   *  by [[Simplifier.implies]].
+   */
+  private def simplifications(
+      pairs: List[(Formula, Formula)],
+      hints: collection.Map[Formula, Simplifier.Eliminations]
+  ): Option[Map[Formula, (Formula, List[(Formula, Simplifier.Eliminations)])]] =
+    Option.when(pairs.forall((o, s) => o == s || Simplifier.implies(o, s, hints))) {
+      pairs.collect {
+        case (o, s) if o != s && s != Formula.True =>
           // the conjunctions of `o` that lost equalities, each subformula visited once
           val under = LinkedHashMap.empty[Formula, Simplifier.Eliminations]
           val seen = HashSet.empty[Formula]
@@ -447,7 +448,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
           walk(o)
           s -> (o, under.toList)
       }.toMap
-      pairs.map(_._2)
+    }
 
   private def decide(keepGoing: () => Boolean): Result =
     if encoder == null || dirty then
@@ -459,35 +460,28 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
       dirty = false
       selectors.clear()
       val constructors = datatypes.flatMap(_.constructors.map(_.name)).toSet
-      inputs.clear()
-      simplified = Map.empty
+      simplified = Some(Map.empty)
       // Each level's assertions in order, the facts of the declarations made in the level among them: a
       // fact before the assertions that came after its declaration. A level's place may have gone with a
       // `pop` since; its facts then come with the last level.
       val placed = facts.values.toList.groupBy(_.level min (levels.length - 1))
       val simplifying = levels.length == 1 && simplify
-      // With proofs, the formulas asserted below every level are the inputs of the proof.
-      def input(formula: Formula): Unit =
-        if proofs then inputs += formula
-        e.assert(formula, null)
       def encode(level: Int, assertions: List[Formula], selector: Lit | Null): Unit =
         var due = placed.getOrElse(level, Nil).sortBy(_.index)
         for (formula, i) <- assertions.zipWithIndex do
           while due.nonEmpty && due.head.index <= i do
-            input(due.head.formula)
+            e.assert(due.head.formula, null)
             due = due.tail
           if formula != Formula.True || !simplifying then // not one simplified away
-            if selector == null then input(formula) else e.assert(formula, selector)
-        for fact <- due do input(fact.formula)
-      // With proofs, the simplification is kept only where its proof is (see `proofsOfSimplifications`).
-      val proven = if simplifying && proofs then proofsOfSimplifications(e, constructors) else null
-      if simplifying && !proofs then
+            e.assert(formula, selector)
+        for fact <- due do e.assert(fact.formula, null)
+      if simplifying then
         // One level: the batch is the whole set, so the global simplification is sound to keep.
-        val (assertions, gone) =
-          Simplifier.simplifyEach(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
+        val (pairs, gone, hints) =
+          Simplifier.traced(levels.head.toList, constructors, named.head.map(_._2).toList, e.step)
         eliminated = gone
-        encode(0, assertions, null)
-      else if proven != null then encode(0, proven, null)
+        if proofs then simplified = simplifications(pairs, hints)
+        encode(0, pairs.map(_._2), null)
       else
         eliminated = Map.empty
         for (level, i) <- levels.zipWithIndex do
@@ -546,7 +540,7 @@ final class Solver(val simplify: Boolean = true, val proofs: Boolean = false):
               e.lastModel = null
               Result.Unknown(Reason.Model(failure))
       case cdclt.Solver.Result.Unsat =>
-        if proofs then proved = (inputs.toSet, assumed.iterator.map(_.variable).toSet)
+        if proofs then proved = Some((e.inputs.toList, assumed.iterator.map(_.variable).toList.distinct.sorted))
         val core = e.core().toSet
         lastCore = activations.collect { case (name, a) if core(a) => name }
         Result.Unsat
@@ -598,6 +592,15 @@ object Solver:
   val loweredCost = 64L
 
 private object Encoder:
+  /** An array's base and the indices written by the surrounding stores. */
+  def storeWrites(array: Term): (Term, List[Term]) =
+    @annotation.tailrec
+    def collect(term: Term, indices: List[Term]): (Term, List[Term]) = term match
+      case Term.App(Term.Const(name), List(base, index, _)) if Names.isStore(name) =>
+        collect(base, index :: indices)
+      case _ => (term, indices)
+    collect(array, Nil)
+
   /** The sort of a term the declarations say nothing of: an undeclared
    *  constant, an application of one.
    */
@@ -917,15 +920,6 @@ private final class Encoder(
 
   def introducedName(name: String): Boolean = introduced.contains(name)
 
-  /** An array's base and the indices written by the surrounding stores. */
-  private def storeWrites(array: Term): (Term, List[Term]) =
-    @annotation.tailrec
-    def collect(term: Term, indices: List[Term]): (Term, List[Term]) = term match
-      case Term.App(Term.Const(name), List(base, index, _)) if Names.isStore(name) =>
-        collect(base, index :: indices)
-      case _ => (term, indices)
-    collect(array, Nil)
-
   def assertExtensionality(): Unit = if anyFunctionEquality then
     val done = extensionalityDone // across solves: one witness pair per equality, ever
     var more = true
@@ -937,8 +931,8 @@ private final class Encoder(
           sortOf(f).arrow.orElse(sortOf(g).arrow) match
             case Some((params, _)) =>
               more = true
-              val (fBase, fWrites) = storeWrites(f)
-              val (gBase, gWrites) = storeWrites(g)
+              val (fBase, fWrites) = Encoder.storeWrites(f)
+              val (gBase, gWrites) = Encoder.storeWrites(g)
               if fBase == gBase then
                 // Arrays built from the same base can differ only at a written index. Using these
                 // indices keeps the new reads and sharing from growing with each fresh witness.
@@ -1096,6 +1090,7 @@ private final class Encoder(
   liaSolver.proofs = proofs
   private val intVars = HashMap.empty[Term, lia.Var] // `Int`-sorted constants and applications
   private val slacks = HashMap.empty[List[(BigInt, Term)], lia.Var] // linear combinations of them
+  private val termOfVar = HashMap.empty[lia.Var, Term] // with proofs, the term of each of these variables
   // The LIA variables of the auxiliary constants and of the combinations of those alone, and the atoms
   // bounding them: the ones the search decides last (see Solver.declare).
   private val auxiliaryVars = HashSet.empty[lia.Var]
@@ -1303,9 +1298,7 @@ private final class Encoder(
   private def splitBound(x: lia.Var, c: BigInt): Lit =
     val l = bound(x, c, false)
     if proofs then
-      val term = intVars.collectFirst { case (t, y) if y == x => t }
-        .orElse(slacks.collectFirst { case (ts, y) if y == x => Term.Linear(ts, 0) })
-      for t <- term do mean(l, Formula.Le(t, Term.Num(c)))
+      for t <- termOfVar.get(x) do mean(l, Formula.Le(t, Term.Num(c)))
     l
 
   /** `lhs − rhs ≤ 0` (`< 0` when strict), as a bound on the combination
@@ -1333,6 +1326,7 @@ private final class Encoder(
         term match
           case Term.Const(name) if auxiliaries(name) => auxiliaryVars += x
           case _ => ()
+        if proofs then termOfVar(x) = term
         x
       }
     )
@@ -1344,6 +1338,7 @@ private final class Encoder(
         val vars = terms.map((a, t) => (a, intVar(t)))
         val x = liaSolver.newSlack(vars, integer = !terms.exists((_, t) => sortOf(t) == Sort.Real))
         if vars.forall((_, y) => auxiliaryVars(y)) then auxiliaryVars += x
+        if proofs then termOfVar(x) = Term.Linear(terms, 0)
         x
       }
     )
@@ -1461,7 +1456,12 @@ private final class Encoder(
    *  null: the clause holds only while the selector does — a script level's
    *  assertion (see [[Solver.push]]).
    */
-  def assert(formula: Formula, under: Lit | Null): Unit = assert(formula, under, Encoder.Origin.Assertion(formula))
+  def assert(formula: Formula, under: Lit | Null): Unit =
+    if proofs && under == null then inputs += formula
+    assert(formula, under, Encoder.Origin.Assertion(formula))
+
+  /** With proofs, the formulas asserted for good: the inputs of the proof. */
+  val inputs = ArrayBuffer.empty[Formula]
 
   /** With proofs, the formulas each selector or activation literal guards. */
   private val guards = scala.collection.mutable.LinkedHashMap.empty[cdclt.Var, ArrayBuffer[Formula]]
@@ -1528,7 +1528,15 @@ private final class Encoder(
         case Term.Const(_) | Term.Num(_) => ()
 
   /** A fresh selector literal for a script level. */
-  def newSelector(): Lit = freshVar()
+  def newSelector(): Lit =
+    val s = freshVar()
+    if proofs then assumptions += s.variable
+    s
+
+  /** With proofs, the variables of the selectors and activations: the only ones
+   *  a solve assumes.
+   */
+  private val assumptions = scala.collection.mutable.HashSet.empty[cdclt.Var]
 
   /** The activation literal of a named assertion: the formula holds while the
    *  literal does, and the literal is assumed at every solve, so an `Unsat`
@@ -1541,7 +1549,9 @@ private final class Encoder(
       formula, {
         meet(formula)
         val a = freshVar()
-        if proofs then guards(a.variable) = ArrayBuffer(formula)
+        if proofs then
+          guards(a.variable) = ArrayBuffer(formula)
+          assumptions += a.variable
         emit(Array(a.neg, lit(formula)), Encoder.Origin.Assertion(formula))
         a
       }
@@ -1606,33 +1616,30 @@ private final class Encoder(
       assumed: List[cdclt.Var],
       surface: Option[ProofExport.Surface]
   ): Either[String, String] =
-    val p = sat.proof
-    if p == null then Left("no proof")
-    else
-      ProofExport(
-        ProofExport.Input(
-          declarations.map { case (n, (as, r)) => (n, (as.map(SortText.of), SortText.of(r))) },
-          introduced.map((n, s) => (n, SortText.of(s))),
-          t => SortText.of(sortOf(t)),
-          classes.iterator.map((t, x) => (x, t)).toMap,
-          trueTerm,
-          falseTerm,
-          atoms,
-          liaAtoms,
-          meanings,
-          trueLit,
-          intVars.iterator.map((t, x) => (x, t)).toMap,
-          liaSolver.numVars,
-          liaSolver.form,
-          p.nn,
-          datatypes,
-          inputs,
-          simplified,
-          guards.iterator.map((v, fs) => (v, fs.toList)).toList,
-          assumed
-        ),
-        surface
-      )
+    ProofExport(
+      ProofExport.Input(
+        declarations.map { case (n, (as, r)) => (n, (as.map(SortText.of), SortText.of(r))) },
+        introduced.map((n, s) => (n, SortText.of(s))),
+        t => SortText.of(sortOf(t)),
+        classes.iterator.map((t, x) => (x, t)).toMap,
+        trueTerm,
+        falseTerm,
+        atoms,
+        liaAtoms,
+        meanings,
+        trueLit,
+        intVars.iterator.map((t, x) => (x, t)).toMap,
+        liaSolver.numVars,
+        liaSolver.form,
+        sat.proof.nn,
+        datatypes,
+        inputs,
+        simplified,
+        guards.iterator.map((v, fs) => (v, fs.toList)).toList,
+        assumed
+      ),
+      surface
+    )
 
   /** Checks [[proof]], a refutation of `inputs` (the assertions of the first
    *  level) with the literals of `assumed` (the selectors of the other levels,
@@ -1655,7 +1662,8 @@ private final class Encoder(
       meanings,
       trueLit,
       inputs,
-      v => v < atoms.length && (v >= meanings.length || meanings(v) == null) && v != trueLit.variable,
+      assumptions,
+      assumed,
       sort => datatypes.find(d => SortText.of(Sort.Named(d.name)) == sort).map(_.constructors.map(_.tester)),
       t => SortText.of(sortOf(t)),
       declarations.contains

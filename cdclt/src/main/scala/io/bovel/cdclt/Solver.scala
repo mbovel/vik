@@ -329,16 +329,13 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
   private def theoryClause(lit: Lit): Array[Lit] = (lit +: theory.explain(lit).map(_.neg)).toArray
 
   /** The clause explaining the assignment of `lit`: `lit` at index 0, then the
-   *  negations of the literals that implied it, which are all false.
+   *  negations of the literals that implied it, which are all false. A theory
+   *  reason is asked again of the theory unless `cached` and the proof has one:
+   *  conflict analysis asks again, as it does without a proof, since the
+   *  explanation may change with the theory's state and the search follows it.
+   *  A new explanation is a new lemma.
    */
-  private def reasonClause(lit: Lit): Array[Lit] = reasonClause(lit, false)
-
-  /** The reason of `lit`, its explanation asked again of the theory unless
-   *  `cached` and the proof has one: conflict analysis asks again, as it does
-   *  without a proof, since the explanation may change with the theory's state
-   *  and the search follows it. A new explanation is a new lemma.
-   */
-  private def reasonClause(lit: Lit, cached: Boolean): Array[Lit] =
+  private def reasonClause(lit: Lit, cached: Boolean = false): Array[Lit] =
     val why = reason(lit.variable)
     if why != FromTheory then clauses(why)
     else
@@ -393,12 +390,13 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       if unitStep(v) < 0 && needed.add(v) then
         for l <- reasonClause(Lit(v, value(Lit(v).index) > 0), true) if l.variable != v do todo += l.variable
     // In trail order: a unit's reason only has variables assigned before it.
-    for lit <- trail.iterator.takeWhile(l => level(l.variable) == 0) if needed(lit.variable) do
-      val v = lit.variable
-      val hints = ArrayBuffer.empty[Int]
-      for l <- reasonClause(lit, true) if l.variable != v do hints += unitStep(l.variable)
-      hints += reasonId(v)
-      unitStep(v) = p.add(Proof.Step.Derived(Array(lit), hints.distinct.toArray))
+    if needed.nonEmpty then
+      for lit <- trail.iterator.takeWhile(l => level(l.variable) == 0) if needed(lit.variable) do
+        val v = lit.variable
+        val hints = ArrayBuffer.empty[Int]
+        for l <- reasonClause(lit, true) if l.variable != v do hints += unitStep(l.variable)
+        hints += reasonId(v)
+        unitStep(v) = p.add(Proof.Step.Derived(Array(lit), hints.distinct.toArray))
     vars.map(unitStep(_))
 
   /** The derivation of the empty clause from `clause`, whose literals are all

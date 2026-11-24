@@ -544,7 +544,7 @@ private[vik] object ProofExport:
             (eq, Formula.Eq(at(f), at(g)))
         } match
           case Some((eq, eqw)) =>
-            val k = exts.getOrElseUpdate(ws, (formula(eq), formula(eqw)))
+            exts.getOrElseUpdate(ws, (formula(eq), formula(eqw)))
             s".extensionality ${exts.keysIterator.indexOf(ws)}"
           case None => throw Unsupported("an extensionality instance without its equalities")
       case Encoder.Origin.WitnessRange(w, width) =>
@@ -591,6 +591,10 @@ private[vik] object ProofExport:
     /** The script and the trace, written before the lowered problem: they add
      *  the nodes of the lowerings of the surface nodes.
      */
+    /** The datatypes of the script, each with its constructors. */
+    private def datatypesText(sf: Surface): Seq[String] =
+      sf.datatypes.map((d, cs) => s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})")
+
     private def surfaceText(sf: Surface): String =
       val node = sf.values.map {
         case t: Term => term(t)
@@ -615,8 +619,7 @@ private[vik] object ProofExport:
       }
       val reasons = inputs.map(reason(sf, _))
       val levelReasons = assumed.map(v => list(levels.find(_._1 == v).fold(Nil)(_._2).map(reason(sf, _))))
-      val datatypes =
-        sf.datatypes.map((d, cs) => s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})")
+      val datatypes = datatypesText(sf)
       LeanSexp.section(
         "script",
         List(
@@ -655,10 +658,7 @@ private[vik] object ProofExport:
       val last = kept.length - 1
       for i <- kept do
         val step = proof.steps(i)
-        step match
-          case cdclt.Proof.Step.Input(clause, _) => used ++= clause.map(_.variable)
-          case cdclt.Proof.Step.Lemma(clause, _) => used ++= clause.map(_.variable)
-          case cdclt.Proof.Step.Derived(clause, _) => used ++= clause.map(_.variable)
+        used ++= step.clause.map(_.variable)
         step match
           case cdclt.Proof.Step.Input(clause, o) =>
             steps += s".input ${list(clause.map(lit))}"
@@ -712,7 +712,7 @@ private[vik] object ProofExport:
       )
       // the witnesses, in the order the encoder made them
       def witnessOrder(w: Term): Int = w match
-        case Term.Const(n) => n.stripPrefix(".witness!").toIntOption.getOrElse(Int.MaxValue)
+        case Term.Const(n) => Names.witnessIndex(n).getOrElse(Int.MaxValue)
         case _ => Int.MaxValue
       def sym(w: Term): Int = w match
         case Term.Const(n) => decl(n)
@@ -731,11 +731,7 @@ private[vik] object ProofExport:
       val stores = decls.keysIterator.filter(Names.isStore(_)).map(decls(_).toString).toList
       val b = StringBuilder(s"(vik-proof $version\n")
       for text <- surfaceDefs do b ++= text + "\n"
-      val dtsText = surface.fold(list(dts))(sf =>
-        list(sf.datatypes.map((d, cs) =>
-          s"($d, ${list(cs.map((c, t, ss) => s"($c, $t, ${list(ss.map(_.toString))})"))})"
-        ))
-      )
+      val dtsText = surface.fold(list(dts))(sf => list(datatypesText(sf)))
       b ++= LeanSexp.section(
         "problem",
         List(

@@ -173,7 +173,15 @@ final class Session(
   private def quoted(text: String): String = "\"" + text.replace("\"", "\"\"") + "\""
 
   private def lowering(c: s2.Command): List[Command] =
-    val lowered = lowerer.commands(List(c))
+    val lowered =
+      try lowerer.commands(List(c))
+      catch
+        case e: Exception =>
+          // What the refused command minted is not the next one's: the lowering and its check forget it,
+          // with proofs or without, so that the search is the same.
+          lowerer.discard()
+          if loweringCheck != null then loweringCheck.discard()
+          throw e
     if loweringCheck != null then
       val made = lowerer.intros.toList
       lowerer.intros.clear()

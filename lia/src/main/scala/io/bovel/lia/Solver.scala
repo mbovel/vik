@@ -90,7 +90,20 @@ object Solver:
       var constant: BigInt,
       var reasons: Set[Int],
       val factors: HashMap[Var, Rational] | Null = null
-  )
+  ):
+    /** Subtracts `a` times `by`, an equation `y + … = c`. */
+    def subtract(by: Equation, a: BigInt): Unit =
+      for (z, b) <- by.coefs do
+        val sum = coefs.getOrElse(z, BigInt(0)) - a * b
+        if sum == 0 then coefs -= z else coefs(z) = sum
+      constant -= a * by.constant
+      reasons ++= by.reasons
+      if factors != null then
+        for (z, f) <- by.factors.nn do
+          val sum = factors.getOrElse(z, Rational.zero) - f * Rational(a)
+          if sum.isZero then factors -= z else factors(z) = sum
+
+    def copy(): Equation = Equation(coefs.clone(), constant, reasons, if factors == null then null else factors.clone())
 
   /** `x ≡ c (mod g)`: the values the integer equations in force leave to `x`
    *  ([[Solver.integerEquations]]), with the bounds those equations hold by, as
@@ -325,7 +338,7 @@ final class Solver:
       out.toMap
 
   /** An `Unsat` with its certificate, when proofs are on. */
-  private def unsat(reasons: Set[Int], certificate: => Certificate): Result =
+  private inline def unsat(reasons: Set[Int], inline certificate: Certificate): Result =
     if proofs then conflictCertificate = certificate
     Result.Unsat(reasons)
 
@@ -1291,17 +1304,7 @@ final class Solver:
         if equation.coefs.isEmpty then return
         val (x, a) = equation.coefs.minBy((y, b) => (!solved.contains(y), b.abs, y)) // solved ones first
         if solved.contains(x) then // x + rest = c: subtract a times it
-          val by = solved(x)
-          for (y, b) <- by.coefs do
-            val sum = equation.coefs.getOrElse(y, BigInt(0)) - a * b
-            if sum == 0 then equation.coefs -= y else equation.coefs(y) = sum
-          equation.constant -= a * by.constant
-          equation.reasons ++= by.reasons
-          val factors = equation.factors
-          if factors != null then
-            for (y, f) <- by.factors.nn do
-              val sum = factors.getOrElse(y, Rational.zero) - f * Rational(a)
-              if sum.isZero then factors -= y else factors(y) = sum
+          equation.subtract(solved(x), a)
         else if a.abs == g then // ±1 once divided by the gcd: solved
           equation.coefs.mapValuesInPlace((_, b) => b / a)
           equation.constant /= a
@@ -1369,28 +1372,14 @@ final class Solver:
     do
       val start = solved.getOrElse(x, ofRow(x))
       if start != null then
-        val equation = Equation(
-          start.coefs.clone(),
-          start.constant,
-          start.reasons,
-          if start.factors == null then null else start.factors.nn.clone()
-        )
+        val equation = start.copy()
         var y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
         while y.nonEmpty do // minus a times `y + rest = c`, as `eliminate` rewrites
           val by = solved(y.get)
           val a = equation.coefs(y.get)
           work += by.coefs.size
           if work > Solver.equationWork then break(Result.Sat)
-          for (z, b) <- by.coefs do
-            val sum = equation.coefs.getOrElse(z, BigInt(0)) - a * b
-            if sum == 0 then equation.coefs -= z else equation.coefs(z) = sum
-          equation.constant -= a * by.constant
-          equation.reasons ++= by.reasons
-          val factors = equation.factors
-          if factors != null then
-            for (z, f) <- by.factors.nn do
-              val sum = factors.getOrElse(z, Rational.zero) - f * Rational(a)
-              if sum.isZero then factors -= z else factors(z) = sum
+          equation.subtract(by, a)
           y = equation.coefs.keysIterator.find(y => y != x && solved.contains(y))
         val m = equation.coefs.getOrElse(x, BigInt(0))
         val g = equation.coefs.iterator.collect { case (z, a) if z != x => a }.foldLeft(BigInt(0))(_ gcd _)

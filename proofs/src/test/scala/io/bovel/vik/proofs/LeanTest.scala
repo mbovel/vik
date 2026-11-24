@@ -5,7 +5,7 @@ import io.bovel.vik.{Session, Solver}
 
 /** The certificates of a few `Unsat`s, from the script to its lowering and the
  *  solver's proof, each written as a Lean file of `target/lean-export` for
- *  `proofs/lean` to check (`proofs/lean/exported.sh`).
+ *  `proofs/lean` to check (`lake env lean <file>` there).
  */
 class LeanTest extends munit.FunSuite:
   private val out =

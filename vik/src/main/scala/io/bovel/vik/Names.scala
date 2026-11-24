@@ -28,5 +28,9 @@ private[vik] object Names:
   /** Whether `name` is one of the solver's witnesses ([[witness]]). */
   def isWitness(name: String): Boolean = name.startsWith(s".$witnessTag!")
 
+  /** The `n` of the witness `.witness!n` ([[witness]]). */
+  def witnessIndex(name: String): Option[Int] =
+    if isWitness(name) then name.drop(witnessTag.length + 2).toIntOption else None
+
   private val witnessTag = "witness"
   private val storePrefix = ".store!"

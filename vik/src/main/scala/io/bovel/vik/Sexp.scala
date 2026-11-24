@@ -16,7 +16,25 @@ enum Sexp:
 
 object Sexp:
 
+  /** Not an S-expression, or not a certificate a driver reads. */
   final class Malformed(message: String) extends Exception(message)
+
+  /** The sections of a certificate ([[ProofExport]]), by name: the items of
+   *  each after its name.
+   */
+  def sections(certificate: String): Map[String, Vector[Sexp]] = parse(certificate) match
+    case Lst(Atom("vik-proof") +: Atom(v) +: rest) if v == ProofExport.version.toString =>
+      rest.map {
+        case Lst(Atom(name) +: fields) => name -> fields
+        case s => throw Malformed(s"not a section: ${s.toString.take(100)}")
+      }.toMap
+    case Lst(Atom("vik-proof") +: v +: _) => throw Malformed(s"unknown version $v")
+    case _ => throw Malformed("not a Vik certificate")
+
+  /** The items of a list. */
+  def items(s: Sexp): Vector[Sexp] = s match
+    case Lst(xs) => xs
+    case _ => throw Malformed(s"not a list: ${s.toString.take(100)}")
 
   /** The S-expression of `text`, which holds exactly one. */
   def parse(text: String): Sexp =

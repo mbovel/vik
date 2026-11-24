@@ -32,8 +32,7 @@ final class UfLemmas(
    */
   def check(clause: Array[Lit], certified: UfTheory.Certified): Option[String] = boundary:
     val certificate = certified.certificate
-    object eg:
-      def app(x: EClassId): App | Null = certified.nodes.getOrElse(x, null)
+    def appOf(x: EClassId): App | Null = certified.nodes.getOrElse(x, null)
     def fail(msg: String): Nothing = break(Some(msg))
     // The hypotheses: the negations of the clause's literals.
     val hyps = clause.iterator.map(_.neg.index).toSet
@@ -55,13 +54,13 @@ final class UfLemmas(
     def constructorOf(x: EClassId): Option[(EClassId, Seq[EClassId])] =
       if constructors.get(x).exists(_.isEmpty) then Some((x, Nil))
       else
-        val app = eg.app(x)
+        val app = appOf(x)
         if app != null && constructors.contains(app.fun) then Some((app.fun, app.args)) else None
 
     /** Whether `a = b` follows from the premises by a rule of the datatypes. */
     def rule(a: EClassId, b: EClassId, premises: Seq[(EClassId, EClassId)]): Boolean =
       def oriented(a: EClassId, b: EClassId): Boolean =
-        val app = eg.app(a)
+        val app = appOf(a)
         premises match
           case Seq((p, q)) =>
             // A selector of a constructor node: `s_i(t) = x_i` when `t = C(x_1, ..., x_n)`.
@@ -80,14 +79,14 @@ final class UfLemmas(
               case _ => false
             // Expansion: `t = C(s_1(t), ..., s_n(t))` when `is_C(t) = true`.
             val expansion = q == trueClass && {
-              val test = eg.app(p)
+              val test = appOf(p)
               test != null && test.args.length == 1 && test.args(0) == a && testers.get(test.fun).exists { c =>
                 val selectors = constructors(c)
                 if selectors.isEmpty then b == c
                 else
                   constructorOf(b).exists((d, fields) =>
                     d == c && fields.indices.forall { i =>
-                      val field = eg.app(fields(i))
+                      val field = appOf(fields(i))
                       field != null && field.fun == selectors(i) && field.args == Seq(a)
                     }
                   )
@@ -110,7 +109,7 @@ final class UfLemmas(
         if b != c then fail(s"transitivity through $b and $c")
         (a, d)
       case EqProof.Cong(a, b, fun, args) =>
-        val (l, r) = (eg.app(a), eg.app(b))
+        val (l, r) = (appOf(a), appOf(b))
         if l == null || r == null || l.args.length != args.length || r.args.length != args.length then
           fail(s"congruence of $a and $b, not applications of the same arity")
         if proves(fun) != (l.fun, r.fun) then fail(s"congruence of $a and $b: not their functions")
@@ -142,7 +141,7 @@ final class UfLemmas(
             case _ => false
         // A tester true of a term with another constructor.
         case Seq((test, t), (x, n)) if t == trueClass =>
-          val app = eg.app(test)
+          val app = appOf(test)
           app != null && app.args == Seq(x) && testers.get(app.fun).exists(c => constructorOf(n).exists(_._1 != c))
         case _ => false
       // A cycle: each argument of a constructor node is the next node, the last's the first.
@@ -207,7 +206,8 @@ final class LiaLemmas(solver: lia.Solver, atoms: ArrayBuffer[LiaTheory.Atom | Nu
  *  for one of the script's `inputs` or is guarded by an assumption, and an
  *  axiom of the encoding is an instance of its schema. A clause may have more
  *  literals than its schema asks: those only weaken it. `assumption(v)` says
- *  whether `v` is the literal of a level or of a named assertion; `testers`
+ *  whether `v` is the literal of a level or of a named assertion, `assumed`
+ *  whether the last solve assumed it (a retired level's is not); `testers`
  *  gives the testers of a datatype sort, `sortOf` the sort of a term.
  */
 final class InputClauses(
@@ -215,6 +215,7 @@ final class InputClauses(
     trueLit: Lit,
     inputs: Set[Formula],
     assumption: cdclt.Var => Boolean,
+    assumed: cdclt.Var => Boolean,
     testers: String => Option[List[String]],
     sortOf: Term => String,
     declared: String => Boolean
@@ -282,7 +283,10 @@ final class InputClauses(
         if !inputs(f) && !guarded then Some(s"$f is not an assertion")
         else ok(has(f), s"no literal of $f")
       case Encoder.Origin.Retired =>
-        ok(clause.exists(l => !l.positive && assumption(l.variable)), "not the negation of a selector")
+        ok(
+          clause.exists(l => !l.positive && assumption(l.variable) && !assumed(l.variable)),
+          "not the negation of a retired selector"
+        )
       case Encoder.Origin.Exhaustive(t) =>
         testers(sortOf(t)) match
           case Some(names) => ok(has(Or(names.map(n => Pred(Term.App(Term.Const(n), List(t)))))), "not the testers")
@@ -351,11 +355,8 @@ final class InputClauses(
           ok(bounds.exists(has) || has(And(bounds)), "not the range of a witness")
       case Encoder.Origin.SameBase(f, g, indices) =>
         // `f = g ∨ f(i) ≠ g(i) ∨ …` for the indices `i` of the stores that make `f` and `g` from one base.
-        def chain(t: Term, written: List[Term]): (Term, List[Term]) = t match
-          case Term.App(Term.Const(n), List(a, i, _)) if Names.isStore(n) => chain(a, i :: written)
-          case _ => (t, written)
-        val (fb, fw) = chain(f, Nil)
-        val (gb, gw) = chain(g, Nil)
+        val (fb, fw) = Encoder.storeWrites(f)
+        val (gb, gw) = Encoder.storeWrites(g)
         if fb != gb then Some(s"$f and $g are not made from one base")
         else if !(fw ++ gw).forall(indices.contains) then Some("an index written left out")
         else

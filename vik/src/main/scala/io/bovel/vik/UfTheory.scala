@@ -220,20 +220,23 @@ final class UfTheory(
   private def nodes(certificate: UfTheory.Certificate): Map[EClassId, App] =
     val out = scala.collection.mutable.HashMap.empty[EClassId, App]
     val todo = ArrayBuffer.empty[EClassId]
-    def proof(p: EqProof): Unit = p match
-      case EqProof.Refl(a) => todo += a
-      case EqProof.Given(a, b, _) => todo += a += b
-      case EqProof.Symm(q) => proof(q)
-      case EqProof.Trans(q, r) =>
-        proof(q)
-        proof(r)
-      case EqProof.Cong(a, b, f, args) =>
-        todo += a += b
-        proof(f)
-        args.foreach(proof)
-      case EqProof.Rule(a, b, premises) =>
-        todo += a += b
-        premises.foreach(proof)
+    // A proof shares the proof of an edge where it is used again: each is walked once.
+    val walked = java.util.Collections.newSetFromMap(java.util.IdentityHashMap[EqProof, java.lang.Boolean]())
+    def proof(p: EqProof): Unit = if walked.add(p) then
+      p match
+        case EqProof.Refl(a) => todo += a
+        case EqProof.Given(a, b, _) => todo += a += b
+        case EqProof.Symm(q) => proof(q)
+        case EqProof.Trans(q, r) =>
+          proof(q)
+          proof(r)
+        case EqProof.Cong(a, b, f, args) =>
+          todo += a += b
+          proof(f)
+          args.foreach(proof)
+        case EqProof.Rule(a, b, premises) =>
+          todo += a += b
+          premises.foreach(proof)
     certificate match
       case UfTheory.Certificate.Conflict(EConflict.Disequal(p, _)) => proof(p)
       case UfTheory.Certificate.Conflict(EConflict.Contradiction(ps)) => ps.foreach(proof)

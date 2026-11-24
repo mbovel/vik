@@ -20,7 +20,8 @@ import io.bovel.vik.Sexp.{Atom, Lst}
 object Lean:
 
   /** Not a certificate this driver reads. */
-  final class Malformed(message: String) extends Exception(message)
+  type Malformed = Sexp.Malformed
+  def Malformed(message: String): Malformed = Sexp.Malformed(message)
 
   private val stepSlice = 250
   private val nodeSlice = 500
@@ -46,14 +47,7 @@ object Lean:
    *  namespace `namespace`.
    */
   def apply(certificate: String, namespace: String): String =
-    val sections = Sexp.parse(certificate) match
-      case Lst(Atom("vik-proof") +: Atom("1") +: rest) =>
-        rest.map {
-          case Lst(Atom(name) +: fields) => name -> fields
-          case s => throw Malformed(s"not a section: ${s.toString.take(100)}")
-        }.toMap
-      case Lst(Atom("vik-proof") +: v +: _) => throw Malformed(s"unknown version $v")
-      case _ => throw Malformed("not a Vik certificate")
+    val sections = Sexp.sections(certificate)
     def section(name: String): Vector[Sexp] = sections.getOrElse(name, throw Malformed(s"no $name"))
     def field(name: String, f: String): Vector[Sexp] = section(name).collectFirst {
       case Lst(Vector(Atom(`f`), Lst(xs))) => xs
@@ -99,9 +93,7 @@ object Lean:
       a += n
     out.toList
 
-  private def items(s: Sexp): Vector[Sexp] = s match
-    case Lst(xs) => xs
-    case Atom(a) => throw Malformed(s"expected a list, got $a")
+  private def items(s: Sexp): Vector[Sexp] = Sexp.items(s)
 
   /** The cost of each derived step, the literals it and its hints visit. */
   private def rupCosts(steps: Vector[Sexp]): IndexedSeq[Int] =

@@ -82,7 +82,12 @@ private final class Lowerer:
    */
   var tracing = false
   val intros = ArrayBuffer.empty[Lowering.Intro]
-  private def trace(kind: String, key: List[Any], symbols: List[Term], args: List[Any] = Nil): Unit =
+  private inline def trace(
+      inline kind: String,
+      inline key: List[Any],
+      inline symbols: List[Term],
+      inline args: List[Any] = Nil
+  ): Unit =
     if tracing then intros += Lowering.Intro(kind, key, args, symbols.map { case Const(n) => n; case t => t.toString })
 
   private var fresh = 0
@@ -166,6 +171,15 @@ private final class Lowerer:
     bitConstants.clear()
 
   def commands(cs: List[s2.Command]): List[Command] = cs.flatMap(command)
+
+  /** Forgets what a command the lowering refused part-way minted: its pending
+   *  declarations and definitions, its intros, and the memos that may point to
+   *  them.
+   */
+  def discard(): Unit =
+    pending.clear()
+    intros.clear()
+    clearMemos()
 
   /** The value of a surface term or formula under `model`, as SMT-LIB writes it
    *  at the term's sort. Every construct is computed here from the model's

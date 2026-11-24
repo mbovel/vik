@@ -91,6 +91,11 @@ final class LoweringCheck:
     knownBitsOf.clear()
     bitConstants.clear()
 
+  /** Forgets the memos, as the lowering does when it discards a refused command
+   *  ([[Lowerer.discard]]).
+   */
+  def discard(): Unit = clearMemos()
+
   /** Checks one surface command against its lowering and the intros the
    *  lowering recorded for it: `None` if they agree, what is wrong otherwise.
    */

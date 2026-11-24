@@ -30,7 +30,8 @@ import Sexp.{Atom, Lst}
 object Cpc:
 
   /** Not a certificate this driver reads. */
-  final class Malformed(message: String) extends Exception(message)
+  type Malformed = Sexp.Malformed
+  def Malformed(message: String): Malformed = Sexp.Malformed(message)
 
   /** A certificate this driver does not translate yet. */
   final class Unsupported(message: String) extends Exception(message)
@@ -50,9 +51,7 @@ object Cpc:
     case Atom(t) => BigInt(t)
     case _ => throw Malformed(s"not a number: ${s.toString.take(100)}")
   private def int(s: Sexp): Int = num(s).toInt
-  private def items(s: Sexp): Vector[Sexp] = s match
-    case Lst(xs) => xs
-    case _ => throw Malformed(s"not a list: ${s.toString.take(100)}")
+  private def items(s: Sexp): Vector[Sexp] = Sexp.items(s)
   private def ints(s: Sexp): Vector[Int] = items(s).map(int)
   private def bool(s: Sexp): Boolean = s match
     case Atom("true") => true
@@ -74,18 +73,10 @@ object Cpc:
       case _ => None
 
   private final class Writer(certificate: String, compact: Boolean):
-    private val sections: Map[String, Map[String, Sexp]] = Sexp.parse(certificate) match
-      case Lst(Atom("vik-proof") +: Atom("1") +: rest) =>
-        rest.map {
-          case Lst(Atom(name) +: fields) =>
-            name -> fields.map {
-              case Lst(Vector(Atom(f), v)) => f -> v
-              case s => throw Malformed(s"not a field: ${s.toString.take(100)}")
-            }.toMap
-          case s => throw Malformed(s"not a section: ${s.toString.take(100)}")
-        }.toMap
-      case Lst(Atom("vik-proof") +: v +: _) => throw Malformed(s"unknown version $v")
-      case _ => throw Malformed("not a Vik certificate")
+    private val sections: Map[String, Map[String, Sexp]] = Sexp.sections(certificate).view.mapValues(_.map {
+      case Lst(Vector(Atom(f), v)) => f -> v
+      case s => throw Malformed(s"not a field: ${s.toString.take(100)}")
+    }.toMap).toMap
 
     private def field(section: String, f: String): Sexp =
       sections.getOrElse(section, throw Malformed(s"no $section")).getOrElse(f, throw Malformed(s"no $f in $section"))
@@ -150,8 +141,6 @@ object Cpc:
 
     // ----------------------------------------------------------------------
     // Sorts and symbols
-
-    private val userSorts = ArrayBuffer.empty[Int]
 
     private def sort(s: Int): String = sSorts.lift(s) match
       case Some(Atom("bool")) => "Bool"

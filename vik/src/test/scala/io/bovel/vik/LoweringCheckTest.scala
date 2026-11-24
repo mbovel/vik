@@ -97,6 +97,26 @@ class LoweringCheckTest extends munit.FunSuite:
     assertEquals(session.run(Parser.parse("(check-sat)")), List("unsat"))
     assertEquals(session.checkProof(), Nil)
 
+  test("a command the lowering refuses leaves the later proofs alone"):
+    // The floor of `to_int r` is minted before `div` is refused: neither it nor its definition may reach
+    // the next command.
+    val session = Session(Solver(proofs = true))
+    session.run("(declare-const r Real) (declare-const a Int)")
+    intercept[s2.Unsupported](session.run("(assert (and (= (to_int r) 1) (= (div a 2) 3)))"))
+    assertEquals(session.run("(assert (< a 0)) (assert (> a 0)) (check-sat)"), List("unsat"))
+    assertEquals(session.checkProof(), Nil)
+    assert(session.proof().isRight, session.proof())
+
+  test("no proof after a later sat"):
+    val session = Session(Solver(proofs = true))
+    val answers = session.run(Parser.parse("""
+      (declare-const a Int)
+      (push 1) (assert (< a 0)) (assert (> a 0)) (check-sat) (pop 1)
+      (check-sat)
+    """))
+    assertEquals(answers, List("unsat", "sat"))
+    assert(session.proof().isLeft, session.proof())
+
   test("the witnesses of extensionality over bit-vector indices check"):
     // Three arrays over a 1-bit index, pairwise different, each 0 or 1 everywhere: the witnesses must be
     // indices of the range, or the pigeonhole on 2 × 2 values would not close.

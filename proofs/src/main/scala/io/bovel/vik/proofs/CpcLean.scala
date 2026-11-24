@@ -21,7 +21,8 @@ import io.bovel.vik.Sexp.{Atom, Lst}
 object CpcLean:
 
   /** Not a proof this driver reads. */
-  final class Malformed(message: String) extends Exception(message)
+  type Malformed = Sexp.Malformed
+  def Malformed(message: String): Malformed = Sexp.Malformed(message)
 
   /** A proof beyond what the Lean checker covers. */
   final class Unsupported(message: String) extends Exception(message)
@@ -56,13 +57,7 @@ object CpcLean:
    *  checked by `native_decide` when `native`, otherwise by the kernel.
    */
   def apply(certificate: String, cpc: String, namespace: String, native: Boolean = false): String =
-    val sections = Sexp.parse(certificate) match
-      case Lst(Atom("vik-proof") +: Atom("1") +: rest) =>
-        rest.map {
-          case Lst(Atom(name) +: fields) => name -> fields
-          case s => throw Malformed(s"not a section: ${s.toString.take(100)}")
-        }.toMap
-      case _ => throw Malformed("not a Vik certificate")
+    val sections = Sexp.sections(certificate)
     val script = sections.getOrElse("script", throw Malformed("no script"))
     val proof = Reader(script).read(cpc)
     val nc = if native then "" else "noncomputable "
@@ -121,9 +116,7 @@ object CpcLean:
     case Atom(a) if a.nonEmpty && a.forall(_.isDigit) => a.toInt
     case _ => throw Malformed(s"not a number: ${s.toString.take(100)}")
 
-  private def items(s: Sexp): Vector[Sexp] = s match
-    case Lst(xs) => xs
-    case Atom(a) => throw Malformed(s"expected a list, got $a")
+  private def items(s: Sexp): Vector[Sexp] = Sexp.items(s)
 
   private def ints(s: Sexp): Vector[Int] = items(s).map(num)
 
