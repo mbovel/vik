@@ -39,7 +39,6 @@ refused at the declaration, rather than read as uninterpreted sorts.
 
 ## Not yet
 
-- `div`, `mod` and `abs` are refused; see [integers](theories/integers.md).
 - An assertion that still mentions a sort parameter, which the standard reads as one assertion per
   monomorphic sort of the context, is refused: a use of a polymorphic symbol must determine its
   instance; see [sort parameters](theories/sorts.md#sort-parameters).

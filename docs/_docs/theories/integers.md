@@ -45,8 +45,18 @@ between ½ and 1) and no integer one:
 (check-sat)
 ```
 
-Multiplication of two unknowns is refused (this is linear arithmetic), as are reals; `div` and `mod` are not
-supported yet.
+Multiplication of two unknowns is refused (this is linear arithmetic). `div`, `mod` and `abs` are lowered
+when the divisor is a nonzero numeral: `t = d·q + r` with `0 ≤ r < |d|`, SMT-LIB's division, the quotient
+`q` and the remainder `r` fresh integers, and `abs` a case on the sign. `((_ divisible n) t)` is
+`(= (mod t n) 0)`. A division by an unknown is not linear, and is refused.
+
+```smt2
+(declare-const x Int)
+(assert (= (mod x 4) 1))
+(assert (= (div x 4) 2))
+(assert (not ((_ divisible 3) (+ x 1))))
+(check-sat)
+```
 
 Functions over integers mix the two theories, and the equalities travel both ways: arithmetic tells the
 e-graph that two terms are equal, congruence tells arithmetic that two applications are:
