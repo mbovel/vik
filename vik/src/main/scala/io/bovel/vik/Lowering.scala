@@ -1473,7 +1473,7 @@ private final class Lowerer:
   /** `2^width − 1 − t`; the complement of known bits is known. */
   private def not(t: Term, width: Int): Term =
     val r = Term.linear(List((BigInt(-1), t)), modulus(width) - 1)
-    for bs <- loweredBits.get((t, width)) do loweredBits((r, width)) = bs.map(Not(_))
+    for bs <- loweredBits.get((t, width)) do loweredBits((r, width)) = bs.map(negation)
     r
 
   /** `t` rotated left by `k` bits: `t = 2^(width−k) × q + r`, the result
@@ -1498,7 +1498,7 @@ private final class Lowerer:
       lazy val adder = adderBits(t, width)
       t match
         case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 =>
-          bits(u, width).map(Not(_))
+          bits(u, width).map(negation)
         case _ if adder.isDefined =>
           val fs = adder.get
           loweredBits((t, width)) = fs
@@ -1532,7 +1532,7 @@ private final class Lowerer:
         if !ok then None
         else
           val negs = terms.count(_._1.signum < 0)
-          val vectors = terms.map((a, u) => if a.signum > 0 then bits(u, width) else bits(u, width).map(Not(_)))
+          val vectors = terms.map((a, u) => if a.signum > 0 then bits(u, width) else bits(u, width).map(negation))
           val k = (c + negs).mod(m)
           val all = if k.signum == 0 && vectors.nonEmpty then vectors else vectors :+ knownBits(Num(k), width).get
           Some(all.reduceLeft(ripple))
@@ -1577,7 +1577,7 @@ private final class Lowerer:
   /** The bits of `t` if they are known without a decomposition. */
   private def knownBits(t: Term, width: Int): Option[IndexedSeq[Formula]] = t match
     case Num(v) => Some((0 until width).map(i => if v.testBit(i) then True else False))
-    case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 => knownBits(u, width).map(_.map(Not(_)))
+    case Linear(List((a, u)), c) if a == -1 && c == modulus(width) - 1 => knownBits(u, width).map(_.map(negation))
     case _ => loweredBits.get((t, width)).orElse(sumBits(t, width))
 
   /** The `{0, 1}` constant carrying a bit: the one it came from, its
@@ -1689,6 +1689,13 @@ private final class Lowerer:
       zb > 0 && (zb == Int.MaxValue || range(a).get._2 < BigInt(2).pow(zb))
     }
 
+  /** The complement of a bit, folded on literals and double negations. */
+  private def negation(f: Formula): Formula = f match
+    case True => False
+    case False => True
+    case Not(g) => g
+    case _ => Not(f)
+
   /** One bit of a bitwise operation, folded on literals and on equal bits. */
   private def gate(op: BvOp, x: Formula, y: Formula): Formula = (op, x, y) match
     case (BvOp.And, True, f) => f
@@ -1699,8 +1706,8 @@ private final class Lowerer:
     case (BvOp.Or, _, True) => True
     case (BvOp.Or, False, f) => f
     case (BvOp.Or, f, False) => f
-    case (BvOp.Xor, True, f) => Not(f)
-    case (BvOp.Xor, f, True) => Not(f)
+    case (BvOp.Xor, True, f) => negation(f)
+    case (BvOp.Xor, f, True) => negation(f)
     case (BvOp.Xor, False, f) => f
     case (BvOp.Xor, f, False) => f
     case (_, f, g) if f == g => if op == BvOp.Xor then False else f
