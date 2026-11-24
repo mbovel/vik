@@ -825,23 +825,22 @@ private final class Lowerer:
    *  determined uniquely by `r`, so the definition is sound under both
    *  polarities.
    */
-  private def floor(r: Term): Term =
-    if tracing then floors.getOrElseUpdate(r, newFloor(r)) else newFloor(r)
+  private def floor(r: Term): Term = floors.getOrElseUpdate(
+    r, {
+      val name = freshName("floor")
+      introduce(name, Sort.Int)
+      functions(name) = s2.Sort.Int
+      val k = Const(name)
+      define(Le(k, r))
+      define(Less(r, Term.linear(List((BigInt(1), k)), 1)))
+      trace("floor", List(r), List(k))
+      k
+    }
+  )
 
-  /** Memoized only with proofs, where [[LoweringCheck]] replays each floor
-   *  once: without, the lowering stays upstream's, whose search the corpus is
-   *  tuned to.
+  /** One floor per term: the proof's lowering check replays each rule once per
+   *  key, and the search is then the same with proofs as without.
    */
-  private def newFloor(r: Term): Term =
-    val name = freshName("floor")
-    introduce(name, Sort.Int)
-    functions(name) = s2.Sort.Int
-    val k = Const(name)
-    define(Le(k, r))
-    define(Less(r, Term.linear(List((BigInt(1), k)), 1)))
-    trace("floor", List(r), List(k))
-    k
-
   private val floors = Memo[Term, Term]()
 
   private def floorDiv(p: BigInt, q: BigInt): BigInt =
@@ -1352,16 +1351,16 @@ private final class Lowerer:
           case BvOp.Srem => modulo(r, width, -1, 0)
           case _ =>
             val differ = if t.signum > 0 then negative(a, width) else Not(negative(a, width)) // the signs differ
-            def sign(): Term =
-              val z = freshInt("z", 0, 1)
-              define(Implies(Not(differ), IntEq(z, Num(0))))
-              define(Implies(IntEq(r, Num(0)), IntEq(z, Num(0))))
-              define(Implies(And(List(differ, Not(IntEq(r, Num(0))))), IntEq(z, Num(1))))
-              trace("smodz", List(a, c, width), List(z))
-              z
-            // memoized only with proofs, like `floor`
-            val z =
-              if tracing then loweredOperations.getOrElseUpdate(("smodz", List(a), List(c, width)), sign()) else sign()
+            val z = loweredOperations.getOrElseUpdate(
+              ("smodz", List(a), List(c, width)), {
+                val z = freshInt("z", 0, 1)
+                define(Implies(Not(differ), IntEq(z, Num(0))))
+                define(Implies(IntEq(r, Num(0)), IntEq(z, Num(0))))
+                define(Implies(And(List(differ, Not(IntEq(r, Num(0))))), IntEq(z, Num(1))))
+                trace("smodz", List(a, c, width), List(z))
+                z
+              }
+            )
             modulo(r + z * t, width, -1, 0)
 
   /** The signed value `S` of `t` divided by `d > 0`: `S = d × q + r` with
