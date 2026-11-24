@@ -199,10 +199,15 @@ final class Parser:
       undoable(macros, name)
       macros(name) = (ps, result, typed)
       List(Command.DefineFun(name, ps, result, typed))
-    case SList(SSymbol("assert") :: SList(SSymbol("!") :: body :: attributes) :: Nil)
-        if attributes.sliding(2).exists { case Seq(SKeyword("named"), _) => true; case _ => false } =>
-      val name = attributes.sliding(2).collectFirst { case Seq(SKeyword("named"), SSymbol(n)) => n }.get
-      List(Command.AssertNamed(name, assertion(body)))
+    case SList(SSymbol("assert") :: SList(SSymbol("!") :: body :: attributes) :: Nil) if named(attributes).nonEmpty =>
+      val name = named(attributes).get
+      val f = assertion(body)
+      // The name is a formula too, from here on (issue 239). A name the script uses for a symbol already stays
+      // a label, as z3 keeps it: princess's tests name assertions `left` and `right` beside selectors of those
+      // names. SMT-LIB wants a fresh symbol, and cvc5 refuses them.
+      if !functions.contains(name) && !macros.contains(name) && !polymorphic.contains(name) then
+        define(name, body, Map.empty, Sort.Bool, f, inline = false)
+      List(Command.AssertNamed(name, f))
     case SList(SSymbol("assert") :: body :: Nil) => List(Command.Assert(assertion(body)))
     case SList(SSymbol("check-sat") :: Nil) => List(Command.CheckSat)
     case SList(SSymbol("check-sat-using") :: _) => List(Command.CheckSat) // z3's, with a tactic: ignored
@@ -274,6 +279,57 @@ final class Parser:
       List(Command.Exit)
     case SList(SSymbol(_) :: _) => List(Command.Other(sexpr))
     case other => throw Smt2Error(s"not a command: $other")
+
+  /** The name an annotation gives its term, `:named n`, if it gives one. */
+  private def named(attributes: List[SExpr]): Option[String] =
+    attributes.sliding(2).collectFirst { case Seq(SKeyword("named"), SSymbol(n)) => n }
+
+  /** The `let` bindings around the term being read, outermost first: a named
+   *  term below them takes the ones it mentions along (see [[define]]).
+   */
+  private val lets = scala.collection.mutable.ArrayBuffer.empty[List[(String, SExpr, Term | Formula)]]
+
+  /** Reads a `let`'s body with its bindings in [[lets]]. */
+  private def within[A](bs: List[SExpr], bound: List[(String, Term | Formula)])(read: => A): A =
+    lets += bs.zip(bound).collect { case (SList(SSymbol(name) :: value :: Nil), (_, v)) => (name, value, v) }
+    try read
+    finally lets.remove(lets.length - 1)
+
+  /** Defines the name `n` of the annotated term `body`, read as `typed`: a
+   *  nullary definition of the term, from where it is named on, as SMT-LIB 2.6
+   *  says of `:named` (section 4.1.6). The definition goes ahead of the
+   *  command, which may use the name after the term itself. A name below the
+   *  top of an assertion was dropped, and its uses were unknown symbols (issue
+   *  239). The standard names closed terms only; a term that mentions the
+   *  variables of enclosing `let`s takes their bindings along, as z3 and cvc5
+   *  read it and as Yices2's fuzzer writes it. A macro's parameter has no value
+   *  to take, and is refused.
+   */
+  private def define(
+      n: String,
+      body: SExpr,
+      env: Map[String, Sort],
+      sort: Sort,
+      typed: Term | Formula,
+      inline: Boolean = true // false for an assertion's name, which its `AssertNamed` carries
+  ): Unit =
+    var needed = env.keySet.filter(mentions(body, _))
+    val groups = scala.collection.mutable.ArrayBuffer.empty[List[(String, Term | Formula)]] // outermost first
+    for group <- lets.reverseIterator do
+      val kept = group.filter((name, _, _) => needed(name))
+      if kept.nonEmpty then
+        groups.prepend(kept.map((name, _, v) => (name, v)))
+        needed = needed -- kept.map(_._1) ++ env.keySet.filter(k => kept.exists((_, value, _) => mentions(value, k)))
+    for v <- needed.headOption do throw Smt2Error(s"$n: a named term must be closed, and this one mentions $v")
+    val closed = groups.foldRight(typed) { (group, inner) =>
+      inner match
+        case f: Formula => Let(group, f)
+        case t: Term => Term.Let(group, t)
+    }
+    free(n)
+    undoable(macros, n)
+    macros(n) = (Nil, sort, closed)
+    if inline then pending += Command.DefineFun(n, Nil, sort, closed)
 
   /** A closed formula, its sorts checked. */
   private def assertion(sexpr: SExpr): Formula =
@@ -776,6 +832,7 @@ final class Parser:
 
   private def sortOf(sexpr: SExpr, env: Map[String, Sort]): Sort = sexpr match
     case SSymbol("true" | "false") => Sort.Bool
+    case SList(SSymbol("!") :: body :: _) => sortOf(body, env)
     case SList(SSymbol(name) :: args) if scripted(name, env) =>
       macros.get(name).map(_._2).getOrElse(applied(functions(name), args.length))
     case SNumeral(_) => Sort.Int
@@ -898,9 +955,12 @@ final class Parser:
       Ite(formula(cond, env), formula(thn, env), formula(els, env))
     case SList(SSymbol("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
-      Let(bound, formula(body, inner))
+      Let(bound, within(bs, bound)(formula(body, inner)))
     case SList(SSymbol("match") :: _) => formula(matchToIte(sexpr, env), env)
-    case SList(SSymbol("!") :: body :: _) => formula(body, env) // an annotated term
+    case SList(SSymbol("!") :: body :: attributes) => // an annotated term, which may name it
+      val f = formula(body, env)
+      for n <- named(attributes) do define(n, body, env, Sort.Bool, f)
+      f
     case _ => predicate(sexpr, env)
   end formula
 
@@ -1035,9 +1095,12 @@ final class Parser:
       Term.Ite(formula(cond, env), term(thn, env), term(els, env))
     case SList(SSymbol("let") :: SList(bs) :: body :: Nil) =>
       val (bound, inner) = bindings(bs, env)
-      Term.Let(bound, term(body, inner))
+      Term.Let(bound, within(bs, bound)(term(body, inner)))
     case SList(SSymbol("match") :: _) => term(matchToIte(sexpr, env), env)
-    case SList(SSymbol("!") :: body :: _) => term(body, env) // an annotated term
+    case SList(SSymbol("!") :: body :: attributes) => // an annotated term, which may name it
+      val t = term(body, env)
+      for n <- named(attributes) do define(n, body, env, sortCheck.term(t, env), t)
+      t
     case SList(SSymbol(name) :: args) => application(name, args, env)
     case other => throw Smt2Error(s"not a term: $other")
   end term

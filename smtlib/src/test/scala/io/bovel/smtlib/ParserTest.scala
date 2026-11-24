@@ -183,6 +183,33 @@ class ParserTest extends munit.FunSuite:
     val e = intercept[Smt2Error](parse("(declare-datatype D ((A (f Int)) (B (f Int))))"))
     assertEquals(e.getMessage, "f: a selector declared twice in the datatype D")
 
+  test("a named term defines its name, from where it is named on"):
+    // SMT-LIB 2.6, section 4.1.6: the command is read as a define-fun per named subterm, in post-order, then the
+    // command. A name below the top of an assertion was dropped, and its uses were unknown (issue 239).
+    val script = parse("""(declare-const x Int)(declare-const y Int)
+      (assert (! (< (! (+ x y) :named s) (* 2 s)) :named B))
+      (check-sat-assuming (B))""")
+    assertEquals( // `B` is the name of the assertion, which `AssertNamed` carries
+      script.commands.collect { case Command.DefineFun(n, Nil, sort, _) => (n, sort) },
+      List(("s", Sort.Int))
+    )
+    assert(script.commands.exists { case Command.AssertNamed("B", _) => true; case _ => false })
+    parse("(declare-const p Bool)(assert (and (! p :named q) q))(assert (not q))")
+    // A term below `let`s takes the bindings it mentions along, as z3, cvc5 and Yices2's fuzzer read it.
+    val inLet =
+      parse("(declare-const x Int)(assert (let ((y x) (z 3)) (let ((w (+ y 1))) (> (! (+ w 1) :named t) 0))))")
+    inLet.commands.collectFirst { case Command.DefineFun("t", Nil, Sort.Int, body) => body } match
+      case Some(Term.Let(List(("y", _)), Term.Let(List(("w", _)), _))) => ()
+      case other => fail(s"not the bindings y, then w: $other")
+    for script <- List(
+        "(declare-const x Int)(define-fun g ((y Int)) Bool (> (! (+ y 1) :named t) 0))", // a parameter: no value
+        "(declare-const x Int)(assert (> (! (+ x 1) :named t) (! (+ x 2) :named t)))", // twice
+        "(declare-const t Int)(assert (> (! 1 :named t) 0))" // not fresh
+      )
+    do intercept[Smt2Error](parse(script))
+    // A name goes with its level, as a definition does.
+    parse("(declare-const x Int)(push 1)(assert (> (! (+ x 1) :named t) 0))(pop 1)(declare-const t Bool)")
+
   test("a symbol is declared once"):
     // The second `a` replaced the first: `A` was left with the constructor of `B`, and two of its values
     // could not differ (issue 230).
