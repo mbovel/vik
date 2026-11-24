@@ -47,6 +47,26 @@ object Simplifier:
       kept: List[Formula] = Nil,
       step: () => Unit = () => ()
   ): (List[Formula], Map[String, Term]) =
+    val (pairs, defined, _) = traced(assertions, interpreted, kept, step)
+    (pairs.map(_._2), defined)
+
+  /** The eliminations of a conjunction: the positions of the equalities it lost
+   *  among its conjuncts, each with whether the constant was on the left.
+   */
+  type Eliminations = List[(Int, Boolean)]
+
+  /** [[simplify]], each assertion with its simplification (`True` included),
+   *  and the eliminations of each conjunction that lost equalities, for a proof
+   *  that each simplification holds in every model of its assertion
+   *  ([[implies]]). A conjunction met twice with different eliminations is left
+   *  out of the map: [[implies]] then refuses the simplifications under it.
+   */
+  def traced(
+      assertions: List[Formula],
+      interpreted: Set[String] = Set.empty,
+      kept: List[Formula] = Nil,
+      step: () => Unit = () => ()
+  ): (List[(Formula, Formula)], Map[String, Term], Map[Formula, Eliminations]) =
     // The occurrences of every constant over the whole set: one walk, taken the first time a
     // conjunction has an equality to eliminate — most sets have none, and pay nothing.
     lazy val total =
@@ -56,8 +76,9 @@ object Simplifier:
       for name <- interpreted do counts(name) = Int.MaxValue // never local to a conjunction
       counts
     val defined = HashMap.empty[String, Term]
-    val out = assertions.map(f => simplify(f, total, true, defined, step))
-    (out, defined.toMap)
+    val hints = HashMap.empty[Formula, Eliminations | Null]
+    val out = assertions.map(f => (f, simplify(f, total, true, defined, hints, step)))
+    (out, defined.toMap, hints.collect { case (f, e: List[(Int, Boolean)] @unchecked) => (f, e) }.toMap)
 
   private def countConstants(f: Formula, counts: HashMap[String, Int]): Unit = f match
     case True | False => ()

@@ -25,5 +25,8 @@ private[vik] object Names:
    */
   def isStore(name: String): Boolean = name.startsWith(storePrefix)
 
+  /** Whether `name` is one of the solver's witnesses ([[witness]]). */
+  def isWitness(name: String): Boolean = name.startsWith(s".$witnessTag!")
+
   private val witnessTag = "witness"
   private val storePrefix = ".store!"

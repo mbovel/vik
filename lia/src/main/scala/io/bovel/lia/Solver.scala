@@ -1320,7 +1320,9 @@ final class Solver:
     def fix(x: Var): Unit =
       if isFixed(x) && mentioned.add(x) then
         val reasons = lower(x).nn.reasons ++ upper(x).nn.reasons
-        eliminate(Equation(HashMap(x -> BigInt(1)), lower(x).nn.value.r.num, reasons))
+        val factors = newFactors()
+        if factors != null then factors(x) = Rational.one
+        eliminate(Equation(HashMap(x -> BigInt(1)), lower(x).nn.value.r.num, reasons, factors))
     // The row of the basic `b` as an equation over the integers, `Σ l·a·x − l·b = 0`: none if a real is in it.
     def ofRow(b: Var): Equation | Null =
       val row = rows(b)
@@ -1328,7 +1330,7 @@ final class Solver:
       else
         val terms = (0 until row.size).map(i => (row.varAt(i), row.coefAt(i)))
         val l = terms.foldLeft(BigInt(1))((l, term) => l / (l gcd term._2.den) * term._2.den)
-        Equation(HashMap.from(terms.map((x, a) => (x, a.num * (l / a.den)))) += b -> -l, 0, Set.empty)
+        Equation(HashMap.from(terms.map((x, a) => (x, a.num * (l / a.den)))) += b -> -l, 0, Set.empty, newFactors())
     for b <- 0 until numVars do
       val equation = ofRow(b)
       if equation != null && (equation.coefs(b) != -1 || isFixed(b)) then
@@ -1337,8 +1339,12 @@ final class Solver:
         fix(b)
         for i <- 0 until row.size do fix(row.varAt(i))
     // The lattices. A row left out above defines its variable, and is where that variable's lattice starts.
+    // Not with proofs: a bound moved onto a lattice has no certificate yet.
     val avoiding = HashSet.from(distinct.iterator.map(_._1))
-    for x <- 0 until numVars if isInt(x) && !isFixed(x) && (lower(x) != null || upper(x) != null || avoiding(x)) do
+    for
+      x <- 0 until numVars
+      if !proofs && isInt(x) && !isFixed(x) && (lower(x) != null || upper(x) != null || avoiding(x))
+    do
       val start = solved.getOrElse(x, ofRow(x))
       if start != null then
         val equation = Equation(start.coefs.clone(), start.constant, start.reasons)

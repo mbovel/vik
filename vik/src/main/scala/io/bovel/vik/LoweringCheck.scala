@@ -116,7 +116,7 @@ final class LoweringCheck:
           val main = expected.asInstanceOf[List[Command]]
           val (prefix, rest) = lowered.splitAt(lowered.length - main.length)
           if rest != main then fail(s"not the lowering of $c: ${rest.mkString("; ")}")
-          val decls = prefix.collect { case Command.DeclareFun(n, Nil, s) => (n, s) }
+          val decls = prefix.collect { case Command.DeclareFun(n, Nil, s, _) => (n, SortText.of(s)) }
           val asserts = prefix.collect { case Command.Assert(f) => f }
           if decls.length + asserts.length != prefix.length then fail("the lowering sent other commands")
           if decls.sorted != declarations.toList.sorted then
@@ -139,7 +139,7 @@ final class LoweringCheck:
       if declared(s) || minted(s) then fail(s"$s is not a new symbol")
       minted += s
       introOf(s) = intro
-    if intro.kind == "store" then stores(intro.key.head.asInstanceOf[String]) = intro
+    if intro.kind == "store" then stores(SortText.of(intro.key.head.asInstanceOf[io.bovel.vik.Sort])) = intro
     else intros((intro.kind, intro.key)) = intro
     intro.kind match
       case "rat" =>
@@ -181,11 +181,7 @@ final class LoweringCheck:
         arity(1)
         val k = ks.head
         val cond = Formula.pred(c)
-        sort match
-          case Sort.BitVec(w) =>
-            declare(k, "Int")
-            facts += range(k, w)
-          case _ => declare(k, sortString(sort))
+        declare(k, sortString(sort))
         facts += Implies(cond, equal(sort, k, t))
         facts += Implies(Not(cond), equal(sort, k, e))
       case ("floor", List(r: Term), Nil) =>
@@ -201,15 +197,12 @@ final class LoweringCheck:
         arity(1)
         declare(ks.head, "Real")
         facts += IntEq(Term.linear(List((q, ks.head))), Term.linear(List((p, t))))
-      case ("store", List(key: String), Nil) =>
+      case ("store", List(key: io.bovel.vik.Sort), Nil) =>
         arity(1)
         val n = intro.symbols.head
-        if !n.startsWith("store!") then fail(s"the store symbol $n")
-        val (params, _) = s2.Sorts.arrow(key).getOrElse(fail(s"store on $key"))
-        declarations += ((n, s2.Sorts.function(key :: params.head :: List(s2.Sorts.applied(key, 1)), key)))
-      case ("range", List(t: Term), List(w: Int)) =>
-        arity(0)
-        facts += range(t, w)
+        if !Names.isStore(n) then fail(s"the store symbol $n")
+        val (params, _) = key.arrow.getOrElse(fail(s"store on $key"))
+        declarations += ((n, SortText.of(io.bovel.vik.Sort.fun(key :: params.head :: List(key.after(1).get), key))))
       case ("modulo", List(value: Term, w: Int, lo: BigInt, hi: BigInt), Nil) =>
         val m = modulus(w)
         int(ks.head, 0, m - 1)
@@ -280,13 +273,6 @@ final class LoweringCheck:
 
   // The replay of the commands.
 
-  /** The range of a bit-vector constant, asserted below every level under
-   *  `:global-declarations`, as the lowering does.
-   */
-  private def rangeFact(name: String, w: Int): Command =
-    val fact = range(Const(name), w)
-    if globalDeclarations then Command.AssertGlobal(fact) else Command.Assert(fact)
-
   private def replay(c: s2.Command): List[Command] | List[Formula | Term] = c match
     case s2.Command.SetLogic(logic) => List(Command.SetLogic(logic.replace("BV", "LIA")))
     case s2.Command.SetInfo(key, value) => List(Command.SetInfo(key, value))
@@ -295,13 +281,8 @@ final class LoweringCheck:
       if minted(name) then fail(s"$name is a minted symbol")
       undoable(functions, name)
       declared += name
-      sort match
-        case Sort.BitVec(w) if argSorts.isEmpty =>
-          functions(name) = sort
-          List(Command.DeclareFun(name, Nil, "Int"), rangeFact(name, w))
-        case _ =>
-          functions(name) = Sort.fun(argSorts, sort)
-          List(Command.DeclareFun(name, argSorts.map(sortString), sortString(sort)))
+      functions(name) = Sort.fun(argSorts, sort)
+      List(Command.DeclareFun(name, argSorts.map(lowered), lowered(sort)))
     case s2.Command.DeclareDatatypes(datatypes) =>
       datatypeDecls ++= datatypes
       if scopes.nonEmpty && !globalDeclarations then
@@ -317,7 +298,7 @@ final class LoweringCheck:
           functions(selector) = Sort.fun(List(d), s)
         declared ++= constructor.name :: constructor.tester :: constructor.selectors.map(_._1)
       List(Command.DeclareDatatypes(datatypes.map(d =>
-        d.copy(constructors = d.constructors.map(c => c.copy(selectors = c.selectors.map((n, s) => (n, lowered(s))))))
+        Datatype(d.name, d.constructors.map(c => Constructor(c.name, c.selectors.map((n, s) => (n, lowered(s))))))
       )))
     case s2.Command.DefineFun(name, params, sort, body) =>
       if minted(name) then fail(s"$name is a minted symbol")
@@ -349,9 +330,7 @@ final class LoweringCheck:
       scopes.clear()
       clearMemos()
       assertions.clear()
-      Command.ResetAssertions +: functions.toList.sortBy(_._1).collect { case (n, Sort.BitVec(w)) =>
-        rangeFact(n, w)
-      }
+      List(Command.ResetAssertions)
     case s2.Command.Reset =>
       scopes.clear()
       assertions.clear()
@@ -381,25 +360,17 @@ final class LoweringCheck:
 
   // Sorts.
 
-  private def lowered(s: Sort): Sort = s match
-    case Sort.BitVec(_) => Sort.Int
-    case Sort.Fun(args, result) => Sort.Fun(args.map(lowered), lowered(result))
-    case Sort.Array(index, element) =>
-      val i = index match
-        case Sort.BitVec(_) => index
-        case other => lowered(other)
-      Sort.fun(List(i), lowered(element))
-    case other => other
+  /** The solver's sort of a surface sort, as [[Lowering]] lowers it. */
+  private def lowered(s: Sort): io.bovel.vik.Sort = s match
+    case Sort.Bool => io.bovel.vik.Sort.Bool
+    case Sort.Int => io.bovel.vik.Sort.Int
+    case Sort.Real => io.bovel.vik.Sort.Real
+    case Sort.BitVec(width) => io.bovel.vik.Sort.IntRange(0, modulus(width) - 1)
+    case Sort.Named(name) => io.bovel.vik.Sort.Named(name)
+    case Sort.Fun(args, result) => io.bovel.vik.Sort.fun(args.map(lowered), lowered(result))
+    case Sort.Array(index, element) => io.bovel.vik.Sort.fun(List(lowered(index)), lowered(element))
 
-  private def sortString(s: Sort): String = s match
-    case Sort.BitVec(_) => "Int"
-    case Sort.Fun(args, result) => s2.Sorts.function(args.map(sortString), sortString(result))
-    case Sort.Array(index, element) =>
-      val i = index match
-        case Sort.BitVec(_) => index.text
-        case other => sortString(other)
-      s2.Sorts.function(List(i), sortString(element))
-    case other => other.text
+  private def sortString(s: Sort): String = SortText.of(lowered(s))
 
   private def sortOf(t: s2.Term, env: Env): Sort = t match
     case s2.Term.Const(name) =>
@@ -538,10 +509,10 @@ final class LoweringCheck:
     case s2.Term.Decimal(unscaled, scale) => rational(unscaled, BigInt(10).pow(scale))
     case s2.Term.Bits(value, _) => Num(value)
     case s2.Term.App(s2.Term.Const(name), args) if macros.contains(name) => expand(name, args, env)
-    case s2.Term.App(fun, args) => ranged(App(term(fun, env), args.map(term(_, env))), sortOf(t, env))
+    case s2.Term.App(fun, args) => App(term(fun, env), args.map(term(_, env)))
     case s2.Term.ArithApp(op, args) => arith(op, args, env)
     case s2.Term.BvApp(op, args) => bv(op, args, env)
-    case s2.Term.Select(array, index) => ranged(App(term(array, env), List(term(index, env))), sortOf(t, env))
+    case s2.Term.Select(array, index) => App(term(array, env), List(term(index, env)))
     case s2.Term.Store(array, index, value) =>
       val key = sortString(sortOf(array, env))
       App(use("store", List(key)).head, List(term(array, env), term(index, env), term(value, env)))
@@ -561,12 +532,6 @@ final class LoweringCheck:
     body match
       case t: s2.Term => term(t, inner)
       case f: s2.Formula => Term.boolean(formula(f, inner))
-
-  private def ranged(t: Term, sort: Sort): Term =
-    sort match
-      case Sort.BitVec(w) => use("range", List(t), List(w))
-      case _ => ()
-    t
 
   // Arithmetic.
 

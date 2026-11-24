@@ -6,7 +6,6 @@ import io.bovel.cdclt
 import io.bovel.cdclt.Lit
 import io.bovel.egraph.{App, EClassId, EConflict, EqProof}
 import io.bovel.lia
-import io.bovel.smtlib.{Datatype, Sorts}
 
 /** Writes the certificate of an `Unsat`: the data that `proofs/lean` checks, as
  *  one S-expression, with no Lean code. Each section, `(name (field value) …)`,
@@ -170,7 +169,7 @@ private[vik] object ProofExport:
     private def sortId(s: String): Int = sortIds.get(s) match
       case Some(i) => i
       case None =>
-        Sorts.arrow(s) match
+        SortText.arrow(s) match
           case Some((params, result)) =>
             val i = fnSort(params.map(sortId), sortId(result))
             sortIds(s) = i
@@ -211,7 +210,7 @@ private[vik] object ProofExport:
         decls(name) = decls.size
 
     private def symbolSort(name: String): String = declarations.get(name) match
-      case Some((args, result)) => Sorts.function(args, result)
+      case Some((args, result)) => SortText.function(args, result)
       case None =>
         introduced.get(name) match
           case Some(s) => s
@@ -222,10 +221,10 @@ private[vik] object ProofExport:
       name, {
         val s = symbolSort(name)
         declSorts(name) =
-          if name.startsWith("store!") then
-            Sorts.arrow(s) match
+          if Names.isStore(name) then
+            SortText.arrow(s) match
               case Some((arr :: idx :: el :: _, _)) =>
-                val a = sortId(Sorts.function(List(idx), el))
+                val a = sortId(SortText.function(List(idx), el))
                 fnSort(List(a, sortId(idx), sortId(el)), a)
               case _ => throw Unsupported(s"the store $name")
           else sortId(s)
@@ -317,8 +316,8 @@ private[vik] object ProofExport:
           node(s".const $d", declSorts(name))
         case Term.App(fun, args) =>
           val full = fun match
-            case Term.Const(n) if n.startsWith("store!") => 3
-            case _ => Sorts.arrow(sortOf(fun)).fold(-1)(_._1.length)
+            case Term.Const(n) if Names.isStore(n) => 3
+            case _ => SortText.arrow(sortOf(fun)).fold(-1)(_._1.length)
           if args.length != full then throw Unsupported(s"the partial application $t")
           val f = term(fun)
           val as = args.map(term)
@@ -370,7 +369,7 @@ private[vik] object ProofExport:
         case Some(t) => sortOf(t)
         case None =>
           apps.get(x) match
-            case Some(a) => Sorts.applied(classSort(a.fun), a.args.length)
+            case Some(a) => SortText.applied(classSort(a.fun), a.args.length)
             case None => throw Unsupported(s"the class $x")
     )
     def classNode(x: EClassId): Int = classIds.getOrElseUpdate(
@@ -527,7 +526,9 @@ private[vik] object ProofExport:
           case Some(eq) => s".congruence $eq"
           case None => throw Unsupported("a congruence without its equality")
       case Encoder.Origin.Exhaustive(t) =>
-        val d = datatypes.find(_.name == sortOf(t)).getOrElse(throw Unsupported(s"the datatype of $t"))
+        val d = datatypes.find(d => SortText.of(Sort.Named(d.name)) == sortOf(t)).getOrElse(throw Unsupported(
+          s"the datatype of $t"
+        ))
         val or = Formula.Or(d.constructors.map(c => Formula.Pred(Term.App(Term.Const(c.tester), List(t)))))
         s".exhaustive ${term(t)} ${formula(or)}"
       case Encoder.Origin.Extensionality(ws) =>
@@ -701,7 +702,7 @@ private[vik] object ProofExport:
       )
       // the witnesses, in the order the encoder made them
       def witnessOrder(w: Term): Int = w match
-        case Term.Const(n) => n.stripPrefix("ext!").toIntOption.getOrElse(Int.MaxValue)
+        case Term.Const(n) => n.stripPrefix(".witness!").toIntOption.getOrElse(Int.MaxValue)
         case _ => Int.MaxValue
       def sym(w: Term): Int = w match
         case Term.Const(n) => decl(n)
@@ -717,7 +718,7 @@ private[vik] object ProofExport:
       formula(Formula.True)
       fixSorts()
       val declList = decls.keysIterator.map(declSorts(_).toString).toList
-      val stores = decls.keysIterator.filter(_.startsWith("store!")).map(decls(_).toString).toList
+      val stores = decls.keysIterator.filter(Names.isStore(_)).map(decls(_).toString).toList
       val b = StringBuilder(s"(vik-proof $version\n")
       for text <- surfaceDefs do b ++= text + "\n"
       val dtsText = surface.fold(list(dts))(sf =>

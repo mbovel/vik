@@ -315,7 +315,7 @@ final class InputClauses(
         // `store(a, i, v)(i) = v`, or `i = j ∨ store(a, i, v)(j) = a(j)`.
         ok(
           positives.flatMap(sides).exists {
-            case (Term.App(s @ Term.App(Term.Const(n), List(a, i, v)), List(j)), w) if n.startsWith("store!") =>
+            case (Term.App(s @ Term.App(Term.Const(n), List(a, i, v)), List(j)), w) if Names.isStore(n) =>
               (j == i && w == v) || (w == Term.App(a, List(j)) && equal(i, j))
             case _ => false
           },
@@ -349,7 +349,7 @@ final class InputClauses(
   private val ranges = ArrayBuffer.empty[(Term, Int)]
 
   private def fresh(w: Term): Boolean = w match
-    case Term.Const(n) => n.startsWith("ext!") && !declared(n)
+    case Term.Const(n) => Names.isWitness(n) && !declared(n)
     case _ => false
 
   /** Checks what the clauses checked say together: a witness given the range of
@@ -360,7 +360,7 @@ final class InputClauses(
     ranges.iterator.flatMap { (w, width) =>
       witnessOf.get(w) match
         case Some((Eq(f, _), i)) =>
-          io.bovel.smtlib.Sorts.arrow(sortOf(f)).flatMap(_._1.lift(i)) match
+          SortText.arrow(sortOf(f)).flatMap(_._1.lift(i)) match
             case Some(s) if s == s"(_ BitVec $width)" => None
             case s => Some(s"the witness $w is an index of sort $s, not of $width bits")
         case _ => None

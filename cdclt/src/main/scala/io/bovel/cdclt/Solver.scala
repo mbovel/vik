@@ -145,6 +145,11 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
       vmtfNext = java.util.Arrays.copyOf(vmtfNext, n / 2)
       vmtfStamp = java.util.Arrays.copyOf(vmtfStamp, n / 2)
       deferred = java.util.Arrays.copyOf(deferred, n / 2)
+      if proof != null then
+        reasonStep = java.util.Arrays.copyOf(reasonStep, n / 2)
+        unitStep = java.util.Arrays.copyOf(unitStep, n / 2)
+        java.util.Arrays.fill(reasonStep, v, n / 2, -1)
+        java.util.Arrays.fill(unitStep, v, n / 2, -1)
     watches += ArrayBuffer.empty
     watches += ArrayBuffer.empty
     vmtfPrev(v) = vmtfTail
@@ -512,6 +517,7 @@ final class Solver(numVars: Int, theory: Theory = NoTheory, restartInterval: Int
         value(lit.neg.index) = 0
         phase(lit.variable) = lit.positive
         val v = lit.variable
+        if proof != null then reasonStep(v) = -1
         if vmtfSearch < 0 || vmtfStamp(v) > vmtfStamp(vmtfSearch) then vmtfSearch = v
         if !deferred(v) && (vmtfFirst < 0 || vmtfStamp(v) > vmtfStamp(vmtfFirst)) then vmtfFirst = v
       theory.pop()
