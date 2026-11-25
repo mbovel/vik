@@ -692,7 +692,7 @@ private final class Lowerer:
       And(bits(lhs, w).zip(bits(rhs, w)).map(same).toList)
     case s2.Sort.BitVec(w) if lhs.isInstanceOf[Num] || rhs.isInstanceOf[Num] =>
       (lhs, rhs) match
-        case (Num(c), t) => equalConst(t, c, w)
+        case (Num(c), t) => equalConst(t, c, w, constFirst = true)
         case (t, Num(c)) => equalConst(t, c, w)
         case _ => IntEq(lhs, rhs)
     case _ => if arithmetic(sort) then IntEq(lhs, rhs) else Eq(lhs, rhs)
@@ -701,11 +701,14 @@ private final class Lowerer:
    *  two halves of a division of it at a power of two otherwise, folded on its
    *  range.
    */
-  private def equalConst(t: Term, c: BigInt, width: Int): Formula =
+  // An equality left as atoms keeps the operand order of the source (`constFirst` when the constant came
+  // first) and is not folded when both sides are literals: the atoms are then those of a plain equality, and
+  // reordering or dropping them only sends the search down another, sometimes much slower, path.
+  private def equalConst(t: Term, c: BigInt, width: Int, constFirst: Boolean = false): Formula =
     if range(t).exists((lo, hi) => c < lo || c > hi) then False
     else
       t match
-        case Num(v) => if v == c then True else False
+        case Num(v) => if constFirst then IntEq(Num(c), t) else IntEq(t, Num(c))
         case _ =>
           knownBits(t, width) match
             case Some(fs) => chain(fs.toList.zipWithIndex.map((f, i) => if c.testBit(i) then f else Not(f)))
@@ -728,7 +731,7 @@ private final class Lowerer:
                             case (_, true) => Le(u, Num(l))
                             case _ => Ge(u, Num(h))
                       })
-                    case _ => IntEq(t, Num(c))
+                    case _ => if constFirst then IntEq(Num(c), t) else IntEq(t, Num(c))
 
   /** Whether an equality of these `width`-bit terms is one of bits: all their
    *  bits known, and not all of them literals.
