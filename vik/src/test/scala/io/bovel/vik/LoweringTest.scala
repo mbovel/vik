@@ -74,6 +74,10 @@ class LoweringTest extends munit.FunSuite:
     // It is no assertion of the script: a `get-assertions` does not show it.
     assertEquals(Session.run(Parser.parse(s"$global(push 1)$x(pop 1)(push 1)(pop 1)(get-assertions)")), List("()"))
 
+  private def declared(script: String, prefix: String): List[String] =
+    Lowering(Parser.parse(script)).commands.collect {
+      case Command.DeclareFun(name, _, _, _) if name.startsWith(s".$prefix!") => name
+    }
   private def minted(script: String, prefix: String): Int =
     Lowering(Parser.parse(script)).commands.count {
       case Command.DeclareFun(name, _, _, _) => name.startsWith(s".$prefix!")
@@ -167,11 +171,102 @@ class LoweringTest extends munit.FunSuite:
     assertEquals(lowered("(assert (= (sbv_to_int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1)))
     assertEquals(lowered("(assert (= (bv2int #xFF) (- 1)))").last, IntEq(Num(-1), Num(-1))) // signed, unlike z3
     assertEquals(lowered("(assert (= (sbv_to_int #x7F) 127))").last, IntEq(Num(127), Num(127)))
+    // the modulo folds on a literal
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) 300) #x2C))").last, IntEq(Num(44), Num(44)))
     assertEquals(lowered("(assert (= ((_ int_to_bv 8) (- 1)) #xFF))").last, IntEq(Num(255), Num(255)))
     val asserts = lowered("(declare-const n Int) (assert (= ((_ int_to_bv 8) n) #x2A))")
     assertEquals(asserts.last, IntEq(Const(".bv!1"), Num(42)))
     assert(asserts.contains(IntEq(Const("n"), Linear(List((1, Const(".bv!1")), (256, Const(".k!2"))), 0))), asserts)
+
+  private val bytes = "(declare-const x (_ BitVec 8))(declare-const y (_ BitVec 8))(declare-const z (_ BitVec 8))"
+  private def answer(script: String): List[String] = Session.run(Parser.parse(s"$bytes$script(check-sat)"))
+
+  test("the bit-vector rewrites read the range of a lowered term"):
+    // Bits that cannot overlap make the or a sum: no bit decomposed.
+    val or = s"$bytes(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) z))"
+    assertEquals(minted(or, "bit"), 0)
+    assertEquals(
+      answer("(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) #x5A))(assert (not (= (bvand y #x0F) #x0A)))"),
+      List("unsat")
+    )
+    assertEquals(answer("(assert (= (bvor (bvshl x #x04) (bvand y #x0F)) #x5A))(assert (not (= y #x0A)))"), List("sat"))
+    // A logical shift right leaves the sign bit clear: no sign test is left.
+    val signed = lowered(s"$bytes(assert (bvslt (bvlshr x #x01) #x00))").last
+    assert(!signed.toString.contains("128"), signed)
+    assertEquals(answer("(assert (bvslt (bvlshr x #x01) #x00))"), List("unsat"))
+    // A shift by a constant and the product it equals are one term.
+    assertEquals(minted(s"$bytes(assert (= (bvshl x #x02) y))(assert (= (bvmul x #x04) z))", "r"), 1)
+    assertEquals(answer("(assert (distinct (bvshl x #x02) (bvmul x #x04)))"), List("unsat"))
+
+  test("the bits of a modular sum come from an adder over its operands' bits"):
+    // A constant addend: the bits of `x` and a carry chain, not a decomposition of the sum.
+    val plusOne = s"$bytes(assert (= (bvand (bvadd x #x01) y) z))"
+    assert(minted(plusOne, "carry") > 0)
+    assertEquals(answer("(assert (= x #xFF))(assert (not (= (bvand (bvadd x #x01) y) #x00)))"), List("unsat"))
+    assertEquals(
+      answer("(assert (= x #x7F))(assert (= y #xFF))(assert (not (= (bvand (bvadd x #x01) y) #x80)))"),
+      List("unsat")
+    )
+    // Two operands whose bits are not known: the sum's own bits are fewer than theirs and the carries.
+    assertEquals(minted(s"$bytes(assert (= (bvand (bvadd x y) z) z))", "carry"), 0)
+    assertEquals(
+      answer("(assert (= (bvand (bvsub x y) #x01) #x01))(assert (= (bvand x #x01) (bvand y #x01)))"),
+      List("unsat")
+    )
+
+  private val words = s"$bytes(declare-const w (_ BitVec 16))"
+
+  test("an equality with a constant: the bits when they are known"):
+    // `bvand` with a mask that is no run decomposes `x` into bits; `x = 5` is then those bits.
+    val f = lowered(s"$bytes(assert (= (bvand x #x55) y))(assert (= x #x05))").last
+    f match
+      case And(bits) => assertEquals(bits.length, 8); assert(bits.forall(!_.toString.contains("x")), f)
+      case _ => fail(s"not the bits of x: $f")
+    assertEquals(answer("(assert (= (bvand x #x55) #x00))(assert (= x #x05))"), List("unsat"))
+
+  test("an equality with a constant: the halves of a division already made"):
+    // `bvlshr x 4` divides `x` at 16; `x = #x5A` is then `q = 5 ∧ r = 10` on that division.
+    val halves = s"$bytes(assert (= (bvlshr x #x04) y))(assert (= x #x5A))"
+    val List(q, r) = List("q", "r").map(p => Const(declared(halves, p).head))
+    assertEquals(lowered(halves).last, And(List(IntEq(q, Num(5)), IntEq(r, Num(10)))))
+    assertEquals(answer("(assert (= (bvlshr x #x04) #x05))(assert (= x #x6A))"), List("unsat"))
+
+  test("an equality with a constant: a sum at an end of its range"):
+    // `concat x y` is `256 x + y`: all ones is each operand all ones, zero each zero.
+    val (x, y) = (Const("x"), Const("y"))
+    assertEquals(lowered(s"$words(assert (= (concat x y) #xFFFF))").last, And(List(Ge(x, Num(255)), Ge(y, Num(255)))))
+    assertEquals(lowered(s"$words(assert (= (concat x y) #x0000))").last, And(List(Le(x, Num(0)), Le(y, Num(0)))))
+    // past the range, no atom at all
+    assertEquals(lowered(s"$words(assert (= ((_ zero_extend 8) x) #x0100))").last, False)
+
+  test("a division of a sum along a power of two splits each operand, not the sum"):
+    // Bits 11 to 4 of `256 x + y`: `16 × (x mod 16) + y / 16`, the quotients those of `x` and of `y`.
+    val extracted = s"$words(assert (= ((_ extract 11 4) (concat x y)) z))"
+    assertEquals(minted(extracted, "q"), 2)
+    assertEquals(minted(extracted, "k"), 0)
+    assertEquals(
+      answer("(assert (= x #xAB))(assert (= y #xCD))(assert (not (= ((_ extract 11 4) (concat x y)) #xBC)))"),
+      List("unsat")
+    )
+    assertEquals(
+      answer("(assert (= ((_ extract 11 4) (concat x y)) #xBC))(assert (not (= (bvand x #x0F) #x0B)))"),
+      List("unsat")
+    )
+
+  test("the bits of a sum of bits with negative coefficients, and a division of them"):
+    // `bvnot` of bits is `255 − Σ 2^i b_i`: its bits are the complements, no new bit, and a shift of it reads
+    // them off rather than dividing.
+    val complement = s"$bytes(assert (= (bvand (bvnot (bvand x #x55)) #x33) z))"
+    assertEquals(minted(complement, "bit"), 8)
+    assertEquals(minted(s"$bytes(assert (= (bvlshr (bvnot (bvand x #x55)) #x04) z))", "q"), 0)
+    assertEquals(
+      answer("(assert (= (bvand x #x55) #x05))(assert (not (= (bvnot (bvand x #x55)) #xFA)))"),
+      List("unsat")
+    )
+    assertEquals(
+      answer("(assert (= (bvand x #x55) #x50))(assert (not (= (bvlshr (bvnot (bvand x #x55)) #x04) #x0A)))"),
+      List("unsat")
+    )
 
   test("a script's symbol starting with `.` is refused: SMT-LIB reserves it for the solver (issue 194)"):
     for script <- List(
