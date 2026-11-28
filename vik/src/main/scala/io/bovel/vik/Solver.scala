@@ -1837,6 +1837,64 @@ private final class Encoder(
    */
   private var missingEqualities = List.empty[(Term, Term)]
 
+  /** The fields [[pairFields]] gave their equality atoms. */
+  private val pairedFields = HashSet.empty[(Term, Term)]
+
+  /** Whether the fields are paired before every search from now on (see
+   *  [[pairFields]]).
+   */
+  private var fieldsPaired = false
+
+  /** The steps a check-sat gets to answer before the fields are paired (see
+   *  [[pairFields]]), counted as the fuel is (the conflicts of its searches and
+   *  the steps of LIA): about what the sessions that need no pairing take, so
+   *  that those pay nothing for it.
+   */
+  private inline val PairingBudget = 60000L
+
+  /** Whether [[pairFields]] has a field to pair: a selection of a numeric
+   *  field. A problem without one searches with no budget.
+   */
+  private def fieldsToPair: Boolean =
+    datatypes.exists(_.constructors.exists(_.selectors.exists { (selector, sort) =>
+      Encoder.numeric(sort) && applications.get(Term.Const(selector)).exists(_.nonEmpty)
+    }))
+
+  /** Gives the numeric fields their equality atoms ahead of any candidate:
+   *  every selection with the argument of every term of its constructor at its
+   *  position, and every two selections of one selector. With its atom, an
+   *  equality of the e-graph between two fields reaches arithmetic during the
+   *  search; without, only the final check tells arithmetic (see
+   *  [[arithmeticDisagreements]]), and a search that depends on it finds no
+   *  candidate to check. The fourth query of over 60 sessions of Bolts's
+   *  `ListMap` ran past 20 s that way and takes milliseconds with the atoms.
+   *
+   *  The pairs are quadratic in the selections and cost the sessions that do
+   *  not need them 16% of their time when made up front, so they are made only
+   *  once a check-sat has gone [[PairingBudget]] steps without an answer, and
+   *  from then on before every check-sat of this encoder. The atoms stay: the
+   *  encoder only grows, so [[pairedFields]] is what it has. Only the numeric
+   *  fields: the pairs of the constructors' terms do not help these sessions,
+   *  and the array fields slow them down.
+   */
+  private def pairFields(): Unit =
+    fieldsPaired = true
+    for
+      d <- datatypes; c <- d.constructors; ((selector, sort), position) <- c.selectors.zipWithIndex
+      if Encoder.numeric(sort)
+      selections <- applications.get(Term.Const(selector))
+    do
+      for
+        constructed <- applications.get(Term.Const(c.name)); k <- constructed.toArray; s <- selections.toArray
+        if k.args.length > position && pairedFields.add((s, k.args(position)))
+      do
+        step()
+        lit(Formula.Eq(s, k.args(position)))
+      val all = selections.toArray
+      for i <- all.indices; j <- 0 until i if all(j) != all(i) && pairedFields.add((all(j), all(i))) do
+        step()
+        lit(Formula.Eq(all(j), all(i)))
+
   /** What the final check finds in the candidate model beyond the numbers: the
    *  rows of the functions with an array or a datatype argument or result, and
    *  the datatype classes the e-graph keeps apart. Arrays and datatype values
@@ -1926,10 +1984,19 @@ private final class Encoder(
 
   def solve(assumptions: ArrayBuffer[Lit], keepGoing: () => Boolean): cdclt.Solver.Result =
     liaSolver.forgetFailedSplits() // a check-sat's splits, not the last one's (see lia.Solver.splitOnDemand)
-    liaSolver.keepGoing = keepGoing // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     if anyInt || anyArray || anyNoted then
       registerShared()
       liaTheory.guideBoundsFromModel ||= numericApplications.exists(app => applications(app.fun).size > 1)
+    if fieldsPaired then pairFields()
+    // The steps this check-sat has left before the fields are paired, when there are fields to pair: the
+    // searches' conflicts and LIA's steps, over every search of the check-sat, with or without candidates.
+    var budget = if fieldsPaired || !fieldsToPair then Long.MaxValue else PairingBudget
+    val withinBudget = () =>
+      keepGoing() && {
+        if budget != Long.MaxValue then budget -= 1
+        budget > 0
+      }
+    liaSolver.keepGoing = withinBudget // the fuel: conflicts of the search, pivots, propagations and branches of LIA
     lastModel = null
     val assumed = assumptions.toArray
 
@@ -1946,7 +2013,7 @@ private final class Encoder(
       var stuck = false
       val result =
         try
-          val candidate = sat.solve(assumed, keepGoing)
+          val candidate = sat.solve(assumed, withinBudget)
           candidate match
             case cdclt.Solver.Result.Sat(_) =>
               if sharedNumbers.nonEmpty then disagreements = arithmeticDisagreements()
@@ -1971,6 +2038,11 @@ private final class Encoder(
           candidate
         finally sat.unwind()
       if stuck then cdclt.Solver.Result.Unknown
+      else if result == cdclt.Solver.Result.Unknown && budget <= 0 then
+        // Out of budget, not of the caller's fuel: pair the fields and search on, with what was learnt.
+        budget = Long.MaxValue
+        pairFields()
+        search()
       else if disagreements.isEmpty then result
       else if !keepGoing() then cdclt.Solver.Result.Unknown
       else
